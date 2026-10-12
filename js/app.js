@@ -1,5 +1,6 @@
 // Application shell: state, loading, tabs and panels.
 import { SITE, PLACES, PROFILES, DEFAULT_PROFILE, MODELS, MODEL_KEYS, LEVELS, DEFAULT_THRESHOLDS, GRIDS, METAR_STATIONS, ENDPOINTS } from './config.js';
+import { setBudgetHook } from './util.js';
 import { store, el, num, fmtTime, fmtDateTime, fmtDayHour, fmtDay, fmtUTC, ago, dirName, towardName, escapeHTML, sum, max, riyadhHour } from './util.js';
 import { fetchModelPoint, fetchEnsemble, fetchMeta, fetchElevation, fetchMulti, fetchPreviousDay1, fetchMetars, POINT_VARS } from './api.js';
 import { buildProfile, diagnostics, parcelPath, uv, lcl } from './met.js';
@@ -938,6 +939,7 @@ window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); inst
 
 function init() {
   applyTheme();
+  setBudgetHook((waiting, sec) => { if (waiting) toast(`انتظار حد الطلبات المجاني لـOpen-Meteo (نحو ${sec} ث)…`); });
   document.title = SITE.name;
   for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => showTab(b.dataset.tab));
   $('placeBtn').addEventListener('click', openPlaces);

@@ -25,8 +25,10 @@ async function omRequest(endpoint, slotKey, ids, params, vars, opts = {}) {
     let list = vars.filter((v) => !(badVars[id] || []).includes(v));
     for (let guard = 0; guard < 8; guard++) {
       const url = `${endpoint}?${qs({ ...params, hourly: list.join(','), models: id })}`;
+      const nLoc = Array.isArray(params.latitude) ? params.latitude.length : 1;
+      const perLoc = endpoint === ENDPOINTS.ensemble ? 5 : Math.max(1, list.length / 10);
       try {
-        const res = await getJSON(url, opts);
+        const res = await getJSON(url, { ...opts, weight: nLoc * perLoc });
         idMemo[slotKey] = id; store.set('modelIds', idMemo);
         return { ...res, id, vars: list };
       } catch (e) {

@@ -24,7 +24,7 @@ concurrency:
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -32,7 +32,8 @@ jobs:
           node-version: 22
       - name: Build report from ECMWF, GFS and ICON (Open-Meteo)
         run: node scripts/daily-report.mjs
-      - name: Commit report
+      - name: Commit report (and the status file when the build failed)
+        if: always()
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"

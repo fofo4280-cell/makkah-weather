@@ -24,17 +24,33 @@ const H = 3600 * 1000;
 const median = (a) => { const s = [...a].sort((x, y) => x - y); const n = s.length; return n ? (n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2) : null; };
 const r1 = (x) => (x == null ? null : Math.round(x * 10) / 10);
 
-async function getJSON(fetchFn, url, tries = 3) {
+// Open-Meteo's free tier allows 600 weighted calls per minute; each location counts as
+// one call (more with >10 variables). Stay well under it and wait out any 429.
+const PER_MIN = 400;
+const spent = [];
+let sleepFn = (ms) => new Promise((r) => setTimeout(r, ms));
+async function budget(w) {
+  for (;;) {
+    const now = Date.now(); while (spent.length && now - spent[0][0] > 61000) spent.shift();
+    const used = spent.reduce((a, b) => a + b[1], 0);
+    if (!spent.length || used + w <= PER_MIN) { spent.push([now, w]); return; }
+    await sleepFn(61000 - (now - spent[0][0]) + 250);
+  }
+}
+const log = [];
+async function getJSON(fetchFn, url, tries = 3, weight = 1) {
   let last;
   for (let k = 0; k < tries; k++) {
+    await budget(weight);
     try {
       const res = await fetchFn(url, { headers: { 'user-agent': 'makkah-weather-daily-report (github actions)' } });
       const body = await res.json().catch(() => ({}));
       if (res.ok) return body;
       last = Object.assign(new Error(body.reason || `HTTP ${res.status}`), { status: res.status });
+      log.push(`${res.status} ${String(body.reason || '').slice(0, 160)} ← ${url.split('?')[0]}`);
       if (res.status === 400) throw last;
-    } catch (e) { last = e; if (e.status === 400) throw e; }
-    await new Promise((r) => setTimeout(r, 1500 * (k + 1)));
+    } catch (e) { last = e; if (e.status === 400) throw e; if (!e.status) log.push(`network: ${e.message}`); }
+    await sleepFn(last && last.status === 429 ? 65000 : 3000 * (k + 1));
   }
   throw last;
 }
@@ -65,7 +81,7 @@ async function fetchModel(fetchFn, key, grid, win) {
       for (let k = 0; k < grid.pts.length; k += CHUNK) {
         const chunk = grid.pts.slice(k, k + CHUNK);
         const q = new URLSearchParams({ latitude: chunk.map((p) => p.lat).join(','), longitude: chunk.map((p) => p.lon).join(','), hourly: 'precipitation,cape', models: id, forecast_days: '2', timezone: 'GMT', timeformat: 'unixtime' });
-        const body = await getJSON(fetchFn, `${FORECAST}?${q}`);
+        const body = await getJSON(fetchFn, `${FORECAST}?${q}`, 4, chunk.length);
         const arr = Array.isArray(body) ? body : [body];
         chunk.forEach((p, n) => {
           const b = arr[n]; if (!b || !b.hourly) return;
@@ -97,7 +113,7 @@ async function fetchEnsembleProbs(fetchFn, key, pts, win) {
   for (const id of MODELS[key].ens) {
     try {
       const q = new URLSearchParams({ latitude: pts.map((p) => p.lat).join(','), longitude: pts.map((p) => p.lon).join(','), hourly: 'precipitation', models: id, forecast_days: '2', timezone: 'GMT', timeformat: 'unixtime' });
-      const body = await getJSON(fetchFn, `${ENSEMBLE}?${q}`, 2);
+      const body = await getJSON(fetchFn, `${ENSEMBLE}?${q}`, 2, pts.length * 10);
       const arr = Array.isArray(body) ? body : [body];
       return pts.map((_, n) => {
         const h = (arr[n] && arr[n].hourly) || {}; const t = h.time || [];
@@ -117,18 +133,19 @@ function pickSeparated(cands, n) {
   return out;
 }
 
-export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now() } = {}) {
+export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now(), sleep } = {}) {
+  if (sleep) sleepFn = sleep;
   const win = riyadhDay(now);
   const grid = buildGrid();
   const models = {}; const data = {}; const errors = [];
-  await Promise.all(MODEL_KEYS.map(async (k) => {
+  for (const k of MODEL_KEYS) {
     const [res, init] = await Promise.allSettled([fetchModel(fetchFn, k, grid, win), fetchInit(fetchFn, k)]);
     const initMs = init.status === 'fulfilled' ? init.value : null;
     if (res.status === 'fulfilled') { data[k] = res.value; models[k] = { label: MODELS[k].label, id: res.value.id, init: initMs, ok: true }; }
     else { models[k] = { label: MODELS[k].label, id: null, init: initMs, ok: false, error: String(res.reason && res.reason.message || res.reason) }; errors.push(`${MODELS[k].label}: ${models[k].error}`); }
-  }));
+  }
   const avail = MODEL_KEYS.filter((k) => data[k]);
-  if (!avail.length) throw new Error(`تعذر جلب أي نموذج: ${errors.join(' | ')}`);
+  if (!avail.length) throw Object.assign(new Error(`تعذر جلب أي نموذج: ${errors.join(' | ')}`), { log });
 
   const { lats, lons } = grid;
   const nb = (k, j, i) => { let m = null; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const v = data[k].P[j + dj] && data[k].P[j + dj][i + di]; if (v != null) m = m == null ? v : Math.max(m, v); } return m; };
@@ -155,7 +172,7 @@ export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now()
   const winners = pickSeparated(cands.filter((c) => c.agree >= 1 && c.mean >= 0.1 && isPeak(c)), 3);
 
   const ensBy = {};
-  if (winners.length) await Promise.all(avail.map(async (k) => { ensBy[k] = await fetchEnsembleProbs(fetchFn, k, winners, win); }));
+  if (winners.length) for (const k of avail) ensBy[k] = await fetchEnsembleProbs(fetchFn, k, winners, win);
 
   const n = avail.length;
   const top = winners.map((c, idx) => {
@@ -196,7 +213,7 @@ export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now()
     grid: { step: STEP, points: cands.length, rainMm: RAIN_MM, sepKm: SEP_KM },
     models, top, perModel, maxAny, summary,
     method: `شبكة ${STEP}° (نحو 22 كم) داخل حدود تقريبية لمنطقة مكة الإدارية. لكل نموذج يُجمع المطر من 12:00 إلى 24:00 بتوقيت مكة. يُعدّ النموذج متوقعًا للمطر في مكان إذا أعطى ${RAIN_MM} مم أو أكثر في خليته أو الخلايا الملاصقة (نحو 20 كم)، لأن موضع المطر في النماذج العالمية ينزاح عادة عشرات الكيلومترات. الترتيب: عدد النماذج المتفقة، ثم وسيط كميات المطر، مع مسافة ${SEP_KM} كم على الأقل بين الأماكن. احتمالات المجموعات عند النقطة نفسها بدقة نحو 25 كم.`,
-    region: MAKKAH_REGION, errors,
+    region: MAKKAH_REGION, errors, log: log.slice(-20),
   };
 }
 
@@ -214,10 +231,13 @@ export function writeReport(rep, dir) {
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
   const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const dir = path.join(root, 'reports');
+  const status = (o) => { fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(path.join(dir, 'status.json'), JSON.stringify({ at: Date.now(), ...o }, null, 1)); };
   buildReport().then((rep) => {
-    writeReport(rep, path.join(root, 'reports'));
+    writeReport(rep, dir);
+    status({ ok: true, date: rep.date, errors: rep.errors, log: rep.log });
     console.log(rep.summary);
     for (const t of rep.top) console.log(`${t.rank}. ${t.where.text} ${t.lat},${t.lon} agree ${t.agree}/${t.nModels}`);
     if (rep.errors.length) console.log('errors:', rep.errors.join(' | '));
-  }).catch((e) => { console.error(e); process.exit(1); });
+  }).catch((e) => { console.error(e); status({ ok: false, error: String(e.message || e), log: (e.log || log).slice(-20) }); process.exit(1); });
 }

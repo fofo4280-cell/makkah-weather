@@ -20,13 +20,31 @@ export class FetchError extends Error {
   }
 }
 
+// Open-Meteo's free tier allows 600 weighted calls per minute per device (each location
+// in a multi-point request counts, and more than 10 variables counts extra). Requests
+// that would pass ~540 wait for the minute to roll over instead of failing with 429.
+const PER_MIN = 540; const spent = [];
+let budgetHook = () => {};
+export function setBudgetHook(fn) { budgetHook = fn; }
+async function budget(w) {
+  let waited = false;
+  for (;;) {
+    const now = Date.now(); while (spent.length && now - spent[0][0] > 61000) spent.shift();
+    const used = spent.reduce((a, b) => a + b[1], 0);
+    if (!spent.length || used + w <= PER_MIN) { spent.push([now, w]); if (waited) budgetHook(false); return; }
+    waited = true; budgetHook(true, Math.ceil((61000 - (now - spent[0][0])) / 1000));
+    await sleep(Math.min(61000 - (now - spent[0][0]) + 250, 5000));
+  }
+}
+
 // GET JSON with timeout, limited retries on network/5xx errors, and an in-memory
 // cache. Open-Meteo 400 errors carry {reason}; they are not retried.
-export async function getJSON(url, { timeout = 20000, retries = 1, ttl = 10 * 60 * 1000, force = false } = {}) {
+export async function getJSON(url, { timeout = 20000, retries = 1, ttl = 10 * 60 * 1000, force = false, weight = 0 } = {}) {
   const hit = memCache.get(url);
   if (!force && hit && Date.now() - hit.t < ttl) return { data: hit.data, fromCache: true, fetchedAt: hit.t, stale: false };
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    if (weight) await budget(weight);
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), timeout);
     try {
@@ -37,7 +55,7 @@ export async function getJSON(url, { timeout = 20000, retries = 1, ttl = 10 * 60
       let data = null;
       try { data = JSON.parse(text); } catch { /* not JSON */ }
       if (!res.ok) {
-        const reason = (data && (data.reason || data.error)) || text.slice(0, 200);
+        const reason = res.status === 429 ? 'تجاوز حد الطلبات المجاني لـOpen-Meteo؛ أعد المحاولة بعد دقيقة' : (data && (data.reason || data.error)) || text.slice(0, 200);
         const err = new FetchError(`HTTP ${res.status}`, { status: res.status, reason: String(reason), url });
         if (res.status >= 400 && res.status < 500) throw err;
         lastErr = err; continue;
