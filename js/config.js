@@ -115,7 +115,7 @@ export const SURFACE_VARS = [
   'temperature_2m', 'dew_point_2m', 'relative_humidity_2m', 'surface_pressure',
   'wind_speed_10m', 'wind_direction_10m', 'wind_gusts_10m', 'precipitation', 'showers',
   'cloud_cover', 'cape', 'convective_inhibition', 'lifted_index', 'freezing_level_height',
-  'boundary_layer_height', 'total_column_integrated_water_vapour',
+  'boundary_layer_height', 'total_column_integrated_water_vapour', 'shortwave_radiation',
 ];
 export const LEVEL_VARS = ['temperature', 'relative_humidity', 'wind_speed', 'wind_direction', 'geopotential_height'];
 export const VV_LEVELS = [850, 700, 500];
@@ -163,4 +163,29 @@ export const DEFAULT_THRESHOLDS = {
   shearOrg: 12.5,                 // m/s, 10 m to 500 hPa
   lclHigh: 2500,                  // m above ground
   rainAgree: 1,                   // mm in 24 h for "model shows rain"
+};
+
+// ---------------------------------------------------------------- escarpment & valleys
+// Crest points where cells usually form. Boxes are approximate and drawn on the map so
+// they can be checked against the satellite basemap.
+export const ESCARP = {
+  crests: [
+    { id: 'hada', name: 'الهدا', lat: 21.366, lon: 40.281 },
+    { id: 'shafa', name: 'الشفا', lat: 21.072, lon: 40.355 },
+  ],
+  boxes: {
+    valleys: { name: 'مساقط الأودية جنوب مكة', lat0: 20.95, lat1: 21.35, lon0: 39.80, lon1: 40.20 },
+    harrat: { name: 'حرة رهط (الجزء الجنوبي)', lat0: 22.10, lat1: 22.90, lon0: 39.70, lon1: 40.30 },
+    ref: { name: 'أرض غير بازلتية للمقارنة', lat0: 22.10, lat1: 22.90, lon0: 40.55, lon1: 40.85 },
+  },
+};
+
+export const ESCARP_DEFAULTS = {
+  inflowMin: 1.5,   // m/s, upslope wind component at the crest that keeps feeding cells
+  steerWeak: 4,     // m/s, steering below this lets cells stand over the crest
+  steerFast: 12,    // m/s, steering above this moves cells quickly away
+  downMin: 2,       // m/s, steering component toward the valleys (downslope, west)
+  albModel: 0.30,   // surface albedo the global models are assumed to use over the harrat
+  albBasalt: 0.13,  // dark basalt lava field
+  fH: 0.5,          // share of the extra absorbed sunlight that becomes sensible heat
 };

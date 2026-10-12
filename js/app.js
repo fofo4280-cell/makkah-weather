@@ -6,6 +6,9 @@ import { buildProfile, diagnostics, parcelPath, uv, lcl } from './met.js';
 import { timeSeries, timeHeight, skewT, crossSection } from './charts.js';
 import { buildAnalysis, ensembleProb } from './analysis.js';
 import { WxMap, FIELDS, LEGENDS, BASES, SAT_LAYERS } from './map.js';
+import { renderEscarp, escarpBoxes } from './escarp.js';
+import { ESCARP, ESCARP_DEFAULTS } from './config.js';
+import { basaltWarming, convectiveTemp, parcelCapeCin, warmProfile, mlTop } from './met.js';
 
 // ---------------------------------------------------------------- state
 const state = {
@@ -121,7 +124,7 @@ function renderStatus() {
 }
 
 // ---------------------------------------------------------------- tabs
-const TABS = ['map', 'conv', 'models', 'analysis', 'more'];
+const TABS = ['map', 'escarp', 'conv', 'models', 'analysis', 'more'];
 function showTab(t) {
   if (!TABS.includes(t)) t = 'map';
   state.tab = t;
@@ -137,6 +140,7 @@ function renderActive() {
     else if (state.tab === 'analysis') renderAnalysis();
     else if (state.tab === 'more') renderMore();
     else if (state.tab === 'map') renderMapBars();
+    else if (state.tab === 'escarp') renderEscarp($('tab-escarp'), { th: state.th, windParts, onShowMap: showEscarpBoxes });
   } catch (e) { console.error(e); }
 }
 
@@ -282,6 +286,7 @@ function renderConv() {
     section('الاستقرار', g1), section('الرطوبة', g2), section('السطح والسحب', g3),
     section('الرياح والحركة الرأسية', g4, oroW != null ? el('p', { class: 'meta' }, `رفع تضاريسي تقديري عند النقطة: ${num(oroW * 100)} سم/ث (رياح 10 م × ميل الأرض من DEM على مسافة 3 كم؛ موجب = صعود منحدر).`) : null),
     section('الهطول المتوقع (من الوقت المختار)', g5),
+    basaltSection(md, i, pr),
   );
 
   // Levels table
@@ -517,6 +522,38 @@ function renderAnalysis() {
     el('p', { class: 'meta' }, 'الوصف التضاريسي نص ثابت معدّ مسبقًا، وليس بيانات مقيسة.')));
   host.append(el('p', { class: 'meta' }, 'العتبات المستخدمة أولية لبيئة جافة وقاعدة سحاب مرتفعة، ويمكن تعديلها من «المزيد ← الإعدادات».'));
 }
+
+function showEscarpBoxes() {
+  showTab('map');
+  if (wxmap) { wxmap.setBase('sat'); wxmap.showBoxes(escarpBoxes(), ESCARP.crests); }
+}
+
+// ---------------------------------------------------------------- basalt correction at a point
+function inHarrat(p) { const b = ESCARP.boxes.harrat; return p.lat >= b.lat0 && p.lat <= b.lat1 && p.lon >= b.lon0 && p.lon <= b.lon1; }
+function basaltOn() { const o = store.get('basalt', {}); const k = placeKey(state.place); return k in o ? o[k] : inHarrat(state.place); }
+function basaltSection(md, i, pr) {
+  const on = basaltOn();
+  const toggle = el('label', { class: 'opt' }, el('input', { type: 'checkbox', checked: on ? 'checked' : null, onchange: (e) => { const o = store.get('basalt', {}); o[placeKey(state.place)] = e.target.checked; store.set('basalt', o); renderConv(); } }), el('span', {}, 'سطح بازلتي داكن (حرة) عند هذه النقطة', el('small', {}, inHarrat(state.place) ? 'النقطة داخل نطاق حرة رهط التقريبي' : 'فعّله إذا كانت النقطة على حرة، مثل حرة كشب')));
+  if (!on) return section('تصحيح تسخين البازلت', toggle);
+  const eth = { ...ESCARP_DEFAULTS, ...store.get('eth', {}) };
+  const sw = md.hourly.shortwave_radiation;
+  if (!sw) return section('تصحيح تسخين البازلت', toggle, el('p', { class: 'na' }, 'الإشعاع الشمسي غير متاح من هذا النموذج.'));
+  const hrs = md.hourly.time.map(riyadhHourLocal);
+  const warm = basaltWarming(sw, md.hourly.boundary_layer_height || null, hrs, eth)[i];
+  const s = pr.sfc;
+  const blhI = md.hourly.boundary_layer_height ? md.hourly.boundary_layer_height[i] : null;
+  const mlTopP = mlTop(s.p, blhI);
+  const wp = warmProfile(pr, warm, blhI);
+  const base = parcelCapeCin(s, pr.levels, { mlTopP }), adj = wp ? parcelCapeCin(wp.sfc, wp.levels, { mlTopP }) : null;
+  const tc = convectiveTemp(s, pr.levels, 15, { mlTopP });
+  return section('تصحيح تسخين البازلت', toggle, el('div', { class: 'cards' },
+    card('تسخين إضافي', warm == null ? NA : `+${num(warm, 1)}`, '°م', { sub: 'فوق ما يحسبه النموذج، عند الوقت المختار' }),
+    card('حرارة الحمل المطلوبة', tc == null ? NA : num(tc, 1), '°م', { sub: s.tC != null ? `النموذج ${num(s.tC, 1)}° · مع البازلت ${num(s.tC + (warm || 0), 1)}°` : null, pill: tc == null || s.tC == null ? null : s.tC + (warm || 0) >= tc ? ['تُبلغ', 'alert'] : ['لا تُبلغ', 'ok'] }),
+    card('CAPE حسابنا', base ? num(base.cape) : NA, 'J/kg', { sub: adj ? `مع البازلت ${num(adj.cape)}` : null }),
+    card('CIN حسابنا', base ? num(Math.abs(base.cin)) : NA, 'J/kg', { sub: adj ? `مع البازلت ${num(Math.abs(adj.cin))}` : null })),
+    el('p', { class: 'meta' }, 'تقدير طاقي مبسط لفرق الألبيدو بين البازلت وما يفترضه النموذج، وليس إعادة تشغيل للنموذج. المعاملات قابلة للتعديل من تبويب «الجرف».'));
+}
+function riyadhHourLocal(t) { return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Riyadh', hour: '2-digit', hour12: false }).format(t)) % 24; }
 
 // ---------------------------------------------------------------- map tab
 function ensureMap() {

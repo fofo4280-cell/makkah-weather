@@ -196,3 +196,78 @@ export function orographicW(u, v, h, lats, lons) {
   }
   return out;
 }
+
+// ---------------------------------------------------------------- own parcel diagnostics
+// Environment temperature at pressure p, log-p interpolation over [{p, tC}] sorted by p descending.
+function envAt(pts, p) {
+  for (let k = 1; k < pts.length; k++) {
+    const a = pts[k - 1], b = pts[k];
+    if (p <= a.p && p >= b.p) {
+      const f = Math.log(a.p / p) / Math.log(a.p / b.p);
+      return a.tC + f * (b.tC - a.tC);
+    }
+  }
+  return null;
+}
+
+// Surface-based parcel CAPE and CIN (J/kg) on the model's own levels (dry-bulb buoyancy, coarse
+// levels: indicative, used to compare scenarios, not to replace the model's own CAPE).
+export function parcelCapeCin(sfc, levels, { mlTopP = null } = {}) {
+  if (!sfc || sfc.tC == null || sfc.tdC == null || sfc.p == null) return null;
+  const env = [{ p: sfc.p, tC: sfc.tC }]
+    .concat(levels.filter((l) => !l.under && l.tC != null && l.p < sfc.p).map((l) => ({ p: l.p, tC: l.tC })))
+    .sort((a, b) => b.p - a.p);
+  if (env.length < 3) return null;
+  const pTop = Math.max(250, env[env.length - 1].p);
+  const path = parcelPath(sfc.tC, sfc.tdC, sfc.p, pTop);
+  let cape = 0, cin = 0, lfc = null, el = null, positiveSeen = false;
+  for (let k = 1; k < path.length; k++) {
+    const p0 = path[k - 1].p, p1 = path[k].p;
+    const te0 = envAt(env, p0), te1 = envAt(env, p1);
+    if (te0 == null || te1 == null) continue;
+    if (mlTopP != null && p1 >= mlTopP) continue; // inside the well-mixed layer: neutral by construction
+    const b = ((path[k - 1].tC - te0) + (path[k].tC - te1)) / 2; // K
+    const dE = RD * b * Math.log(p0 / p1);
+    if (b > 0) { if (!positiveSeen) { lfc = p0; positiveSeen = true; } cape += dE; el = p1; }
+    else if (!positiveSeen) cin += dE;
+  }
+  return { cape, cin, lfcP: lfc, elP: el };
+}
+
+// Convective temperature: the 2 m temperature (same moisture) at which a surface parcel
+// rises freely (CAPE > 50 J/kg and CIN weaker than -10 J/kg).
+export function convectiveTemp(sfc, levels, maxRise = 15, opts = {}) {
+  if (!sfc || sfc.tC == null || sfc.tdC == null) return null;
+  for (let d = 0; d <= maxRise; d += 0.25) {
+    const r = parcelCapeCin({ ...sfc, tC: sfc.tC + d }, levels, opts);
+    if (r && r.cape > 50 && r.cin > -10) return sfc.tC + d;
+  }
+  return null;
+}
+
+// Extra mixed-layer warming over dark basalt relative to the model's surface.
+// dθ/dt = fH · SW↓ · (α_model − α_basalt) / (ρ cp h), accumulated from sunrise.
+// sw: hourly mean downward shortwave (W/m²); blh: hourly mixed-layer depth (m) or null.
+export function basaltWarming(sw, blh, hours, { albModel, albBasalt, fH }) {
+  const rho = 1.08, cp = 1005;
+  const out = []; let acc = 0;
+  for (let i = 0; i < sw.length; i++) {
+    const s = sw[i];
+    if (s == null || s <= 5) { acc = hours[i] >= 18 || hours[i] < 5 ? 0 : acc; out.push(s == null ? null : acc); continue; }
+    const h = Math.max(500, blh && blh[i] != null ? blh[i] : 1500);
+    acc += (fH * s * (albModel - albBasalt) * 3600) / (rho * cp * h);
+    out.push(acc);
+  }
+  return out;
+}
+
+// Mixed-layer top pressure from the model's boundary-layer height (1500 m if missing).
+export function mlTop(sfcP, blh) { return sfcP == null ? null : sfcP * Math.exp(-(blh != null ? Math.max(300, blh) : 1500) / 8000); }
+
+// Basalt scenario: the well-mixed layer warms by dθ (moisture unchanged), so the surface parcel is
+// dθ warmer when it leaves the mixed layer; the free atmosphere above is the model's. Both the base
+// and the warmed parcel are evaluated only above the mixed-layer top, so the comparison is consistent.
+export function warmProfile(pr, dTheta, blh) {
+  if (dTheta == null || !pr.sfc || pr.sfc.p == null || pr.sfc.tC == null) return null;
+  return { sfc: { ...pr.sfc, tC: pr.sfc.tC + dTheta }, levels: pr.levels, mlTopP: mlTop(pr.sfc.p, blh) };
+}

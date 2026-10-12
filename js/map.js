@@ -291,6 +291,18 @@ export class WxMap {
     this.onPick({ id: 'custom', name: `نقطة ${lat.toFixed(2)}°ش ${lng.toFixed(2)}°ق`, lat, lon: lng, custom: true }, { fromMap: true, latlng: e.latlng });
   }
   popup(latlng, html) { L.popup({ maxWidth: 260 }).setLatLng(latlng).setContent(html).openOn(this.map); }
+  showBoxes(boxes, crests) {
+    if (this.boxLayer) this.map.removeLayer(this.boxLayer);
+    const g = L.layerGroup();
+    const colors = { valleys: '#1f8a4c', harrat: '#7a3e9d', ref: '#8a7660' };
+    for (const [k, b] of Object.entries(boxes)) {
+      L.rectangle([[b.lat0, b.lon0], [b.lat1, b.lon1]], { color: colors[k] || '#333', weight: 2, fillOpacity: 0.08, dashArray: '6 4' })
+        .bindTooltip(b.name, { permanent: true, direction: 'center', className: 'map-label' }).addTo(g);
+    }
+    for (const c of crests) L.circleMarker([c.lat, c.lon], { radius: 8, color: '#fff', weight: 2, fillColor: '#b06a10', fillOpacity: 1 }).bindTooltip(`حافة: ${c.name}`, { direction: 'top' }).addTo(g);
+    g.addTo(this.map); this.boxLayer = g;
+    this.map.fitBounds([[20.9, 39.6], [23.0, 40.9]]);
+  }
   invalidate() { setTimeout(() => this.map.invalidateSize(), 50); }
   flyTo(lat, lon, z) { this.map.setView([lat, lon], z || this.map.getZoom()); }
   addLine(latlngs) { if (this.line) this.map.removeLayer(this.line); this.line = L.polyline(latlngs, { color: '#c2410c', weight: 3, dashArray: '6 6' }).addTo(this.map); }
