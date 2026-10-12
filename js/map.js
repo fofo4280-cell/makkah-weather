@@ -510,8 +510,10 @@ export class WxMap {
       if (img) this.fieldImg = L.imageOverlay(img.url, img.bounds, { pane: 'fieldPane', opacity: this.fieldOpacity, interactive: false, className: 'field-img' }).addTo(this.map);
     }
     this._syncRelief(); this._styleParticles();
-    this.windField = res.wind;
-    if (this.particlesOn && res.wind) { if (!this.map.hasLayer(this.particles)) this.particles.addTo(this.map); this.particles.setField(res.wind); }
+    // Moving wind lines appear only on the wind layers; every other field stays still.
+    this.windField = name.startsWith('wind') ? res.wind : null;
+    if (this.particlesOn && this.windField) { if (!this.map.hasLayer(this.particles)) this.particles.addTo(this.map); this.particles.setField(this.windField); }
+    else if (this.map.hasLayer(this.particles)) this.map.removeLayer(this.particles);
     if (res.conv) this._convMarks(res.conv);
   }
   _convMarks(list) {
@@ -560,15 +562,17 @@ export class WxMap {
     this.map.fitBounds([[20.9, 39.6], [23.0, 40.9]]);
   }
   // Numbered markers for the daily report's top locations.
-  showReport(items) {
+  showReport(items, area) {
     if (this.reportLayer) this.map.removeLayer(this.reportLayer);
     const g = L.layerGroup();
+    if (area && area.length) L.polygon(area, { pane: 'markPane', color: '#f2b552', weight: 2, dashArray: '6 5', fill: false, interactive: false }).addTo(g);
     for (const it of items) {
       L.marker([it.lat, it.lon], { pane: 'markPane', icon: L.divIcon({ className: 'rep-mark', html: `<span>${arN(it.rank)}</span>`, iconSize: [34, 34], iconAnchor: [17, 17] }) })
         .bindPopup(`<div class="pop"><b>${arN(it.rank)}. ${it.where.text}</b><div>${it.line || ''}</div></div>`).addTo(g);
     }
     g.addTo(this.map); this.reportLayer = g;
-    if (items.length) this.map.fitBounds(L.latLngBounds(items.map((i) => [i.lat, i.lon])).pad(0.6), { maxZoom: 9 });
+    const pts = [...items.map((i) => [i.lat, i.lon]), ...(area || [])];
+    if (pts.length) this.map.fitBounds(L.latLngBounds(pts).pad(0.05), { maxZoom: 9 });
   }
   invalidate() { setTimeout(() => this.map.invalidateSize(), 50); }
   flyTo(lat, lon, z) { this.map.setView([lat, lon], z || this.map.getZoom()); }

@@ -13,18 +13,21 @@ export const GAZ = [
   { name: 'ثول', lat: 22.283, lon: 39.112 },
   { name: 'مستورة', lat: 23.116, lon: 38.841 },
   { name: 'ظلم', lat: 22.725, lon: 42.171 },
-  { name: 'الباحة', lat: 20.013, lon: 41.468 },
+  { name: 'الشعيبة', lat: 20.680, lon: 39.523 },
+  { name: 'قيا', lat: 21.070, lon: 41.008 },
 ];
 
-// Rough outline of Makkah Province, drawn by hand from border towns. Approximate:
-// edges can be off by 10–30 km. Kept on the conservative side next to Al-Baha's Tihama
-// so the report does not list places in Al-Baha Province. Used only by the daily report.
-export const MAKKAH_REGION = [
-  [23.65, 38.70], [23.55, 39.60], [23.25, 40.55], [23.10, 41.40], [23.25, 42.25], [22.70, 43.00],
-  [21.70, 43.30], [20.95, 43.20], [20.90, 42.30], [20.65, 41.60], [20.40, 41.10], [20.05, 40.95],
-  [19.70, 41.05], [19.35, 41.55], [18.75, 41.60], [18.45, 41.30], [18.70, 41.05], [19.20, 40.85], [20.10, 40.15],
-  [20.80, 39.45], [21.40, 39.05], [22.00, 38.95], [22.70, 38.80], [23.20, 38.65],
+// Area the daily report analyses, as Fahad defined it: Makkah, Taif, Al-Jumum, Jeddah,
+// Al-Shafa, Al-Hada and As-Sayl; the harrat north to Rahat and Al-Kamil; the coast north
+// to Thuwal and Khulais and south to Al-Shu'aybah; east of Taif to the Hadhn road and
+// Ushayrah; south of Taif to Qiya. Hand-drawn and approximate (edges ±10 km); it is drawn
+// on the map with the report so it can be checked. Sea cells are dropped separately.
+export const REPORT_AREA = [
+  [22.42, 38.95], [22.48, 39.60], [22.50, 40.45], [22.05, 40.85], [21.85, 41.18], [21.25, 41.22],
+  [20.92, 41.12], [20.88, 40.30], [20.55, 39.75], [20.50, 39.35], [21.30, 38.95],
 ];
+export const REPORT_AREA_LABEL = 'مكة والطائف والجموم وجدة والشفا والهدا والسيل، والحرات حتى رهاط والكامل، والساحل من ثول وخليص إلى الشعيبة، وشرق الطائف حتى طريق حضن وعشيرة، وجنوبه حتى قيا';
+export const MAKKAH_REGION = REPORT_AREA;
 
 export function inPolygon(lat, lon, poly = MAKKAH_REGION) {
   let inside = false;

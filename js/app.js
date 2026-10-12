@@ -9,6 +9,7 @@ import { buildAnalysis, ensembleProb } from './analysis.js';
 import { WxMap, FIELDS, BASES, SAT_LAYERS, QUICK_FIELDS, legendFor, arN } from './map.js';
 import { dirFromUV } from './met.js';
 import { REPORT_BASES } from './config.js';
+import { REPORT_AREA_LABEL } from './geo.js';
 import { renderEscarp, escarpBoxes } from './escarp.js';
 import { ESCARP, ESCARP_DEFAULTS } from './config.js';
 import { basaltWarming, convectiveTemp, parcelCapeCin, warmProfile, mlTop } from './met.js';
@@ -610,7 +611,7 @@ function openLayers() {
   body.append(el('div', { class: 'row' }, modelSel, gridSel));
   body.append(radio('field', '', 'بلا حقل توقع', !ui.field, () => { setField(null); closeSheet(); }));
   for (const [k, f] of Object.entries(FIELDS)) body.append(radio('field', k, f.label, ui.field === k, () => { setField(k); closeSheet(); }));
-  body.append(check('حركة الرياح المتحركة', wxmap.particlesOn, (on) => { wxmap.setParticles(on); savePrefs(); }, 'خطوط تتحرك مع رياح النموذج، بالمستوى المناسب لكل حقل'));
+  body.append(check('حركة الرياح المتحركة في طبقات الرياح', wxmap.particlesOn, (on) => { wxmap.setParticles(on); savePrefs(); }, 'تظهر فقط عند اختيار طبقة رياح (10 م أو 925 أو 700 hPa)'));
   body.append(check('ظل التضاريس فوق الحقل', wxmap.reliefOn, (on) => { wxmap.setRelief(on); savePrefs(); }, 'يُظهر الجبال والجرف والأودية من خلال الألوان'));
   const op = el('input', { type: 'range', min: 0.3, max: 1, step: 0.05, value: wxmap.fieldOpacity, 'aria-label': 'كثافة ألوان الحقل' });
   op.addEventListener('input', () => wxmap.setFieldOpacity(+op.value)); op.addEventListener('change', savePrefs);
@@ -731,7 +732,7 @@ function renderMapBars() {
     bar.append(el('div', { class: 'mrow convs' }, el('span', { class: 'mtxt' }, list.length ? 'مراكز الالتقاء:' : 'لا مراكز التقاء واضحة في هذه الساعة'),
       ...list.map((c) => el('button', { class: 'chip conv-chip', onclick: () => wxmap.flyTo(c.lat, c.lon, Math.max(9, wxmap.map.getZoom())) }, `${arN(c.rank)} ${c.where.text}`))));
   }
-  const lvl = ui.windLevel && wxmap && wxmap.particlesOn ? `الخطوط المتحركة: رياح ${LEVEL_AR[ui.windLevel]}. ` : '';
+  const lvl = ui.field.startsWith('wind') && ui.windLevel && wxmap && wxmap.particlesOn ? `الخطوط المتحركة: رياح ${LEVEL_AR[ui.windLevel]}. ` : '';
   bar.append(el('details', { class: 'mnote' }, el('summary', {}, `${ui.field === 'agree' ? '' : `${MODELS[ui.model].label} · `}${GRIDS[ui.grid].label}`),
     el('p', {}, `${lvl}${ui.note ? `${ui.note}. ` : ''}المصدر: ${ui.srcId || '—'}. الرسم الناعم استيفاء بصري لنقاط الشبكة، ولا يضيف دقة غير موجودة في النموذج.`)));
   box.append(bar);
@@ -761,7 +762,7 @@ function showReportOnMap(R) {
   const items = R.top.map((t) => ({ ...t, line: `${t.agree} من ${t.nModels} نماذج · الوسيط ${t.median} مم` }));
   showTab('map');
   if (!wxmap) return;
-  wxmap.showReport(items);
+  wxmap.showReport(items, R.region);
   const g = GRIDS[state.mapUI.grid];
   const outside = R.top.some((t) => t.lat < g.lat0 || t.lat > g.lat1 || t.lon < g.lon0 || t.lon > g.lon1);
   if (outside) { state.mapUI.grid = 'region'; state.mapUI.ti = null; }
@@ -771,7 +772,7 @@ function renderReport() {
   const host = $('tab-report'); host.innerHTML = '';
   if (!report.tried && !report.loading) loadReport();
   host.append(el('div', { class: 'panel-head' }, el('h2', {}, 'رأي النماذج العددية: أفضل 3 أماكن للمطر اليوم'),
-    el('p', { class: 'meta' }, 'يُكتب آليًا كل يوم قرابة 12:00 ظهرًا بتوقيت مكة من ECMWF وGFS وICON، لمنطقة مكة المكرمة.')));
+    el('p', { class: 'meta' }, `يُكتب آليًا كل يوم قرابة 12:00 ظهرًا بتوقيت مكة من ECMWF وGFS وICON. النطاق: ${REPORT_AREA_LABEL}.`)));
   const R = report.data;
   if (!R) {
     host.append(el('div', { class: 'empty' }, report.loading ? el('div', { class: 'spinner', 'aria-hidden': 'true' }) : null,

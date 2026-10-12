@@ -1,22 +1,23 @@
-// Daily model rain report for Makkah Region. Run by GitHub Actions every day near 12:00
+// Daily model rain report for the Makkah–Taif area. Run by GitHub Actions every day near 12:00
 // Riyadh time (see .github/workflows/daily-report.yml). Writes reports/latest.json,
 // reports/<date>.json and reports/index.json. Uses only free, key-free Open-Meteo APIs.
 //
 // What it does: for ECMWF, GFS and ICON, sums forecast rain from 12:00 to 24:00 Riyadh
-// time on a 0.2° grid inside an approximate outline of Makkah Province, then ranks the
+// time on a 0.1° grid inside the area Fahad defined (js/geo.js REPORT_AREA), then ranks the
 // places where the models agree most. It reports model opinion, not observations.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MODELS, MODEL_KEYS } from '../js/config.js';
-import { MAKKAH_REGION, inPolygon, describe, distKm } from '../js/geo.js';
+import { REPORT_AREA, REPORT_AREA_LABEL, inPolygon, describe, distKm } from '../js/geo.js';
 
 const FORECAST = 'https://api.open-meteo.com/v1/forecast';
 const ENSEMBLE = 'https://ensemble-api.open-meteo.com/v1/ensemble';
 const META = (p) => `https://api.open-meteo.com/data/${p}/static/meta.json`;
-const STEP = 0.2;
+const STEP = 0.1;
+const NB = 2;             // neighbourhood radius in cells (2 × 0.1° ≈ 20 km)
 const RAIN_MM = 1;        // "the model shows rain here" in the 12-hour window
-const SEP_KM = 45;        // minimum distance between listed places
+const SEP_KM = 30;        // minimum distance between listed places
 const CHUNK = 100;        // locations per request
 const IDS = { ecmwf: ['ecmwf_ifs', 'ecmwf_ifs025'], gfs: MODELS.gfs.sources[0].ids, icon: MODELS.icon.sources[0].ids };
 const H = 3600 * 1000;
@@ -64,11 +65,11 @@ function riyadhDay(now) {
 
 function buildGrid() {
   const lats = [], lons = [];
-  for (let la = 18.4; la <= 23.8 + 1e-9; la += STEP) lats.push(+la.toFixed(2));
-  for (let lo = 38.6; lo <= 43.4 + 1e-9; lo += STEP) lons.push(+lo.toFixed(2));
-  const inside = lats.map((la) => lons.map((lo) => inPolygon(la, lo)));
-  // Fetch a one-cell ring outside the outline as well, so neighbourhoods at the edge are complete.
-  const want = lats.map((_, j) => lons.map((__, i) => { for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) if (inside[j + dj] && inside[j + dj][i + di]) return true; return false; }));
+  for (let k = 0, la = 20.3; la <= 22.7 + 1e-9; k++, la = 20.3 + k * STEP) lats.push(+la.toFixed(2));
+  for (let k = 0, lo = 38.8; lo <= 41.4 + 1e-9; k++, lo = 38.8 + k * STEP) lons.push(+lo.toFixed(2));
+  const inside = lats.map((la) => lons.map((lo) => inPolygon(la, lo, REPORT_AREA)));
+  // Fetch a ring outside the outline as well, so neighbourhoods at the edge are complete.
+  const want = lats.map((_, j) => lons.map((__, i) => { for (let dj = -NB; dj <= NB; dj++) for (let di = -NB; di <= NB; di++) if (inside[j + dj] && inside[j + dj][i + di]) return true; return false; }));
   const pts = []; lats.forEach((la, j) => lons.forEach((lo, i) => { if (want[j][i]) pts.push({ j, i, lat: la, lon: lo }); }));
   return { lats, lons, inside, pts };
 }
@@ -148,7 +149,7 @@ export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now()
   if (!avail.length) throw Object.assign(new Error(`تعذر جلب أي نموذج: ${errors.join(' | ')}`), { log });
 
   const { lats, lons } = grid;
-  const nb = (k, j, i) => { let m = null; for (let dj = -1; dj <= 1; dj++) for (let di = -1; di <= 1; di++) { const v = data[k].P[j + dj] && data[k].P[j + dj][i + di]; if (v != null) m = m == null ? v : Math.max(m, v); } return m; };
+  const nb = (k, j, i) => { let m = null; for (let dj = -NB; dj <= NB; dj++) for (let di = -NB; di <= NB; di++) { const v = data[k].P[j + dj] && data[k].P[j + dj][i + di]; if (v != null) m = m == null ? v : Math.max(m, v); } return m; };
   const land = (j, i) => avail.some((k) => { const e = data[k].elev[j][i]; return e != null && e > 0; });
 
   const cands = [];
@@ -203,8 +204,8 @@ export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now()
     summary = `أفضل الأماكن للمطر من الظهر حتى منتصف الليل حسب النماذج: ${top.map((t) => `${t.rank}) ${t.where.text} (${t.agree} من ${n} نماذج)`).join('، ')}.`;
     if (top[0].agree < 2) summary += ' لا يوجد اتفاق بين نموذجين على أي مكان، فالثقة ضعيفة.';
   } else if (maxAny && maxAny.sum >= 0.5) {
-    summary = `لا يتوقع أي نموذج ${RAIN_MM} مم أو أكثر في منطقة مكة من الظهر حتى منتصف الليل. أعلى قيمة ${maxAny.sum} مم في ${maxAny.label} ${maxAny.where.text}.`;
-  } else summary = 'النماذج الثلاثة جافة تقريبًا في منطقة مكة من الظهر حتى منتصف الليل.';
+    summary = `لا يتوقع أي نموذج ${RAIN_MM} مم أو أكثر في النطاق من الظهر حتى منتصف الليل. أعلى قيمة ${maxAny.sum} مم في ${maxAny.label} ${maxAny.where.text}.`;
+  } else summary = 'النماذج الثلاثة جافة تقريبًا في النطاق من الظهر حتى منتصف الليل.';
   if (errors.length) summary += ` (تعذر جلب: ${MODEL_KEYS.filter((k) => !data[k]).map((k) => MODELS[k].label).join('، ')})`;
 
   return {
@@ -212,8 +213,8 @@ export async function buildReport({ fetchFn = globalThis.fetch, now = Date.now()
     window: { start: win.start, end: win.end, label: 'من 12:00 ظهرًا حتى منتصف الليل بتوقيت مكة' },
     grid: { step: STEP, points: cands.length, rainMm: RAIN_MM, sepKm: SEP_KM },
     models, top, perModel, maxAny, summary,
-    method: `شبكة ${STEP}° (نحو 22 كم) داخل حدود تقريبية لمنطقة مكة الإدارية. لكل نموذج يُجمع المطر من 12:00 إلى 24:00 بتوقيت مكة. يُعدّ النموذج متوقعًا للمطر في مكان إذا أعطى ${RAIN_MM} مم أو أكثر في خليته أو الخلايا الملاصقة (نحو 20 كم)، لأن موضع المطر في النماذج العالمية ينزاح عادة عشرات الكيلومترات. الترتيب: عدد النماذج المتفقة، ثم وسيط كميات المطر، مع مسافة ${SEP_KM} كم على الأقل بين الأماكن. احتمالات المجموعات عند النقطة نفسها بدقة نحو 25 كم.`,
-    region: MAKKAH_REGION, errors, log: log.slice(-20),
+    method: `شبكة ${STEP}° (نحو 11 كم) داخل النطاق: ${REPORT_AREA_LABEL} (حدود مرسومة يدويًا وتقريبية). لكل نموذج يُجمع المطر من 12:00 إلى 24:00 بتوقيت مكة. يُعدّ النموذج متوقعًا للمطر في مكان إذا أعطى ${RAIN_MM} مم أو أكثر في خليته أو ما حولها حتى نحو 20 كم، لأن موضع المطر في النماذج العالمية ينزاح عادة عشرات الكيلومترات. الترتيب: عدد النماذج المتفقة، ثم وسيط كميات المطر، مع مسافة ${SEP_KM} كم على الأقل بين الأماكن. احتمالات المجموعات عند النقطة نفسها بدقة نحو 25 كم.`,
+    region: REPORT_AREA, areaLabel: REPORT_AREA_LABEL, errors, log: log.slice(-20),
   };
 }
 
