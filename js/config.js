@@ -135,7 +135,7 @@ export const ENDPOINTS = {
 // Daily report files: raw GitHub first (updates within minutes of the noon commit),
 // then the same folder on this site.
 export const REPORT_BASES = [
-  'https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/main/reports/',
+  'https://raw.githubusercontent.com/fofo4280-cell/makkah-weather/main/reports/',
   'reports/',
 ];
 

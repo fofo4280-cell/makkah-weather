@@ -17,11 +17,12 @@ export const GAZ = [
 ];
 
 // Rough outline of Makkah Province, drawn by hand from border towns. Approximate:
-// edges can be off by 10–30 km. Used only to keep the daily report inside the region.
+// edges can be off by 10–30 km. Kept on the conservative side next to Al-Baha's Tihama
+// so the report does not list places in Al-Baha Province. Used only by the daily report.
 export const MAKKAH_REGION = [
   [23.65, 38.70], [23.55, 39.60], [23.25, 40.55], [23.10, 41.40], [23.25, 42.25], [22.70, 43.00],
-  [21.70, 43.30], [20.95, 43.20], [20.90, 42.30], [20.65, 41.70], [20.35, 41.25], [19.80, 41.30],
-  [19.30, 41.70], [18.75, 41.60], [18.45, 41.30], [18.70, 41.05], [19.20, 40.85], [20.10, 40.15],
+  [21.70, 43.30], [20.95, 43.20], [20.90, 42.30], [20.65, 41.60], [20.40, 41.10], [20.05, 40.95],
+  [19.70, 41.05], [19.35, 41.55], [18.75, 41.60], [18.45, 41.30], [18.70, 41.05], [19.20, 40.85], [20.10, 40.15],
   [20.80, 39.45], [21.40, 39.05], [22.00, 38.95], [22.70, 38.80], [23.20, 38.65],
 ];
 
