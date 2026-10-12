@@ -1,11 +1,13 @@
 // Application shell: state, loading, tabs and panels.
 import { SITE, PLACES, PROFILES, DEFAULT_PROFILE, MODELS, MODEL_KEYS, LEVELS, DEFAULT_THRESHOLDS, GRIDS, METAR_STATIONS, ENDPOINTS } from './config.js';
-import { store, el, num, fmtTime, fmtDateTime, fmtDayHour, fmtDay, fmtUTC, ago, dirName, towardName, escapeHTML, sum, max } from './util.js';
+import { store, el, num, fmtTime, fmtDateTime, fmtDayHour, fmtDay, fmtUTC, ago, dirName, towardName, escapeHTML, sum, max, riyadhHour } from './util.js';
 import { fetchModelPoint, fetchEnsemble, fetchMeta, fetchElevation, fetchMulti, fetchPreviousDay1, fetchMetars, POINT_VARS } from './api.js';
 import { buildProfile, diagnostics, parcelPath, uv, lcl } from './met.js';
 import { timeSeries, timeHeight, skewT, crossSection } from './charts.js';
 import { buildAnalysis, ensembleProb } from './analysis.js';
-import { WxMap, FIELDS, LEGENDS, BASES, SAT_LAYERS } from './map.js';
+import { WxMap, FIELDS, BASES, SAT_LAYERS, QUICK_FIELDS, legendFor, arN } from './map.js';
+import { dirFromUV } from './met.js';
+import { REPORT_BASES } from './config.js';
 import { renderEscarp, escarpBoxes } from './escarp.js';
 import { ESCARP, ESCARP_DEFAULTS } from './config.js';
 import { basaltWarming, convectiveTemp, parcelCapeCin, warmProfile, mlTop } from './met.js';
@@ -21,10 +23,12 @@ const state = {
   convModel: store.get('convModel', 'ecmwf'),
   validTime: null,
   tab: 'map',
-  mapUI: { field: null, model: 'ecmwf', grid: 'near', ti: null, win: 3, obs: {} },
+  mapUI: { field: 'wind10', model: 'ecmwf', grid: 'fine', ti: null, win: 3, obs: {}, ...pickPrefs(store.get('mapPrefs', {})) },
   metars: null,
 };
 let wxmap = null;
+function pickPrefs(p) { const o = {}; for (const k of ['field', 'model', 'grid', 'win']) if (p[k] !== undefined) o[k] = p[k]; if (o.field && !FIELDS[o.field]) delete o.field; if (o.grid && !GRIDS[o.grid]) delete o.grid; return o; }
+function savePrefs() { const ui = state.mapUI; const old = store.get('mapPrefs', {}); store.set('mapPrefs', { ...old, field: ui.field, model: ui.model, grid: ui.grid, win: ui.win, ...(wxmap ? { base: wxmap.base, particles: wxmap.particlesOn, relief: wxmap.reliefOn, opacity: wxmap.fieldOpacity } : {}) }); }
 const $ = (id) => document.getElementById(id);
 
 // ---------------------------------------------------------------- formatting
@@ -124,12 +128,13 @@ function renderStatus() {
 }
 
 // ---------------------------------------------------------------- tabs
-const TABS = ['map', 'escarp', 'conv', 'models', 'analysis', 'more'];
+const TABS = ['map', 'report', 'escarp', 'conv', 'models', 'analysis', 'more'];
 function showTab(t) {
   if (!TABS.includes(t)) t = 'map';
   state.tab = t;
   for (const x of TABS) { $(`tab-${x}`).hidden = x !== t; document.querySelector(`[data-tab="${x}"]`).setAttribute('aria-current', x === t ? 'page' : 'false'); }
-  if (t === 'map') { ensureMap(); wxmap && wxmap.invalidate(); }
+  if (t === 'map') { const first = !wxmap; ensureMap(); wxmap && wxmap.invalidate(); if (first && wxmap && state.mapUI.field) refreshField(); }
+  if (t !== 'map') stopPlay();
   renderActive();
   try { history.replaceState(null, '', `#${t}`); } catch { /* ignore */ }
 }
@@ -140,6 +145,7 @@ function renderActive() {
     else if (state.tab === 'analysis') renderAnalysis();
     else if (state.tab === 'more') renderMore();
     else if (state.tab === 'map') renderMapBars();
+    else if (state.tab === 'report') renderReport();
     else if (state.tab === 'escarp') renderEscarp($('tab-escarp'), { th: state.th, windParts, onShowMap: showEscarpBoxes });
   } catch (e) { console.error(e); }
 }
@@ -476,7 +482,7 @@ function renderModels() {
   }
   host.append(section('احتمالات المجموعات من الوقت المختار', ensBox, el('p', { class: 'meta' }, 'نسبة الأعضاء التي يتجاوز مجموعها العتبة عند النقطة. المجموعات أخشن من النماذج الحتمية (25–26 كم).')));
 
-  host.append(section('الاختلاف المكاني', el('p', {}, 'اعرض على الخريطة عدد النماذج التي تتوقع مطرًا في كل خلية.'), el('button', { class: 'btn', onclick: () => { state.mapUI.field = 'agree'; state.mapUI.win = 24; showTab('map'); refreshField(); } }, 'خريطة اتفاق النماذج')));
+  host.append(section('الاختلاف المكاني', el('p', {}, 'اعرض على الخريطة عدد النماذج التي تتوقع مطرًا في كل خلية.'), el('button', { class: 'btn', onclick: () => { state.mapUI.win = 24; showTab('map'); setField('agree'); } }, 'خريطة اتفاق النماذج')));
 }
 function ensembleProbFrom(e, mm, hours, t0) {
   let i0 = e.times.findIndex((t) => t >= t0 - 1800000); if (i0 < 0) return null;
@@ -559,18 +565,29 @@ function riyadhHourLocal(t) { return Number(new Intl.DateTimeFormat('en-GB', { t
 function ensureMap() {
   if (wxmap) return;
   if (!window.L) { $('map').innerHTML = '<p class="warn">تعذر تحميل مكتبة الخريطة. تحقق من الاتصال ثم حدّث الصفحة.</p>'; return; }
-  wxmap = new WxMap($('map'), { onPick: onMapPick });
+  const P = store.get('mapPrefs', {});
+  wxmap = new WxMap($('map'), { onPick: onMapPick, base: P.base });
+  if (P.relief === false) wxmap.setRelief(false);
+  if (P.particles === false) wxmap.particlesOn = false;
+  if (typeof P.opacity === 'number') wxmap.setFieldOpacity(P.opacity);
+}
+const SCALE_UI = { conv: 1e5, vv700: 100, oro: 100 };
+const LEVEL_AR = { '10m': '10 م', '925hPa': '925 hPa', '700hPa': '700 hPa' };
+function fieldValueText(name, v) {
+  const f = FIELDS[name];
+  if (name.startsWith('wind')) { const [a, u] = windParts(v); return `${a} ${u}`; }
+  if (name === 'conv') { const x = v * 1e5; return `${x < 0 ? 'تقارب' : 'تباعد'} ${num(Math.abs(x), 1)} ${f.unit}`; }
+  if (name === 'agree') return `${num(v, 1)} من 3`;
+  return `${num(v * (SCALE_UI[name] || 1), name === 'precip' || name === 'li' ? 1 : 0)} ${f.unit}`;
 }
 function onMapPick(p, info) {
   if (!info || !info.fromMap) { selectPlace(p); toast(`تم اختيار ${p.name}`); return; }
   const v = wxmap.valueAt(p.lat, p.lon);
-  const f = state.mapUI.field ? FIELDS[state.mapUI.field] : null;
+  const name = state.mapUI.field; const f = name ? FIELDS[name] : null;
   let val = '';
-  if (v && f) {
-    if (v.v != null) val = `<div>${f.label}: <b>${num(v.v * (state.mapUI.field === 'conv' ? 1e5 : state.mapUI.field === 'oro' ? 100 : 1), 1)}</b> ${f.unit}</div>`;
-    else if (v.a) val = `<div>${f.label}: <b>${num(v.a.s * (state.mapUI.field === 'qflux' ? 1 : 3.6))}</b> ${f.unit} ${dirName(v.a.d)}</div>`;
-  }
-  const html = `<div class="pop"><b>${p.lat.toFixed(3)}°ش ${p.lon.toFixed(3)}°ق</b>${val}<button class="btn" id="popGo">حلّل هذه النقطة</button><button class="btn ghost" id="popSave">احفظها</button></div>`;
+  if (v && f && v.v != null) val += `<div>${f.label}: <b>${fieldValueText(name, v.v)}</b></div>`;
+  if (v && v.w) { const sp = Math.hypot(v.w[0], v.w[1]); val += `<div>رياح ${LEVEL_AR[v.level] || ''}: <b>${dirName(dirFromUV(v.w[0], v.w[1]))} ${windText(sp)}</b></div>`; }
+  const html = `<div class="pop"><b>${p.lat.toFixed(3)}°ش ${p.lon.toFixed(3)}°ق</b>${val}${val ? '<div class="meta">قيمة مستوفاة من شبكة النموذج</div>' : ''}<button class="btn" id="popGo">حلّل هذه النقطة</button><button class="btn ghost" id="popSave">احفظها</button></div>`;
   wxmap.popup(info.latlng, html);
   setTimeout(() => {
     const go = document.getElementById('popGo'), sv = document.getElementById('popSave');
@@ -586,12 +603,24 @@ function openLayers() {
   const radio = (name, value, label, checked, on) => el('label', { class: 'opt' }, el('input', { type: 'radio', name, value, checked: checked ? 'checked' : null, onchange: on }), el('span', {}, label));
   const check = (label, checked, on, note) => el('label', { class: 'opt' }, el('input', { type: 'checkbox', checked: checked ? 'checked' : null, onchange: (e) => on(e.target.checked) }), el('span', {}, label, note ? el('small', {}, note) : null));
 
-  body.append(el('h3', {}, 'الخريطة الأساسية'), ...Object.entries(BASES).map(([k, b]) => radio('base', k, b.label, wxmap.base === k, () => wxmap.setBase(k))));
+  body.append(el('h3', {}, 'التوقع (من النماذج)'));
+  const modelSel = el('select', { 'aria-label': 'النموذج', onchange: (e) => { ui.model = e.target.value; savePrefs(); refreshField(); } }, ...MODEL_KEYS.map((k) => el('option', { value: k, selected: ui.model === k ? 'selected' : null }, MODELS[k].label)));
+  const gridSel = el('select', { 'aria-label': 'النطاق', onchange: (e) => { ui.grid = e.target.value; ui.ti = null; savePrefs(); refreshField(); } }, ...Object.entries(GRIDS).map(([k, g]) => el('option', { value: k, selected: ui.grid === k ? 'selected' : null }, g.label)));
+  body.append(el('div', { class: 'row' }, modelSel, gridSel));
+  body.append(radio('field', '', 'بلا حقل توقع', !ui.field, () => { setField(null); closeSheet(); }));
+  for (const [k, f] of Object.entries(FIELDS)) body.append(radio('field', k, f.label, ui.field === k, () => { setField(k); closeSheet(); }));
+  body.append(check('حركة الرياح المتحركة', wxmap.particlesOn, (on) => { wxmap.setParticles(on); savePrefs(); }, 'خطوط تتحرك مع رياح النموذج، بالمستوى المناسب لكل حقل'));
+  body.append(check('ظل التضاريس فوق الحقل', wxmap.reliefOn, (on) => { wxmap.setRelief(on); savePrefs(); }, 'يُظهر الجبال والجرف والأودية من خلال الألوان'));
+  const op = el('input', { type: 'range', min: 0.3, max: 1, step: 0.05, value: wxmap.fieldOpacity, 'aria-label': 'كثافة ألوان الحقل' });
+  op.addEventListener('input', () => wxmap.setFieldOpacity(+op.value)); op.addEventListener('change', savePrefs);
+  body.append(el('label', { class: 'field' }, el('span', {}, 'كثافة الألوان'), op));
+  body.append(el('p', { class: 'hint' }, 'الحقول شبكة نقاط من النموذج (0.1° أو 0.2° أو 0.5°) تُرسم بالاستيفاء بشكل ناعم. النعومة للعرض فقط؛ الدقة الحقيقية هي دقة الشبكة والنموذج.'));
+
+  body.append(el('h3', {}, 'الخريطة الأساسية'), ...Object.entries(BASES).map(([k, b]) => radio('base', k, b.label, wxmap.base === k, () => { wxmap.setBase(k); savePrefs(); })));
   body.append(el('h3', {}, 'طبقات مرجعية'),
     check('الحدود الإدارية والأسماء (Esri)', !!ui.obs.ref, (on) => { ui.obs.ref = on; wxmap.toggleOverlay('ref', on); }, 'حدود تقريبية لأغراض العرض، وليست حدودًا رسمية'),
-    check('ظل التضاريس فوق الخريطة', !!ui.obs.shade, (on) => { ui.obs.shade = on; wxmap.toggleOverlay('shade', on); }),
     check('المحافظات والمواقع المختارة', ui.obs.places !== false, (on) => { ui.obs.places = on; wxmap.toggleOverlay('places', on); }),
-    check('تسميات الحرات والجرف', !!ui.obs.labels, (on) => { ui.obs.labels = on; wxmap.toggleOverlay('labels', on); }, 'مواضع تقريبية للأسماء فقط؛ الامتداد الحقيقي للحرات يظهر داكنًا في خريطة القمر الصناعي، والأودية تظهر في خريطة التضاريس'));
+    check('تسميات الحرات والجرف', !!ui.obs.labels, (on) => { ui.obs.labels = on; wxmap.toggleOverlay('labels', on); }, 'مواضع تقريبية للأسماء فقط؛ الامتداد الحقيقي للحرات يظهر داكنًا في خريطة القمر الصناعي'));
 
   body.append(el('h3', {}, 'الرصد (ما حدث فعلًا)'));
   for (const [k, def] of Object.entries(SAT_LAYERS)) {
@@ -611,37 +640,59 @@ function openLayers() {
     try { const l = await wxmap.toggleMetar(on); if (on && !l.length) toast('لا توجد أرصاد حديثة.'); }
     catch { ui.obs.metar = false; toast('تعذر جلب أرصاد المطارات من المتصفح'); }
   }));
-
-  body.append(el('h3', {}, 'التوقع (من النماذج)'));
-  const modelSel = el('select', { 'aria-label': 'النموذج', onchange: (e) => { ui.model = e.target.value; refreshField(); } }, ...MODEL_KEYS.map((k) => el('option', { value: k, selected: ui.model === k ? 'selected' : null }, MODELS[k].label)));
-  const gridSel = el('select', { 'aria-label': 'النطاق', onchange: (e) => { ui.grid = e.target.value; refreshField(); } }, ...Object.entries(GRIDS).map(([k, g]) => el('option', { value: k, selected: ui.grid === k ? 'selected' : null }, g.label)));
-  body.append(el('div', { class: 'row' }, modelSel, gridSel));
-  body.append(radio('field', '', 'بلا حقل توقع', !ui.field, () => { ui.field = null; wxmap.clearField(); renderMapBars(); closeSheet(); }));
-  for (const [k, f] of Object.entries(FIELDS)) body.append(radio('field', k, f.label, ui.field === k, () => { ui.field = k; if ((k === 'precip' || k === 'agree') && !ui.win) ui.win = 3; closeSheet(); refreshField(); }));
-  body.append(el('p', { class: 'hint' }, 'حقول التوقع شبكة نقاط من النموذج (0.2° أو 0.5°)، وتُحمّل عند اختيارها فقط لتوفير البيانات.'));
   openSheet('طبقات الخريطة', body);
 }
 
-async function refreshField() {
+function setField(k) {
+  const ui = state.mapUI; stopPlay();
+  ui.field = k; if ((k === 'precip' || k === 'agree') && !ui.win) ui.win = 3;
+  savePrefs();
+  if (!k) { wxmap && wxmap.clearField(); renderMapBars(); return; }
+  refreshField();
+}
+
+let fieldSeq = 0;
+async function refreshField({ quiet = false } = {}) {
   ensureMap(); if (!wxmap) return;
-  const ui = state.mapUI; renderMapBars();
+  const ui = state.mapUI; const seq = ++fieldSeq;
+  if (!quiet) renderMapBars();
   if (!ui.field) { wxmap.clearField(); return; }
-  $('mapBusy').hidden = false;
+  ui.busy = true; if (!quiet) $('mapBusy').hidden = false;
   try {
     const G = await wxmap.loadGrid(ui.grid, ui.field === 'agree' ? 'ecmwf' : ui.model);
-    if (ui.ti == null || ui.ti >= G.times.length) { ui.ti = Math.max(0, G.times.findIndex((t) => t >= Date.now() - 1800000)); }
+    if (ui.ti == null || ui.ti >= G.times.length) { ui.ti = Math.max(0, G.times.findIndex((t) => t >= Date.now() - 1800000)); ui.ti0 = ui.ti; }
     ui.times = G.times;
     const res = await wxmap.computeField(ui.field, ui.grid, ui.model, ui.ti, ui.win || 3, state.th);
-    wxmap.drawField(ui.field, res, state.th);
-    ui.note = res.note; ui.srcId = res.G.id; ui.fetchedAt = res.G.fetchedAt;
-  } catch (e) { toast(`تعذر تحميل الحقل: ${e.reason || e.message}`); ui.note = ''; }
-  $('mapBusy').hidden = true;
+    if (seq !== fieldSeq) return;
+    wxmap.drawField(ui.field, res);
+    ui.note = res.note; ui.srcId = res.G.id; ui.fetchedAt = res.G.fetchedAt; ui.conv = res.conv; ui.windLevel = res.wind && res.wind.level;
+  } catch (e) { if (seq === fieldSeq) { toast(`تعذر تحميل الحقل: ${e.reason || e.message}`); ui.note = ''; stopPlay(); } }
+  finally { ui.busy = false; if (seq === fieldSeq) { $('mapBusy').hidden = true; renderMapBars(); } }
+}
+
+function stopPlay() { const ui = state.mapUI; if (ui.playTimer) { clearInterval(ui.playTimer); ui.playTimer = null; } if (ui.playing) { ui.playing = false; if (state.tab === 'map') renderMapBars(); } }
+function togglePlay() {
+  const ui = state.mapUI;
+  if (ui.playing) { stopPlay(); return; }
+  ui.playing = true;
+  ui.playTimer = setInterval(() => {
+    if (ui.busy || !ui.times) return;
+    if (!ui.field || state.tab !== 'map' || document.hidden) { stopPlay(); return; }
+    const start = ui.ti0 ?? 0; ui.ti = ui.ti + 1 >= ui.times.length ? start : ui.ti + 1;
+    refreshField({ quiet: true });
+  }, 1200);
   renderMapBars();
 }
 
+function renderFieldChips() {
+  const box = $('fieldChips'); if (!box) return; box.innerHTML = '';
+  const ui = state.mapUI;
+  for (const k of QUICK_FIELDS) box.append(el('button', { class: `fchip${ui.field === k ? ' on' : ''}`, 'aria-pressed': String(ui.field === k), onclick: () => setField(ui.field === k ? null : k) }, FIELDS[k].short));
+}
+
 function renderMapBars() {
+  renderFieldChips();
   const ui = state.mapUI; const box = $('mapBars'); if (!box) return; box.innerHTML = '';
-  // observation strip
   const obsBits = [];
   for (const k of Object.keys(SAT_LAYERS)) if (ui.obs[k]) { const t = ui.obs[`${k}Time`]; obsBits.push(`${SAT_LAYERS[k].label.split('–')[0].trim()}: ${t && t.latest ? `${fmtTime(t.latest)} (${ago(t.latest)})` : 'آخر صورة لدى المصدر'}`); }
   if (ui.obs.radar && ui.obs.radarTime) obsBits.push(`رادار: ${fmtTime(ui.obs.radarTime)}`);
@@ -653,22 +704,123 @@ function renderMapBars() {
       el('button', { class: 'icon-btn', 'aria-label': 'إطار رادار لاحق', onclick: () => { ui.obs.radarTime = wxmap.stepRadar(1); renderMapBars(); } }, '‹'));
     box.append(bar);
   }
-  if (ui.field && ui.times) {
-    const f = FIELDS[ui.field];
-    const label = el('output', { class: 'mtxt' }, fmtDateTime(ui.times[ui.ti]));
-    const rng = el('input', { type: 'range', min: 0, max: ui.times.length - 1, value: ui.ti, 'aria-label': 'وقت الحقل' });
-    rng.addEventListener('input', () => { label.textContent = fmtDateTime(ui.times[+rng.value]); });
-    rng.addEventListener('change', () => { ui.ti = +rng.value; refreshField(); });
-    const bar = el('div', { class: 'mbar fc' },
-      el('div', { class: 'mrow' }, el('span', { class: 'tag tag-fc' }, 'توقع'), el('b', {}, f.label), el('span', { class: 'mtxt' }, ui.field === 'agree' ? 'كل النماذج' : `${MODELS[ui.model].label}${ui.srcId ? ` (${ui.srcId})` : ''}`)),
-      el('div', { class: 'mrow' }, label, rng));
-    if (ui.field === 'precip' || ui.field === 'agree') {
-      bar.append(el('div', { class: 'mrow chips' }, ...[1, 3, 6, 24].map((h) => el('button', { class: `chip${ui.win === h ? ' on' : ''}`, onclick: () => { ui.win = h; refreshField(); } }, `${h} س`))));
+  if (!ui.field || !ui.times) return;
+  const f = FIELDS[ui.field];
+  const seg = ui.field === 'agree' ? el('span', { class: 'mtxt' }, 'النماذج الثلاثة')
+    : el('div', { class: 'mseg', role: 'group', 'aria-label': 'النموذج' }, ...MODEL_KEYS.map((k) => el('button', { class: ui.model === k ? 'on' : '', 'aria-pressed': String(ui.model === k), onclick: () => { ui.model = k; savePrefs(); refreshField(); } }, MODELS[k].label.split(' ')[0])));
+  const label = el('output', { class: 'mtime' }, fmtDateTime(ui.times[ui.ti]));
+  const rng = el('input', { type: 'range', min: 0, max: ui.times.length - 1, value: ui.ti, 'aria-label': 'وقت الحقل' });
+  rng.addEventListener('input', () => { stopPlay(); label.textContent = fmtDateTime(ui.times[+rng.value]); });
+  rng.addEventListener('change', () => { ui.ti = +rng.value; refreshField(); });
+  const bar = el('div', { class: 'mbar fc' },
+    el('div', { class: 'mrow mhead' }, el('b', { class: 'mtitle' }, f.label), seg),
+    el('div', { class: 'mrow' }, el('button', { class: 'play', 'aria-label': ui.playing ? 'إيقاف الحركة' : 'تشغيل الحركة عبر الساعات', onclick: togglePlay }, ui.playing ? '❚❚' : '▶'), label, rng));
+  if (ui.field === 'precip' || ui.field === 'agree') {
+    bar.append(el('div', { class: 'mrow chips' }, el('span', { class: 'mtxt' }, 'المجموع خلال'), ...[1, 3, 6, 24].map((h) => el('button', { class: `chip${ui.win === h ? ' on' : ''}`, onclick: () => { ui.win = h; savePrefs(); refreshField(); } }, `${h} س`))));
+  }
+  const lg = legendFor(ui.field, state.settings.wind);
+  if (lg) {
+    const unit = ui.field.startsWith('wind') ? windParts(1)[1] : f.unit;
+    bar.append(el('div', { class: 'wlegend' },
+      el('div', { class: 'wl-track', dir: 'ltr' }, el('div', { class: 'wl-bar', style: `background:${lg.gradient}` }), ...lg.ticks.map((t) => el('span', { class: 'wl-tick', style: `left:${t.at.toFixed(1)}%` }, t.label))),
+      unit ? el('span', { class: 'wl-unit' }, unit) : null));
+  }
+  if (ui.field === 'conv') {
+    const list = ui.conv || [];
+    bar.append(el('div', { class: 'mrow convs' }, el('span', { class: 'mtxt' }, list.length ? 'مراكز الالتقاء:' : 'لا مراكز التقاء واضحة في هذه الساعة'),
+      ...list.map((c) => el('button', { class: 'chip conv-chip', onclick: () => wxmap.flyTo(c.lat, c.lon, Math.max(9, wxmap.map.getZoom())) }, `${arN(c.rank)} ${c.where.text}`))));
+  }
+  const lvl = ui.windLevel && wxmap && wxmap.particlesOn ? `الخطوط المتحركة: رياح ${LEVEL_AR[ui.windLevel]}. ` : '';
+  bar.append(el('details', { class: 'mnote' }, el('summary', {}, `${ui.field === 'agree' ? '' : `${MODELS[ui.model].label} · `}${GRIDS[ui.grid].label}`),
+    el('p', {}, `${lvl}${ui.note ? `${ui.note}. ` : ''}المصدر: ${ui.srcId || '—'}. الرسم الناعم استيفاء بصري لنقاط الشبكة، ولا يضيف دقة غير موجودة في النموذج.`)));
+  box.append(bar);
+}
+
+// ---------------------------------------------------------------- daily report
+const report = { data: null, index: null, loading: false, tried: false, error: null };
+async function fetchReportFile(file) {
+  for (const base of REPORT_BASES) {
+    try {
+      const r = await fetch(`${base}${file}?t=${Math.floor(Date.now() / 120000)}`, { cache: 'no-store' });
+      if (r.ok) return await r.json();
+    } catch { /* next source */ }
+  }
+  return null;
+}
+async function loadReport(date) {
+  report.loading = true; report.error = null; if (state.tab === 'report') renderReport();
+  const [d, idx] = await Promise.all([fetchReportFile(date ? `${date}.json` : 'latest.json'), report.index ? Promise.resolve(report.index) : fetchReportFile('index.json')]);
+  report.loading = false; report.tried = true;
+  if (d) report.data = d; else if (date) report.error = 'تعذر جلب هذا التقرير';
+  if (idx) report.index = idx;
+  if (state.tab === 'report') renderReport();
+}
+const riyadhDate = (ms) => new Date(ms + 3 * 3600000).toISOString().slice(0, 10);
+function showReportOnMap(R) {
+  const items = R.top.map((t) => ({ ...t, line: `${t.agree} من ${t.nModels} نماذج · الوسيط ${t.median} مم` }));
+  showTab('map');
+  if (!wxmap) return;
+  wxmap.showReport(items);
+  const g = GRIDS[state.mapUI.grid];
+  const outside = R.top.some((t) => t.lat < g.lat0 || t.lat > g.lat1 || t.lon < g.lon0 || t.lon > g.lon1);
+  if (outside) { state.mapUI.grid = 'region'; state.mapUI.ti = null; }
+  if (state.mapUI.field !== 'precip' || outside) { state.mapUI.win = 6; setField('precip'); }
+}
+function renderReport() {
+  const host = $('tab-report'); host.innerHTML = '';
+  if (!report.tried && !report.loading) loadReport();
+  host.append(el('div', { class: 'panel-head' }, el('h2', {}, 'رأي النماذج العددية: أفضل 3 أماكن للمطر اليوم'),
+    el('p', { class: 'meta' }, 'يُكتب آليًا كل يوم قرابة 12:00 ظهرًا بتوقيت مكة من ECMWF وGFS وICON، لمنطقة مكة المكرمة.')));
+  const R = report.data;
+  if (!R) {
+    host.append(el('div', { class: 'empty' }, report.loading ? el('div', { class: 'spinner', 'aria-hidden': 'true' }) : null,
+      el('p', {}, report.loading ? 'جارٍ جلب التقرير…' : 'لم يصل أي تقرير بعد. يُكتب التقرير الأول تلقائيًا، ثم كل يوم قرابة 12:00 ظهرًا.'),
+      report.loading ? null : el('button', { class: 'btn', onclick: () => loadReport() }, 'أعد المحاولة')));
+    return;
+  }
+  const now = Date.now(); const today = riyadhDate(now);
+  if (R.date !== today) host.append(el('p', { class: 'note' }, riyadhHour(now) < 12 ? `هذا تقرير ${fmtDay(R.issuedAt)}. تقرير اليوم يُكتب قرابة 12:00 ظهرًا.` : `هذا تقرير ${fmtDay(R.issuedAt)}. تقرير اليوم لم يصل بعد؛ قد يتأخر GitHub في التشغيل دقائق. اضغط زر التحديث بعد قليل.`));
+  const lvl = !R.top.length ? 'none' : R.top[0].agree >= 2 ? 'watch' : 'info';
+  host.append(el('div', { class: `verdict v-${lvl}` }, el('b', {}, R.summary), el('span', {}, `صدر ${fmtDateTime(R.issuedAt)} · ${R.window.label}`)));
+  host.append(el('div', { class: 'runs' }, ...MODEL_KEYS.map((k) => { const m = R.models[k] || {}; return el('span', { class: `run${m.ok ? '' : ' off'}`, style: `--mc:${MODELS[k].color}` }, el('b', {}, MODELS[k].label.split(' ')[0]), m.ok ? ` تشغيل ${m.init ? fmtUTC(m.init) : 'غير معروف'}` : ' تعذر الجلب'); })));
+
+  if (R.top.length) {
+    const list = el('div', { class: 'rep-list' });
+    for (const t of R.top) {
+      const tbl = el('table', { class: 'rep-tbl' }, el('thead', {}, el('tr', {}, ...['النموذج', 'المطر مم', 'الذروة', 'CAPE', 'المجموعة'].map((h) => el('th', {}, h)))),
+        el('tbody', {}, ...MODEL_KEYS.filter((k) => R.models[k] && R.models[k].ok).map((k) => {
+          const m = t.models[k] || {}; const e = t.ens && t.ens[k];
+          return el('tr', { class: t.rainyModels.includes(k) ? 'wet' : '' }, el('th', { style: `--mc:${MODELS[k].color}` }, MODELS[k].label.split(' ')[0]),
+            el('td', {}, m.sum == null ? '—' : num(m.sum, 1), m.nb != null && m.nb > (m.sum ?? 0) + 0.05 ? el('small', {}, ` (حولها ${num(m.nb, 1)})`) : null),
+            el('td', {}, m.peak ? fmtTime(m.peak) : '—'), el('td', {}, m.capeMax == null ? '—' : num(m.capeMax)),
+            el('td', {}, e ? `${num(e.p1)}٪` : '—'));
+        })));
+      list.append(el('article', { class: 'rep-card' },
+        el('div', { class: 'rep-head' }, el('span', { class: 'rep-rank' }, arN(t.rank)),
+          el('div', { class: 'rep-title' }, el('b', {}, t.where.text), el('span', { class: 'meta', dir: 'ltr' }, `${t.lat.toFixed(2)}°N ${t.lon.toFixed(2)}°E`)),
+          pill(`${t.agree} من ${t.nModels} نماذج`, t.agree >= 3 ? 'ok' : t.agree === 2 ? 'watch' : 'none')),
+        t.where.tags.length ? el('div', { class: 'rep-tags' }, ...t.where.tags.map((x) => el('span', { class: 'pill pill-none' }, x))) : null,
+        el('p', { class: 'meta' }, `الثقة: ${t.confidence} · وسيط النماذج ${num(t.median, 1)} مم من 12:00 إلى 24:00`),
+        el('div', { class: 'tbl-wrap' }, tbl),
+        el('p', { class: 'meta' }, 'المطر: مجموع 12:00–24:00 عند النقطة، وبين القوسين أعلى قيمة في الخلايا الملاصقة. المجموعة: نسبة الأعضاء التي تعطي 1 مم أو أكثر.'),
+        t.notes.length ? el('ul', { class: 'bullets' }, ...t.notes.map((n) => el('li', {}, n))) : null,
+        el('div', { class: 'row' },
+          el('button', { class: 'btn ghost', onclick: () => showReportOnMap(R) }, 'على الخريطة'),
+          el('button', { class: 'btn ghost', onclick: () => { selectPlace({ id: 'custom', name: t.where.text, lat: t.lat, lon: t.lon, custom: true }); showTab('conv'); } }, 'حلّل هذه النقطة'))));
     }
-    const lg = LEGENDS[ui.field] || [];
-    bar.append(el('div', { class: 'legend' }, ...lg.map(([c, t]) => el('span', { class: 'lg' }, el('i', { style: `background:${c}` }), t)), f.unit ? el('span', { class: 'lg' }, `(${f.unit})`) : null));
-    if (ui.note) bar.append(el('div', { class: 'mnote' }, ui.note));
-    box.append(bar);
+    host.append(section('الأماكن الثلاثة (الأعلى اتفاقًا أولًا)', list));
+  } else if (R.maxAny) host.append(el('p', { class: 'meta' }, `أعلى قيمة لدى أي نموذج: ${num(R.maxAny.sum, 1)} مم في ${R.maxAny.label}، ${R.maxAny.where.text}.`));
+
+  host.append(section('رأي كل نموذج وحده', el('div', { class: 'cmp' }, ...MODEL_KEYS.map((k) => {
+    const L = R.perModel && R.perModel[k];
+    return el('div', { class: 'cmp-row', style: `--mc:${MODELS[k].color}` }, el('div', { class: 'cmp-label' }, MODELS[k].label),
+      !R.models[k] || !R.models[k].ok ? el('p', { class: 'na' }, `تعذر الجلب: ${(R.models[k] && R.models[k].error) || ''}`)
+        : L && L.length ? el('ol', { class: 'bullets' }, ...L.map((x) => el('li', {}, `${x.where.text}: ${num(x.sum, 1)} مم`))) : el('p', { class: 'na' }, 'لا مطر ≥0.5 مم في أي مكان'));
+  }))));
+  host.append(section('طريقة الحساب', el('p', {}, R.method),
+    el('p', { class: 'warn' }, 'هذا رأي النماذج العالمية كما هو، وليس رصدًا ولا توقعًا رسميًا. النماذج لا ترى جبال مكة الصغيرة ولا تسخين الحرات بدقة، فراجع تبويبي «الجرف» و«الحمل» قبل الحكم.')));
+  if (report.index && report.index.dates && report.index.dates.length > 1) {
+    host.append(section('التقارير السابقة', el('div', { class: 'row chips' }, ...report.index.dates.slice(0, 30).map((d) => el('button', { class: `chip${d === R.date ? ' on' : ''}`, onclick: () => loadReport(d === report.index.dates[0] ? null : d) }, d.slice(5).replace('-', '/'))))));
   }
 }
 
@@ -789,7 +941,7 @@ function init() {
   document.title = SITE.name;
   for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => showTab(b.dataset.tab));
   $('placeBtn').addEventListener('click', openPlaces);
-  $('refreshBtn').addEventListener('click', () => { loadPlace(true); if (state.mapUI.field && wxmap) { wxmap.grids = {}; refreshField(); } toast('جارٍ التحديث من المصادر'); });
+  $('refreshBtn').addEventListener('click', () => { loadPlace(true); if (state.mapUI.field && wxmap) { wxmap.grids = {}; refreshField(); } if (state.tab === 'report') loadReport(); toast('جارٍ التحديث من المصادر'); });
   $('layersBtn').addEventListener('click', openLayers);
   $('scrim').addEventListener('click', closeSheet);
   window.addEventListener('online', renderStatus); window.addEventListener('offline', renderStatus);

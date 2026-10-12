@@ -132,6 +132,13 @@ export const ENDPOINTS = {
   metar: (ids) => `https://aviationweather.gov/api/data/metar?ids=${ids}&format=json&hours=3`,
 };
 
+// Daily report files: raw GitHub first (updates within minutes of the noon commit),
+// then the same folder on this site.
+export const REPORT_BASES = [
+  'https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/main/reports/',
+  'reports/',
+];
+
 export const METAR_STATIONS = [
   { icao: 'OEJN', name: 'مطار الملك عبدالعزيز – جدة', lat: 21.68, lon: 39.16 },
   { icao: 'OETF', name: 'مطار الطائف', lat: 21.48, lon: 40.54 },
@@ -141,15 +148,20 @@ export const METAR_STATIONS = [
 
 // Forecast grids for map layers (multi-location requests).
 export const GRIDS = {
+  fine: { label: 'مكة والجرف (0.1°)', lat0: 20.9, lat1: 22.1, lon0: 39.1, lon1: 40.6, step: 0.1 },
   near: { label: 'مكة – الطائف (0.2°)', lat0: 20.6, lat1: 22.6, lon0: 38.8, lon1: 41.0, step: 0.2 },
   region: { label: 'منطقة مكة كاملة (0.5°)', lat0: 18.5, lat1: 24.0, lon0: 38.0, lon1: 43.5, step: 0.5 },
 };
 
-export const GRID_VARS = [
+export const GRID_SFC_VARS = [
   'precipitation', 'cape', 'lifted_index', 'convective_inhibition', 'surface_pressure',
-  'wind_speed_10m', 'wind_direction_10m', 'temperature_925hPa', 'relative_humidity_925hPa',
-  'wind_speed_925hPa', 'wind_direction_925hPa', 'relative_humidity_700hPa', 'vertical_velocity_700hPa',
+  'wind_speed_10m', 'wind_direction_10m', 'relative_humidity_2m',
 ];
+export const GRID_LEVEL_VARS = [
+  'temperature_925hPa', 'relative_humidity_925hPa', 'wind_speed_925hPa', 'wind_direction_925hPa',
+  'relative_humidity_700hPa', 'wind_speed_700hPa', 'wind_direction_700hPa', 'vertical_velocity_700hPa',
+];
+export const GRID_VARS = [...GRID_SFC_VARS, ...GRID_LEVEL_VARS];
 
 // First-guess thresholds for a dry, high-cloud-base environment. Editable in Settings.
 export const DEFAULT_THRESHOLDS = {

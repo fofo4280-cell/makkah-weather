@@ -1,6 +1,6 @@
 // Data access. All sources are public, key-free, and called from the browser.
 import { getJSON, qs, store, FetchError } from './util.js';
-import { ENDPOINTS, MODELS, SURFACE_VARS, LEVEL_VARS, LEVELS, VV_LEVELS, GRID_VARS, GRIDS } from './config.js';
+import { ENDPOINTS, MODELS, SURFACE_VARS, LEVEL_VARS, LEVELS, VV_LEVELS, GRID_VARS, GRID_SFC_VARS, GRID_LEVEL_VARS, GRIDS } from './config.js';
 
 export const POINT_VARS = [
   ...SURFACE_VARS,
@@ -121,15 +121,36 @@ export function gridPoints(gridKey) {
 export async function fetchGrid(gridKey, key, { force = false } = {}) {
   const { lats, lons, pts } = gridPoints(gridKey);
   const m = MODELS[key];
-  // Pressure-level fields for ECMWF exist only on the 0.25° open-data grid.
-  const ids = key === 'ecmwf' ? ['ecmwf_ifs025', 'ecmwf_ifs'] : m.sources[0].ids;
   const params = { latitude: pts.map((p) => p[0]), longitude: pts.map((p) => p[1]), forecast_days: 2, timezone: 'Asia/Riyadh', timeformat: 'unixtime', wind_speed_unit: 'ms' };
-  const r = await omRequest(ENDPOINTS.forecast, `grid:${key}`, ids, params, GRID_VARS, { force, ttl: 20 * 60 * 1000, timeout: 45000 });
-  const arr = Array.isArray(r.data) ? r.data : [r.data];
-  const times = ((arr[0] && arr[0].hourly && arr[0].hourly.time) || []).map((t) => t * 1000);
-  const field = (v) => lats.map((_, j) => lons.map((__, i) => { const d = arr[j * lons.length + i]; return d && d.hourly && d.hourly[v] ? d.hourly[v] : null; }));
-  const fields = {}; for (const v of r.vars) fields[v] = field(v);
-  return { gridKey, key, id: r.id, lats, lons, times, fields, units: (arr[0] && arr[0].hourly_units) || {}, fetchedAt: r.fetchedAt, stale: r.stale };
+  const opts = { force, ttl: 20 * 60 * 1000, timeout: 45000 };
+  // ECMWF: surface fields from the 9 km HRES; pressure levels exist only on the 0.25° open data.
+  const plan = key === 'ecmwf'
+    ? [{ slot: 'grid:ecmwf:sfc', ids: ['ecmwf_ifs', 'ecmwf_ifs025'], vars: GRID_SFC_VARS }, { slot: 'grid:ecmwf', ids: ['ecmwf_ifs025', 'ecmwf_ifs'], vars: GRID_LEVEL_VARS }]
+    : [{ slot: `grid:${key}`, ids: m.sources[0].ids, vars: GRID_VARS }];
+  const fields = {}; const sourceOf = {}; const ids = []; let times = null, units = {}, fetchedAt = Date.now(), stale = false, elev = null;
+  const take = (r, list) => {
+    const arr = Array.isArray(r.data) ? r.data : [r.data];
+    const t = ((arr[0] && arr[0].hourly && arr[0].hourly.time) || []).map((x) => x * 1000);
+    if (!times) { times = t; elev = lats.map((_, j) => lons.map((__, i) => { const d = arr[j * lons.length + i]; return d ? d.elevation ?? null : null; })); }
+    const ix = new Map(t.map((x, k) => [x, k]));
+    for (const v of list) {
+      const f = lats.map((_, j) => lons.map((__, i) => { const d = arr[j * lons.length + i]; const a = d && d.hourly && d.hourly[v]; return a ? times.map((x) => (ix.has(x) ? a[ix.get(x)] : null)) : null; }));
+      if (!f.some((row) => row.some((a) => a && hasData(a)))) continue;
+      fields[v] = f; sourceOf[v] = r.id; units[v] = (arr[0] && arr[0].hourly_units && arr[0].hourly_units[v]) || '';
+    }
+    ids.push(r.id); fetchedAt = Math.min(fetchedAt, r.fetchedAt); stale = stale || r.stale;
+  };
+  let lastErr = null;
+  for (let k = 0; k < plan.length; k++) {
+    const step = plan[k];
+    // Anything the earlier request did not return is asked for again here.
+    const want = [...new Set([...step.vars, ...(k ? plan.slice(0, k).flatMap((s) => s.vars) : [])])].filter((v) => !fields[v]);
+    if (!want.length) continue;
+    try { take(await omRequest(ENDPOINTS.forecast, step.slot, step.ids, params, want, opts), want); }
+    catch (e) { lastErr = e; }
+  }
+  if (!times) throw lastErr || new FetchError('تعذر جلب الحقل');
+  return { gridKey, key, id: [...new Set(ids)].join(' + '), lats, lons, times, fields, units, sourceOf, elev, fetchedAt, stale };
 }
 
 // Several arbitrary points (cross-sections). Returns one hourly block per point.
