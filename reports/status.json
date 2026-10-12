@@ -1,0 +1,17 @@
+{
+ "at": 1791801210284,
+ "ok": true,
+ "date": "2026-10-12",
+ "errors": [],
+ "log": [
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed",
+  "network: fetch failed"
+ ]
+}
