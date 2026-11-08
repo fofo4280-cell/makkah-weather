@@ -105,6 +105,7 @@
   function clearOverlay() { fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0; }
 
   function showFrame() {
+    if (LX.on) return liShow();
     const d = S.man && S.man.domains[S.dom];
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
@@ -126,6 +127,7 @@
   }
 
   function buildFrames(keepTime) {
+    if (LX.on) return;
     const d = S.man && S.man.domains[S.dom];
     const prevKey = keepTime && S.frames[S.idx] ? S.frames[S.idx] : null;
     if (!d) { S.frames = []; return; }
@@ -140,6 +142,7 @@
 
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${(Math.max(a, 90) / 255).toFixed(2)})`;
   function drawLegend() {
+    if (LX.on) return liLegend();
     const p = S.man && S.man.products[S.prod];
     if (!p) { $("legend").innerHTML = ""; return; }
     const lg = p.legend;
@@ -179,9 +182,10 @@
     const sel = $("prodSelect");
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${P[k].label}</option>` : "");
-    sel.innerHTML = `<optgroup label="كل ساعة">${HOURLY.map(opt).join("")}</optgroup>
+    sel.innerHTML = `<optgroup label="رصد مباشر"><option value="lightning">⚡ رادار البرق المباشر</option></optgroup>
+                     <optgroup label="توقعات النموذج كل ساعة">${HOURLY.map(opt).join("")}</optgroup>
                      <optgroup label="خلاصة اليوم">${DAILY.map(opt).join("")}</optgroup>`;
-    if (!P[S.prod]) S.prod = "refl";
+    if (!P[S.prod] && S.prod !== "lightning") S.prod = "refl";
     sel.value = S.prod;
   }
 
@@ -199,6 +203,7 @@
   }
 
   function setDomain(id, fit) {
+    if (LX.on) { if (S.man && S.man.domains[id]) S.dom = id; return; }
     if (!S.man || !S.man.domains[id]) id = Object.keys((S.man && S.man.domains) || {})[0] || "d01";
     S.dom = id; store.set("dom", id);
     buildFrames(true);
@@ -209,8 +214,157 @@
 
   function setProduct(p) {
     S.prod = p; store.set("prod", p);
+    if (p === "lightning") { if (!LX.on) liEnter(); return; }
+    if (LX.on) { liExit(); setDomain(S.dom, false); }
     buildFrames(true);
     drawLegend(); showFrame();
+  }
+
+
+  // ------------------------------------------------------------------ observed lightning
+  // Flashes seen by the lightning imager on the European geostationary satellite (third generation,
+  // over 0°): every 5 minutes EUMETSAT publishes the area covered by flashes. Each lit pixel of that
+  // image becomes a bolt; bolts are coloured by age over the last hour.
+  const LI_WMS = "https://view.eumetsat.int/geoserver/wms";
+  const LI_BOX = { s: 12, n: 34, w: 32, e: 60, res: 0.04 };
+  const LI_STEP = 5 * 60e3, LI_WIN = 60 * 60e3, LI_BACK = 100 * 60e3;
+  const LI_AGES = [[10, "#fff45c"], [20, "#ffd23a"], [40, "#f6a21e"], [60, "#c8641a"]];
+  const fmtClock = new Intl.DateTimeFormat(LOC, { timeZone: TZ, hour: "numeric", minute: "2-digit" });
+  const LX = { on: false, got: new Map(), timer: null, layer: null, busy: false, failed: false, shown: 0 };
+  map.createPane("lightning"); map.getPane("lightning").style.zIndex = 640; map.getPane("lightning").style.pointerEvents = "none";
+
+  function boltPath(ctx, x, y, h) {
+    const P = [[-0.02, -0.5], [0.3, -0.5], [0.1, -0.1], [0.3, -0.1], [-0.22, 0.5], [-0.04, 0.04], [-0.24, 0.04]];
+    ctx.beginPath();
+    P.forEach(([a, b], i) => (i ? ctx.lineTo : ctx.moveTo).call(ctx, x + a * h, y + b * h));
+    ctx.closePath();
+  }
+  function ageColor(min) { for (const [m, c] of LI_AGES) if (min <= m) return c; return LI_AGES[LI_AGES.length - 1][1]; }
+
+  const BoltLayer = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
+      m.getPane("lightning").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    redraw() {
+      const m = this._map; if (!m) return;
+      const size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+      c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + "px"; c.style.height = size.y + "px";
+      L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
+      const ctx = c.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
+      const f = LX.on && S.frames[S.idx];
+      LX.shown = 0;
+      if (!f) return;
+      const end = f.t, start = end - LI_WIN, cell = 16, grid = new Map();
+      for (const [t, arr] of LX.got) {
+        if (t > end || t <= start) continue;
+        for (let i = 0; i < arr.length; i += 2) {
+          const p = m.latLngToContainerPoint([arr[i], arr[i + 1]]);
+          if (p.x < -20 || p.y < -20 || p.x > size.x + 20 || p.y > size.y + 20) continue;
+          const k = Math.floor(p.x / cell) * 100000 + Math.floor(p.y / cell);
+          const g = grid.get(k);
+          if (!g || g.t < t) grid.set(k, { x: p.x, y: p.y, t });
+        }
+      }
+      const items = [...grid.values()].sort((a, b) => a.t - b.t);  // newest drawn on top
+      const h = m.getZoom() >= 9 ? 28 : m.getZoom() >= 7 ? 24 : 20;
+      ctx.lineJoin = "round"; ctx.lineWidth = 1.3; ctx.strokeStyle = "rgba(25,16,0,.9)";
+      ctx.shadowColor = "rgba(0,0,0,.45)"; ctx.shadowBlur = 3;
+      for (const it of items) {
+        boltPath(ctx, it.x, it.y, h);
+        ctx.fillStyle = ageColor((end - it.t) / 60e3);
+        ctx.fill(); ctx.stroke();
+      }
+      LX.shown = items.length;
+    },
+  });
+
+  function liTimeISO(t) { return new Date(t).toISOString().replace(/\.\d+Z$/, "Z"); }
+
+  async function liFetch(t) {
+    const B = LI_BOX, W = Math.round((B.e - B.w) / B.res), H = Math.round((B.n - B.s) / B.res);
+    const url = `${LI_WMS}?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326` +
+      `&bbox=${B.s},${B.w},${B.n},${B.e}&width=${W}&height=${H}&format=image/png&transparent=true&time=${liTimeISO(t)}`;
+    const r = await fetch(url, { mode: "cors" });
+    if (!r.ok || !(r.headers.get("content-type") || "").startsWith("image/")) return null;
+    const blob = await r.blob();
+    if (!blob.size) return null;
+    const bmp = await createImageBitmap(blob);
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
+    const cx = cv.getContext("2d", { willReadFrequently: true });
+    cx.drawImage(bmp, 0, 0, W, H);
+    const d = cx.getImageData(0, 0, W, H).data, out = [];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
+      if (d[(y * W + x) * 4 + 3] > 8) out.push(B.n - (y + 0.5) * B.res, B.w + (x + 0.5) * B.res);
+    return new Float32Array(out);
+  }
+
+  async function liLoad() {
+    if (LX.busy) return;
+    LX.busy = true;
+    const top = Math.floor(Date.now() / LI_STEP) * LI_STEP, want = [];
+    for (let t = top; t > top - LI_BACK; t -= LI_STEP) if (!LX.got.has(t)) want.push(t);
+    let ok = 0, tried = 0;
+    for (let i = 0; i < want.length; i += 6) {
+      await Promise.all(want.slice(i, i + 6).map(async (t) => {
+        tried++;
+        try { const a = await liFetch(t); if (a) { LX.got.set(t, a); ok++; } } catch (e) { /* not published yet, or offline */ }
+      }));
+    }
+    const times = [...LX.got.keys()].sort((a, b) => a - b);
+    const newest = times.length ? times[times.length - 1] : 0;
+    for (const t of times) if (t < newest - LI_WIN - LI_STEP) LX.got.delete(t);
+    LX.failed = !LX.got.size;
+    LX.busy = false;
+    if (!LX.on) return;
+    const atEnd = S.idx >= S.frames.length - 1;
+    S.frames = [...LX.got.keys()].filter((t) => t >= newest - LI_WIN).sort((a, b) => a - b).map((t) => ({ t }));
+    if (atEnd || !S.playing) S.idx = S.frames.length - 1;
+    drawLegend(); showFrame();
+  }
+
+  function liEnter() {
+    LX.on = true;
+    stop(); clearOverlay();
+    S.rects.forEach((r) => map.removeLayer(r)); S.rects = [];
+    $("domChips").hidden = true; $("mapEmpty").hidden = true;
+    if (!LX.layer) LX.layer = new BoltLayer();
+    LX.layer.addTo(map);
+    S.frames = [...LX.got.keys()].sort((a, b) => a - b).map((t) => ({ t }));
+    S.idx = S.frames.length - 1;
+    drawLegend(); showFrame();
+    liLoad();
+    clearInterval(LX.timer); LX.timer = setInterval(liLoad, 2.5 * 60e3);
+  }
+  function liExit() {
+    LX.on = false;
+    clearInterval(LX.timer); LX.timer = null;
+    stop();
+    if (LX.layer) map.removeLayer(LX.layer);
+    $("domChips").hidden = false;
+    $("mapEmpty").hidden = !!(S.man && Object.keys(S.man.domains).length);
+  }
+
+  function liShow() {
+    S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
+    const f = S.frames[S.idx];
+    $("timeRange").max = Math.max(0, S.frames.length - 1);
+    $("timeRange").value = S.idx;
+    $("timeLabel").textContent = f ? `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`
+      : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
+    if (LX.layer) LX.layer.redraw();
+    const n = $("liCount"); if (n) n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
+  }
+
+  function liLegend() {
+    const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
+    const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
+    $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
+      <div class="bolt-key">${keys}</div>`;
   }
 
   // ------------------------------------------------------------------ time controls
@@ -360,7 +514,7 @@
       ${now}<div class="city-sum">${citySummary(pt)}</div>${cityChart(pt)}`;
   }
   map.on("click", async (e) => {
-    if (!S.man) return;
+    if (!S.man || LX.on) return;
     const pop = L.popup({ maxWidth: 360, minWidth: 290 }).setLatLng(e.latlng).setContent(`<div class="muted">جارٍ التحميل…</div>`).openOn(map);
     const pt = await pointSeries(e.latlng.lat, e.latlng.lng);
     pop._pt = pt; S.pointPopup = pop;
@@ -473,6 +627,7 @@
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
     await Promise.all([refreshRuns(true), refreshStatus()]);
+    if (S.prod === "lightning" && !LX.on) { if (!$("prodSelect").options.length) $("prodSelect").innerHTML = `<option value="lightning">⚡ رادار البرق المباشر</option>`; $("prodSelect").value = "lightning"; liEnter(); }
     setInterval(refreshStatus, 60e3);
     setInterval(() => refreshRuns(false), 5 * 60e3);
   })();

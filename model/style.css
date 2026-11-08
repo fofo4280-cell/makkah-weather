@@ -143,3 +143,8 @@ a { color: var(--sea); }
 .pt-now { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0 4px; text-align: center; font-size: .74rem; color: #9fb2bf; }
 .pt-now b { display: block; font-size: 1rem; color: #e5edf3; }
 .chart { color: #9fb2bf; }
+
+/* lightning legend */
+.bolt-key { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; padding: 2px 2px 1px; }
+.bolt-key span { display: inline-flex; align-items: center; gap: 3px; font-size: .68rem; color: var(--glass-ink); white-space: nowrap; }
+.bolt-key svg { filter: drop-shadow(0 0 1px rgba(0,0,0,.5)); }
