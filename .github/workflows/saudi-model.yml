@@ -1,14 +1,15 @@
 # Twice-daily high-resolution model for Makkah Region (WRF: 9 km parent, 3 km nest, 27 hours).
 # Code lives on the saudi-wrf branch; results are pushed to the model-data branch and shown at /model/.
-# 22:25 UTC = 01:25 Makkah time for the 18 UTC GFS run (maps by about 05:00).
+# Two runs 12 hours apart on the main synoptic cycles (full radiosonde assimilation):
 # 03:20 UTC = 06:20 Makkah time for the 00 UTC GFS run (maps by about 10:30, before the afternoon storms).
+# 15:25 UTC = 18:25 Makkah time for the 12 UTC GFS run (maps by about 22:30, before night and dawn coastal storms).
 # A scheduled run waits for its cycle's files if they are not out yet. GitHub may start scheduled runs late.
 name: Saudi model 3 km
 
 on:
   schedule:
-    - cron: '25 22 * * *'
     - cron: '20 3 * * *'
+    - cron: '25 15 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/saudi-model.yml', 'model/run-now.txt']
@@ -36,7 +37,7 @@ jobs:
       SWRF_TEST: '1'
       NPROC: '4'
       KEEP_RUNS: '3'
-      CYCLES: '0 18'
+      CYCLES: '0 12'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     steps:
       - name: Model code
