@@ -68,12 +68,14 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
         import cartopy.crs as ccrs
         import cartopy.feature as cfeature
         proj = ccrs.PlateCarree(central_longitude=(w + e) / 2)
-        ax = fig.add_axes([0.045, 0.09, 0.945, 0.89], projection=proj)
+        lm = 75 / width_px
+        ax = fig.add_axes([lm, 0.09, 0.99 - lm, 0.89], projection=proj)
         ax.set_extent([w, e, s, n], crs=ccrs.PlateCarree())
         tr = {"transform": ccrs.PlateCarree()}
         have_cartopy = True
     except Exception:
-        ax = fig.add_axes([0.045, 0.09, 0.945, 0.89])
+        lm = 75 / width_px
+        ax = fig.add_axes([lm, 0.09, 0.99 - lm, 0.89])
         ax.set_xlim(w, e); ax.set_ylim(s, n)
         tr = {}
         have_cartopy = False
@@ -83,8 +85,13 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
         f = np.hstack([field, field[:, :1]])
     else:
         lon_p, f = lon, field
-    ax.imshow(f, extent=[lon_p[0], lon_p[-1], lat[-1], lat[0]], origin="upper", cmap=cmap, vmin=vmin, vmax=vmax,
-              interpolation="bicubic", **tr)
+    # draw from a finely interpolated copy so the colours blend smoothly at any size
+    from scipy.ndimage import zoom
+    up = max(1, int(np.ceil(width_px * 1.2 / f.shape[1])))
+    fine = zoom(np.nan_to_num(f), up, order=3)
+    extra = {"regrid_shape": (fine.shape[0], fine.shape[1])} if tr else {}
+    ax.imshow(fine, extent=[lon_p[0], lon_p[-1], lat[-1], lat[0]], origin="upper", cmap=cmap, vmin=vmin, vmax=vmax,
+              interpolation="bilinear", **tr, **extra)
     if stream is not None:
         u, v = stream
         if lon[-1] - lon[0] > 350:

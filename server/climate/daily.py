@@ -273,7 +273,7 @@ def main():
           "forecast chi finite:", float(np.isfinite(fc[t0]["chi"]).mean()), flush=True)
     series = {}
     for dt, r in sorted({**hist, **fc}.items()):
-        series[dt] = -(anom(dt, r) - bias) / 1e6   # warm event positive, 10^6 m^2/s
+        series[dt] = sphere.smooth(-(anom(dt, r) - bias) / 1e6)   # warm event positive, 10^6 m^2/s, planetary scales
 
     # 4. maps for the forecast days (and the day before for the change)
     vec_all = {}

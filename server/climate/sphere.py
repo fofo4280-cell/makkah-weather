@@ -48,3 +48,13 @@ def divergent_wind(chi, lat):
         u = (np.roll(chi, -1, axis=1) - np.roll(chi, 1, axis=1)) / (2 * dlam) / (A * np.cos(phi))
     v = np.gradient(chi, np.radians(lat), axis=0) / A
     return np.nan_to_num(u), v
+
+
+def smooth(field, trunc=30):
+    """Keep only the planetary scales: spherical-harmonic truncation at degree 'trunc' (T30 ~ 650 km)."""
+    import pyshtools as pysh
+    full = field.shape[0] == field.shape[1] // 2 + 1
+    c = pysh.SHGrid.from_array(_dh(np.asarray(field, dtype=float))).expand()
+    c.coeffs[:, trunc + 1:, :] = 0
+    out = c.expand(grid="DH2", extend=False).data
+    return np.vstack([out, out[-1:]]) if full else out
