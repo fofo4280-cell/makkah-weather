@@ -159,7 +159,9 @@ a { color: var(--sea); }
 .mjo-row span:first-child { color: var(--muted); }
 .wet { color: var(--green); } .dry { color: var(--amber); }
 #mjoPhase svg { width: 100%; max-width: 420px; display: block; margin: 0 auto; }
-#mjoMap { height: 260px; border-radius: 12px; overflow: hidden; background: #0d141b; }
+.figwrap { overflow-x: auto; border-radius: 10px; background: #f7f5f0; -webkit-overflow-scrolling: touch; }
+#mjoFig { display: block; height: 230px; width: auto; max-width: none; }
+.figwrap.fit #mjoFig { width: 100%; height: auto; }
 .seg { display: flex; gap: 6px; margin-bottom: 8px; flex-wrap: wrap; }
 .seg button { flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 16px; padding: 6px 8px; font: inherit; font-size: .78rem; }
 .seg button.on { background: var(--sea); color: #fff; border-color: transparent; }

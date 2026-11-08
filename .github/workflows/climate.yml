@@ -30,7 +30,7 @@ jobs:
           path: code
 
       - name: Python packages
-        run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib
+        run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
 
       - name: Restore climatology
         id: clim
