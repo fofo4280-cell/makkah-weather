@@ -173,3 +173,6 @@ a { color: var(--sea); }
 .pwt { width: 100%; border-collapse: collapse; font-size: .72rem; table-layout: fixed; }
 .pwt th, .pwt td { padding: 4px 1px; text-align: center; border: 1px solid var(--line); }
 .pwt th:first-child, .pwt td:first-child { width: 28%; text-align: start; padding-inline-start: 6px; font-weight: 500; }
+.ao-now { display: flex; gap: 10px; flex-wrap: wrap; font-size: .88rem; margin-bottom: 6px; }
+.ao-now b { color: var(--sea); }
+#aoChart svg { width: 100%; display: block; }
