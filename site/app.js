@@ -780,7 +780,7 @@
   }
 
   function mjoText() {
-    const st = M.st, now = st.rmm_now;
+    const st = M.st, obsNow = st.rmm_now, now = st.rmm_today || st.rmm_now;
     const r = st.report;
     $("mjoReport").hidden = !r;
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("");
@@ -791,7 +791,8 @@
         <div class="mjo-row"><span>الحمل العميق المصاحب</span><span>${AR_AREA[now.phase]}</span></div>
         <div class="mjo-row"><span>أثره على المملكة</span><span class="${season ? (wet ? "wet" : "dry") : ""}">${
           now.amp < 1 ? "ضعيف التأثير لأن التذبذب ضعيف" : !season ? "خارج موسم الأمطار، تأثيره محدود" : wet ? "طور رطب: يدعم الأمطار" : "طور جاف: يكبت الأمطار"}</span></div>
-        <div class="mjo-row"><span>آخر رصد</span><span>${fmtDayD.format(dOf(now.d))}</span></div>`;
+        <div class="mjo-row"><span>${st.rmm_today ? "اليوم (تقدير من جي إف إس)" : "آخر رصد"}</span><span>${fmtDayD.format(dOf(now.d))}</span></div>` +
+        (st.rmm_today && obsNow ? `<div class="mjo-row"><span>آخر رصد رسمي</span><span>${fmtDayD.format(dOf(obsNow.d))}: الطور ${num(obsNow.phase)} بشدة ${num(obsNow.amp, 1)}</span></div>` : "");
     }
     html += `<div class="mjo-row"><span>الحدث الدافئ الآن</span><span>${st.warm.region}</span></div>
       <div class="mjo-row"><span>الحدث البارد الآن</span><span>${st.cold.region}</span></div>`;
