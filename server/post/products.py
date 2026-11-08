@@ -1,73 +1,104 @@
-"""Map products: how each field is computed from a WRF output frame and how it is coloured."""
+"""Map products: how each field is computed from a WRF output frame and how it is coloured.
+
+Colours are continuous gradients: each image is an 8-bit palette PNG whose 255 entries run
+smoothly through the colour stops, with transparency fading in at the weak end so storm
+edges look soft instead of stepped.
+"""
 import numpy as np
 
-# Colour scales: list of (lower bound, hex colour). Values below the first bound are transparent.
-REFL = [(5, "#9fe6ff"), (10, "#4cc3ef"), (15, "#2489d6"), (20, "#2fcf6b"), (25, "#1ea84a"), (30, "#127a30"),
-        (35, "#f7e53b"), (40, "#f4b52d"), (45, "#ef7a1f"), (50, "#e2321f"), (55, "#b51c1c"), (60, "#d53be0"),
-        (65, "#8d22b8"), (70, "#ffffff")]
-RAIN1 = [(0.2, "#b5e3ff"), (1, "#6cc3f5"), (2, "#2c8fe0"), (5, "#2a5fc9"), (10, "#2fbf5c"), (15, "#f2d230"),
-         (20, "#f39a26"), (30, "#e53b25"), (50, "#b01e8f")]
-RAINACC = [(0.5, "#cdeeff"), (1, "#8fd3fb"), (2, "#4fb0ef"), (5, "#2a7fdc"), (10, "#2fbf5c"), (20, "#1e8a3c"),
-           (30, "#f2d230"), (50, "#f39a26"), (75, "#e53b25"), (100, "#b01e8f"), (150, "#6a1b9a")]
-WIND = [(15, "#cfe8f3"), (25, "#8fcbe6"), (35, "#4fa9d8"), (45, "#3fbf7f"), (55, "#f2d230"), (65, "#f39a26"),
-        (75, "#e53b25"), (90, "#b01e8f"), (110, "#5b1680")]
-WUP = [(2, "#c6e9ff"), (4, "#78c8f2"), (6, "#3496dd"), (8, "#30bf66"), (10, "#f2d230"), (15, "#f39a26"),
-       (20, "#e53b25"), (30, "#a3188f")]
+# Stops: (value, colour, alpha 0-255). tf: how values are spread along the scale.
+REFL = [(5, "#7fdcff", 0), (10, "#5cc8f2", 120), (15, "#3aa6e8", 190), (20, "#2bc275", 225),
+        (28, "#16994a", 235), (35, "#f7e348", 240), (42, "#f6a52c", 245), (50, "#ea4a2c", 250),
+        (57, "#b8102f", 250), (63, "#e046e6", 250), (70, "#9a2bd1", 250), (75, "#ffffff", 255)]
+RAIN = [(0.1, "#a8e2ff", 0), (0.5, "#79cbf6", 170), (1.5, "#3d9ce6", 215), (4, "#2a63d0", 235),
+        (8, "#2fc06a", 240), (15, "#f4d53a", 245), (25, "#f58a28", 250), (40, "#e2322b", 250),
+        (60, "#b0198f", 255), (100, "#6a1b9a", 255)]
+RAINACC = [(0.2, "#a8e2ff", 0), (1, "#79cbf6", 170), (3, "#3d9ce6", 215), (8, "#2a63d0", 235),
+           (15, "#2fc06a", 240), (25, "#f4d53a", 245), (40, "#f58a28", 250), (60, "#e2322b", 250),
+           (100, "#b0198f", 255), (150, "#6a1b9a", 255)]
+TEMP = [(-4, "#3b2a8c", 200), (4, "#2f6bd1", 200), (12, "#33b4d6", 200), (18, "#55c27a", 200),
+        (24, "#d8d53a", 200), (30, "#f2a12d", 200), (36, "#e2502a", 200), (42, "#a8172f", 205),
+        (48, "#5e0b24", 210)]
+WIND = [(10, "#b9e3f2", 0), (20, "#8fcbe6", 150), (30, "#4fa9d8", 200), (40, "#3fbf7f", 220),
+        (50, "#f2d230", 235), (60, "#f39a26", 240), (75, "#e53b25", 245), (90, "#b01e8f", 250),
+        (110, "#5b1680", 255)]
+WUP = [(1, "#b6e2fb", 0), (3, "#78c8f2", 160), (5, "#3496dd", 210), (8, "#30bf66", 230),
+       (11, "#f2d230", 240), (15, "#f39a26", 245), (20, "#e53b25", 250), (30, "#a3188f", 255)]
 
-
-def _temp_scale():
-    stops = [(-4, "#3b2a8c"), (4, "#2f6bd1"), (12, "#33b4d6"), (18, "#55c27a"), (24, "#d8d53a"),
-             (30, "#f2a12d"), (36, "#e2502a"), (42, "#a8172f"), (48, "#5e0b24")]
-    out = []
-    for t in range(-4, 49, 2):
-        for k in range(len(stops) - 1):
-            if stops[k][0] <= t <= stops[k + 1][0]:
-                a, b = stops[k], stops[k + 1]
-                f = (t - a[0]) / (b[0] - a[0])
-                ca = [int(a[1][i:i + 2], 16) for i in (1, 3, 5)]
-                cb = [int(b[1][i:i + 2], 16) for i in (1, 3, 5)]
-                c = [round(ca[i] + f * (cb[i] - ca[i])) for i in range(3)]
-                out.append((t if t > -4 else -99, "#%02x%02x%02x" % tuple(c)))
-                break
-    return out
-
-
-TEMP = _temp_scale()
-
-# id -> label (Arabic), unit, scale, alpha
 PRODUCTS = {
-    "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "scale": REFL, "alpha": 235},
-    "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "scale": RAIN1, "alpha": 235},
-    "rainacc": {"label": "المطر المتراكم منذ البداية", "unit": "ملم", "scale": RAINACC, "alpha": 235},
-    "t2":      {"label": "درجة الحرارة على ارتفاع مترين", "unit": "°م", "scale": TEMP, "alpha": 190},
-    "wind":    {"label": "أقصى رياح سطحية خلال الساعة", "unit": "كم/س", "scale": WIND, "alpha": 210},
-    "wup":     {"label": "أقصى تيار صاعد خلال الساعة", "unit": "م/ث", "scale": WUP, "alpha": 235},
+    "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
+    "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
+    "rainacc": {"label": "المطر المتراكم منذ البداية", "unit": "ملم", "stops": RAINACC, "tf": "sqrt"},
+    "t2":      {"label": "درجة الحرارة على ارتفاع مترين", "unit": "°م", "stops": TEMP, "tf": "lin", "opaque": True},
+    "wind":    {"label": "أقصى رياح سطحية خلال الساعة", "unit": "كم/س", "stops": WIND, "tf": "lin"},
+    "wup":     {"label": "أقصى تيار صاعد خلال الساعة", "unit": "م/ث", "stops": WUP, "tf": "sqrt"},
 }
 DAILY = {
-    "refl_day": {"label": "أقصى انعكاسية خلال اليوم", "unit": "ديسيبل", "scale": REFL, "alpha": 235, "from": "refl"},
-    "rain_day": {"label": "مجموع مطر اليوم", "unit": "ملم", "scale": RAINACC, "alpha": 235, "from": "rain1h"},
+    "refl_day": {"label": "أقصى انعكاسية خلال اليوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl"},
+    "rain_day": {"label": "مجموع مطر اليوم", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from": "rain1h"},
 }
 
+# Point values for tap-anywhere: one byte per value.
+POINT_VARS = ["rain1h", "refl", "t2", "wind"]
 
-def palette(scale, alpha):
-    """Index 0 is transparent; index k (1..n) is scale[k-1]."""
-    pal = [0, 0, 0]
-    trans = [0]
-    for _, hexc in scale:
-        pal += [int(hexc[i:i + 2], 16) for i in (1, 3, 5)]
-        trans.append(alpha)
+
+def encode_point(var, a):
+    a = np.nan_to_num(np.asarray(a, dtype=np.float32), nan=0.0)
+    if var == "rain1h":
+        c = np.sqrt(np.clip(a, 0, 100)) * 25
+    elif var == "refl":
+        c = np.clip(a, 0, 85) * 3
+    elif var == "t2":
+        c = (a + 10) * 4
+    else:  # wind km/h
+        c = a * 2
+    return np.clip(np.rint(c), 0, 255).astype(np.uint8)
+
+
+def _t(v, tf):
+    v = np.asarray(v, dtype=np.float64)
+    return np.sqrt(np.maximum(v, 0)) if tf == "sqrt" else v
+
+
+def _hex(h):
+    return [int(h[i:i + 2], 16) for i in (1, 3, 5)]
+
+
+def palette(spec):
+    """256-entry palette (index 0 transparent) interpolated through the stops."""
+    stops, tf = spec["stops"], spec["tf"]
+    pos = _t([s[0] for s in stops], tf)
+    t = np.linspace(pos[0], pos[-1], 255)
+    cols = np.array([_hex(s[1]) for s in stops], dtype=np.float64)
+    al = np.array([s[2] for s in stops], dtype=np.float64)
+    rgb = np.stack([np.interp(t, pos, cols[:, k]) for k in range(3)], axis=1)
+    alpha = np.interp(t, pos, al)
+    pal = [0, 0, 0] + [int(round(x)) for x in rgb.reshape(-1)]
+    trans = [0] + [int(round(x)) for x in alpha]
     return pal, trans
 
 
-def classify(field, scale):
-    bounds = np.array([b for b, _ in scale], dtype=np.float32)
-    idx = np.digitize(np.nan_to_num(field, nan=-1e9), bounds)  # 0 = below first bound
-    idx[~np.isfinite(field)] = 0
+def classify(field, spec):
+    """Map values to palette indices 1..255 (0 = transparent below the first stop)."""
+    stops, tf = spec["stops"], spec["tf"]
+    lo, hi = _t(stops[0][0], tf), _t(stops[-1][0], tf)
+    f = np.asarray(field, dtype=np.float64)
+    tv = _t(f, tf)
+    idx = 1 + np.rint((tv - lo) / (hi - lo) * 254)
+    idx = np.clip(idx, 1, 255)
+    below = f < stops[0][0]
+    if spec.get("opaque"):
+        below = np.zeros_like(below)
+    idx[below | ~np.isfinite(f)] = 0
     return idx.astype(np.uint8)
 
 
-def legend(scale):
-    return [{"v": (None if b == -99 else b), "c": c} for b, c in scale]
+def legend(spec):
+    stops, tf = spec["stops"], spec["tf"]
+    pos = _t([s[0] for s in stops], tf)
+    p = (pos - pos[0]) / (pos[-1] - pos[0])
+    return {"tf": tf, "vmin": stops[0][0], "vmax": stops[-1][0],
+            "stops": [{"p": round(float(pp), 4), "v": s[0], "c": s[1], "a": s[2]} for pp, s in zip(p, stops)]}
 
 
 def fields_from_frame(nc, prev_acc):

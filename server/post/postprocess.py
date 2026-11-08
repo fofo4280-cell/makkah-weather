@@ -16,7 +16,7 @@ from netCDF4 import Dataset
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from products import PRODUCTS, DAILY, palette, classify, legend, fields_from_frame  # noqa: E402
+from products import PRODUCTS, DAILY, POINT_VARS, palette, classify, legend, encode_point, fields_from_frame  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", "domains.json")))
@@ -89,9 +89,9 @@ class Grid:
 
 
 def save_png(path, field, spec):
-    idx = classify(field, spec["scale"])
+    idx = classify(field, spec)
     img = Image.fromarray(idx, "P")
-    pal, trans = palette(spec["scale"], spec["alpha"])
+    pal, trans = palette(spec)
     img.putpalette(pal)
     img.info["transparency"] = bytes(trans)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -172,6 +172,10 @@ class Processor:
                 dd = self.st.s["daily"].setdefault(did, {}).setdefault(day, [])
                 if h not in dd:
                     dd.append(h)
+        # one byte per grid cell and variable, for tapping any point on the map
+        pts = np.stack([encode_point(k, fields[k]) if k in fields else np.zeros(fields["t2"].shape, np.uint8)
+                        for k in POINT_VARS])
+        np.save(os.path.join(self.st.dir, f".pts_{did}_{h:03d}.npy"), pts)
         # city series
         self.city_values(did, g, fields, h)
         self.prev_acc[did] = acc
@@ -237,10 +241,14 @@ class Processor:
                     days.append({"date": day, "hours": len(hrs)})
             doms[did] = {"name": d["name"], "res": d["res"], "bounds": bounds, "hours": hours,
                          "planned": d["hours"], "days": days}
+            pinfo = self.write_points(did, hours)
+            if pinfo:
+                doms[did]["points"] = pinfo
         man = {"run": self.run, "init": self.init.strftime("%Y-%m-%dT%H:%MZ"), "status": status,
                "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                "domains": doms,
-               "products": {k: {"label": v["label"], "unit": v["unit"], "legend": legend(v["scale"])}
+               "proj": {**CFG["map"], "R": R_EARTH},
+               "products": {k: {"label": v["label"], "unit": v["unit"], "legend": legend(v)}
                             for k, v in {**PRODUCTS, **DAILY}.items()}}
         jdump(os.path.join(self.st.dir, "manifest.json"), man)
         # city series in a compact form: per city the finest domain available
@@ -263,6 +271,33 @@ class Processor:
         jdump(os.path.join(self.st.dir, "meteo.json"), meteo)
         self.st.save()
         update_index(self.web, self.run, status, doms)
+
+    def write_points(self, did, hours):
+        """All hours of the point values in one file: [variable][hour][row][column], one byte each."""
+        frames = []
+        for h in hours:
+            f = os.path.join(self.st.dir, f".pts_{did}_{h:03d}.npy")
+            if not os.path.exists(f):
+                return self.st.s.get("points", {}).get(did)
+            frames.append(np.load(f))
+        if not frames:
+            return None
+        arr = np.stack(frames, axis=1)  # var, hour, ny, nx
+        path = os.path.join(self.st.dir, did, "points.bin")
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path + ".tmp", "wb") as fh:
+            fh.write(np.ascontiguousarray(arr).tobytes())
+        os.replace(path + ".tmp", path)
+        g = self.grids.get(did)
+        if g is None and self.files(did):
+            with Dataset(self.files(did)[0]) as nc:
+                g = self.grid(did, nc)
+        info = {"file": f"{did}/points.bin", "vars": POINT_VARS, "hours": hours,
+                "nx": int(arr.shape[3]), "ny": int(arr.shape[2]), "dx": self.dom[did]["dx"],
+                "x00": round(g.x00, 2) if g else None, "y00": round(g.y00, 2) if g else None}
+        if g:
+            self.st.s.setdefault("points", {})[did] = info
+        return info
 
     def pending(self, did, done_flag):
         fs = self.files(did)

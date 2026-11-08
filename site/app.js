@@ -38,13 +38,28 @@
 
   // ------------------------------------------------------------------ map
   const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 13 }).setView([23.5, 44], 5);
-  const osm = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-    { maxZoom: 19, attribution: "© OpenStreetMap" });
-  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    { maxZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
-  (store.get("base") === "topo" ? topo : osm).addTo(map);
-  L.control.layers({ "خريطة": osm, "تضاريس": topo }, null, { position: "topleft" }).addTo(map);
-  map.on("baselayerchange", (e) => store.set("base", e.layer === topo ? "topo" : "osm"));
+  // basemaps: dark by default, place names drawn above the model colours
+  map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
+  const carto = "© OpenStreetMap · © CARTO";
+  const dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: carto, subdomains: "abcd" });
+  const light = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: carto, subdomains: "abcd" });
+  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
+  const shade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}",
+    { maxZoom: 13, opacity: 0.45, attribution: "Esri" });
+  const labelsDark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", { pane: "labels", subdomains: "abcd", maxZoom: 19 });
+  const bases = { "داكنة": dark, "فاتحة": light, "تضاريس": topo };
+  const baseKey = store.get("base2") || "داكنة";
+  (bases[baseKey] || dark).addTo(map);
+  if (store.get("shade") !== "0") shade.addTo(map);
+  if (store.get("labels") !== "0") labelsDark.addTo(map);
+  L.control.layers(bases, { "ظلال التضاريس": shade, "أسماء الأماكن": labelsDark }, { position: "topleft" }).addTo(map);
+  map.on("baselayerchange", (e) => { store.set("base2", e.name); document.body.classList.toggle("light-map", e.name !== "داكنة"); });
+  document.body.classList.toggle("light-map", baseKey !== "داكنة");
+  map.on("overlayadd overlayremove", (e) => {
+    const on = e.type === "overlayadd" ? "1" : "0";
+    if (e.layer === shade) store.set("shade", on);
+    if (e.layer === labelsDark) store.set("labels", on);
+  });
   L.control.zoom({ position: "topleft" }).addTo(map);
   map.attributionControl.setPrefix(false);
   map.on("zoomend", () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7));
@@ -62,18 +77,41 @@
     if (u && !cache.has(u)) { const im = new Image(); im.src = u; cache.set(u, im); if (cache.size > 120) cache.delete(cache.keys().next().value); }
   }
 
+  // two image layers that cross-fade, so playback looks continuous
+  const fade = { layers: [], front: 0, token: 0 };
+  function overlayTo(url, bounds) {
+    const b = L.latLngBounds(bounds);
+    if (!fade.layers.length) {
+      for (let k = 0; k < 2; k++) {
+        const lay = L.imageOverlay(url, b, { interactive: false, zIndex: 300, opacity: k === 0 ? 1 : 0, className: "wx-layer" }).addTo(map);
+        fade.layers.push(lay);
+      }
+      return;
+    }
+    const tok = ++fade.token;
+    const back = fade.layers[1 - fade.front], front = fade.layers[fade.front];
+    back.setBounds(b);
+    const img = new Image();
+    img.onload = img.onerror = () => {
+      if (tok !== fade.token) return;
+      back.setUrl(url);
+      back.setOpacity(1); front.setOpacity(0);
+      fade.front = 1 - fade.front;
+    };
+    img.src = url;
+  }
+  function clearOverlay() { fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0; }
+
   function showFrame() {
     const d = S.man && S.man.domains[S.dom];
-    if (!d || !S.frames.length) { if (S.overlay) { map.removeLayer(S.overlay); S.overlay = null; } $("timeLabel").textContent = "—"; return; }
+    if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
-    const url = frameURL(S.idx);
-    const b = L.latLngBounds(d.bounds);
-    if (!S.overlay) S.overlay = L.imageOverlay(url, b, { interactive: false, zIndex: 300 }).addTo(map);
-    else { S.overlay.setBounds(b); S.overlay.setUrl(url); }
+    overlayTo(frameURL(S.idx), d.bounds);
     $("timeRange").max = S.frames.length - 1;
     $("timeRange").value = S.idx;
     $("timeLabel").textContent = frameLabel(S.frames[S.idx]);
-    for (let k = 1; k <= 3; k++) preload(S.idx + k);
+    for (let k = 1; k <= 4; k++) preload(S.idx + k);
+    if (S.pointPopup && S.pointPopup.isOpen()) S.pointPopup.setContent(pointHTML(S.pointPopup._pt));
   }
 
   function frameLabel(f) {
@@ -98,15 +136,26 @@
     }
   }
 
+  const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${(Math.max(a, 90) / 255).toFixed(2)})`;
   function drawLegend() {
     const p = S.man && S.man.products[S.prod];
     if (!p) { $("legend").innerHTML = ""; return; }
     const lg = p.legend;
-    const bar = lg.map((x) => `<span style="background:${x.c}"></span>`).join("");
-    const step = Math.ceil(lg.length / 8);
-    const ticks = lg.map((x, i) => `<span>${i % step === 0 && x.v != null ? num(x.v, 1) : ""}</span>`).join("");
+    const grad = lg.stops.map((x) => `${rgba(x.c, x.a)} ${(x.p * 100).toFixed(1)}%`).join(", ");
+    const step = lg.stops.length > 7 ? 2 : 1;
+    const ticks = lg.stops.map((x, i) => (i % step === 0 || i === lg.stops.length - 1)
+      ? `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v, x.v < 1 ? 1 : 0)}</span>` : "").join("");
     $("legend").innerHTML = `<div class="legend-title"><span>${p.label}</span><span>${p.unit}</span></div>
-      <div class="legend-bar">${bar}</div><div class="legend-ticks">${ticks}</div>`;
+      <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
+  }
+
+  // colour of a value on a product's scale (for the small charts)
+  function colorAt(prod, v) {
+    const p = S.man && S.man.products[prod];
+    if (!p || v == null || v < p.legend.vmin) return null;
+    const st = p.legend.stops;
+    for (let k = st.length - 1; k >= 0; k--) if (v >= st[k].v) return st[k].c;
+    return null;
   }
 
   function drawChips() {
@@ -177,12 +226,7 @@
   // ------------------------------------------------------------------ cities
   function series(c, key) { return (c.series && c.series[key]) || []; }
 
-  function reflColor(v) {
-    const lg = S.man && S.man.products.refl ? S.man.products.refl.legend : [];
-    let col = null;
-    for (const x of lg) if (v >= x.v) col = x.c;
-    return col;
-  }
+  function reflColor(v) { return v >= 10 ? colorAt("refl", v) : null; }
 
   function cityChart(c) {
     const W = 340, H = 128, padL = 6, padR = 26, top = 8, bot = 30;
@@ -249,12 +293,75 @@
     S.cityLayer = L.layerGroup().addTo(map);
     if (!S.meteo) return;
     for (const c of S.meteo.cities) {
-      L.circleMarker([c.lat, c.lon], { radius: 4, color: "#0b1d2c", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 })
+      L.circleMarker([c.lat, c.lon], { bubblingMouseEvents: false, radius: 4, color: "#0b1d2c", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 })
         .bindTooltip(c.name, { permanent: true, direction: "right", offset: [6, 0], className: "city-label" })
         .bindPopup(() => `<strong>${c.name}</strong><div class="city-sum">${citySummary(c)}</div>${cityChart(c)}`, { maxWidth: 360, minWidth: 280 })
         .addTo(S.cityLayer);
     }
   }
+
+  // ------------------------------------------------------------------ tap anywhere
+  function lccForward(pr, lon, lat) {
+    const r = Math.PI / 180, R = pr.R;
+    const p1 = pr.truelat1 * r, p2 = pr.truelat2 * r, p0 = pr.ref_lat * r, l0 = pr.stand_lon * r;
+    const t = (p) => Math.tan(Math.PI / 4 + p / 2);
+    const n = Math.log(Math.cos(p1) / Math.cos(p2)) / Math.log(t(p2) / t(p1));
+    const F = Math.cos(p1) * Math.pow(t(p1), n) / n;
+    const rho = R * F / Math.pow(t(lat * r), n), rho0 = R * F / Math.pow(t(p0), n);
+    const th = n * (lon * r - l0);
+    return [rho * Math.sin(th), rho0 - rho * Math.cos(th)];
+  }
+  async function pointData(dom) {
+    const d = S.man.domains[dom];
+    if (!d || !d.points) return null;
+    const key = S.run + dom + d.points.hours.length;
+    if (!S.points[key]) {
+      S.points[key] = fetch(`${DATA}runs/${S.run}/${d.points.file}?n=${d.points.hours.length}`)
+        .then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
+    }
+    return { info: d.points, bytes: await S.points[key] };
+  }
+  const DECODE = { rain1h: (c) => (c / 25) ** 2, refl: (c) => c / 3, t2: (c) => c / 4 - 10, wind: (c) => c / 2 };
+  async function pointSeries(lat, lon) {
+    // finest domain that contains the point
+    const order = Object.keys(S.man.domains).sort((a, b) => b.localeCompare(a));
+    for (const dom of order) {
+      const pd = await pointData(dom);
+      if (!pd || !pd.bytes) continue;
+      const P = pd.info, [x, y] = lccForward(S.man.proj, lon, lat);
+      const i = Math.round((x - P.x00) / P.dx), j = Math.round((y - P.y00) / P.dx);
+      if (i < 1 || j < 1 || i > P.nx - 2 || j > P.ny - 2) continue;
+      const nh = P.hours.length, series = {};
+      P.vars.forEach((v, k) => {
+        series[v] = P.hours.map((h, hi) => [h, DECODE[v](pd.bytes[((k * nh + hi) * P.ny + j) * P.nx + i])]);
+      });
+      series.rain = series.rain1h.map(([h, v]) => [h, h === 0 ? null : Math.round(v * 10) / 10]);
+      let acc = 0;
+      series.acc = series.rain.map(([h, v]) => [h, (acc += v || 0)]);
+      series.wind = series.wind.map(([h, v]) => [h, h === 0 ? null : v]);
+      return { dom, series, lat, lon };
+    }
+    return null;
+  }
+  function pointHTML(pt) {
+    if (!pt) return `<div class="muted">خارج مجالات النموذج</div>`;
+    const f = S.frames[S.idx];
+    const h = f && f.h != null ? f.h : null;
+    const at = (v) => { const r = (pt.series[v] || []).find((x) => x[0] === h); return r ? r[1] : null; };
+    const res = { d01: "٩ كم", d02: "٣ كم", d03: "٦٠٠ م" }[pt.dom] || "";
+    const now = h == null ? "" : `<div class="pt-now">
+        <span><b>${num(at("rain"), 1)}</b> ملم</span><span><b>${num(at("refl"))}</b> ديسيبل</span>
+        <span><b>${num(at("t2"))}</b>°</span><span><b>${num(at("wind"))}</b> كم/س</span></div>`;
+    return `<div class="pt-head"><strong>${num(pt.lat, 2)}° ش، ${num(pt.lon, 2)}° ق</strong><small>${res}</small></div>
+      ${now}<div class="city-sum">${citySummary(pt)}</div>${cityChart(pt)}`;
+  }
+  map.on("click", async (e) => {
+    if (!S.man) return;
+    const pop = L.popup({ maxWidth: 360, minWidth: 290 }).setLatLng(e.latlng).setContent(`<div class="muted">جارٍ التحميل…</div>`).openOn(map);
+    const pt = await pointSeries(e.latlng.lat, e.latlng.lng);
+    pop._pt = pt; S.pointPopup = pop;
+    pop.setContent(pointHTML(pt));
+  });
 
   // ------------------------------------------------------------------ runs
   function runName(r) {
@@ -266,6 +373,13 @@
     S.run = run;
     try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
     try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
+    if (S.man) for (const p of Object.values(S.man.products)) {
+      if (Array.isArray(p.legend)) {  // runs made before the gradient colours
+        const n = p.legend.length;
+        p.legend = { vmin: p.legend[0].v ?? -99, stops: p.legend.map((x, i) => ({ p: i / Math.max(1, n - 1), v: x.v ?? -99, c: x.c, a: 235 })) };
+      }
+    }
+    S.points = {};
     const has = S.man && Object.keys(S.man.domains).length;
     $("mapEmpty").hidden = !!has;
     if (!has) return;
