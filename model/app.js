@@ -21,7 +21,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "rainacc", "t2", "wind", "wup"];
+  const HOURLY = ["refl", "rain1h", "rainacc"];
   const DAILY = ["refl_day", "rain_day"];
   const SINGLE = ["rain24"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
@@ -140,7 +140,7 @@
     const prevKey = keepTime && S.frames[S.idx] ? S.frames[S.idx] : null;
     if (!d) { S.frames = []; return; }
     // a domain may not have every product (the 1 km nest has hourly maps only)
-    if (d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
+    if (S.prod !== "lightning" && d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
     if (SINGLE.includes(S.prod)) { const r = d[S.prod]; S.frames = r ? [{ single: true, from: r.from, to: r.to }] : []; S.idx = 0; return; }
     if (DAILY.includes(S.prod)) S.frames = (d.days || []).map((x) => ({ date: x.date, hours: x.hours }));
     else S.frames = d.hours.filter((h) => !(NO_H0.has(S.prod) && h === 0)).map((h) => ({ h }));
@@ -546,6 +546,10 @@
   });
 
   // ------------------------------------------------------------------ runs
+  const fmtRun = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric" });
+  function runShort(r) {
+    return fmtRun.format(new Date(Date.UTC(+r.slice(0, 4), +r.slice(4, 6) - 1, +r.slice(6, 8), +r.slice(8, 10))));
+  }
   function runName(r) {
     const t = new Date(Date.UTC(+r.slice(0, 4), +r.slice(4, 6) - 1, +r.slice(6, 8), +r.slice(8, 10)));
     return `تشغيل ${fmtStamp.format(t)}`;
@@ -572,7 +576,7 @@
     $("mapEmpty").hidden = !!has;
     if (!has) return;
     const st = S.man.status === "running" ? " · جارٍ" : S.man.status === "failed" ? " · ناقص" : "";
-    $("runLabel").textContent = `${runName(run)}${st} · تطوير فهد متعب العيسي`;
+    $("runLabel").textContent = `تطوير فهد متعب العيسي${st}`;
     drawProducts(); drawLegend();
     if (first) { buildFrames(false); S.idx = 0; }
     setDomain(S.dom, first);
@@ -585,8 +589,8 @@
     try { idx = await getJSON(DATA + "runs.json"); } catch (e) { idx = { runs: [] }; }
     S.runs = idx.runs || [];
     const sel = $("runSelect");
-    sel.hidden = S.runs.length < 2;
-    sel.innerHTML = S.runs.map((r) => `<option value="${r.run}">${runName(r.run)}${r.status === "running" ? " (جارٍ)" : ""}</option>`).join("");
+    sel.hidden = !S.runs.length;  // the run time lives here, so it shows even with one run
+    sel.innerHTML = S.runs.map((r) => `<option value="${r.run}">${runShort(r.run)}${r.status === "running" ? " · جارٍ" : ""}</option>`).join("");
     if (!S.runs.length) { $("mapEmpty").hidden = false; return; }
     if (first || !S.run) {
       const complete = S.runs.find((r) => r.status === "complete");

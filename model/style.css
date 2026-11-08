@@ -29,14 +29,14 @@ body { background: var(--bg); color: var(--ink); font: 15px/1.6 var(--f-ui); -we
 button, select, input { font: inherit; color: inherit; }
 a { color: var(--sea); }
 
-.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
 
 .top { display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top, 0px)) 14px 9px;
   background: var(--chrome); color: var(--chrome-ink); }
 .brand { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.3; }
-.brand-name { font-weight: 700; font-size: 1.02rem; }
+.brand-name { font-weight: 700; font-size: 1.02rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .brand-sub { font-size: .74rem; color: var(--chrome-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.run-select { max-width: 46vw; height: 36px; border-radius: 18px; border: 1px solid rgba(255,255,255,.2);
+.run-select { flex: 0 1 auto; min-width: 0; max-width: 40vw; text-overflow: ellipsis; height: 34px; border-radius: 18px; border: 1px solid rgba(255,255,255,.2);
   background: rgba(255,255,255,.1); color: var(--chrome-ink); padding: 0 10px; font-size: .8rem; }
 .run-select option { color: #0e1a24; }
 
