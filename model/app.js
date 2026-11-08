@@ -543,7 +543,7 @@
     $("mapEmpty").hidden = !!has;
     if (!has) return;
     const st = S.man.status === "running" ? " · جارٍ" : S.man.status === "failed" ? " · ناقص" : "";
-    $("runLabel").textContent = `${runName(run)} من جي إف إس${st}`;
+    $("runLabel").textContent = `${runName(run)}${st} · تطوير فهد متعب العيسي`;
     drawProducts(); drawLegend();
     if (first) { buildFrames(false); S.idx = 0; }
     setDomain(S.dom, first);
