@@ -806,7 +806,7 @@
   }
 
   function mjoPhase() {
-    const st = M.st, R = 3.6, S = 46, P = 26, W = 2 * R * S + 2 * P;
+    const st = M.st, R = 3.2, S = 52, P = 26, W = 2 * R * S + 2 * P;
     const X = (x) => P + (x + R) * S, Y = (y) => P + (R - y) * S;
     let g = `<svg viewBox="0 0 ${W} ${W}" direction="ltr" font-family="Readex Pro, sans-serif">`;
     g += `<rect x="${P}" y="${P}" width="${2 * R * S}" height="${2 * R * S}" fill="none" stroke="currentColor" stroke-opacity=".25"/>`;
@@ -829,11 +829,20 @@
       const o0 = obs[0], o1 = obs[obs.length - 1];
       g += `<text x="${X(clip(o0.r1)) + 6}" y="${Y(clip(o0.r2)) - 6}" font-size="11" fill="currentColor" fill-opacity=".7">${fmtDM.format(dOf(o0.d))}/${num(+o0.d.slice(5, 7))}</text>`;
       g += `<circle cx="${X(clip(o1.r1))}" cy="${Y(clip(o1.r2))}" r="6" fill="#45c3e6" stroke="#fff" stroke-width="2"/>`;
+      { const x = X(clip(o1.r1)), y = Y(clip(o1.r2)), dx = x > W / 2 ? -10 : 10;
+        g += `<text x="${x + dx}" y="${y - 8}" text-anchor="${x > W / 2 ? "end" : "start"}" font-size="12.5" font-weight="700" fill="#45c3e6" stroke="var(--surface, #111a23)" stroke-width="3" paint-order="stroke">${num(+o1.d.slice(8))}/${num(+o1.d.slice(5, 7))}</text>`; }
       if (fc.length) {
         const pts = [o1, ...fc].map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ");
         g += `<polyline fill="none" stroke="#f2b552" stroke-width="2.2" stroke-dasharray="6 5" points="${pts}"/>`;
-        const f1 = fc[fc.length - 1];
-        g += `<circle cx="${X(clip(f1.r1))}" cy="${Y(clip(f1.r2))}" r="4.5" fill="#f2b552"/>`;
+        // the forecast split into three: a dated marker at each third
+        const n = fc.length, marks = [...new Set([Math.round(n / 3) - 1, Math.round(2 * n / 3) - 1, n - 1])].filter((i) => i >= 0);
+        for (const i of marks) {
+          const f = fc[i], x = X(clip(f.r1)), y = Y(clip(f.r2));
+          const t = `${num(+f.d.slice(8))}/${num(+f.d.slice(5, 7))}`;
+          g += `<circle cx="${x}" cy="${y}" r="5" fill="#f2b552" stroke="#fff" stroke-width="1.5"/>`;
+          const dx = x > W / 2 ? -9 : 9, anchor = x > W / 2 ? "end" : "start";
+          g += `<text x="${x + dx}" y="${y + 4}" text-anchor="${anchor}" font-size="12.5" font-weight="700" fill="#f2b552" stroke="var(--surface, #111a23)" stroke-width="3" paint-order="stroke">${t}</text>`;
+        }
       }
     }
     $("mjoPhase").innerHTML = g + "</svg>";
