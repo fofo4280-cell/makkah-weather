@@ -10,28 +10,23 @@ jobs:
     steps:
       - name: probe
         run: |
-          O="Origin: https://fofo4280-cell.github.io"
+          pip install pillow numpy >/dev/null 2>&1 || true
           B=https://view.eumetsat.int/geoserver
-          echo "== WMS caps li layers"
-          curl -s -m 60 "$B/wms?service=WMS&request=GetCapabilities&version=1.3.0" -o caps.xml; ls -la caps.xml
-          python3 - <<'PY'
-          import re
-          s=open("caps.xml",encoding="utf-8",errors="ignore").read()
-          for m in re.finditer(r"<Layer[^>]*>\s*<Name>([^<]*li_[^<]*)</Name>\s*<Title>([^<]*)</Title>(.*?)</Layer>", s, re.S):
-              body=m.group(3)
-              dim=re.search(r'<Dimension name="time"[^>]*>([^<]{0,300})', body)
-              print(m.group(1),"|",m.group(2),"|",(dim.group(1)[-200:] if dim else "no time"))
-          PY
-          echo "== GetMap CORS"
-          curl -s -m 60 -D - -o afa.png -H "$O" "$B/wms?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326&bbox=10,30,35,60&width=600&height=500&format=image/png&transparent=true" | grep -i "HTTP/\|access-control\|content-type"
-          file afa.png
-          echo "== WFS caps"
-          curl -s -m 60 -D - -H "$O" "$B/wfs?service=WFS&request=GetCapabilities&version=2.0.0" -o wfs.xml | grep -i "HTTP/\|access-control"
-          grep -o "<Name>[^<]*li[^<]*</Name>" wfs.xml | head -20; grep -c "<FeatureType" wfs.xml || true
-          echo "== mtg_fd namespace WFS"
-          curl -s -m 60 "$B/mtg_fd/wfs?service=WFS&request=GetCapabilities&version=2.0.0" | grep -o "<Name>[^<]*</Name>" | head -30
-          echo "== blitzortung"
-          curl -s -m 20 -o /dev/null -w "%{http_code}\n" https://map.blitzortung.org/
-          curl -s -m 20 -D - -o /dev/null -H "$O" "https://ws1.blitzortung.org/" | head -5
-          echo "== GetFeatureInfo json"
-          curl -s -m 60 -H "$O" -D - "$B/wms?service=WMS&request=GetFeatureInfo&version=1.3.0&layers=mtg_fd:li_afa&query_layers=mtg_fd:li_afa&styles=&crs=EPSG:4326&bbox=10,30,35,60&width=600&height=500&i=300&j=250&info_format=application/json" | head -c 800
+          for t in $(python3 -c "
+          import datetime as d
+          n=d.datetime.utcnow().replace(second=0,microsecond=0); n-=d.timedelta(minutes=n.minute%5)
+          print(' '.join((n-d.timedelta(minutes=5*k)).strftime('%Y-%m-%dT%H:%M:00Z') for k in range(0,8)))"); do
+            curl -s -m 60 -D h.txt -o li.bin "$B/wms?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326&bbox=0,20,50,70&width=1250&height=1250&format=image/png&transparent=true&time=$t"
+            echo "$t $(grep -i content-type h.txt | tr -d '\r')"
+            python3 -c "
+          from PIL import Image; import numpy as np,sys
+          try:
+            a=np.array(Image.open('li.bin').convert('RGBA'))
+          except Exception as e:
+            print('  not image', open('li.bin','rb').read(200)); sys.exit()
+          m=a[...,3]>0; print('  nonzero px',int(m.sum()))
+          if m.any():
+            c,n=np.unique(a[m].reshape(-1,4),axis=0,return_counts=True); o=n.argsort()[::-1][:6]; print('  colours',[(tuple(c[i]),int(n[i])) for i in o])
+            ys,xs=np.nonzero(m); print('  lat range',50-ys.max()*0.04,50-ys.min()*0.04,'lon',20+xs.min()*0.04,20+xs.max()*0.04)
+          "
+          done
