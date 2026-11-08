@@ -428,7 +428,7 @@ def report(st, fc_wet):
     title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
     if now:
         ph = now["phase"]
-        lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(now['amp'])} ({strength(now['amp'])})، "
+        lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(round(now['amp'], 1))} ({strength(now['amp'])})، "
                      f"والحمل العميق المصاحب له فوق {PHASE_AREA[ph]}.")
         if st["wet_season"]:
             lines.append("هذا الطور من الأطوار الرطبة للمملكة في موسم الأمطار (١ و٢ و٧ و٨)، إذ تقوى فيه الرياح الشرقية والجنوبية الشرقية الحاملة لرطوبة بحر العرب."
@@ -437,7 +437,7 @@ def report(st, fc_wet):
     lines.append(f"الحدث الدافئ (الحمل المدعوم) يتمركز فوق {st['warm']['region']}، والحدث البارد (الحمل المكبوت) فوق {st['cold']['region']}.")
     if st["rmm_fc"]:
         last = st["rmm_fc"][min(9, len(st["rmm_fc"]) - 1)]
-        lines.append(f"بحسب توقع جي إف إس يتجه التذبذب خلال عشرة أيام إلى الطور {ar(last['phase'])} بشدة {ar(last['amp'])}.")
+        lines.append(f"بحسب توقع جي إف إس يتجه التذبذب خلال عشرة أيام إلى الطور {ar(last['phase'])} بشدة {ar(round(last['amp'], 1))}.")
     by_region = {}
     for s in st["surge"]:
         by_region.setdefault(s["region"], []).append(s)
