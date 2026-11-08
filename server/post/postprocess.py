@@ -16,7 +16,8 @@ from netCDF4 import Dataset
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from products import PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point, fields_from_frame  # noqa: E402
+from products import (PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point,  # noqa: E402
+                      fields_from_frame, ivt_from_frame)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
@@ -169,13 +170,23 @@ class Processor:
             fields.pop("rain1h", None)
         late = self.first_hour(did) > 0
         for pid, f in fields.items():
-            if pid not in PRODUCTS or (late and pid == "rainacc"):
+            if pid not in PRODUCTS or (late and pid == "rainacc") or PRODUCTS[pid].get("only"):
                 continue
             if pid in ("wind", "wup") and first:
                 continue
             save_png(os.path.join(self.st.dir, self.pub[did], pid, f"{h:03d}.png"), g.sample(f), PRODUCTS[pid])
         if h == SINGLE["rain24"]["from_h"]:
             np.save(os.path.join(self.st.dir, f".acc3_{did}.npy"), acc)
+        # strongest radar echo since hour 3, for the thunderstorm chance map
+        if not late and h >= SINGLE["tsprob"]["from_h"] and "refl" in fields:
+            rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
+            cur = np.load(rp) if os.path.exists(rp) and h > SINGLE["tsprob"]["from_h"] else None
+            np.save(rp, fields["refl"] if cur is None else np.maximum(cur, fields["refl"]))
+        if self.dom[did].get("ivt"):
+            try:
+                self.ivt(did, path, g, h)
+            except Exception as e:  # a missing variable must not stop the other maps
+                print(f"ivt failed {path}: {e}", file=sys.stderr)
         # daily accumulators (local day in Riyadh time, hour ending at valid time)
         day = (t - timedelta(minutes=1)).astimezone(RIYADH).strftime("%Y%m%d")
         if not first and not late:
@@ -228,6 +239,47 @@ class Processor:
                 if "wup" in fields:
                     put("wup", neighbourhood_max(fields["wup"], i, j, r))
 
+    def ivt(self, did, path, g, h):
+        with Dataset(path) as nc:
+            mag, qu, qv = ivt_from_frame(nc)
+            lat, lon = np.array(nc.variables["XLAT"][0]), np.array(nc.variables["XLONG"][0])
+        save_png(os.path.join(self.st.dir, self.pub[did], "ivt", f"{h:03d}.png"), g.sample(mag), PRODUCTS["ivt"])
+        k = max(1, int(round(80000 / self.dom[did]["dx"])))  # one arrow every ~80 km
+        sl = (slice(k // 2, None, k), slice(k // 2, None, k))
+        m, la, lo, a, b = mag[sl], lat[sl], lon[sl], qu[sl], qv[sl]
+        keep = m >= 150
+        vec = [[round(float(x), 2), round(float(y), 2), int(round(float(u))), int(round(float(v)))]
+               for x, y, u, v in zip(la[keep], lo[keep], a[keep], b[keep])]
+        out = os.path.join(self.st.dir, self.pub[did], "ivt_vec", f"{h:03d}.json")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        jdump(out, {"h": h, "max": int(round(float(np.nanmax(mag)))), "v": vec})
+
+    def tsprob(self):
+        """Share of points within 25 km where the radar echo reached 40 dBZ at some hour since hour 3."""
+        from scipy.ndimage import convolve
+        spec = SINGLE["tsprob"]
+        out = self.st.s.setdefault("single_ts", {})
+        for d in CFG["domains"]:
+            did = d["id"]
+            rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
+            hours = self.st.s["done"].get(did, [])
+            if self.first_hour(did) > 0 or not os.path.exists(rp) or not hours:
+                continue
+            last = max(hours)
+            if last <= spec["from_h"] or out.get(did, {}).get("to") == last:
+                continue
+            g = self.grids.get(did)
+            if g is None:
+                with Dataset(self.files(did)[0]) as nc:
+                    g = self.grid(did, nc)
+            r = max(1, int(round(spec["radius_km"] * 1000 / d["dx"])))
+            yy, xx = np.mgrid[-r:r + 1, -r:r + 1]
+            disk = (xx ** 2 + yy ** 2 <= r * r).astype(np.float32)
+            hit = (np.nan_to_num(np.load(rp), nan=0) >= spec["dbz"]).astype(np.float32)
+            prob = 100 * convolve(hit, disk / disk.sum(), mode="constant", cval=0.0)
+            save_png(os.path.join(self.st.dir, self.pub[did], "tsprob", "main.png"), g.sample(prob), spec)
+            out[did] = {"from": spec["from_h"], "to": last}
+
     def single_products(self):
         """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far."""
         spec = SINGLE["rain24"]
@@ -250,7 +302,11 @@ class Processor:
             out[did] = {"from": spec["from_h"], "to": last}
 
     def daily_products(self, final):
-        self.single_products()
+        for fn in (self.single_products, self.tsprob):
+            try:
+                fn()
+            except Exception as e:
+                print(f"{fn.__name__} failed: {e}", file=sys.stderr)
         for did, days in self.st.s["daily"].items():
             g = self.grids.get(did)
             if g is None:
@@ -283,14 +339,17 @@ class Processor:
                 if os.path.exists(os.path.join(self.st.dir, self.pub[did], "refl_day", f"{day}.png")):
                     days.append({"date": day, "hours": len(hrs)})
             late = self.first_hour(did) > 0
-            prods = [k for k in PRODUCTS if not (late and k == "rainacc")]
+            prods = [k for k in PRODUCTS if not (late and k == "rainacc") and not (PRODUCTS[k].get("only") and not d.get(PRODUCTS[k]["only"]))]
             if not late:
                 prods += list(DAILY)
             if did in self.st.s.get("single", {}):
                 prods.append("rain24")
+            if did in self.st.s.get("single_ts", {}):
+                prods.append("tsprob")
             doms[self.pub[did]] = {"name": d["name"], "res": d["res"], "dx": d["dx"], "bounds": bounds, "hours": hours,
                          "planned": d["hours"], "days": days, "products": prods,
-                         "rain24": self.st.s.get("single", {}).get(did)}
+                         "rain24": self.st.s.get("single", {}).get(did),
+                         "tsprob": self.st.s.get("single_ts", {}).get(did)}
             pinfo = self.write_points(did, hours)
             if pinfo:
                 doms[self.pub[did]]["points"] = pinfo

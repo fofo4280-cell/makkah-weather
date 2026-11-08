@@ -21,9 +21,9 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h"];
+  const HOURLY = ["refl", "rain1h", "ivt"];
   const DAILY = ["refl_day", "rain_day"];
-  const SINGLE = ["rain24"];   // one map for the whole run
+  const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
   const $ = (id) => document.getElementById(id);
@@ -108,8 +108,56 @@
   }
   function clearOverlay() { fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0; }
 
+  // arrows of water vapour transport, drawn over the colours
+  const VecLayer = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
+      m.getPane("lightning").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    setData(v) { this._v = v; this.redraw(); },
+    redraw() {
+      const m = this._map; if (!m) return;
+      const size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+      c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + "px"; c.style.height = size.y + "px";
+      L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
+      const ctx = c.getContext("2d");
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
+      if (!this._v) return;
+      const z = m.getZoom(), every = z <= 4 ? 2 : 1, used = new Set(), cell = z <= 5 ? 26 : 34;
+      ctx.lineCap = "round"; ctx.lineJoin = "round";
+      this._v.forEach(([lat, lon, u, v], i) => {
+        if (i % every) return;
+        const p = m.latLngToContainerPoint([lat, lon]);
+        if (p.x < -10 || p.y < -10 || p.x > size.x + 10 || p.y > size.y + 10) return;
+        const key = Math.floor(p.x / cell) * 10000 + Math.floor(p.y / cell);
+        if (used.has(key)) return; used.add(key);
+        const mag = Math.hypot(u, v), len = Math.min(26, 8 + 18 * mag / 700), a = Math.atan2(-v, u);
+        const x2 = p.x + Math.cos(a) * len / 2, y2 = p.y + Math.sin(a) * len / 2, x1 = p.x - Math.cos(a) * len / 2, y1 = p.y - Math.sin(a) * len / 2;
+        for (const [col, w] of [["rgba(255,255,255,.75)", 3.2], ["#141a22", 1.5]]) {
+          ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
+          ctx.moveTo(x2 - 6 * Math.cos(a - 0.45), y2 - 6 * Math.sin(a - 0.45)); ctx.lineTo(x2, y2);
+          ctx.lineTo(x2 - 6 * Math.cos(a + 0.45), y2 - 6 * Math.sin(a + 0.45)); ctx.stroke();
+        }
+      });
+    },
+  });
+  const vec = { layer: null, url: null };
+  async function showVectors() {
+    const f = S.frames[S.idx], d = S.man && S.man.domains[S.dom];
+    if (S.prod !== "ivt" || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
+    const url = `${base(d)}runs/${S.run}/${S.dom}/ivt_vec/${String(f.h).padStart(3, "0")}.json`;
+    if (!vec.layer) { vec.layer = new VecLayer(); vec.layer.addTo(map); }
+    if (vec.url === url) return;
+    vec.url = url;
+    try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
+  }
+
   function showFrame() {
     if (LX.on) return liShow();
+    showVectors();
     const d = S.man && S.man.domains[S.dom];
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
@@ -227,12 +275,22 @@
     if (fit && d && d.bounds) map.fitBounds(d.bounds, { padding: [10, 10] });
   }
 
+  // the current domain if it has the product, otherwise the first that does
+  function domFor(p) {
+    const has = (k) => { const d = S.man && S.man.domains[k]; return d && (!d.products || d.products.includes(p)); };
+    if (p === "lightning" || has(S.dom)) return S.dom;
+    return ["sa", "d02", "d03", "d01"].find(has) || S.dom;
+  }
+
   function setProduct(p) {
     S.prod = p; store.set("prod", p);
     if (p === "lightning") { if (!LX.on) liEnter(); return; }
-    if (LX.on) { liExit(); setDomain(S.dom, false); }
-    buildFrames(true);
-    drawLegend(); showFrame();
+    if (LX.on) liExit();
+    // a product made only on some domains (water vapour transport: the Kingdom run) moves there
+    const k = domFor(p);
+    if (k !== S.dom) { drawLegend(); setDomain(k, true); return; }
+    setDomain(S.dom, false);
+    drawLegend();
   }
 
 
@@ -388,6 +446,7 @@
 
   function liEnter() {
     LX.on = true;
+    if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; vec.url = null; }
     stop(); clearOverlay();
     S.rects.forEach((r) => map.removeLayer(r)); S.rects = [];
     $("domChips").hidden = true; $("mapEmpty").hidden = true;
@@ -623,7 +682,7 @@
     const st = S.man.status === "running" ? " · جارٍ" : S.man.status === "failed" ? " · ناقص" : "";
     $("runLabel").textContent = `تطوير فهد متعب العيسي${st}`;
     drawProducts(); drawLegend();
-    if (first && !LX.on) { buildFrames(false); S.idx = 0; }
+    if (first && !LX.on) { S.dom = domFor(S.prod); buildFrames(false); S.idx = 0; }
     setDomain(S.dom, first);
     drawCityMarkers();
     if (!$("p-cities").hidden) drawCities();
