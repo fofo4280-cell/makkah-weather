@@ -6,6 +6,9 @@ name: Saudi model 3 km
 on:
   schedule:
     - cron: '25 22 * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/saudi-model.yml', 'model/run-now.txt']
   workflow_dispatch:
     inputs:
       cycle:
@@ -97,7 +100,7 @@ jobs:
 
       - name: Forecast
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then export ANY_CYCLE=1; fi
+          if [ "${{ github.event_name }}" != "schedule" ]; then export ANY_CYCLE=1; fi
           if [ -n "${{ inputs.cycle }}" ]; then export FORCE_CYCLE="${{ inputs.cycle }}"; fi
           bash "$SWRF/repo/server/run_cycle.sh"
 
