@@ -841,43 +841,32 @@
 
   function mjoMap() {
     if (!M.st) return;
-    if (!M.map) {
-      M.map = L.map("mjoMap", { zoomControl: true, attributionControl: false, minZoom: 1, maxZoom: 6, worldCopyJump: false }).setView([8, 90], 1);
-      L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxNativeZoom: 16 }).addTo(M.map);
-      M.map.createPane("lightning"); M.map.getPane("lightning").style.zIndex = 640; M.map.getPane("lightning").style.pointerEvents = "none";
-      M.map.createPane("labels"); M.map.getPane("labels").style.zIndex = 650; M.map.getPane("labels").style.pointerEvents = "none";
-      L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { pane: "labels", maxNativeZoom: 16 }).addTo(M.map);
+    if (!M.bound) {
+      M.bound = true;
       document.querySelectorAll("#mjoLayer button").forEach((b) => b.onclick = () => {
         document.querySelectorAll("#mjoLayer button").forEach((x) => x.classList.toggle("on", x === b));
-        M.layer = b.dataset.l; mjoShow(true);
+        M.layer = b.dataset.l; mjoShow();
       });
-      $("mjoDay").oninput = (e) => { M.day = +e.target.value; mjoShow(false); };
+      $("mjoDay").oninput = (e) => { M.day = +e.target.value; mjoShow(); };
     }
-    setTimeout(() => M.map.invalidateSize(), 60);
     $("mjoDay").max = (M.st.days || []).length - 1;
-    mjoShow(true);
+    mjoShow();
   }
 
-  async function mjoShow(fit) {
+  function mjoShow() {
     const st = M.st, k = M.day, lay = M.layer, kk = String(k).padStart(2, "0");
-    const bounds = lay === "pw" ? st.bounds.pw : st.bounds.wc;
-    const url = `${CL}${lay}/${kk}.png`;
-    if (M.img) M.img.setUrl(url).setBounds(L.latLngBounds(bounds));
-    else M.img = L.imageOverlay(url, bounds, { opacity: 1, zIndex: 300 }).addTo(M.map);
-    if (fit) M.map.fitBounds(bounds, { padding: [4, 4] });
+    const figs = st.figs || {};
+    const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+    $("mjoFig").src = url; $("mjoFigLink").href = url;
+    $("mjoFigWrap").classList.toggle("fit", lay === "pw");
     const d = st.days[k];
     $("mjoDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `+${num(k)} · ${fmtDayD.format(dOf(d))}`) : "";
-    const lg = st.legends[lay];
+    const lg = figs[lay];
+    if (!lg) { $("mjoLegend").innerHTML = ""; return; }
     const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
-    const ticks = lg.stops.filter((x, i) => i % 2 === 0 || i === lg.stops.length - 1)
-      .map((x) => `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v)}</span>`).join("");
+    const ticks = lg.ticks.map((v) => `<span style="left:${((v - lg.vmin) / (lg.vmax - lg.vmin) * 100).toFixed(1)}%">${num(v)}</span>`).join("");
     $("mjoLegend").innerHTML = `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
-    if (lay === "wc") {
-      if (!M.vecs) { try { M.vecs = await getJSON(CL + "wc_vec.json"); } catch (e) { M.vecs = {}; } }
-      if (!M.vec) { M.vec = new VecLayer({ ref: 3 }); M.vec.addTo(M.map); }
-      M.vec.setData(M.vecs[k] || null);
-    } else if (M.vec) { M.map.removeLayer(M.vec); M.vec = null; }
   }
 
   function mjoHov() {
@@ -887,7 +876,7 @@
     const dpr = window.devicePixelRatio || 1;
     cv.width = w * dpr; cv.height = H * dpr; cv.style.height = H + "px";
     const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const lg = st.legends.wc, n = h.v[0].length, cw = (w - left - 4) / n;
+    const lg = (st.figs && st.figs.wc) || st.legends.wc, n = h.v[0].length, cw = (w - left - 4) / n;
     h.v.forEach((row, j) => row.forEach((v, i) => { c.fillStyle = scaleColor(lg, v); c.fillRect(left + i * cw, top + j * rowH, cw + 0.6, rowH + 0.6); }));
     const fcRow = h.days.indexOf(h.first_fc);
     c.font = "10px Readex Pro, sans-serif"; c.fillStyle = getComputedStyle(document.body).color; c.textAlign = "center";
@@ -908,7 +897,7 @@
     const st = M.st, rows = (st.pw || []).slice(1, 11);
     if (!rows.length) return;
     const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
-    const lg = st.legends.pw;
+    const lg = (st.figs && st.figs.pw) || st.legends.pw;
     let t = `<table class="pwt"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
     for (const k of Object.keys(names)) {
       t += `<tr><td>${names[k]}</td>` + rows.map((r) => {

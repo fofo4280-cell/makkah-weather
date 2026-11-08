@@ -22,6 +22,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sphere  # noqa: E402
+import figures  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 RMM_URL = "https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
@@ -285,6 +286,15 @@ def main():
             mercator_png(os.path.join(out, "wcd", f"{k:02d}.png"), W - prev, LAT1, LON1, CHANGE)
         u, v = sphere.divergent_wind(-W * 1e6, LAT1)   # anomalous outflow at 200 hPa
         vec_all[k] = arrows(u, v, LAT1, LON1)
+        sl = (LAT1 >= -46) & (LAT1 <= 46)
+        try:
+            figures.draw(os.path.join(out, "fig", f"wc_{k:02d}.png"), W[sl], LAT1[sl], LON1, "wc", (0, 360, -45, 45),
+                         stream=(u[sl], v[sl]))
+            if prev is not None:
+                figures.draw(os.path.join(out, "fig", f"wcd_{k:02d}.png"), (W - prev)[sl], LAT1[sl], LON1, "wcd",
+                             (0, 360, -45, 45))
+        except Exception as e:
+            print("figure failed", k, e, flush=True)
     json.dump(vec_all, open(os.path.join(out, "wc_vec.json"), "w"), separators=(",", ":"))
 
     # 5. Hovmoller: 15S-15N mean, 2.5 degree steps, last 60 days + forecast
@@ -366,6 +376,11 @@ def main():
         sub_i = (LON1 >= 25) & (LON1 <= 65)
         mercator_png(os.path.join(out, "pw", f"{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i], PWA,
                      south=6, north=39, west=25, east=65, w=400)
+        try:
+            figures.draw(os.path.join(out, "fig", f"pw_{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i],
+                         "pw", (25, 65, 6, 39), width_px=1100)
+        except Exception as e:
+            print("figure failed pw", k, e, flush=True)
 
     # 9. assessment and report (written from fixed templates)
     month = t0.month
@@ -393,6 +408,7 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
+        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw")},
     }
     status["report"] = report(status, fc_wet) if surge else None
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
