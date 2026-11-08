@@ -13,7 +13,8 @@ For quick tests: SWRF_HOURS caps the forecast length, SWRF_WINDOW="a,b" override
 import hashlib, json, os, sys
 from datetime import datetime, timedelta
 
-CFG = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "domains.json")))
+# SWRF_DOMAINS picks another grid design (domains_sa.json: the Kingdom-wide 9 km run)
+CFG = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.environ.get("SWRF_DOMAINS") or "domains.json")))
 
 
 def doms(max_dom=None):

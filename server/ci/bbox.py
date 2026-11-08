@@ -3,7 +3,7 @@
 import json, math, os, sys
 from pyproj import Proj
 
-cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "domains.json")))
+cfg = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
 m = cfg["map"]
 P = Proj(proj="lcc", lat_1=m["truelat1"], lat_2=m["truelat2"], lon_0=m["stand_lon"], lat_0=m["ref_lat"], R=6370000)
 D = {d["id"]: d for d in cfg["domains"]}

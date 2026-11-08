@@ -29,6 +29,18 @@ concurrency:
 
 jobs:
   forecast:
+    # two servers in parallel: the Makkah nests (9 km west, 3 km, 1 km) and the Kingdom-wide 9 km run
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: makkah
+            domains: domains.json
+            branch: model-data
+          - name: kingdom
+            domains: domains_sa.json
+            branch: model-data-sa
     runs-on: ubuntu-24.04
     timeout-minutes: 355
     env:
@@ -39,6 +51,8 @@ jobs:
       KEEP_RUNS: '3'
       CYCLES: '0 12'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SWRF_DOMAINS: ${{ matrix.domains }}
+      PUBLISH_BRANCH: ${{ matrix.branch }}
     steps:
       - name: Model code
         uses: actions/checkout@v4
@@ -52,7 +66,7 @@ jobs:
           mkdir -p "$SWRF/state" "$SWRF/logs" "$WEB"
           ln -sfn "$GITHUB_WORKSPACE/code" "$SWRF/repo"
           touch "$SWRF/state/installed"
-          git clone -q --depth 1 --branch model-data "https://github.com/${GITHUB_REPOSITORY}" "$WEB/data" || mkdir -p "$WEB/data"
+          git clone -q --depth 1 --branch "$PUBLISH_BRANCH" "https://github.com/${GITHUB_REPOSITORY}" "$WEB/data" || mkdir -p "$WEB/data"
           rm -rf "$WEB/data/.git"
           echo "PUBLISH_HOOK=$SWRF/repo/server/ci/publish.sh" >> "$GITHUB_ENV"
 

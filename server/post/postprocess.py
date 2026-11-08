@@ -19,7 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from products import PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point, fields_from_frame  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-CFG = json.load(open(os.path.join(HERE, "..", "domains.json")))
+CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
 CITIES = json.load(open(os.path.join(HERE, "cities.json")))
 R_EARTH = 6370000.0
 RIYADH = timezone(timedelta(hours=3))
@@ -130,6 +130,7 @@ class Processor:
         self.init = datetime.strptime(run, "%Y%m%d%H").replace(tzinfo=timezone.utc)
         self.grids = {}
         self.dom = {d["id"]: d for d in CFG["domains"]}
+        self.pub = {d["id"]: d.get("pub", d["id"]) for d in CFG["domains"]}  # name used on the website
         self.prev_acc = {}
         self._first = dict(self.st.s.get("first", {}))
 
@@ -172,7 +173,7 @@ class Processor:
                 continue
             if pid in ("wind", "wup") and first:
                 continue
-            save_png(os.path.join(self.st.dir, did, pid, f"{h:03d}.png"), g.sample(f), PRODUCTS[pid])
+            save_png(os.path.join(self.st.dir, self.pub[did], pid, f"{h:03d}.png"), g.sample(f), PRODUCTS[pid])
         if h == SINGLE["rain24"]["from_h"]:
             np.save(os.path.join(self.st.dir, f".acc3_{did}.npy"), acc)
         # daily accumulators (local day in Riyadh time, hour ending at valid time)
@@ -245,7 +246,7 @@ class Processor:
                 with Dataset(self.files(did)[0]) as nc:
                     g = self.grid(did, nc)
             tot = np.maximum(np.load(self.acc_path(did)) - np.load(a3), 0)
-            save_png(os.path.join(self.st.dir, did, "rain24", "main.png"), g.sample(tot), spec)
+            save_png(os.path.join(self.st.dir, self.pub[did], "rain24", "main.png"), g.sample(tot), spec)
             out[did] = {"from": spec["from_h"], "to": last}
 
     def daily_products(self, final):
@@ -264,7 +265,7 @@ class Processor:
                 for dpid, spec in DAILY.items():
                     p = os.path.join(self.st.dir, f".day_{did}_{dpid}_{day}.npy")
                     if os.path.exists(p):
-                        save_png(os.path.join(self.st.dir, did, dpid, f"{day}.png"), g.sample(np.load(p)), spec)
+                        save_png(os.path.join(self.st.dir, self.pub[did], dpid, f"{day}.png"), g.sample(np.load(p)), spec)
 
     def manifest(self, status):
         doms = {}
@@ -279,7 +280,7 @@ class Processor:
                 self.st.s.setdefault("bounds", {})[did] = g.bounds
             days = []
             for day, hrs in sorted(self.st.s["daily"].get(did, {}).items()):
-                if os.path.exists(os.path.join(self.st.dir, did, "refl_day", f"{day}.png")):
+                if os.path.exists(os.path.join(self.st.dir, self.pub[did], "refl_day", f"{day}.png")):
                     days.append({"date": day, "hours": len(hrs)})
             late = self.first_hour(did) > 0
             prods = [k for k in PRODUCTS if not (late and k == "rainacc")]
@@ -287,12 +288,12 @@ class Processor:
                 prods += list(DAILY)
             if did in self.st.s.get("single", {}):
                 prods.append("rain24")
-            doms[did] = {"name": d["name"], "res": d["res"], "bounds": bounds, "hours": hours,
+            doms[self.pub[did]] = {"name": d["name"], "res": d["res"], "dx": d["dx"], "bounds": bounds, "hours": hours,
                          "planned": d["hours"], "days": days, "products": prods,
                          "rain24": self.st.s.get("single", {}).get(did)}
             pinfo = self.write_points(did, hours)
             if pinfo:
-                doms[did]["points"] = pinfo
+                doms[self.pub[did]]["points"] = pinfo
         man = {"run": self.run, "init": self.init.strftime("%Y-%m-%dT%H:%MZ"), "status": status,
                "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
                "domains": doms,
@@ -316,7 +317,7 @@ class Processor:
             for var, vals in series.items():
                 hs = sorted(int(k) for k in vals)
                 out[var] = [[hh, vals[str(hh)]] for hh in hs]
-            meteo["cities"].append({**c, "domain": best, "series": out})
+            meteo["cities"].append({**c, "domain": self.pub[best], "series": out})
         jdump(os.path.join(self.st.dir, "meteo.json"), meteo)
         self.st.s["first"] = self._first
         self.st.save()
@@ -333,7 +334,7 @@ class Processor:
         if not frames:
             return None
         arr = np.stack(frames, axis=1)  # var, hour, ny, nx
-        path = os.path.join(self.st.dir, did, "points.bin")
+        path = os.path.join(self.st.dir, self.pub[did], "points.bin")
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path + ".tmp", "wb") as fh:
             fh.write(np.ascontiguousarray(arr).tobytes())
@@ -342,7 +343,7 @@ class Processor:
         if g is None and self.files(did):
             with Dataset(self.files(did)[0]) as nc:
                 g = self.grid(did, nc)
-        info = {"file": f"{did}/points.bin", "vars": POINT_VARS, "hours": hours,
+        info = {"file": f"{self.pub[did]}/points.bin", "vars": POINT_VARS, "hours": hours,
                 "nx": int(arr.shape[3]), "ny": int(arr.shape[2]), "dx": self.dom[did]["dx"],
                 "x00": round(g.x00, 2) if g else None, "y00": round(g.y00, 2) if g else None}
         if g:
