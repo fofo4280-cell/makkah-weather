@@ -241,9 +241,8 @@
     const sel = $("prodSelect");
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${P[k].label}</option>` : "");
-    sel.innerHTML = `<optgroup label="رصد مباشر"><option value="lightning">⚡ رادار البرق المباشر</option></optgroup>
-                     <optgroup label="توقعات النموذج كل ساعة">${HOURLY.map(opt).join("")}</optgroup>
-                     <optgroup label="المجاميع">${SINGLE.map(opt).join("")}${DAILY.map(opt).join("")}</optgroup>`;
+    // one flat list, live lightning first
+    sel.innerHTML = `<option value="lightning">رادار البرق المباشر</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
     if ((!P[S.prod] || !listed) && S.prod !== "lightning") S.prod = "refl";
     sel.value = S.prod;
@@ -764,7 +763,7 @@
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
     if (S.prod === "lightning") {  // show lightning straight away; the model data loads behind it
-      $("prodSelect").innerHTML = `<option value="lightning">⚡ رادار البرق المباشر</option>`; $("prodSelect").value = "lightning";
+      $("prodSelect").innerHTML = `<option value="lightning">رادار البرق المباشر</option>`; $("prodSelect").value = "lightning";
       liEnter();
     } else {
       setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant
