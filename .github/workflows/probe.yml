@@ -13,24 +13,9 @@ jobs:
         run: |
           pip install netCDF4 numpy >/dev/null 2>&1
           UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
-          echo "== BoM RMM"
-          curl -sL -m 60 -A "$UA" -o rmm.txt -w "%{http_code} %{url_effective}\n" http://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt; head -c 200 rmm.txt; echo; tail -n 3 rmm.txt
-          echo "== PSL catalog"
-          curl -s -m 60 "https://psl.noaa.gov/thredds/catalog/Datasets/ncep.reanalysis/Dailies/pressure/catalog.xml" | grep -o 'name="[^"]*ltm[^"]*"' | head -20
-          curl -s -m 60 "https://psl.noaa.gov/thredds/catalog/Datasets/ncep.reanalysis2/Dailies/pressure/catalog.xml" | grep -o 'name="[^"]*\(ltm\|2026\)[^"]*"' | head -20
-          curl -s -m 60 "https://psl.noaa.gov/thredds/catalog/Datasets/ncep.reanalysis/Dailies/surface/catalog.xml" | grep -o 'name="pr_wtr[^"]*"' | head
-          echo "== AWS gfs archive"
-          D=$(date -u -d "45 days ago" +%Y%m%d)
-          curl -s -m 30 -o /dev/null -w "%{http_code}\n" "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/00/atmos/gfs.t00z.pgrb2.1p00.f000.idx"
-          curl -s -m 30 "https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/00/atmos/gfs.t00z.pgrb2.1p00.f000.idx" | grep -n ":UGRD:200 mb\|:VGRD:200 mb\|PWAT\|ULWRF:top" | head
-          echo "== NCEI OLR"
-          curl -s -m 30 "https://www.ncei.noaa.gov/data/outgoing-longwave-radiation-daily/access/" | grep -o 'olr-daily[^"]*nc' | sort -u | tail -3
-          echo "== R2 time"
-          python3 - <<'PY'
-          from netCDF4 import Dataset, num2date
-          for u in ["https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis2/Dailies/pressure/uwnd.2026.nc",
-                    "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Dailies/pressure/uwnd.2026.nc"]:
-              try:
-                  d=Dataset(u); t=d.variables["time"]; print(u.split("Datasets/")[1], num2date(t[-1], t.units))
-              except Exception as e: print("FAIL",u,e)
-          PY
+          for u in https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt https://psl.noaa.gov/mjo/mjoindex/romi.cpcolr.1x.txt https://psl.noaa.gov/mjo/mjoindex/omi.1x.txt "https://iridl.ldeo.columbia.edu/SOURCES/.BoM/.MJO/.RMM/.amplitude/T/last/VALUES/data.ch"; do
+            echo "== $u"; curl -sL -m 60 -A "$UA" -o x.txt -w "%{http_code}\n" "$u"; head -c 150 x.txt; echo; tail -n 3 x.txt; echo
+          done
+          echo "== CPC dirs"
+          curl -s -m 30 https://ftp.cpc.ncep.noaa.gov/ | grep -o 'href="[^"]*"' | head -40
+          curl -s -m 30 "https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/" | grep -o 'href="[^"]*\(txt\|dat\|ascii\)"' | head
