@@ -29,7 +29,6 @@ PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
     "rainacc": {"label": "المطر المتراكم منذ البداية", "unit": "ملم", "stops": RAINACC, "tf": "sqrt"},
-    "wup":     {"label": "أقصى تيار صاعد خلال الساعة", "unit": "م/ث", "stops": WUP, "tf": "sqrt"},
 }
 DAILY = {
     "refl_day": {"label": "أقصى انعكاسية لكل يوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl"},
