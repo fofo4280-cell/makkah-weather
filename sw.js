@@ -1,5 +1,5 @@
 // Service worker: offline app shell + last-known API responses.
-const VERSION = 'mwx-v3';
+const VERSION = 'mwx-v4';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'js/util.js', 'js/api.js', 'js/met.js', 'js/charts.js', 'js/analysis.js', 'js/map.js', 'js/escarp.js', 'js/geo.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 const API_HOSTS = ['api.open-meteo.com', 'ensemble-api.open-meteo.com', 'previous-runs-api.open-meteo.com', 'api.rainviewer.com', 'aviationweather.gov', 'raw.githubusercontent.com'];
 
@@ -13,7 +13,7 @@ self.addEventListener('fetch', (e) => {
   if (e.request.method !== 'GET') return;
   if (url.origin === location.origin) {
     // network first for the shell so updates arrive; cache when offline
-    e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match('index.html'))));
+    e.respondWith(fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' }).then((r) => { const copy = r.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match('index.html'))));
     return;
   }
   // the private model's maps and status (model-data branch) change every night; let them pass untouched
