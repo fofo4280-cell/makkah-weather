@@ -16,6 +16,32 @@ SCALES = {
 }
 
 
+# main cities of the Kingdom, drawn on the regional maps so the lines can be placed at a glance
+# main cities of the Kingdom, drawn on the regional maps so the lines can be placed at a glance:
+# (name, lat, lon, where the label goes: n/s/e/w, shown on the wide wave map too)
+SAUDI_CITIES = [("مكة", 21.42, 39.83, "e", True), ("جدة", 21.54, 39.17, "w", True), ("المدينة", 24.47, 39.61, "n", True),
+                ("الرياض", 24.71, 46.68, "n", True), ("الدمام", 26.43, 50.10, "n", True), ("أبها", 18.22, 42.50, "e", True),
+                ("جازان", 16.89, 42.55, "w", True), ("تبوك", 28.38, 36.57, "n", True), ("حائل", 27.52, 41.69, "n", True),
+                ("سكاكا", 29.97, 40.21, "s", True), ("الطائف", 21.27, 40.42, "s", False), ("نجران", 17.49, 44.13, "e", False),
+                ("الباحة", 20.01, 41.47, "s", False), ("بريدة", 26.33, 43.97, "s", False), ("ينبع", 24.09, 38.06, "w", False),
+                ("عرعر", 30.98, 41.04, "n", False), ("وادي الدواسر", 20.47, 44.78, "e", False), ("الأحساء", 25.38, 49.59, "s", False)]
+
+
+def draw_cities(ax, transform, fontsize=6.0, wide=False):
+    from matplotlib import patheffects as pe
+    halo = [pe.withStroke(linewidth=2.2, foreground="white")]
+    gap = 0.45 if wide else 0.3
+    for name, la, lo, where, on_wide in SAUDI_CITIES:
+        if wide and not on_wide:
+            continue
+        ax.plot(lo, la, marker="o", markersize=2.4, color="#1b1b1b", markeredgecolor="white", markeredgewidth=0.5,
+                transform=transform, zorder=7)
+        dx, dy, ha, va = {"n": (0, gap, "center", "bottom"), "s": (0, -gap, "center", "top"),
+                          "e": (gap, 0, "left", "center"), "w": (-gap, 0, "right", "center")}[where]
+        ax.text(lo + dx, la + dy, _ar(name), transform=transform, ha=ha, va=va, fontsize=fontsize,
+                color="#1b1b1b", path_effects=halo, zorder=7)
+
+
 def _cmap(cols):
     from matplotlib.colors import LinearSegmentedColormap
     return LinearSegmentedColormap.from_list("c", cols, N=512)
@@ -121,6 +147,8 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
         except Exception as ex:
             print("coastlines unavailable:", str(ex)[:80])
         ax.spines["geo"].set_edgecolor("#999999")
+        if kind == "pw":
+            draw_cities(ax, ccrs.PlateCarree(), fontsize=7.5)
     step_x = 60 if e - w > 200 else 10
     step_y = 15 if n - s > 60 else 10
     xt = np.arange(np.ceil(w / step_x) * step_x, e + 0.1, step_x)
@@ -202,6 +230,7 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
         ref = float(np.nanpercentile(M[keep], 90))
         ax.quiver(LO[keep], LA[keep], U[keep] / ref, V[keep] / ref, transform=pc, color="#263238", alpha=0.75,
                   scale=28, width=0.0022, headwidth=4, headlength=4.5, zorder=4)
+    draw_cities(ax, pc, fontsize=5.8, wide=True)
     halo = [pe.withStroke(linewidth=2.6, foreground="white")]
     for kind, y, x, val in marks:
         col = "#d2442a" if kind == "H" else "#1f6fc0"
