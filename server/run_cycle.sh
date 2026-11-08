@@ -58,7 +58,7 @@ T_START=$(date -u +%s)
 log "cycle $CYC on $NPROC cores"
 
 status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
-status phase cycle "دورة $CYC قيد التشغيل"
+status phase cycle "الدورة قيد التشغيل"
 
 publish() { publish_log "$LOG" cycle; }
 hook() { [ -n "${PUBLISH_HOOK:-}" ] && bash "$PUBLISH_HOOK" >/dev/null 2>&1; true; }
@@ -193,7 +193,7 @@ MINS=$(( (T_END - T_START) / 60 ))
 status history "{\"cycle\":\"$CYC\",\"ok\":$WRF_OK,\"minutes\":$MINS,\"cores\":$NPROC,\"finished\":\"$(date -u +%Y-%m-%dT%H:%MZ)\"}"
 if [ $WRF_OK = 1 ]; then
   touch "$STATE/done_$CYC"
-  status phase idle "آخر دورة $CYC اكتملت في $MINS دقيقة"
+  status phase idle "اكتملت آخر دورة في $MINS دقيقة"
   rm -rf "$RUN/gfs" "$RUN"/wrf/wrfout_* "$RUN"/wps/met_em.*
 else
   fail "توقف النموذج قبل نهايته؛ نُشر ما اكتمل"
