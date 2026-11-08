@@ -92,10 +92,13 @@ def gfs_fields(cycle, fh):
         open(tmp, "wb").write(blob)
         with pygrib.open(tmp) as g:
             m = g.message(1)
-            a = np.array(m.values, dtype=np.float32)
+            a = np.ma.filled(np.ma.asarray(m.values, dtype=np.float32), np.nan)
+            a[np.abs(a) > 1e6] = np.nan
             la = m.latlons()[0][:, 0]
         if la[0] < la[-1]:
             a = a[::-1]
+        if not np.isfinite(a).all():
+            raise ValueError(f"{name}: {int((~np.isfinite(a)).sum())} missing values")
         out[name] = a
     return out
 
@@ -152,7 +155,7 @@ def read_rmm():
                 r1, r2, amp = float(p[3]), float(p[4]), float(p[6])
             except ValueError:
                 continue
-            if abs(r1) > 900 or abs(amp) > 900:
+            if not all(math.isfinite(x) for x in (r1, r2, amp)) or abs(r1) > 900 or abs(amp) > 900:
                 continue
             out.append((date(int(p[0]), int(p[1]), int(p[2])), r1, r2, int(p[5]), amp))
     return out
@@ -238,7 +241,12 @@ def main():
                 print("skip", dt.date(), e, flush=True)
                 continue
         z = np.load(p)
-        hist[dt] = {"chi": z["chi"].astype(np.float32) * 1e6, "pw": z["pw"].astype(np.float32)}
+        rec = {"chi": z["chi"].astype(np.float32) * 1e6, "pw": z["pw"].astype(np.float32)}
+        if not (np.isfinite(rec["chi"]).all() and np.isfinite(rec["pw"]).all()):
+            print("bad cached day", dt.date(), flush=True)
+            os.remove(p)
+            continue
+        hist[dt] = rec
     for f in os.listdir(hist_dir):  # keep the cache small
         try:
             if datetime.strptime(f[:8], "%Y%m%d").replace(tzinfo=timezone.utc) < t0 - timedelta(days=HIST_DAYS + 2):
@@ -302,8 +310,11 @@ def main():
             X.append([c, s, 1.0]); Y.append(rmm_by[dt.date()])
     fit = None
     fc_rmm = []
+    X, Y = np.array(X, dtype=float).reshape(-1, 3), np.array(Y, dtype=float).reshape(-1, 2)
+    ok = np.isfinite(X).all(1) & np.isfinite(Y).all(1)
+    X, Y = X[ok], Y[ok]
+    print("rmm fit rows", len(X), flush=True)
     if len(X) >= 30:
-        X, Y = np.array(X), np.array(Y)
         coef, *_ = np.linalg.lstsq(X, Y, rcond=None)
         pred = X @ coef
         r = [float(np.corrcoef(pred[:, k], Y[:, k])[0, 1]) for k in (0, 1)]
