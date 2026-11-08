@@ -21,8 +21,8 @@ SCALES = {
 # (name, lat, lon, where the label goes: n/s/e/w, shown on the wide wave map too)
 SAUDI_CITIES = [("مكة", 21.42, 39.83, "e", True), ("جدة", 21.54, 39.17, "w", True), ("المدينة", 24.47, 39.61, "n", True),
                 ("الرياض", 24.71, 46.68, "n", True), ("الدمام", 26.43, 50.10, "n", True), ("أبها", 18.22, 42.50, "e", True),
-                ("جازان", 16.89, 42.55, "w", True), ("تبوك", 28.38, 36.57, "n", True), ("حائل", 27.52, 41.69, "n", True),
-                ("سكاكا", 29.97, 40.21, "s", True), ("الطائف", 21.27, 40.42, "s", False), ("نجران", 17.49, 44.13, "e", False),
+                ("جازان", 16.89, 42.55, "w", True), ("تبوك", 28.38, 36.57, "n", True), ("حائل", 27.52, 41.69, "e", True),
+                ("سكاكا", 29.97, 40.21, "n", True), ("الطائف", 21.27, 40.42, "s", False), ("نجران", 17.49, 44.13, "e", False),
                 ("الباحة", 20.01, 41.47, "s", False), ("بريدة", 26.33, 43.97, "s", False), ("ينبع", 24.09, 38.06, "w", False),
                 ("عرعر", 30.98, 41.04, "n", False), ("وادي الدواسر", 20.47, 44.78, "e", False), ("الأحساء", 25.38, 49.59, "s", False)]
 
@@ -75,14 +75,14 @@ AR = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
 def lon_label(x):
     x = ((x + 180) % 360) - 180
     if x == 0 or abs(x) == 180:
-        return str(int(abs(x))).translate(AR)
-    return _ar(f"{str(int(abs(x))).translate(AR)}{'ش' if x > 0 else 'غ'}")
+        return f"{int(abs(x))}°"
+    return f"{int(abs(x))}°{'E' if x > 0 else 'W'}"
 
 
 def lat_label(y):
     if y == 0:
-        return _ar("خط الاستواء") if False else "٠"
-    return _ar(f"{str(int(abs(y))).translate(AR)}{'ش' if y > 0 else 'ج'}")
+        return "EQ"
+    return f"{int(abs(y))}°{'N' if y > 0 else 'S'}"
 
 
 def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
@@ -173,7 +173,7 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
 
 
 SCALES["wave"] = {"vmin": -60, "vmax": 60, "cols": [(0, "#0f3f7a"), (.18, "#2f78c4"), (.36, "#9ec6e8"), (.5, "#f4f2ec"),
-                                                   (.64, "#f6d48f"), (.82, "#e39a2d"), (1, "#8a4b08")],
+                                                   (.64, "#f2b9ab"), (.82, "#d9533b"), (1, "#7a0f12")],
                   "label": "موجات الطبقة الوسطى (٥٠٠ هكتوباسكال)", "unit": "متر جيوديناميكي", "ticks": [-60, -40, -20, 0, 20, 40, 60]}
 
 
@@ -214,9 +214,9 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
     except Exception as ex:
         print("coastlines unavailable:", str(ex)[:80])
     levels = [x for x in range(-90, 91, 10) if x != 0]
-    cs = ax.contour(lo, la, z, levels=levels, colors=["#1d4f8f" if x < 0 else "#a8640c" for x in levels],
+    cs = ax.contour(lo, la, z, levels=levels, colors=["#1d4f8f" if x < 0 else "#9c2219" for x in levels],
                     linewidths=0.7, alpha=0.8, transform=pc)
-    ax.clabel(cs, fmt=lambda x: str(int(abs(x))).translate(AR), fontsize=6)
+    ax.clabel(cs, fmt=lambda x: f"{int(x)}", fontsize=6)
     ax.contour(lo, la, z, levels=[0], colors="#ffffff", linewidths=1.1, linestyles="dashdot", transform=pc)
     # wave-activity arrows, every 4 degrees where the flux matters
     st = 4
@@ -233,12 +233,11 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
     draw_cities(ax, pc, fontsize=5.8, wide=True)
     halo = [pe.withStroke(linewidth=2.6, foreground="white")]
     for kind, y, x, val in marks:
-        col = "#d2442a" if kind == "H" else "#1f6fc0"
-        ax.text(x, y + 0.6, _ar("مرتفع") if kind == "H" else _ar("منخفض"), transform=pc, ha="center", va="bottom",
-                fontsize=8, fontweight="bold", color=col, path_effects=halo, zorder=6)
-        ax.text(x, y - 0.4, str(int(round(abs(val)))).translate(AR), transform=pc,
-                ha="center", va="top", fontsize=7.5, fontweight="bold", color=col, path_effects=halo, zorder=6)
-        ax.plot(x, y, marker="o", markersize=3.2, color=col, transform=pc, zorder=6, markeredgecolor="white")
+        col = "#c62f22" if kind == "H" else "#1f6fc0"
+        ax.text(x, y + 0.3, kind, transform=pc, ha="center", va="bottom", fontsize=15, fontweight="bold", color=col,
+                path_effects=[pe.withStroke(linewidth=3, foreground="white")], zorder=6)
+        ax.text(x, y - 0.2, f"{val:+.0f}", transform=pc, ha="center", va="top", fontsize=7.5, fontweight="bold",
+                color=col, path_effects=halo, zorder=6)
     ax.spines["geo"].set_edgecolor("#999999")
     xt = np.arange(np.ceil(w / 10) * 10, e + 0.1, 10)
     yt = np.arange(np.ceil(s / 10) * 10, n + 0.1, 10)
