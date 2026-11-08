@@ -103,9 +103,9 @@ run_wps() {
   "$PY" "$HERE/render_namelists.py" wps "$CYC" "$GEOG/WPS_GEOG" namelist.wps
   "$WPS_DIR/link_grib.csh" "$RUN"/gfs/gfs.t* >/dev/null
   "$WPS_DIR/ungrib.exe" > ungrib.out 2>&1
-  grep -q "Successful completion of ungrib" ungrib.log || { tail -n 40 ungrib.log; return 1; }
+  grep -q "Successful completion of program ungrib" ungrib.log || { tail -n 40 ungrib.log; return 1; }
   "$WPS_DIR/metgrid.exe" > metgrid.out 2>&1
-  grep -q "Successful completion of metgrid" metgrid.log || { tail -n 40 metgrid.log; return 1; }
+  grep -q "Successful completion of program metgrid" metgrid.log || { tail -n 40 metgrid.log; return 1; }
   rm -f FILE:*
 }
 step wps run_wps || fail "فشلت المعالجة المسبقة"
