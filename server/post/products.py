@@ -28,7 +28,6 @@ WUP = [(1, "#b6e2fb", 0), (3, "#78c8f2", 160), (5, "#3496dd", 210), (8, "#30bf66
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
-    "rainacc": {"label": "المطر المتراكم منذ البداية", "unit": "ملم", "stops": RAINACC, "tf": "sqrt"},
 }
 DAILY = {
     "refl_day": {"label": "أقصى انعكاسية لكل يوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl"},
@@ -36,7 +35,7 @@ DAILY = {
 
 # One map per run: rain over the 24 hours after the first 3 (the model's spin-up), or as far as the run got.
 SINGLE = {
-    "rain24": {"label": "المطر المتوقع خلال ٢٤ ساعة", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24},
+    "rain24": {"label": "المطر التراكمي +٢٤", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24},
 }
 # Temperature and wind are no longer drawn as maps but stay in the tap-anywhere values and city charts.
 

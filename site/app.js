@@ -21,7 +21,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "rainacc"];
+  const HOURLY = ["refl", "rain1h"];
   const DAILY = ["refl_day", "rain_day"];
   const SINGLE = ["rain24"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
@@ -196,7 +196,8 @@
     sel.innerHTML = `<optgroup label="رصد مباشر"><option value="lightning">⚡ رادار البرق المباشر</option></optgroup>
                      <optgroup label="توقعات النموذج كل ساعة">${HOURLY.map(opt).join("")}</optgroup>
                      <optgroup label="المجاميع">${SINGLE.map(opt).join("")}${DAILY.map(opt).join("")}</optgroup>`;
-    if (!P[S.prod] && S.prod !== "lightning") S.prod = "refl";
+    const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
+    if ((!P[S.prod] || !listed) && S.prod !== "lightning") S.prod = "refl";
     sel.value = S.prod;
   }
 
