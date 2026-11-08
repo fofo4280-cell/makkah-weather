@@ -1,0 +1,40 @@
+name: probe-mjo
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/probe.yml"]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: probe
+        shell: bash {0}
+        run: |
+          pip install netCDF4 numpy >/dev/null 2>&1
+          UA="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
+          echo "== BoM RMM"
+          curl -s -m 60 -A "$UA" -o rmm.txt -w "%{http_code}\n" http://www.bom.gov.au/climate/mjo/graphics/rmm.74toRealtime.txt; head -c 300 rmm.txt; echo; tail -n 5 rmm.txt
+          echo "== NOMADS 1 deg"
+          D=$(date -u -d yesterday +%Y%m%d)
+          curl -s -m 60 -o g.grb -w "%{http_code} %{size_download}\n" "https://nomads.ncep.noaa.gov/cgi-bin/filter_gfs_1p00.pl?dir=%2Fgfs.$D%2F00%2Fatmos&file=gfs.t00z.pgrb2.1p00.f240&var_UGRD=on&var_VGRD=on&lev_200_mb=on&lev_850_mb=on"
+          head -c 4 g.grb; echo
+          echo "== CPC"
+          for u in https://www.cpc.ncep.noaa.gov/products/precip/CWlink/MJO/whindex.shtml https://ftp.cpc.ncep.noaa.gov/ ; do curl -s -m 30 -o /dev/null -w "%{http_code} $u\n" "$u"; done
+          echo "== PSL opendap"
+          python3 - <<'PY'
+          import time
+          from netCDF4 import Dataset
+          for u in ["https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Dailies/pressure/uwnd.2026.nc",
+                    "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Dailies/pressure/uwnd.day.ltm.1991-2020.nc",
+                    "https://psl.noaa.gov/thredds/dodsC/Datasets/interp_OLR/olr.day.mean.nc",
+                    "https://psl.noaa.gov/thredds/dodsC/Datasets/interp_OLR/olr.day.ltm.1991-2020.nc",
+                    "https://psl.noaa.gov/thredds/dodsC/Datasets/uninterp_OLR/olr.day.mean.nc"]:
+              t=time.time()
+              try:
+                  d=Dataset(u); v=[k for k in d.variables]; tm=d.variables["time"]
+                  print("OK", u.split("/")[-1], v, len(tm), tm.units, float(tm[-1]), round(time.time()-t,1),"s")
+                  if "level" in d.variables: print("  levels", list(d.variables["level"][:]))
+              except Exception as e:
+                  print("FAIL", u, e)
+          PY
