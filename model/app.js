@@ -776,7 +776,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); aoChart();
+    mjoMap(); aoChart(); waveCard();
   }
 
   function mjoText() {
@@ -900,6 +900,32 @@
       c.setLineDash([5, 4]); c.strokeStyle = "#ffffff"; c.lineWidth = 1.2;
       c.beginPath(); c.moveTo(left, top + fcRow * rowH); c.lineTo(w - 4, top + fcRow * rowH); c.stroke(); c.setLineDash([]);
     }
+  }
+
+  // Rossby waves at 500 hPa: daily figure, and the troughs near the Kingdom
+  function legendHTML(lg) {
+    const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
+    const ticks = lg.ticks.map((v) => `<span style="left:${((v - lg.vmin) / (lg.vmax - lg.vmin) * 100).toFixed(1)}%">${v < 0 ? "−" + num(-v) : num(v)}</span>`).join("");
+    return `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
+      <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
+  }
+  function waveCard() {
+    const st = M.st, rows = st.waves || [];
+    if (!rows.length) { $("waveList").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; return; }
+    const show = (k) => {
+      const url = `${CL}fig/wave_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("waveFig").src = url; $("waveLink").href = url;
+      const d = rows[k] && rows[k].d;
+      $("waveDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `+${num(k)} · ${fmtDayD.format(dOf(d))}`) : "";
+    };
+    $("waveDay").max = rows.length - 1;
+    $("waveDay").oninput = (e) => show(+e.target.value);
+    show(+$("waveDay").value || 0);
+    if (st.figs && st.figs.wave) $("waveLegend").innerHTML = legendHTML(st.figs.wave);
+    const items = rows.slice(0, 8).filter((r) => r.trough).map((r) =>
+      `<div class="wave-row"><span>${fmtDayD.format(dOf(r.d))}</span><span>أخدود فوق ${r.trough.area} بعمق <b>${num(Math.abs(r.trough.v))}</b> م</span></div>`);
+    $("waveList").innerHTML = items.length ? `<h4 class="sub">الأخاديد القريبة من المملكة</h4>` + items.join("")
+      : `<p class="muted">لا أخاديد واضحة قرب المملكة في الأيام السبعة القادمة.</p>`;
   }
 
   // Arctic Oscillation: observed bars and the ensemble forecast
