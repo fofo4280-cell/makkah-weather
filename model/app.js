@@ -9,6 +9,9 @@
   "use strict";
 
   const DATA = window.SWRF_DATA || "data/";
+  // the Kingdom-wide 9 km run is made on its own server in parallel and kept on its own branch
+  const DATA_SA = window.SWRF_DATA_SA || DATA.replace("/model-data/", "/model-data-sa/");
+  const base = (d) => (d && d.base) || DATA;
   const TZ = "Asia/Riyadh";
   const LOC = "ar-SA-u-nu-arab-ca-gregory";
   const nf = (d) => new Intl.NumberFormat(LOC, { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -71,7 +74,7 @@
     const f = S.frames[i];
     if (!f) return null;
     const name = f.single ? "main" : DAILY.includes(S.prod) ? f.date : String(f.h).padStart(3, "0");
-    return `${DATA}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
+    return `${base(S.man.domains[S.dom])}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
   }
 
   const cache = new Map();
@@ -120,8 +123,8 @@
 
   function frameLabel(f) {
     if (f.single) {
-      const n = f.to - f.from, b = new Date(Date.parse(S.man.init) + f.to * 3600e3);
-      return `مجموع ${num(n)} ${n >= 3 && n <= 10 ? "ساعات" : "ساعة"} حتى ${fmtWhen.format(b)}`;
+      const a = new Date(Date.parse(S.man.init) + f.from * 3600e3), b = new Date(Date.parse(S.man.init) + f.to * 3600e3);
+      return `من ${fmtWhen.format(a)} إلى ${fmtWhen.format(b)}` + (f.to - f.from < 24 ? " (حتى الآن)" : "");
     }
     if (f.date) {
       const t = new Date(Date.UTC(+f.date.slice(0, 4), +f.date.slice(4, 6) - 1, +f.date.slice(6, 8), 9));
@@ -174,7 +177,7 @@
   function drawChips() {
     const box = $("domChips");
     box.innerHTML = "";
-    const ids = ["d01", "d02", "d03"];
+    const ids = [S.man && S.man.domains.sa ? "sa" : "d01", "d02", "d03"];
     for (const id of ids) {
       const d = S.man && S.man.domains[id];
       if (!d) continue;
@@ -200,6 +203,8 @@
   function drawRects() {
     S.rects.forEach((r) => map.removeLayer(r));
     S.rects = [];
+    return;  // the domain buttons are enough; the dashed outlines were clutter
+    // eslint-disable-next-line no-unreachable
     if (!S.man) return;
     for (const [id, d] of Object.entries(S.man.domains)) {
       if (id === S.dom || !d.bounds) continue;
@@ -211,6 +216,7 @@
   }
 
   function setDomain(id, fit) {
+    if (id === "d01" && S.man && S.man.domains.sa) id = "sa";
     if (LX.on) { if (S.man && S.man.domains[id]) S.dom = id; return; }
     if (!S.man || !S.man.domains[id]) id = Object.keys((S.man && S.man.domains) || {})[0] || "d01";
     S.dom = id; store.set("dom", id);
@@ -482,7 +488,7 @@
     if (!d || !d.points) return null;
     const key = S.run + dom + d.points.hours.length;
     if (!S.points[key]) {
-      S.points[key] = fetch(`${DATA}runs/${S.run}/${d.points.file}?n=${d.points.hours.length}`)
+      S.points[key] = fetch(`${base(d)}runs/${S.run}/${d.points.file}?n=${d.points.hours.length}`)
         .then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
     }
     return { info: d.points, bytes: await S.points[key] };
@@ -490,13 +496,14 @@
   const DECODE = { rain1h: (c) => (c / 25) ** 2, refl: (c) => c / 3, t2: (c) => c / 4 - 10, wind: (c) => c / 2 };
   async function pointSeries(lat, lon) {
     // every domain that contains the point, coarse first; finer domains replace the hours they cover
-    const order = Object.keys(S.man.domains).sort();
+    const dxOf = (k) => { const d = S.man.domains[k]; return d.dx || (d.points && d.points.dx) || 0; };
+    const order = Object.keys(S.man.domains).sort((a, b) => dxOf(b) - dxOf(a) || a.localeCompare(b));
     const merged = {};
     let best = null;
     for (const dom of order) {
       const pd = await pointData(dom);
       if (!pd || !pd.bytes) continue;
-      const P = pd.info, [x, y] = lccForward(S.man.proj, lon, lat);
+      const P = pd.info, [x, y] = lccForward(S.man.domains[dom].proj || S.man.proj, lon, lat);
       const i = Math.round((x - P.x00) / P.dx), j = Math.round((y - P.y00) / P.dx);
       if (i < 1 || j < 1 || i > P.nx - 2 || j > P.ny - 2) continue;
       best = dom;
@@ -548,6 +555,11 @@
     S.run = run;
     try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
     try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
+    try {  // add the Kingdom-wide 9 km domain from its own branch when that run exists
+      const sa = await getJSON(`${DATA_SA}runs/${run}/manifest.json`);
+      if (!S.man) S.man = { ...sa, domains: {} };
+      for (const [k, d] of Object.entries(sa.domains || {})) S.man.domains[k] = { ...d, base: DATA_SA, proj: sa.proj };
+    } catch (e) { /* not made for this run */ }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
       if (Array.isArray(p.legend)) {  // runs made before the gradient colours

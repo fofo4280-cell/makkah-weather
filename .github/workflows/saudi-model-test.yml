@@ -20,6 +20,18 @@ concurrency:
 
 jobs:
   forecast:
+    # two servers in parallel: the Makkah nests (9 km west, 3 km, 1 km) and the Kingdom-wide 9 km run
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: makkah
+            domains: domains.json
+            branch: model-data
+          - name: kingdom
+            domains: domains_sa.json
+            branch: model-data-sa
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -32,6 +44,8 @@ jobs:
       SWRF_WINDOW: '3,6'
       CYCLES: '0 12'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      SWRF_DOMAINS: ${{ matrix.domains }}
+      PUBLISH_BRANCH: ${{ matrix.branch }}
     steps:
       - name: Model code
         uses: actions/checkout@v4
