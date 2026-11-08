@@ -378,6 +378,8 @@ def main():
     status = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "cycle": cycle,
         "rmm_now": now_obs, "rmm_obs": obs, "rmm_fc": fc_rmm, "fit": fit,
+        # the official index lags by two days; today's value is the calibrated GFS estimate
+        "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "wet_season": wet_season, "surge": surge, "pw": pw_rows,
@@ -418,7 +420,7 @@ def strength(a):
 
 def report(st, fc_wet):
     """Arabic report from fixed sentences."""
-    now = st["rmm_now"]
+    now = st.get("rmm_today") or st["rmm_now"]
     lines = []
     title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
     if now:
