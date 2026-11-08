@@ -300,8 +300,18 @@
 
   function liTimeISO(t) { return new Date(t).toISOString().replace(/\.\d+Z$/, "Z"); }
 
+  const LI_W = Math.round((LI_BOX.e - LI_BOX.w) / LI_BOX.res), LI_H = Math.round((LI_BOX.n - LI_BOX.s) / LI_BOX.res);
+  function liPoints(idx) {  // lit pixel numbers -> lat, lon pairs
+    const out = new Float32Array(idx.length * 2);
+    for (let k = 0; k < idx.length; k++) {
+      const y = Math.floor(idx[k] / LI_W), x = idx[k] - y * LI_W;
+      out[2 * k] = LI_BOX.n - (y + 0.5) * LI_BOX.res; out[2 * k + 1] = LI_BOX.w + (x + 0.5) * LI_BOX.res;
+    }
+    return out;
+  }
+
   async function liFetch(t) {
-    const B = LI_BOX, W = Math.round((B.e - B.w) / B.res), H = Math.round((B.n - B.s) / B.res);
+    const B = LI_BOX, W = LI_W, H = LI_H;
     const url = `${LI_WMS}?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326` +
       `&bbox=${B.s},${B.w},${B.n},${B.e}&width=${W}&height=${H}&format=image/png&transparent=true&time=${liTimeISO(t)}`;
     const r = await fetch(url, { mode: "cors" });
@@ -312,34 +322,68 @@
     const cv = document.createElement("canvas"); cv.width = W; cv.height = H;
     const cx = cv.getContext("2d", { willReadFrequently: true });
     cx.drawImage(bmp, 0, 0, W, H);
-    const d = cx.getImageData(0, 0, W, H).data, out = [];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++)
-      if (d[(y * W + x) * 4 + 3] > 8) out.push(B.n - (y + 0.5) * B.res, B.w + (x + 0.5) * B.res);
-    return new Float32Array(out);
+    const d = cx.getImageData(0, 0, W, H).data, idx = [];
+    for (let k = 0, n = W * H; k < n; k++) if (d[k * 4 + 3] > 8) idx.push(k);
+    return idx;
+  }
+
+  // what was fetched stays in this browser, so reopening the page shows the last hour at once
+  const LI_CACHE = "swrf.li1";
+  function liCacheLoad() {
+    try {
+      const c = JSON.parse(localStorage.getItem(LI_CACHE) || "{}");
+      const old = Date.now() - LI_BACK - LI_WIN;
+      for (const [t, idx] of Object.entries(c)) if (+t > old && !LX.got.has(+t)) LX.got.set(+t, liPoints(idx));
+      LX.raw = c;
+    } catch (e) { LX.raw = {}; }
+  }
+  function liCacheSave() {
+    try {
+      const keep = {};
+      for (const t of LX.got.keys()) if (LX.raw[t]) keep[t] = LX.raw[t];
+      LX.raw = keep;
+      localStorage.setItem(LI_CACHE, JSON.stringify(keep));
+    } catch (e) { /* storage full or blocked: fine */ }
+  }
+
+  function liFrames() {
+    if (!LX.on) return;
+    const times = [...LX.got.keys()].sort((a, b) => a - b);
+    const newest = times.length ? times[times.length - 1] : 0;
+    const atEnd = S.idx >= S.frames.length - 1;
+    S.frames = times.filter((t) => t >= newest - LI_WIN).map((t) => ({ t }));
+    if (atEnd || !S.playing) S.idx = S.frames.length - 1;
+    drawLegend(); showFrame();
   }
 
   async function liLoad() {
     if (LX.busy) return;
     LX.busy = true;
-    const top = Math.floor(Date.now() / LI_STEP) * LI_STEP, want = [];
+    if (!LX.raw) liCacheLoad();
+    // images appear about 10 minutes after their time; ask newest first and draw as each one arrives
+    const top = Math.floor((Date.now() - 5 * 60e3) / LI_STEP) * LI_STEP, want = [];
     for (let t = top; t > top - LI_BACK; t -= LI_STEP) if (!LX.got.has(t)) want.push(t);
-    let ok = 0, tried = 0;
-    for (let i = 0; i < want.length; i += 6) {
-      await Promise.all(want.slice(i, i + 6).map(async (t) => {
-        tried++;
-        try { const a = await liFetch(t); if (a) { LX.got.set(t, a); ok++; } } catch (e) { /* not published yet, or offline */ }
-      }));
-    }
+    let next = 0, since = 0;
+    const worker = async () => {
+      while (next < want.length) {
+        const t = want[next++];
+        try {
+          const idx = await liFetch(t);
+          if (idx) {
+            LX.got.set(t, liPoints(idx)); LX.raw[t] = idx;
+            if (++since >= 2 || LX.got.size <= 2) { since = 0; liFrames(); }
+          }
+        } catch (e) { /* not published yet, or offline */ }
+      }
+    };
+    await Promise.all(Array.from({ length: 7 }, worker));  // the server allows 8 at once
     const times = [...LX.got.keys()].sort((a, b) => a - b);
     const newest = times.length ? times[times.length - 1] : 0;
     for (const t of times) if (t < newest - LI_WIN - LI_STEP) LX.got.delete(t);
     LX.failed = !LX.got.size;
     LX.busy = false;
-    if (!LX.on) return;
-    const atEnd = S.idx >= S.frames.length - 1;
-    S.frames = [...LX.got.keys()].filter((t) => t >= newest - LI_WIN).sort((a, b) => a - b).map((t) => ({ t }));
-    if (atEnd || !S.playing) S.idx = S.frames.length - 1;
-    drawLegend(); showFrame();
+    liCacheSave();
+    liFrames();
   }
 
   function liEnter() {
@@ -349,9 +393,9 @@
     $("domChips").hidden = true; $("mapEmpty").hidden = true;
     if (!LX.layer) LX.layer = new BoltLayer();
     LX.layer.addTo(map);
-    S.frames = [...LX.got.keys()].sort((a, b) => a - b).map((t) => ({ t }));
-    S.idx = S.frames.length - 1;
-    drawLegend(); showFrame();
+    if (!LX.raw) liCacheLoad();
+    S.frames = []; S.idx = 0;
+    liFrames();
     liLoad();
     clearInterval(LX.timer); LX.timer = setInterval(liLoad, 2.5 * 60e3);
   }
@@ -579,7 +623,7 @@
     const st = S.man.status === "running" ? " · جارٍ" : S.man.status === "failed" ? " · ناقص" : "";
     $("runLabel").textContent = `تطوير فهد متعب العيسي${st}`;
     drawProducts(); drawLegend();
-    if (first) { buildFrames(false); S.idx = 0; }
+    if (first && !LX.on) { buildFrames(false); S.idx = 0; }
     setDomain(S.dom, first);
     drawCityMarkers();
     if (!$("p-cities").hidden) drawCities();
@@ -660,8 +704,13 @@
 
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
+    if (S.prod === "lightning") {  // show lightning straight away; the model data loads behind it
+      $("prodSelect").innerHTML = `<option value="lightning">⚡ رادار البرق المباشر</option>`; $("prodSelect").value = "lightning";
+      liEnter();
+    } else {
+      setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant
+    }
     await Promise.all([refreshRuns(true), refreshStatus()]);
-    if (S.prod === "lightning" && !LX.on) { if (!$("prodSelect").options.length) $("prodSelect").innerHTML = `<option value="lightning">⚡ رادار البرق المباشر</option>`; $("prodSelect").value = "lightning"; liEnter(); }
     setInterval(refreshStatus, 60e3);
     setInterval(() => refreshRuns(false), 5 * 60e3);
   })();
