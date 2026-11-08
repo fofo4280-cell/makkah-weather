@@ -150,7 +150,7 @@ run_wrf() {
     sleep 120
     n=$((n + 1)); [ $((n % 10)) -eq 0 ] && hook
     local last hrs
-    last=$(grep -h "Timing for main" rsl.out.0000 2>/dev/null | tail -1 | awk '{print $5}')
+    last=$(grep -h "Timing for main" rsl.out.0000 2>/dev/null | tail -1 | grep -o '[0-9]\{4\}-[0-9][0-9]-[0-9][0-9]_[0-9:]*' | head -1)
     if [ -n "$last" ]; then
       hrs=$(( ($(date -u -d "${last/_/ }" +%s) - $(date -u -d "${CYC:0:8} ${CYC:8:2}:00" +%s)) / 3600 ))
       status step wrf running "الساعة $hrs من ${MAXH}"
