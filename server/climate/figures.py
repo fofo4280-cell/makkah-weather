@@ -147,8 +147,6 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
         except Exception as ex:
             print("coastlines unavailable:", str(ex)[:80])
         ax.spines["geo"].set_edgecolor("#999999")
-        if kind == "pw":
-            draw_cities(ax, ccrs.PlateCarree(), fontsize=7.5)
     step_x = 60 if e - w > 200 else 10
     step_y = 15 if n - s > 60 else 10
     xt = np.arange(np.ceil(w / step_x) * step_x, e + 0.1, step_x)
@@ -230,7 +228,6 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
         ref = float(np.nanpercentile(M[keep], 90))
         ax.quiver(LO[keep], LA[keep], U[keep] / ref, V[keep] / ref, transform=pc, color="#263238", alpha=0.75,
                   scale=28, width=0.0022, headwidth=4, headlength=4.5, zorder=4)
-    draw_cities(ax, pc, fontsize=5.8, wide=True)
     halo = [pe.withStroke(linewidth=2.6, foreground="white")]
     for kind, y, x, val in marks:
         col = "#c62f22" if kind == "H" else "#1f6fc0"

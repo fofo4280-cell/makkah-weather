@@ -508,7 +508,7 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave")},
     }
-    status["report"] = report(status, fc_wet) if (surge or ao_cold) else None
+    status["report"] = report(status, fc_wet)   # every day; its title says whether something stands out
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
         rd = os.path.join(out, "reports")
@@ -540,10 +540,13 @@ def report(st, fc_wet):
     """Arabic report from fixed sentences."""
     now = st.get("rmm_today") or st["rmm_now"]
     lines = []
+    today = ar_date(f"{st['cycle'][:4]}-{st['cycle'][4:6]}-{st['cycle'][6:8]}")
     if st["surge"]:
-        title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
+        title = f"تقرير اليوم ({today}): مد رطوبي على المملكة يبدأ {ar_date(st['surge'][0]['d'])}"
+    elif st.get("ao_cold"):
+        title = f"تقرير اليوم ({today}): منخفضات باردة محتملة من الشمال {ar_date(st['ao_cold']['d'])}"
     else:
-        title = f"تقرير منخفضات باردة محتملة من الشمال: {ar_date(st['ao_cold']['d'])}"
+        title = f"تقرير اليوم ({today}): لا مد رطوبي ولا اندفاع بارد واضح في الأيام العشرة القادمة"
     if now:
         ph = now["phase"]
         lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(round(now['amp'], 1))} ({strength(now['amp'])})، "
@@ -586,11 +589,20 @@ def report(st, fc_wet):
         elif f10["mean"] >= 1:
             line += " الجريان نطاقي غالبًا، والهواء البارد محصور في الشمال، ففرص تعمق المنخفضات الباردة نحو المملكة أقل."
         lines.append(line)
-    if fc_wet and st["wet_season"]:
+    if not st["surge"]:
+        best = max(((r["d"], v["pct"], BOXES[k][0]) for r in st["pw"][1:11] for k, v in r.items() if k != "d"),
+                   key=lambda x: x[1], default=None)
+        if best:
+            lines.append(f"أعلى رطوبة متوقعة خلال عشرة أيام: {ar(best[1])}٪ من المعدل فوق {best[2]} يوم {ar_date(best[0])}.")
+    if st["surge"] and fc_wet and st["wet_season"]:
         lines.append("الخلاصة: المد الرطوبي يتزامن مع طور رطب للتذبذب، فترتفع فرص السحب الرعدية والأمطار مع وجود محفز من منخفض علوي أو التقاء رياح، وتُتابع خرائط النموذج عالي الدقة يوميًا.")
-    else:
+    elif st["surge"]:
         lines.append("الخلاصة: رطوبة أعلى من المعدل بوضوح، وتحتاج لمحفز رفع حتى تتحول إلى سحب رعدية؛ تُتابع خرائط النموذج عالي الدقة يوميًا.")
-    return {"date": st["cycle"][:8], "title": title, "lines": lines, "surge": st["surge"]}
+    elif st.get("ao_cold"):
+        lines.append("الخلاصة: الإشارة الأبرز من الشمال؛ تُراقب خريطة الموجات لامتداد الأخاديد جنوبًا ومدى التقائها بالرطوبة.")
+    else:
+        lines.append("الخلاصة: لا إشارة واضحة لحالة ممطرة واسعة؛ يبقى الحمل المحلي فوق المرتفعات واردًا مع تسخين النهار.")
+    return {"date": st["cycle"][:8], "issued": st["updated"], "title": title, "lines": lines, "surge": st["surge"]}
 
 
 if __name__ == "__main__":

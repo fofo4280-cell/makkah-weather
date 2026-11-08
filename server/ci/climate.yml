@@ -1,11 +1,11 @@
 # Daily MJO, warm/cold event and moisture-surge products for the model page (the التذبذب tab).
 # Code: saudi-wrf branch, server/climate. Results: climate-data branch.
-# 05:20 UTC = 08:20 Makkah time, when the 00 UTC GFS run is complete to 15 days.
+# 05:05 UTC = 08:05 Makkah time, when the 00 UTC GFS run is complete to 15 days; the report is out by about 08:30.
 name: Climate MJO
 
 on:
   schedule:
-    - cron: '20 5 * * *'
+    - cron: '5 5 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/climate.yml', 'model/climate-now.txt']

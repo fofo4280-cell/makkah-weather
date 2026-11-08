@@ -783,7 +783,8 @@
     const st = M.st, obsNow = st.rmm_now, now = st.rmm_today || st.rmm_now;
     const r = st.report;
     $("mjoReport").hidden = !r;
-    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("");
+    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("") +
+      `<p class="hint">يصدر هذا التقرير كل يوم قرابة الساعة ٨:٣٠ صباحًا بتوقيت مكة${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
@@ -805,46 +806,63 @@
       (st.fit ? ` · توافق الإسقاط مع الرصد ${num(st.fit.r1, 2)} و${num(st.fit.r2, 2)}` : "");
   }
 
+  // RMM phase diagram drawn like the Bureau of Meteorology chart (English labels, white panel)
   function mjoPhase() {
-    const st = M.st, R = 3.2, S = 52, P = 26, W = 2 * R * S + 2 * P;
-    const X = (x) => P + (x + R) * S, Y = (y) => P + (R - y) * S;
-    let g = `<svg viewBox="0 0 ${W} ${W}" direction="ltr" font-family="Readex Pro, sans-serif">`;
-    g += `<rect x="${P}" y="${P}" width="${2 * R * S}" height="${2 * R * S}" fill="none" stroke="currentColor" stroke-opacity=".25"/>`;
-    for (let k = 0; k < 8; k++) {
-      const a = Math.PI * k / 4;
-      g += `<line x1="${X(Math.cos(a))}" y1="${Y(Math.sin(a))}" x2="${X(R * 1.42 * Math.cos(a))}" y2="${Y(R * 1.42 * Math.sin(a))}" stroke="currentColor" stroke-opacity=".18"/>`;
-    }
-    g += `<circle cx="${X(0)}" cy="${Y(0)}" r="${S}" fill="currentColor" fill-opacity=".06" stroke="currentColor" stroke-opacity=".3"/>`;
-    for (let ph = 1; ph <= 8; ph++) {
-      const a = (-180 + 45 * (ph - 1) + 22.5) * Math.PI / 180, r = R - 0.35;
-      g += `<text x="${X(r * Math.cos(a))}" y="${Y(r * Math.sin(a)) + 5}" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor" fill-opacity=".55">${num(ph)}</text>`;
-    }
-    const lab = (x, y, t, rot) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".7" ${rot ? `transform="rotate(${rot} ${x} ${y})"` : ""}>${t}</text>`;
-    g += lab(W / 2, W - 8, "المحيط الهندي") + lab(W / 2, 18, "غرب المحيط الهادئ") + lab(18, W / 2, "نصف الكرة الغربي وأفريقيا", -90) + lab(W - 18, W / 2, "القارة البحرية", 90);
-    const obs = (st.rmm_obs || []).slice(-40), fc = st.rmm_fc || [];
+    const st = M.st, R = 4, S = 44, PL = 46, PT = 50, PR = 14, PB = 44;
+    const W = PL + 2 * R * S + PR, H = PT + 2 * R * S + PB;
+    const X = (x) => PL + (x + R) * S, Y = (y) => PT + (R - y) * S;
     const clip = (v) => Math.max(-R, Math.min(R, v));
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    const dm = (d) => `${+d.slice(8)}${MON[+d.slice(5, 7) - 1]}`;
+    const init = st.cycle ? `${+st.cycle.slice(6, 8)} ${["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"][+st.cycle.slice(4, 6) - 1]} ${st.cycle.slice(0, 4)}` : "";
+    let g = `<svg viewBox="0 0 ${W} ${H + 26}" direction="ltr" font-family="Helvetica, Arial, sans-serif" style="background:#fff;border-radius:8px">`;
+    g += `<text x="${W / 2}" y="20" text-anchor="middle" font-size="15" fill="#111">MJO Index Forecast initialised: ${init}</text>`;
+    g += `<text x="${W / 2}" y="37" text-anchor="middle" font-size="11" fill="#333">Model: GFS (projection, calibrated on BoM RMM)</text>`;
+    g += `<rect x="${X(-R)}" y="${Y(R)}" width="${2 * R * S}" height="${2 * R * S}" fill="#fff" stroke="#111" stroke-width="1"/>`;
+    // axes through the centre and the diagonals, dotted
+    const dot = `stroke="#444" stroke-width="0.8" stroke-dasharray="1.5 3"`;
+    g += `<line x1="${X(-R)}" y1="${Y(0)}" x2="${X(R)}" y2="${Y(0)}" ${dot}/><line x1="${X(0)}" y1="${Y(-R)}" x2="${X(0)}" y2="${Y(R)}" ${dot}/>`;
+    g += `<line x1="${X(-R)}" y1="${Y(-R)}" x2="${X(R)}" y2="${Y(R)}" ${dot}/><line x1="${X(-R)}" y1="${Y(R)}" x2="${X(R)}" y2="${Y(-R)}" ${dot}/>`;
+    g += `<circle cx="${X(0)}" cy="${Y(0)}" r="${S}" fill="none" stroke="#111" stroke-width="0.7"/>`;
+    for (let t = -R; t <= R; t++) {
+      g += `<line x1="${X(t)}" y1="${Y(-R)}" x2="${X(t)}" y2="${Y(-R) + 4}" stroke="#111"/><text x="${X(t)}" y="${Y(-R) + 16}" text-anchor="middle" font-size="10" fill="#111">${t < 0 ? "−" + -t : t}</text>`;
+      g += `<line x1="${X(-R) - 4}" y1="${Y(t)}" x2="${X(-R)}" y2="${Y(t)}" stroke="#111"/><text x="${X(-R) - 7}" y="${Y(t) + 3.5}" text-anchor="end" font-size="10" fill="#111">${t < 0 ? "−" + -t : t}</text>`;
+    }
+    g += `<text x="${X(0)}" y="${Y(-R) + 33}" text-anchor="middle" font-size="13" fill="#111">RMM1</text>`;
+    g += `<text x="14" y="${Y(0)}" text-anchor="middle" font-size="13" fill="#111" transform="rotate(-90 14 ${Y(0)})">RMM2</text>`;
+    // phase numbers and regions
+    const ph = { 1: [-3.4, -2.4], 2: [-2.4, -3.4], 3: [2.4, -3.4], 4: [3.4, -2.4], 5: [3.4, 2.6], 6: [2.6, 3.4], 7: [-2.6, 3.4], 8: [-3.4, 2.6] };
+    for (const [k, [x, y]] of Object.entries(ph)) g += `<text x="${X(x)}" y="${Y(y) + 6}" text-anchor="middle" font-size="16" fill="#111">${k}</text>`;
+    g += `<text x="${X(0)}" y="${Y(3.55)}" text-anchor="middle" font-size="13" fill="#111"><tspan x="${X(0)}">Western</tspan><tspan x="${X(0)}" dy="15">Pacific</tspan></text>`;
+    g += `<text x="${X(0)}" y="${Y(-3.15)}" text-anchor="middle" font-size="13" fill="#111"><tspan x="${X(0)}">Indian</tspan><tspan x="${X(0)}" dy="15">Ocean</tspan></text>`;
+    g += `<text x="${X(-3.45)}" y="${Y(0)}" text-anchor="middle" font-size="13" fill="#111" transform="rotate(-90 ${X(-3.45)} ${Y(0)})"><tspan x="${X(-3.45)}" dy="-7">West. Hem.</tspan><tspan x="${X(-3.45)}" dy="15">and Africa</tspan></text>`;
+    g += `<text x="${X(3.45)}" y="${Y(0)}" text-anchor="middle" font-size="13" fill="#111" transform="rotate(90 ${X(3.45)} ${Y(0)})"><tspan x="${X(3.45)}" dy="-7">Maritime</tspan><tspan x="${X(3.45)}" dy="15">Continent</tspan></text>`;
+    const obs = (st.rmm_obs || []).slice(-40), fc = st.rmm_fc || [];
+    const label = (o, dx, dy, w) => `<text x="${X(clip(o.r1)) + dx}" y="${Y(clip(o.r2)) + dy}" font-size="10" ${w ? 'font-weight="700"' : ""} fill="#111" stroke="#fff" stroke-width="2.5" paint-order="stroke">${dm(o.d)}</text>`;
     if (obs.length) {
-      g += `<polyline fill="none" stroke="${getComputedStyle(document.body).getPropertyValue("--sea") || "#45c3e6"}" stroke-width="2.4" points="${obs.map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ")}"/>`;
-      obs.forEach((o, i) => { if (i % 5 === 0) g += `<circle cx="${X(clip(o.r1))}" cy="${Y(clip(o.r2))}" r="2.6" fill="currentColor" fill-opacity=".7"/>`; });
-      const o0 = obs[0], o1 = obs[obs.length - 1];
-      g += `<text x="${X(clip(o0.r1)) + 6}" y="${Y(clip(o0.r2)) - 6}" font-size="11" fill="currentColor" fill-opacity=".7">${fmtDM.format(dOf(o0.d))}/${num(+o0.d.slice(5, 7))}</text>`;
-      g += `<circle cx="${X(clip(o1.r1))}" cy="${Y(clip(o1.r2))}" r="6" fill="#45c3e6" stroke="#fff" stroke-width="2"/>`;
-      { const x = X(clip(o1.r1)), y = Y(clip(o1.r2)), dx = x > W / 2 ? -10 : 10;
-        g += `<text x="${x + dx}" y="${y - 8}" text-anchor="${x > W / 2 ? "end" : "start"}" font-size="12.5" font-weight="700" fill="#45c3e6" stroke="var(--surface, #111a23)" stroke-width="3" paint-order="stroke">${num(+o1.d.slice(8))}/${num(+o1.d.slice(5, 7))}</text>`; }
+      g += `<polyline fill="none" stroke="#9a9a9a" stroke-width="3.2" stroke-linejoin="round" points="${obs.map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ")}"/>`;
+      obs.forEach((o, i) => {
+        if ((obs.length - 1 - i) % 7 === 0) {
+          const x = X(clip(o.r1)), y = Y(clip(o.r2));
+          g += `<path d="M${x},${y - 5} L${x + 3.5},${y} L${x},${y + 5} L${x - 3.5},${y} Z" fill="#111"/>`;
+          if (i !== obs.length - 1) g += label(o, 6, -5);
+        }
+      });
+      const o1 = obs[obs.length - 1];
+      g += `<circle cx="${X(clip(o1.r1))}" cy="${Y(clip(o1.r2))}" r="4" fill="#111"/>` + label({ ...o1, d: o1.d }, -8, 14, true).replace(">" + dm(o1.d) + "<", ">INITIAL<");
       if (fc.length) {
-        const pts = [o1, ...fc].map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ");
-        g += `<polyline fill="none" stroke="#f2b552" stroke-width="2.2" stroke-dasharray="6 5" points="${pts}"/>`;
-        // the forecast split into three: a dated marker at each third
+        g += `<polyline fill="none" stroke="#111" stroke-width="2.6" stroke-linejoin="round" points="${[o1, ...fc].map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ")}"/>`;
         const n = fc.length, marks = [...new Set([Math.round(n / 3) - 1, Math.round(2 * n / 3) - 1, n - 1])].filter((i) => i >= 0);
         for (const i of marks) {
-          const f = fc[i], x = X(clip(f.r1)), y = Y(clip(f.r2));
-          const t = `${num(+f.d.slice(8))}/${num(+f.d.slice(5, 7))}`;
-          g += `<circle cx="${x}" cy="${y}" r="5" fill="#f2b552" stroke="#fff" stroke-width="1.5"/>`;
-          const dx = x > W / 2 ? -9 : 9, anchor = x > W / 2 ? "end" : "start";
-          g += `<text x="${x + dx}" y="${y + 4}" text-anchor="${anchor}" font-size="12.5" font-weight="700" fill="#f2b552" stroke="var(--surface, #111a23)" stroke-width="3" paint-order="stroke">${t}</text>`;
+          const f = fc[i];
+          g += `<circle cx="${X(clip(f.r1))}" cy="${Y(clip(f.r2))}" r="4" fill="#111"/>` + label(f, 6, 14, true);
         }
       }
     }
+    // legend
+    const ly = H + 8;
+    g += `<line x1="${PL}" y1="${ly}" x2="${PL + 26}" y2="${ly}" stroke="#9a9a9a" stroke-width="3.2"/><text x="${PL + 32}" y="${ly + 4}" font-size="11" fill="#111">Observed (BoM)</text>`;
+    g += `<line x1="${PL + 150}" y1="${ly}" x2="${PL + 176}" y2="${ly}" stroke="#111" stroke-width="2.6"/><text x="${PL + 182}" y="${ly + 4}" font-size="11" fill="#111">Forecast (GFS)</text>`;
     $("mjoPhase").innerHTML = g + "</svg>";
   }
 
