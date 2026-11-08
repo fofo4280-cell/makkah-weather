@@ -8,8 +8,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
-<link rel="stylesheet" href="leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css?v=20261108b">
 </head>
 <body>
 <div class="app">
@@ -58,6 +58,43 @@
       </div>
     </section>
 
+    <!-- MJO and warm/cold events -->
+    <section class="panel scroll" id="p-mjo" hidden>
+      <div class="wrap">
+        <div class="card report" id="mjoReport" hidden></div>
+        <div class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
+        <div class="card">
+          <h3>مخطط أطوار التذبذب</h3>
+          <div id="mjoPhase"></div>
+          <p class="hint">الخط المتصل: الرصد في آخر ٤٠ يومًا (مكتب الأرصاد الأسترالي). المتقطع البرتقالي: توقع ١٥ يومًا من جي إف إس. داخل الدائرة: تذبذب ضعيف.</p>
+        </div>
+        <div class="card">
+          <h3>خريطة الحدث الدافئ والبارد</h3>
+          <div class="seg" id="mjoLayer">
+            <button data-l="wc" class="on">المؤشر</button><button data-l="wcd">التغير خلال ٢٤ ساعة</button><button data-l="pw">رطوبة الجزيرة العربية</button>
+          </div>
+          <div id="mjoMap" dir="ltr"></div>
+          <div class="legend mjo-legend" id="mjoLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="mjoDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="mjoDayLabel"></span>
+          </div>
+          <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الأسهم: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال.</p>
+        </div>
+        <div class="card">
+          <h3>تقدم الحدث الدافئ شرقًا</h3>
+          <canvas id="mjoHov"></canvas>
+          <p class="hint">كل سطر يوم (الأحدث في الأسفل) ومتوسط المؤشر بين ١٥ جنوبًا و١٥ شمالًا. تحت الخط المتقطع: التوقع. ميل اللون الأحمر نحو اليمين يعني تقدم الحدث الدافئ شرقًا.</p>
+        </div>
+        <div class="card">
+          <h3>الرطوبة فوق المملكة</h3>
+          <div id="mjoPw"></div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
+        </div>
+        <p class="hint" id="mjoUpdated"></p>
+      </div>
+    </section>
+
     <!-- status -->
     <section class="panel scroll" id="p-status" hidden>
       <div class="wrap">
@@ -83,11 +120,13 @@
 
   <nav class="tabs" role="tablist">
     <button class="tab active" data-tab="map">الخريطة</button>
-    <button class="tab" data-tab="cities">المدن</button>
+    <button class="tab" data-tab="mjo">التذبذب</button>
     <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
   </nav>
 </div>
-<script src="leaflet/leaflet.js"></script>
-<script src="app.js"></script>
+<script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
+<script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="app.js?v=20261108b"></script>
 </body>
 </html>
