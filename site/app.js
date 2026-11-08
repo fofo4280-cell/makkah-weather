@@ -177,7 +177,7 @@
   function drawChips() {
     const box = $("domChips");
     box.innerHTML = "";
-    const ids = [S.man && S.man.domains.sa ? "sa" : "d01", "d02", "d03"];
+    const ids = ["sa", "d02", "d03"];  // the western 9 km parent is not shown; the Kingdom-wide 9 km run replaces it
     for (const id of ids) {
       const d = S.man && S.man.domains[id];
       if (!d) continue;
@@ -216,9 +216,9 @@
   }
 
   function setDomain(id, fit) {
-    if (id === "d01" && S.man && S.man.domains.sa) id = "sa";
+    if (id === "d01") id = S.man && S.man.domains.sa ? "sa" : "d02";
     if (LX.on) { if (S.man && S.man.domains[id]) S.dom = id; return; }
-    if (!S.man || !S.man.domains[id]) id = Object.keys((S.man && S.man.domains) || {})[0] || "d01";
+    if (!S.man || !S.man.domains[id]) id = ["d02", "sa", "d03"].find((k) => S.man && S.man.domains[k]) || Object.keys((S.man && S.man.domains) || {})[0] || "d01";
     S.dom = id; store.set("dom", id);
     buildFrames(true);
     drawChips(); drawRects(); showFrame();

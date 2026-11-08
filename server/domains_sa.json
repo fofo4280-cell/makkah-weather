@@ -5,7 +5,7 @@
  "p_top": 5000,
  "time_step": 45,
  "domains": [
-  {"id": "d01", "pub": "sa", "name": "المملكة", "res": "٩ كم", "dx": 9000, "e_we": 300, "e_sn": 250,
+  {"id": "d01", "pub": "sa", "name": "السعودية", "res": "٩ كم", "dx": 9000, "e_we": 300, "e_sn": 250,
    "parent": 0, "ratio": 1, "ips": 1, "jps": 1, "hours": 27, "geog": "default",
    "max_dt": 54, "min_dt": 18, "cu": 3, "gwd": 1}
  ]
