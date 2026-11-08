@@ -61,6 +61,8 @@ status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المع
 status phase cycle "دورة $CYC قيد التشغيل"
 
 publish() { publish_log "$LOG" cycle; }
+hook() { [ -n "${PUBLISH_HOOK:-}" ] && bash "$PUBLISH_HOOK" >/dev/null 2>&1; true; }
+hook
 fail() {
   status phase error "$1"
   for f in "$RUN"/wrf/rsl.error.0000 "$RUN"/wps/ungrib.log "$RUN"/wps/metgrid.log "$WORK"/static/geogrid.log; do
@@ -91,17 +93,8 @@ publish
 
 # ---------------------------------------------------------------- 2. WPS
 run_wps() {
-  local GH; GH=$("$PY" "$HERE/render_namelists.py" geohash)
   local S=$WORK/static
-  if [ ! -f "$S/geo_em.d01.nc" ] || [ "$(cat "$S/geohash" 2>/dev/null)" != "$GH" ]; then
-    log "running geogrid (grid design $GH)"
-    rm -rf "$S"; mkdir -p "$S"; cd "$S" || return 1
-    ln -sf "$WPS_DIR/geogrid" geogrid
-    "$PY" "$HERE/render_namelists.py" wps "$CYC" "$GEOG/WPS_GEOG" namelist.wps
-    "$WPS_DIR/geogrid.exe" > geogrid.out 2>&1
-    grep -q "Successful completion of geogrid" geogrid.log || { tail -n 40 geogrid.log; return 1; }
-    echo "$GH" > geohash
-  fi
+  bash "$HERE/geogrid.sh" || return 1
   cd "$RUN/wps" || return 1
   rm -f FILE:* met_em.* GRIBFILE.* geo_em.*
   ln -sf "$S"/geo_em.d0*.nc .
@@ -139,7 +132,7 @@ run_real() {
   mkdir -p real_logs && mv rsl.* real_logs/
 }
 step real run_real || fail "فشلت تهيئة النموذج"
-publish
+publish; hook
 
 # ---------------------------------------------------------------- 4. WRF (+ images while it runs)
 DONE_FLAG=$RUN/wrf/WRF_DONE
@@ -152,8 +145,10 @@ run_wrf() {
   local POSTPID=$!
   timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
   local WPID=$!
+  local n=0
   while kill -0 $WPID 2>/dev/null; do
     sleep 120
+    n=$((n + 1)); [ $((n % 10)) -eq 0 ] && hook
     local last hrs
     last=$(grep -h "Timing for main" rsl.out.0000 2>/dev/null | tail -1 | awk '{print $5}')
     if [ -n "$last" ]; then

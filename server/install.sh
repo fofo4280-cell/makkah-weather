@@ -200,16 +200,19 @@ EOF
 }
 
 # ---------------------------------------------------------------- main
-status plan install "$(date -u +%Y%m%d)" \
-  base=تجهيز_النظام web=تشغيل_الموقع cron=الجدولة_والصيانة jasper=مكتبة_جاسبر netcdf=مكتبات_نت_سي_دي_إف \
-  wrf=بناء_النموذج wps=بناء_أدوات_المعالجة python=أدوات_الرسم geog=بيانات_التضاريس_والغطاء \
-  terrain=تضاريس_دقيقة_للغربية
+declare -A LABEL=(
+  [base]=تجهيز_النظام [web]=تشغيل_الموقع [cron]=الجدولة_والصيانة [jasper]=مكتبة_جاسبر
+  [netcdf]=مكتبات_نت_سي_دي_إف [wrf]=بناء_النموذج [wps]=بناء_أدوات_المعالجة [python]=أدوات_الرسم
+  [geog]=بيانات_التضاريس_والغطاء [terrain]=تضاريس_دقيقة)
+ALL_STAGES=${STAGES:-base web cron jasper netcdf wrf wps python geog terrain}
+plan=(); for s in $ALL_STAGES; do plan+=("$s=${LABEL[$s]}"); done
+status plan install "$(date -u +%Y%m%d)" "${plan[@]}"
 status phase install "جارٍ تثبيت النظام"
 publish_log "$LOG" install
 
 failed=""
 git -C "$REPO" rev-parse HEAD > "$STATE/install_attempt" 2>/dev/null
-for s in base web cron jasper netcdf wrf wps python geog terrain; do
+for s in $ALL_STAGES; do
   if ! step $s stage_$s; then failed=$s; break; fi
   publish_log "$LOG" install
 done

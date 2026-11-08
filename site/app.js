@@ -8,6 +8,7 @@
 (function () {
   "use strict";
 
+  const DATA = window.SWRF_DATA || "data/";
   const TZ = "Asia/Riyadh";
   const LOC = "ar-SA-u-nu-arab-ca-gregory";
   const nf = (d) => new Intl.NumberFormat(LOC, { maximumFractionDigits: d, minimumFractionDigits: 0 });
@@ -52,7 +53,7 @@
     const f = S.frames[i];
     if (!f) return null;
     const name = DAILY.includes(S.prod) ? f.date : String(f.h).padStart(3, "0");
-    return `data/runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
+    return `${DATA}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
   }
 
   const cache = new Map();
@@ -263,8 +264,8 @@
 
   async function loadRun(run, first) {
     S.run = run;
-    try { S.man = await getJSON(`data/runs/${run}/manifest.json`); } catch (e) { S.man = null; }
-    try { S.meteo = await getJSON(`data/runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
+    try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
+    try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
     const has = S.man && Object.keys(S.man.domains).length;
     $("mapEmpty").hidden = !!has;
     if (!has) return;
@@ -279,7 +280,7 @@
 
   async function refreshRuns(first) {
     let idx;
-    try { idx = await getJSON("data/runs.json"); } catch (e) { idx = { runs: [] }; }
+    try { idx = await getJSON(DATA + "runs.json"); } catch (e) { idx = { runs: [] }; }
     S.runs = idx.runs || [];
     const sel = $("runSelect");
     sel.hidden = S.runs.length < 2;
@@ -317,7 +318,7 @@
   }
   async function refreshStatus() {
     let s;
-    try { s = await getJSON("data/status.json"); } catch (e) {
+    try { s = await getJSON(DATA + "status.json"); } catch (e) {
       $("statusCard").innerHTML = `<p class="muted">لم تصل حالة الخادم بعد.</p>`; return;
     }
     const [ph, cls] = PH[s.phase] || [s.phase, "wait"];
@@ -346,6 +347,8 @@
     if (b.dataset.tab === "cities") drawCities();
     if (b.dataset.tab === "status") refreshStatus();
   });
+
+  document.querySelectorAll("[data-log]").forEach((a) => { a.href = `${DATA}logs/${a.dataset.log}.txt`; });
 
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
