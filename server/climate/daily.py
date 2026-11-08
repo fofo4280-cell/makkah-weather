@@ -198,11 +198,13 @@ def read_ao(t0):
 
 
 def trough_area(lat, lon):
-    if lon < 33:
-        return "مصر وشرق المتوسط" if lat >= 25 else "شمال السودان"
-    if lon < 40:
-        return "شمال البحر الأحمر وشمال غرب المملكة" if lat >= 25 else "البحر الأحمر وغرب المملكة"
-    return "شمال المملكة" if lat >= 27 else "وسط المملكة"
+    if lat >= 28:
+        return "شرق المتوسط وسيناء" if lon < 35 else "شمال المملكة والأردن" if lon < 44 else "شمال شرق المملكة والعراق"
+    if lon < 34:
+        return "مصر والسودان"
+    if lon < 41:
+        return "البحر الأحمر وغرب المملكة"
+    return "وسط المملكة"
 
 
 def ao_words(v):
@@ -449,7 +451,11 @@ def main():
             figures.draw_waves(os.path.join(out, "fig", f"wave_{k:02d}.png"), zp, fx, fy, LAT1, LON1, (5, 95, 5, 55), marks)
         except Exception as e:
             print("wave figure failed", k, e, flush=True)
-        trough = [m for m in waves.extremes(zp, LAT1, LON1, (15, 40, 22, 48), size=11, minimum=15) if m[0] == "L"]
+        # deepest wave trough next to the Kingdom (a trough axis need not be a closed low)
+        jb, ib = (LAT1 >= 16) & (LAT1 <= 33), (LON1 >= 26) & (LON1 <= 48)
+        sub = zp[np.ix_(jb, ib)]
+        jj, ii = np.unravel_index(int(np.argmin(sub)), sub.shape)
+        trough = [("L", float(LAT1[jb][jj]), float(LON1[ib][ii]), float(sub[jj, ii]))] if sub[jj, ii] <= -15 else []
         ridge = [m for m in waves.extremes(zp, LAT1, LON1, (10, 35, 46, 70), size=11, minimum=15) if m[0] == "H"]
         row = {"d": dt.strftime("%Y-%m-%d")}
         if trough:
@@ -564,7 +570,7 @@ def report(st, fc_wet):
         t = w["trough"]
         line = (f"في الطبقة الوسطى (٥٠٠ هكتوباسكال) يتعمق أخدود فوق {t['area']} يوم {ar_date(w['d'])} "
                 f"بعمق {ar(abs(t['v']))} مترًا جيوديناميكيًا")
-        if "ridge" in w:
+        if "ridge" in w and t["lon"] <= 42:
             line += "، يقابله مرتفع فوق بحر العرب وعُمان، فيقع الحجاز في جريان جنوبي غربي يجلب الرطوبة ويدعم الصعود أمام الأخدود"
         lines.append(line + ".")
     ao = st.get("ao")
