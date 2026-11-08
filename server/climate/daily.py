@@ -220,6 +220,7 @@ def main():
     os.makedirs(state, exist_ok=True)
     os.makedirs(out, exist_ok=True)
     clim = dict(np.load(os.path.join(clim_dir, "clim.npz")))
+    print("climatology finite:", float(np.isfinite(clim["chi"]).mean()), float(np.nanmax(np.abs(clim["chi"]))), flush=True)
     hist_dir = os.path.join(state, "hist")
     os.makedirs(hist_dir, exist_ok=True)
 
@@ -267,6 +268,8 @@ def main():
         return rec["chi"] - clim_chi_1deg(clim, dt)
     past = [anom(dt, r) for dt, r in hist.items() if dt >= t0 - timedelta(days=MEAN_DAYS)]
     bias = np.mean(past, axis=0) if past else 0.0
+    print("bias finite:", float(np.isfinite(bias).mean()) if not np.isscalar(bias) else bias,
+          "forecast chi finite:", float(np.isfinite(fc[t0]["chi"]).mean()), flush=True)
     series = {}
     for dt, r in sorted({**hist, **fc}.items()):
         series[dt] = -(anom(dt, r) - bias) / 1e6   # warm event positive, 10^6 m^2/s

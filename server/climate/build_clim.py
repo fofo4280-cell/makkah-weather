@@ -44,7 +44,7 @@ def wind_year(y):
         def g(d):
             lev = list(np.array(d.variables["level"][:]))
             k = lev.index(200.0)
-            return np.array(d.variables[var][:, k, :, :], dtype=np.float32)
+            return np.ma.filled(np.ma.asarray(d.variables[var][:, k, :, :], dtype=np.float32), np.nan)
         return g
     u = read(f"{PSL}/pressure/uwnd.{y}.nc", get("uwnd"))
     v = read(f"{PSL}/pressure/vwnd.{y}.nc", get("vwnd"))
@@ -59,7 +59,7 @@ def pw_year(y):
         lat, lon = np.array(d.variables["lat"][:]), np.array(d.variables["lon"][:])
         j = np.where((lat >= s) & (lat <= n))[0]
         i = np.where((lon >= w) & (lon <= e))[0]
-        a = np.array(d.variables["pr_wtr"][:, j[0]:j[-1] + 1, i[0]:i[-1] + 1], dtype=np.float32)
+        a = np.ma.filled(np.ma.asarray(d.variables["pr_wtr"][:, j[0]:j[-1] + 1, i[0]:i[-1] + 1], dtype=np.float32), np.nan)
         return a, lat[j[0]:j[-1] + 1], lon[i[0]:i[-1] + 1]
     a, la, lo = read(f"{PSL}/surface/pr_wtr.eatm.{y}.nc", g)
     print(f"pw {y}", flush=True)
@@ -81,13 +81,17 @@ def main():
     # one file at a time: the netCDF library is not safe to use from several threads
     winds = [wind_year(y) for y in years]
     pws = [pw_year(y) for y in years]
-    u = np.mean([w[0] for w in winds], axis=0)
-    v = np.mean([w[1] for w in winds], axis=0)
+    u = np.nan_to_num(np.nanmean([w[0] for w in winds], axis=0))
+    v = np.nan_to_num(np.nanmean([w[1] for w in winds], axis=0))
+    print("finite winds", np.isfinite(u).mean(), np.isfinite(v).mean(), float(np.abs(u).max()), flush=True)
     lat = np.linspace(90, -90, 73)
     lon = np.arange(0, 360, 2.5)
     chi = np.stack([sphere.velocity_potential(u[d], v[d], lat, lon) for d in range(365)])
     chi = harmonics(chi)
-    pw = harmonics(np.mean([p[0] for p in pws], axis=0))
+    pw = harmonics(np.nan_to_num(np.nanmean([p[0] for p in pws], axis=0)))
+    print("finite chi", np.isfinite(chi).mean(), float(np.nanmax(np.abs(chi))), "pw", float(np.nanmean(pw)), flush=True)
+    if not np.isfinite(chi).all():
+        raise SystemExit("climatology has gaps")
     np.savez_compressed(os.path.join(out, "clim.npz"), chi=chi, pw=pw, pw_lat=pws[0][1], pw_lon=pws[0][2],
                         years=np.array([y0, y1]))
     print("climatology written", chi.shape, pw.shape)
