@@ -25,6 +25,7 @@ import sphere  # noqa: E402
 import figures  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
+CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
 RMM_URL = "https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
 HIST_DAYS = 125
@@ -160,6 +161,45 @@ def read_rmm():
                 continue
             out.append((date(int(p[0]), int(p[1]), int(p[2])), r1, r2, int(p[5]), amp))
     return out
+
+
+def read_ao(t0):
+    """Arctic Oscillation (CPC, 1000 hPa): observed daily values and the latest GEFS forecast (31 members)."""
+    import csv, io
+    obs = []
+    for row in csv.DictReader(io.StringIO(get(CPC + "norm.daily.ao.cdas.z1000.19500101_current.csv").decode())):
+        try:
+            d = date(int(row["year"]), int(row["month"]), int(row["day"]))
+            v = float(row["ao_index_cdas"])
+        except (ValueError, KeyError):
+            continue
+        if d >= t0.date() - timedelta(days=90) and math.isfinite(v):
+            obs.append({"d": d.isoformat(), "v": round(v, 2)})
+    rows = list(csv.DictReader(io.StringIO(get(CPC + "norm.daily.ao.gefs.z1000.120days.csv").decode())))
+    init = max(r["time"] for r in rows)
+    by = {}
+    for r in rows:
+        if r["time"] == init:
+            try:
+                by.setdefault(r["valid_time"], []).append(float(r["ao_index"]))
+            except ValueError:
+                pass
+    fc = []
+    for vt in sorted(by):
+        a = np.array(by[vt])
+        fc.append({"d": vt, "mean": round(float(a.mean()), 2), "p10": round(float(np.percentile(a, 10)), 2),
+                   "p90": round(float(np.percentile(a, 90)), 2), "n": int(a.size)})
+    return {"obs": obs, "fc": fc, "init": init}
+
+
+def ao_words(v):
+    if v <= -2: return "سالب قوي"
+    if v <= -1: return "سالب"
+    if v < -0.5: return "سالب ضعيف"
+    if v < 0.5: return "قريب من الحياد"
+    if v < 1: return "موجب ضعيف"
+    if v < 2: return "موجب"
+    return "موجب قوي"
 
 
 # ------------------------------------------------------------------ images
@@ -382,9 +422,22 @@ def main():
         except Exception as e:
             print("figure failed pw", k, e, flush=True)
 
-    # 9. assessment and report (written from fixed templates)
+    # 9. Arctic Oscillation
+    try:
+        ao = read_ao(t0)
+    except Exception as e:
+        print("AO unavailable:", e, flush=True)
+        ao = None
+
+    # 10. assessment and report (written from fixed templates)
     month = t0.month
     wet_season = month in (11, 12, 1, 2, 3, 4)
+    cold_season = month in (10, 11, 12, 1, 2, 3, 4)
+    ao_cold = None
+    if ao and ao["fc"] and cold_season:
+        low = min(ao["fc"][:11], key=lambda x: x["mean"])
+        if low["mean"] <= -1.5:
+            ao_cold = low
     now_obs = obs[-1] if obs else None
     surge = []
     for row in pw_rows[1:11]:
@@ -400,7 +453,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "wet_season": wet_season, "surge": surge, "pw": pw_rows,
+        "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
@@ -410,7 +463,7 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw")},
     }
-    status["report"] = report(status, fc_wet) if surge else None
+    status["report"] = report(status, fc_wet) if (surge or ao_cold) else None
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
         rd = os.path.join(out, "reports")
@@ -425,7 +478,8 @@ AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو",
 
 
 def ar(x):
-    return str(x).translate(AR_DIGITS)
+    t = str(x).translate(AR_DIGITS)
+    return "\u200e\u2212" + t[1:] if t.startswith("-") else t   # minus sign that stays on the left in Arabic text
 
 
 def ar_date(s):
@@ -441,7 +495,10 @@ def report(st, fc_wet):
     """Arabic report from fixed sentences."""
     now = st.get("rmm_today") or st["rmm_now"]
     lines = []
-    title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
+    if st["surge"]:
+        title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
+    else:
+        title = f"تقرير منخفضات باردة محتملة من الشمال: {ar_date(st['ao_cold']['d'])}"
     if now:
         ph = now["phase"]
         lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(round(now['amp'], 1))} ({strength(now['amp'])})، "
@@ -462,6 +519,19 @@ def report(st, fc_wet):
         span = f"من {ar_date(items[0]['d'])} إلى {ar_date(items[-1]['d'])}" if len(items) > 1 else f"يوم {ar_date(items[0]['d'])}"
         lines.append(f"مد رطوبي فوق {reg} {span}: يرتفع الماء القابل للهطول إلى {ar(top['pct'])}٪ من المعدل "
                      f"({ar(top['pw'])} ملم) يوم {ar_date(top['d'])}.")
+    ao = st.get("ao")
+    if ao and ao["fc"] and st.get("cold_season"):
+        now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]
+        f10 = ao["fc"][min(10, len(ao["fc"]) - 1)]
+        line = (f"التذبذب القطبي الآن {ao_words(now_ao)} ({ar(round(now_ao, 1))})، ومتوسط توقع جي إف إس المجمّع بعد عشرة أيام "
+                f"{ao_words(f10['mean'])} ({ar(round(f10['mean'], 1))}).")
+        if st.get("ao_cold"):
+            c = st["ao_cold"]
+            line += (f" يهبط إلى {ar(round(c['mean'], 1))} يوم {ar_date(c['d'])}: الدوامة القطبية تضعف ويتموج التيار النفاث، "
+                     "فتزيد فرصة اندفاع أخاديد ومنخفضات باردة من الشمال نحو العروض الدنيا ومنها شمال المملكة ووسطها، وقد تتعمق إذا التقت بالرطوبة.")
+        elif f10["mean"] >= 1:
+            line += " الجريان نطاقي غالبًا، والهواء البارد محصور في الشمال، ففرص تعمق المنخفضات الباردة نحو المملكة أقل."
+        lines.append(line)
     if fc_wet and st["wet_season"]:
         lines.append("الخلاصة: المد الرطوبي يتزامن مع طور رطب للتذبذب، فترتفع فرص السحب الرعدية والأمطار مع وجود محفز من منخفض علوي أو التقاء رياح، وتُتابع خرائط النموذج عالي الدقة يوميًا.")
     else:

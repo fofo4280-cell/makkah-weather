@@ -776,7 +776,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); mjoHov();
+    mjoMap(); aoChart();
   }
 
   function mjoText() {
@@ -900,6 +900,45 @@
       c.setLineDash([5, 4]); c.strokeStyle = "#ffffff"; c.lineWidth = 1.2;
       c.beginPath(); c.moveTo(left, top + fcRow * rowH); c.lineTo(w - 4, top + fcRow * rowH); c.stroke(); c.setLineDash([]);
     }
+  }
+
+  // Arctic Oscillation: observed bars and the ensemble forecast
+  function aoChart() {
+    const ao = M.st && M.st.ao;
+    if (!ao || !ao.obs.length) { $("aoChart").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; $("aoNow").innerHTML = ""; return; }
+    const obs = ao.obs, fc = ao.fc.filter((f) => f.d > obs[obs.length - 1].d);
+    const days = [...obs.map((o) => o.d), ...fc.map((f) => f.d)];
+    const W = 360, H = 190, L = 26, R = 6, T = 10, B = 24, n = days.length;
+    const X = (i) => L + (W - L - R) * i / Math.max(1, n - 1), Y = (v) => T + (H - T - B) * (1 - (Math.max(-4, Math.min(4, v)) + 4) / 8);
+    const css = getComputedStyle(document.body), sea = css.getPropertyValue("--sea").trim() || "#45c3e6", amber = css.getPropertyValue("--amber").trim() || "#f2b552";
+    let g = `<svg viewBox="0 0 ${W} ${H}" direction="ltr" font-family="Readex Pro, sans-serif" font-size="9">`;
+    for (const v of [-3, -2, -1, 0, 1, 2, 3]) {
+      g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="currentColor" stroke-opacity="${v === 0 ? 0.45 : 0.1}"/>`;
+      g += `<text x="${L - 4}" y="${Y(v) + 3}" text-anchor="end" fill="currentColor" fill-opacity=".6">${v < 0 ? "−" + num(-v) : num(v)}</text>`;
+    }
+    const bw = Math.max(1, (W - L - R) / n - 0.6);
+    obs.forEach((o, i) => {
+      const y0 = Y(0), y = Y(o.v);
+      g += `<rect x="${X(i) - bw / 2}" y="${Math.min(y0, y)}" width="${bw}" height="${Math.abs(y - y0)}" fill="${o.v >= 0 ? amber : sea}" fill-opacity=".85"/>`;
+    });
+    if (fc.length) {
+      const k0 = obs.length;
+      const band = fc.map((f, j) => `${X(k0 + j)},${Y(f.p90)}`).join(" ") + " " + fc.slice().reverse().map((f, j) => `${X(k0 + fc.length - 1 - j)},${Y(f.p10)}`).join(" ");
+      g += `<polygon points="${band}" fill="currentColor" fill-opacity=".13"/>`;
+      const line = [obs[obs.length - 1].v, ...fc.map((f) => f.mean)].map((v, j) => `${X(k0 - 1 + j)},${Y(v)}`).join(" ");
+      g += `<polyline points="${line}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4"/>`;
+      g += `<line x1="${X(k0 - 0.5)}" x2="${X(k0 - 0.5)}" y1="${T}" y2="${H - B}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="2 3"/>`;
+      g += `<text x="${X(k0 - 0.5) + 4}" y="${T + 9}" fill="currentColor" fill-opacity=".7">توقع</text>`;
+    }
+    days.forEach((d, i) => {
+      if (+d.slice(8) === 1 || +d.slice(8) === 15) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" fill="currentColor" fill-opacity=".65">${num(+d.slice(8))}/${num(+d.slice(5, 7))}</text>`;
+    });
+    $("aoChart").innerHTML = g + "</svg>";
+    const now = obs[obs.length - 1], f10 = fc[Math.min(9, fc.length - 1)];
+    const word = (v) => (v <= -2 ? "سالب قوي" : v <= -1 ? "سالب" : v < -0.5 ? "سالب ضعيف" : v < 0.5 ? "قريب من الحياد" : v < 1 ? "موجب ضعيف" : v < 2 ? "موجب" : "موجب قوي");
+    const sgn = (v) => (v < 0 ? "−" : "") + num(Math.abs(v), 1);
+    $("aoNow").innerHTML = `<span>آخر رصد (${fmtDM.format(dOf(now.d))}/${num(+now.d.slice(5, 7))}): <b>${sgn(now.v)}</b> ${word(now.v)}</span>` +
+      (f10 ? `<span>بعد عشرة أيام تقريبًا: <b>${sgn(f10.mean)}</b> ${word(f10.mean)}</span>` : "");
   }
 
   function mjoPwTable() {
