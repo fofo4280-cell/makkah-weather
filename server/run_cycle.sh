@@ -1,0 +1,209 @@
+#!/bin/bash
+# One forecast cycle: GFS download -> WPS -> real -> WRF (images made while it runs) -> publish.
+# Runs as the wrf user from cron. ANY_CYCLE=1 takes the newest GFS run of any hour.
+# FORCE_CYCLE=YYYYMMDDHH runs that exact cycle.
+set -uo pipefail
+HERE="$(cd "$(dirname "$0")" && pwd)"
+source "$HERE/lib.sh"
+
+[ -f "$STATE/installed" ] || { log "install not finished yet"; exit 0; }
+exec 9>"$STATE/cycle.lock"
+if ! flock -n 9; then log "another cycle is running"; exit 0; fi
+
+CYCLES=${CYCLES:-18}             # GFS cycles used by the scheduled run
+WAIT_MIN=${WAIT_MIN:-120}        # how long to wait for GFS files
+KEEP_RUNS=${KEEP_RUNS:-3}
+MAXH=$(python3 -c "import json;print(max(d['hours'] for d in json.load(open('$HERE/domains.json'))['domains']))")
+PY=$VENV/bin/python
+NOMADS=https://nomads.ncep.noaa.gov
+AWS=https://noaa-gfs-bdp-pds.s3.amazonaws.com
+
+gfs_exists() { # $1=YYYYMMDDHH $2=fhour
+  local d=${1:0:8} c=${1:8:2} f; f=$(printf '%03d' "$2")
+  curl -s -f -I -m 20 "$NOMADS/pub/data/nccf/com/gfs/prod/gfs.$d/$c/atmos/gfs.t${c}z.pgrb2.0p25.f$f" >/dev/null && return 0
+  curl -s -f -I -m 20 "$AWS/gfs.$d/$c/atmos/gfs.t${c}z.pgrb2.0p25.f$f" >/dev/null
+}
+
+pick_cycle() {
+  if [ -n "${FORCE_CYCLE:-}" ]; then echo "$FORCE_CYCLE"; return 0; fi
+  local now k c hh
+  now=$(date -u +%s)
+  for k in $(seq 0 8); do
+    c=$(date -u -d "@$(( (now / 21600 - k) * 21600 ))" +%Y%m%d%H)
+    hh=${c:8:2}
+    if [ "${ANY_CYCLE:-0}" != 1 ] && [[ " $CYCLES " != *" ${hh#0} "* && " $CYCLES " != *" $hh "* ]]; then continue; fi
+    if gfs_exists "$c" "$MAXH"; then echo "$c"; return 0; fi
+    # scheduled run: wait for the newest wanted cycle instead of falling back to an older one
+    if [ "${ANY_CYCLE:-0}" != 1 ] && [ $(( now - $(date -u -d "${c:0:8} ${c:8:2}:00" +%s) )) -lt $(( 8 * 3600 )) ]; then
+      echo "WAIT:$c"; return 0
+    fi
+  done
+  return 1
+}
+
+CYC=$(pick_cycle) || { log "no GFS cycle found"; status phase error "لم أجد بيانات جي إف إس"; exit 1; }
+if [[ $CYC == WAIT:* ]]; then
+  CYC=${CYC#WAIT:}
+  log "waiting for GFS $CYC"
+  for i in $(seq 1 $(( WAIT_MIN / 5 ))); do gfs_exists "$CYC" "$MAXH" && break; sleep 300; done
+  gfs_exists "$CYC" "$MAXH" || { status phase error "تأخرت بيانات جي إف إس للدورة $CYC"; exit 1; }
+fi
+if [ -f "$STATE/done_$CYC" ] && [ -z "${FORCE_CYCLE:-}" ]; then log "cycle $CYC already done"; exit 0; fi
+
+RUN=$WORK/run/$CYC
+mkdir -p "$RUN"/{gfs,wps,wrf}
+LOG=$LOGS/cycle_$CYC.log
+exec > >(tee -a "$LOG") 2>&1
+T_START=$(date -u +%s)
+log "cycle $CYC on $NPROC cores"
+
+status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
+status phase cycle "دورة $CYC قيد التشغيل"
+
+publish() { publish_log "$LOG" cycle; }
+fail() {
+  status phase error "$1"
+  for f in "$RUN"/wrf/rsl.error.0000 "$RUN"/wps/ungrib.log "$RUN"/wps/metgrid.log "$WORK"/static/geogrid.log; do
+    [ -f "$f" ] && { echo "----- $(basename "$f")"; tail -n 60 "$f"; }
+  done
+  publish
+  exit 1
+}
+
+# ---------------------------------------------------------------- 1. GFS
+get_gfs() {
+  local d=${CYC:0:8} c=${CYC:8:2} f out url
+  for fh in $(seq 0 3 "$MAXH"); do
+    f=$(printf '%03d' "$fh"); out="$RUN/gfs/gfs.t${c}z.pgrb2.0p25.f$f"
+    [ -s "$out" ] && continue
+    url="$NOMADS/cgi-bin/filter_gfs_0p25.pl?dir=%2Fgfs.$d%2F$c%2Fatmos&file=gfs.t${c}z.pgrb2.0p25.f$f&all_var=on&all_lev=on&subregion=&toplat=42&leftlon=25&rightlon=66&bottomlat=4"
+    if ! { curl -s -f -m 300 --retry 3 --retry-delay 20 -o "$out.part" "$url" && [ "$(head -c 4 "$out.part")" = GRIB ] && [ "$(stat -c %s "$out.part")" -gt 1000000 ]; }; then
+      log "NOMADS failed for f$f, using AWS"
+      curl -s -f -m 900 --retry 4 --retry-delay 30 -o "$out.part" "$AWS/gfs.$d/$c/atmos/gfs.t${c}z.pgrb2.0p25.f$f" || return 1
+      [ "$(head -c 4 "$out.part")" = GRIB ] || return 1
+    fi
+    mv "$out.part" "$out"
+    sleep 2
+  done
+}
+step gfs get_gfs || fail "تعذر تنزيل بيانات جي إف إس"
+publish
+
+# ---------------------------------------------------------------- 2. WPS
+run_wps() {
+  local GH; GH=$("$PY" "$HERE/render_namelists.py" geohash)
+  local S=$WORK/static
+  if [ ! -f "$S/geo_em.d01.nc" ] || [ "$(cat "$S/geohash" 2>/dev/null)" != "$GH" ]; then
+    log "running geogrid (grid design $GH)"
+    rm -rf "$S"; mkdir -p "$S"; cd "$S" || return 1
+    ln -sf "$WPS_DIR/geogrid" geogrid
+    "$PY" "$HERE/render_namelists.py" wps "$CYC" "$GEOG/WPS_GEOG" namelist.wps
+    "$WPS_DIR/geogrid.exe" > geogrid.out 2>&1
+    grep -q "Successful completion of geogrid" geogrid.log || { tail -n 40 geogrid.log; return 1; }
+    echo "$GH" > geohash
+  fi
+  cd "$RUN/wps" || return 1
+  rm -f FILE:* met_em.* GRIBFILE.* geo_em.*
+  ln -sf "$S"/geo_em.d0*.nc .
+  ln -sf "$WPS_DIR/metgrid" metgrid
+  ln -sf "$WPS_DIR/ungrib/Variable_Tables/Vtable.GFS" Vtable
+  "$PY" "$HERE/render_namelists.py" wps "$CYC" "$GEOG/WPS_GEOG" namelist.wps
+  "$WPS_DIR/link_grib.csh" "$RUN"/gfs/gfs.t* >/dev/null
+  "$WPS_DIR/ungrib.exe" > ungrib.out 2>&1
+  grep -q "Successful completion of ungrib" ungrib.log || { tail -n 40 ungrib.log; return 1; }
+  "$WPS_DIR/metgrid.exe" > metgrid.out 2>&1
+  grep -q "Successful completion of metgrid" metgrid.log || { tail -n 40 metgrid.log; return 1; }
+  rm -f FILE:*
+}
+step wps run_wps || fail "فشلت المعالجة المسبقة"
+publish
+
+# ---------------------------------------------------------------- 3. real
+run_real() {
+  cd "$RUN/wrf" || return 1
+  find . -maxdepth 1 -type l -delete
+  rm -f rsl.* wrfinput_d0* wrfbdy_d01 wrfout_* namelist.input
+  for f in "$WRF_DIR"/run/*; do
+    case $(basename "$f") in namelist.input|wrf.exe|real.exe|ndown.exe|tc.exe) ;; *) ln -sf "$f" . ;; esac
+  done
+  ln -sf "$WRF_DIR/main/real.exe" "$WRF_DIR/main/wrf.exe" .
+  ln -sf "$RUN"/wps/met_em.d0* .
+  local m nlev nsoil
+  m=$(ls met_em.d01.* | head -1)
+  nlev=$("$NETCDF/bin/ncdump" -h "$m" | sed -n 's/.*num_metgrid_levels = \([0-9]*\).*/\1/p' | head -1)
+  nsoil=$("$NETCDF/bin/ncdump" -h "$m" | sed -n 's/.*NUM_METGRID_SOIL_LEVELS = \([0-9]*\).*/\1/p' | head -1)
+  log "metgrid levels: $nlev, soil levels: ${nsoil:-4}"
+  "$PY" "$HERE/render_namelists.py" input "$CYC" "$nlev" "${nsoil:-4}" namelist.input
+  mpirun --bind-to none -np "$NPROC" ./real.exe > real.out 2>&1
+  grep -q "SUCCESS COMPLETE REAL_EM" rsl.out.0000 || { tail -n 40 rsl.error.0000; return 1; }
+  mkdir -p real_logs && mv rsl.* real_logs/
+}
+step real run_real || fail "فشلت تهيئة النموذج"
+publish
+
+# ---------------------------------------------------------------- 4. WRF (+ images while it runs)
+DONE_FLAG=$RUN/wrf/WRF_DONE
+rm -f "$DONE_FLAG"
+NP_WRF=$(( NPROC > 4 ? NPROC - 1 : NPROC ))   # one core left for making images
+run_wrf() {
+  cd "$RUN/wrf" || return 1
+  "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --watch "$DONE_FLAG" \
+     > "$RUN/post_watch.log" 2>&1 &
+  local POSTPID=$!
+  timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
+  local WPID=$!
+  while kill -0 $WPID 2>/dev/null; do
+    sleep 120
+    local last hrs
+    last=$(grep -h "Timing for main" rsl.out.0000 2>/dev/null | tail -1 | awk '{print $5}')
+    if [ -n "$last" ]; then
+      hrs=$(( ($(date -u -d "${last/_/ }" +%s) - $(date -u -d "${CYC:0:8} ${CYC:8:2}:00" +%s)) / 3600 ))
+      status step wrf running "الساعة $hrs من ${MAXH}"
+    fi
+    publish_log rsl.error.0000 wrf_rsl 80
+  done
+  wait $WPID; local rc=$?
+  touch "$DONE_FLAG"
+  wait $POSTPID
+  grep -q "SUCCESS COMPLETE WRF" rsl.out.0000 && return 0
+  log "wrf exit $rc"; tail -n 40 rsl.error.0000
+  return 1
+}
+WRF_OK=1
+step wrf run_wrf || WRF_OK=0
+publish
+
+# ---------------------------------------------------------------- 5. finish images and publish
+finish() {
+  if [ $WRF_OK = 1 ]; then
+    "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --finish
+  else
+    "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --failed
+  fi
+  # keep the newest runs only
+  ls -1d "$WEB"/data/runs/[0-9]* 2>/dev/null | sort -r | tail -n +$((KEEP_RUNS + 1)) | xargs -r rm -rf
+  "$PY" - "$WEB" <<'EOF'
+import json, os, sys
+web = sys.argv[1]; p = os.path.join(web, "data", "runs.json")
+idx = json.load(open(p))
+idx["runs"] = [r for r in idx["runs"] if os.path.isdir(os.path.join(web, "data", "runs", r["run"]))]
+json.dump(idx, open(p, "w"), ensure_ascii=False)
+EOF
+  find "$WEB/data/runs" -name '.*.npy' -mmin +60 -delete 2>/dev/null
+}
+step post finish || log "post-processing reported a problem"
+
+T_END=$(date -u +%s)
+MINS=$(( (T_END - T_START) / 60 ))
+status history "{\"cycle\":\"$CYC\",\"ok\":$WRF_OK,\"minutes\":$MINS,\"cores\":$NPROC,\"finished\":\"$(date -u +%Y-%m-%dT%H:%MZ)\"}"
+if [ $WRF_OK = 1 ]; then
+  touch "$STATE/done_$CYC"
+  status phase idle "آخر دورة $CYC اكتملت في $MINS دقيقة"
+  rm -rf "$RUN/gfs" "$RUN"/wrf/wrfout_* "$RUN"/wps/met_em.*
+else
+  fail "توقف النموذج قبل نهايته؛ نُشر ما اكتمل"
+fi
+# free disk: old work folders
+ls -1d "$WORK"/run/[0-9]* 2>/dev/null | sort -r | tail -n +3 | xargs -r rm -rf
+publish
+log "cycle $CYC finished in $MINS min"

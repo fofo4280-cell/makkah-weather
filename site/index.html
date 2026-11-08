@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نموذج فهد العيسي عالي الدقة</title>
+<meta name="theme-color" content="#0b1d2c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="brand-name">نموذج فهد العيسي عالي الدقة</span>
+      <span class="brand-sub" id="runLabel">المملكة العربية السعودية · تشغيل خاص</span>
+    </div>
+    <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
+  </header>
+
+  <main class="panels">
+    <!-- map -->
+    <section class="panel" id="p-map">
+      <div id="map" dir="ltr"></div>
+      <div class="map-top">
+        <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
+        <select id="prodSelect" class="prod-select" aria-label="المنتج"></select>
+      </div>
+      <div class="map-empty" id="mapEmpty" hidden>
+        <div class="map-empty-box">
+          <strong>لا توجد خرائط بعد</strong>
+          <span id="mapEmptyMsg">النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.</span>
+        </div>
+      </div>
+      <div class="map-bottom">
+        <div class="legend" id="legend"></div>
+        <div class="timebar" dir="ltr">
+          <button class="icon-btn" id="btnPrev" aria-label="السابق">‹</button>
+          <button class="icon-btn play" id="btnPlay" aria-label="تشغيل">▶</button>
+          <button class="icon-btn" id="btnNext" aria-label="التالي">›</button>
+          <div class="time-box">
+            <div class="time-label" id="timeLabel" dir="rtl">—</div>
+            <input type="range" id="timeRange" min="0" max="0" value="0" dir="ltr" aria-label="الوقت">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- cities -->
+    <section class="panel scroll" id="p-cities" hidden>
+      <div class="wrap">
+        <p class="hint">لكل مدينة: الحرارة (خط)، ومطر كل ساعة (أعمدة)، وأقصى انعكاسية في دائرة نصف قطرها ٥ كم (الشريط الملوّن). تؤخذ القيم من أدق مجال يغطي المدينة.</p>
+        <input id="cityFilter" class="search" type="search" placeholder="ابحث عن مدينة">
+        <div id="cityList"></div>
+      </div>
+    </section>
+
+    <!-- status -->
+    <section class="panel scroll" id="p-status" hidden>
+      <div class="wrap">
+        <div class="card" id="statusCard"></div>
+        <div class="card"><h3>آخر الدورات</h3><div id="historyList"></div></div>
+        <div class="card"><h3>السجلات</h3>
+          <div class="logs">
+            <a href="data/logs/cycle.txt" target="_blank">سجل الدورة</a>
+            <a href="data/logs/wrf_rsl.txt" target="_blank">سجل النموذج</a>
+            <a href="data/logs/install.txt" target="_blank">سجل التثبيت</a>
+            <a href="data/logs/system.txt" target="_blank">حالة الخادم</a>
+            <a href="data/logs/task.txt" target="_blank">مهمة الصيانة</a>
+          </div>
+        </div>
+        <div class="card about">
+          <h3>عن النموذج</h3>
+          <p>نموذج البحث والتنبؤ بالطقس يعمل يوميًا على خادم خاص، ويأخذ حالته الابتدائية وحدوده من نموذج جي إف إس الأمريكي لدورة الساعة ١٨ بالتوقيت العالمي.</p>
+          <p>ثلاثة مجالات متداخلة: المملكة بدقة ٩ كم لمدة ٧٢ ساعة، والمنطقة الغربية بدقة ٣ كم لمدة ٧٢ ساعة تُحاكى فيها العواصف الرعدية صراحة، ومحيط مكة والطائف بدقة ٦٠٠ م لمدة ٣٠ ساعة. تضاريس المجالين الداخليين من نموذج الارتفاعات الرقمي كوبرنيكوس بدقة ٩٠ م، فتظهر جبال مكة المحلية والحافة والهدا والشفا.</p>
+          <p>تفاصيل مواقع الخلايا الرعدية بعد اليوم الأول تُقرأ إشارةً احتمالية لا موقعًا دقيقًا.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="map">الخريطة</button>
+    <button class="tab" data-tab="cities">المدن</button>
+    <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
+  </nav>
+</div>
+<script src="leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
