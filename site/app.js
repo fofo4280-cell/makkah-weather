@@ -110,6 +110,7 @@
 
   // arrows of water vapour transport, drawn over the colours
   const VecLayer = L.Layer.extend({
+    initialize(opts) { this._ref = (opts && opts.ref) || 700; },
     onAdd(m) {
       this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
       m.getPane("lightning").appendChild(this._c);
@@ -134,7 +135,7 @@
         if (p.x < -10 || p.y < -10 || p.x > size.x + 10 || p.y > size.y + 10) return;
         const key = Math.floor(p.x / cell) * 10000 + Math.floor(p.y / cell);
         if (used.has(key)) return; used.add(key);
-        const mag = Math.hypot(u, v), len = Math.min(26, 8 + 18 * mag / 700), a = Math.atan2(-v, u);
+        const mag = Math.hypot(u, v), len = Math.min(26, 8 + 18 * mag / this._ref), a = Math.atan2(-v, u);
         const x2 = p.x + Math.cos(a) * len / 2, y2 = p.y + Math.sin(a) * len / 2, x1 = p.x - Math.cos(a) * len / 2, y1 = p.y - Math.sin(a) * len / 2;
         for (const [col, w] of [["rgba(255,255,255,.75)", 3.2], ["#141a22", 1.5]]) {
           ctx.strokeStyle = col; ctx.lineWidth = w; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2);
@@ -149,7 +150,7 @@
     const f = S.frames[S.idx], d = S.man && S.man.domains[S.dom];
     if (S.prod !== "ivt" || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
     const url = `${base(d)}runs/${S.run}/${S.dom}/ivt_vec/${String(f.h).padStart(3, "0")}.json`;
-    if (!vec.layer) { vec.layer = new VecLayer(); vec.layer.addTo(map); }
+    if (!vec.layer) { vec.layer = new VecLayer({ ref: 700 }); vec.layer.addTo(map); }
     if (vec.url === url) return;
     vec.url = url;
     try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
@@ -749,10 +750,180 @@
     if (!S.runs.length) $("mapEmptyMsg").textContent = `${ph}${s.message ? ": " + s.message : ""}. التفاصيل في تبويب الحالة.`;
   }
 
+
+  // ------------------------------------------------------------------ MJO and warm/cold events
+  const CL = window.SWRF_CLIMATE || DATA.replace("/model-data/", "/climate-data/");
+  const M = { st: null, map: null, layer: "wc", day: 0, img: null, vec: null, vecs: null, loaded: 0 };
+  const AR_AREA = { 1: "غرب نصف الكرة الغربي وأفريقيا", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي", 4: "القارة البحرية (إندونيسيا)",
+                    5: "القارة البحرية (إندونيسيا)", 6: "غرب المحيط الهادئ", 7: "غرب المحيط الهادئ", 8: "نصف الكرة الغربي وأفريقيا" };
+  const fmtDayD = new Intl.DateTimeFormat(LOC, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
+  const fmtDM = new Intl.DateTimeFormat(LOC, { timeZone: "UTC", day: "numeric" });
+  const dOf = (s) => new Date(s + "T00:00:00Z");
+  const strength = (a) => (a < 1 ? "ضعيف" : a < 1.5 ? "متوسط" : a < 2.5 ? "قوي" : "قوي جدًا");
+
+  function scaleColor(lg, v) {
+    const st = lg.stops, p = Math.max(0, Math.min(1, (v - lg.vmin) / (lg.vmax - lg.vmin)));
+    let k = 0; while (k < st.length - 2 && st[k + 1].p < p) k++;
+    const a = st[k], b = st[k + 1], t = b.p > a.p ? (p - a.p) / (b.p - a.p) : 0;
+    const h = (c, i) => parseInt(c.slice(i, i + 2), 16);
+    return `rgb(${[1, 3, 5].map((i) => Math.round(h(a.c, i) + (h(b.c, i) - h(a.c, i)) * t)).join(",")})`;
+  }
+
+  async function mjoOpen() {
+    if (!M.st || Date.now() - M.loaded > 30 * 60e3) {
+      try { M.st = await getJSON(CL + "mjo.json"); M.loaded = Date.now(); } catch (e) {
+        $("mjoNow").innerHTML = `<p class="muted">لم تُحسب بيانات التذبذب بعد. تتحدث مرة كل يوم صباحًا.</p>`; return;
+      }
+      mjoText(); mjoPhase(); mjoPwTable();
+    }
+    mjoMap(); mjoHov();
+  }
+
+  function mjoText() {
+    const st = M.st, now = st.rmm_now;
+    const r = st.report;
+    $("mjoReport").hidden = !r;
+    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("");
+    let html = "";
+    if (now) {
+      const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
+      html += `<div class="mjo-big"><span>التذبذب الآن في <b>الطور ${num(now.phase)}</b></span><span>بشدة ${num(now.amp, 1)} (${strength(now.amp)})</span></div>
+        <div class="mjo-row"><span>الحمل العميق المصاحب</span><span>${AR_AREA[now.phase]}</span></div>
+        <div class="mjo-row"><span>أثره على المملكة</span><span class="${season ? (wet ? "wet" : "dry") : ""}">${
+          now.amp < 1 ? "ضعيف التأثير لأن التذبذب ضعيف" : !season ? "خارج موسم الأمطار، تأثيره محدود" : wet ? "طور رطب: يدعم الأمطار" : "طور جاف: يكبت الأمطار"}</span></div>
+        <div class="mjo-row"><span>آخر رصد</span><span>${fmtDayD.format(dOf(now.d))}</span></div>`;
+    }
+    html += `<div class="mjo-row"><span>الحدث الدافئ الآن</span><span>${st.warm.region}</span></div>
+      <div class="mjo-row"><span>الحدث البارد الآن</span><span>${st.cold.region}</span></div>`;
+    if (st.rmm_fc && st.rmm_fc.length) {
+      const f = st.rmm_fc[Math.min(9, st.rmm_fc.length - 1)];
+      html += `<div class="mjo-row"><span>بعد عشرة أيام تقريبًا</span><span>الطور ${num(f.phase)} بشدة ${num(f.amp, 1)}</span></div>`;
+    }
+    $("mjoNow").innerHTML = `<h3>التذبذب المداري (مادن-جوليان)</h3>` + html;
+    $("mjoUpdated").textContent = `آخر تحديث: ${fmtStamp.format(new Date(st.updated))} · توقع جي إف إس لدورة ${fmtDayD.format(dOf(st.cycle.slice(0, 4) + "-" + st.cycle.slice(4, 6) + "-" + st.cycle.slice(6, 8)))}` +
+      (st.fit ? ` · توافق الإسقاط مع الرصد ${num(st.fit.r1, 2)} و${num(st.fit.r2, 2)}` : "");
+  }
+
+  function mjoPhase() {
+    const st = M.st, R = 3.6, S = 46, P = 26, W = 2 * R * S + 2 * P;
+    const X = (x) => P + (x + R) * S, Y = (y) => P + (R - y) * S;
+    let g = `<svg viewBox="0 0 ${W} ${W}" direction="ltr" font-family="Readex Pro, sans-serif">`;
+    g += `<rect x="${P}" y="${P}" width="${2 * R * S}" height="${2 * R * S}" fill="none" stroke="currentColor" stroke-opacity=".25"/>`;
+    for (let k = 0; k < 8; k++) {
+      const a = Math.PI * k / 4;
+      g += `<line x1="${X(Math.cos(a))}" y1="${Y(Math.sin(a))}" x2="${X(R * 1.42 * Math.cos(a))}" y2="${Y(R * 1.42 * Math.sin(a))}" stroke="currentColor" stroke-opacity=".18"/>`;
+    }
+    g += `<circle cx="${X(0)}" cy="${Y(0)}" r="${S}" fill="currentColor" fill-opacity=".06" stroke="currentColor" stroke-opacity=".3"/>`;
+    for (let ph = 1; ph <= 8; ph++) {
+      const a = (-180 + 45 * (ph - 1) + 22.5) * Math.PI / 180, r = R - 0.35;
+      g += `<text x="${X(r * Math.cos(a))}" y="${Y(r * Math.sin(a)) + 5}" text-anchor="middle" font-size="15" font-weight="700" fill="currentColor" fill-opacity=".55">${num(ph)}</text>`;
+    }
+    const lab = (x, y, t, rot) => `<text x="${x}" y="${y}" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity=".7" ${rot ? `transform="rotate(${rot} ${x} ${y})"` : ""}>${t}</text>`;
+    g += lab(W / 2, W - 8, "المحيط الهندي") + lab(W / 2, 18, "غرب المحيط الهادئ") + lab(18, W / 2, "نصف الكرة الغربي وأفريقيا", -90) + lab(W - 18, W / 2, "القارة البحرية", 90);
+    const obs = (st.rmm_obs || []).slice(-40), fc = st.rmm_fc || [];
+    const clip = (v) => Math.max(-R, Math.min(R, v));
+    if (obs.length) {
+      g += `<polyline fill="none" stroke="${getComputedStyle(document.body).getPropertyValue("--sea") || "#45c3e6"}" stroke-width="2.4" points="${obs.map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ")}"/>`;
+      obs.forEach((o, i) => { if (i % 5 === 0) g += `<circle cx="${X(clip(o.r1))}" cy="${Y(clip(o.r2))}" r="2.6" fill="currentColor" fill-opacity=".7"/>`; });
+      const o0 = obs[0], o1 = obs[obs.length - 1];
+      g += `<text x="${X(clip(o0.r1)) + 6}" y="${Y(clip(o0.r2)) - 6}" font-size="11" fill="currentColor" fill-opacity=".7">${fmtDM.format(dOf(o0.d))}/${num(+o0.d.slice(5, 7))}</text>`;
+      g += `<circle cx="${X(clip(o1.r1))}" cy="${Y(clip(o1.r2))}" r="6" fill="#45c3e6" stroke="#fff" stroke-width="2"/>`;
+      if (fc.length) {
+        const pts = [o1, ...fc].map((o) => `${X(clip(o.r1))},${Y(clip(o.r2))}`).join(" ");
+        g += `<polyline fill="none" stroke="#f2b552" stroke-width="2.2" stroke-dasharray="6 5" points="${pts}"/>`;
+        const f1 = fc[fc.length - 1];
+        g += `<circle cx="${X(clip(f1.r1))}" cy="${Y(clip(f1.r2))}" r="4.5" fill="#f2b552"/>`;
+      }
+    }
+    $("mjoPhase").innerHTML = g + "</svg>";
+  }
+
+  function mjoMap() {
+    if (!M.st) return;
+    if (!M.map) {
+      M.map = L.map("mjoMap", { zoomControl: true, attributionControl: false, minZoom: 1, maxZoom: 6, worldCopyJump: false }).setView([8, 90], 1);
+      L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxNativeZoom: 16 }).addTo(M.map);
+      M.map.createPane("lightning"); M.map.getPane("lightning").style.zIndex = 640; M.map.getPane("lightning").style.pointerEvents = "none";
+      M.map.createPane("labels"); M.map.getPane("labels").style.zIndex = 650; M.map.getPane("labels").style.pointerEvents = "none";
+      L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { pane: "labels", maxNativeZoom: 16 }).addTo(M.map);
+      document.querySelectorAll("#mjoLayer button").forEach((b) => b.onclick = () => {
+        document.querySelectorAll("#mjoLayer button").forEach((x) => x.classList.toggle("on", x === b));
+        M.layer = b.dataset.l; mjoShow(true);
+      });
+      $("mjoDay").oninput = (e) => { M.day = +e.target.value; mjoShow(false); };
+    }
+    setTimeout(() => M.map.invalidateSize(), 60);
+    $("mjoDay").max = (M.st.days || []).length - 1;
+    mjoShow(true);
+  }
+
+  async function mjoShow(fit) {
+    const st = M.st, k = M.day, lay = M.layer, kk = String(k).padStart(2, "0");
+    const bounds = lay === "pw" ? st.bounds.pw : st.bounds.wc;
+    const url = `${CL}${lay}/${kk}.png`;
+    if (M.img) M.img.setUrl(url).setBounds(L.latLngBounds(bounds));
+    else M.img = L.imageOverlay(url, bounds, { opacity: 1, zIndex: 300 }).addTo(M.map);
+    if (fit) M.map.fitBounds(bounds, { padding: [4, 4] });
+    const d = st.days[k];
+    $("mjoDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `+${num(k)} · ${fmtDayD.format(dOf(d))}`) : "";
+    const lg = st.legends[lay];
+    const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
+    const ticks = lg.stops.filter((x, i) => i % 2 === 0 || i === lg.stops.length - 1)
+      .map((x) => `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v)}</span>`).join("");
+    $("mjoLegend").innerHTML = `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
+      <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
+    if (lay === "wc") {
+      if (!M.vecs) { try { M.vecs = await getJSON(CL + "wc_vec.json"); } catch (e) { M.vecs = {}; } }
+      if (!M.vec) { M.vec = new VecLayer({ ref: 3 }); M.vec.addTo(M.map); }
+      M.vec.setData(M.vecs[k] || null);
+    } else if (M.vec) { M.map.removeLayer(M.vec); M.vec = null; }
+  }
+
+  function mjoHov() {
+    const st = M.st, h = st.hov, cv = $("mjoHov");
+    if (!h || !h.v.length) return;
+    const w = cv.clientWidth || 340, rowH = 4, top = 18, left = 46, H = top + h.v.length * rowH + 4;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = w * dpr; cv.height = H * dpr; cv.style.height = H + "px";
+    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const lg = st.legends.wc, n = h.v[0].length, cw = (w - left - 4) / n;
+    h.v.forEach((row, j) => row.forEach((v, i) => { c.fillStyle = scaleColor(lg, v); c.fillRect(left + i * cw, top + j * rowH, cw + 0.6, rowH + 0.6); }));
+    const fcRow = h.days.indexOf(h.first_fc);
+    c.font = "10px Readex Pro, sans-serif"; c.fillStyle = getComputedStyle(document.body).color; c.textAlign = "center";
+    for (let lon = 0; lon < 360; lon += 60) {
+      const x = left + (lon / h.dlon) * cw;
+      c.fillText(lon === 0 ? "٠" : lon <= 180 ? `${num(lon)}ش` : `${num(360 - lon)}غ`, x, 11);
+      c.strokeStyle = "rgba(255,255,255,.25)"; c.beginPath(); c.moveTo(x, top); c.lineTo(x, H - 4); c.stroke();
+    }
+    c.textAlign = "right";
+    h.days.forEach((d, j) => { if (j % 10 === 0 || j === fcRow) c.fillText(`${num(+d.slice(8))}/${num(+d.slice(5, 7))}`, left - 4, top + j * rowH + 8); });
+    if (fcRow >= 0) {
+      c.setLineDash([5, 4]); c.strokeStyle = "#ffffff"; c.lineWidth = 1.2;
+      c.beginPath(); c.moveTo(left, top + fcRow * rowH); c.lineTo(w - 4, top + fcRow * rowH); c.stroke(); c.setLineDash([]);
+    }
+  }
+
+  function mjoPwTable() {
+    const st = M.st, rows = (st.pw || []).slice(1, 11);
+    if (!rows.length) return;
+    const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
+    const lg = st.legends.pw;
+    let t = `<table class="pwt"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
+    for (const k of Object.keys(names)) {
+      t += `<tr><td>${names[k]}</td>` + rows.map((r) => {
+        const v = r[k].pct, bg = v >= 110 ? scaleColor(lg, v) : "transparent", fg = v >= 175 ? "#fff" : "inherit";
+        return `<td style="background:${bg};color:${fg}">${num(v)}</td>`;
+      }).join("") + "</tr>";
+    }
+    $("mjoPw").innerHTML = t + "</table>";
+  }
+
   // ------------------------------------------------------------------ tabs
   document.querySelectorAll(".tab").forEach((b) => b.onclick = () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
-    for (const p of ["map", "cities", "status"]) $("p-" + p).hidden = p !== b.dataset.tab;
+    for (const p of ["map", "mjo", "status"]) $("p-" + p).hidden = p !== b.dataset.tab;
+    $("p-cities").hidden = true;
+    if (b.dataset.tab === "mjo") mjoOpen();
     if (b.dataset.tab === "map") setTimeout(() => map.invalidateSize(), 50);
     if (b.dataset.tab === "cities") drawCities();
     if (b.dataset.tab === "status") refreshStatus();

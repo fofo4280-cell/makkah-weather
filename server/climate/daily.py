@@ -1,0 +1,441 @@
+#!/usr/bin/env python3
+"""Daily MJO / warm-cold event / moisture-surge products for the website.
+
+daily.py <clim_dir> <state_dir> <out_dir>
+
+Data:
+  - RMM index (Wheeler and Hendon) from the Australian Bureau of Meteorology, observed.
+  - GFS 1 degree analyses (00 UTC, last ~125 days) and the latest forecast to 15 days, from the NOAA archive
+    on AWS: 200 hPa wind and precipitable water.
+  - NCEP/NCAR reanalysis climatology (build_clim.py).
+
+Warm/cold event index: minus the 200 hPa velocity potential anomaly (10^6 m^2/s), after removing the
+climatology and the mean of the previous 120 days (as done for RMM). Positive (warm event) = upper-level
+outflow over deep convection; negative (cold event) = convergence aloft, suppressed convection.
+RMM forecast: the observed RMM is regressed on the zonal wave-1 of the equatorial index over the last
+90 days, the fit is applied to the GFS forecast and anchored to the latest observation.
+"""
+import json, math, os, re, sys, urllib.request
+from datetime import date, datetime, timedelta, timezone
+
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import sphere  # noqa: E402
+
+AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
+RMM_URL = "https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
+UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
+HIST_DAYS = 125
+MEAN_DAYS = 120
+FC_DAYS = 15
+LAT1 = np.linspace(90, -90, 181)
+LON1 = np.arange(0, 360, 1.0)
+
+# Saudi regions for the moisture check: south, north, west, east
+BOXES = {
+    "west": ("الحجاز وغرب المملكة", 19, 26, 38, 43),
+    "southwest": ("جنوب غرب المملكة", 16, 20, 41, 45),
+    "central": ("وسط المملكة", 22, 27, 43, 48),
+    "east": ("شرق المملكة", 23, 28, 48, 51),
+    "north": ("شمال المملكة", 27, 32, 37, 44),
+}
+# Wheeler-Hendon phases: where the enhanced convection is
+PHASE_AREA = {1: "غرب نصف الكرة الغربي وأفريقيا", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي",
+              4: "القارة البحرية (إندونيسيا)", 5: "القارة البحرية (إندونيسيا)", 6: "غرب المحيط الهادئ",
+              7: "غرب المحيط الهادئ", 8: "نصف الكرة الغربي وأفريقيا"}
+WET_PHASES = {1, 2, 7, 8}      # Nov-Apr, Saudi Arabia (Alsaqr et al. / UEA study, 26 stations 1985-2021)
+DRY_PHASES = {3, 4, 5, 6}
+
+
+def region_name(lon):
+    lon = lon % 360
+    for a, b, n in [(0, 15, "غرب أفريقيا والأطلسي"), (15, 45, "شرق أفريقيا"), (45, 75, "غرب المحيط الهندي وبحر العرب"),
+                    (75, 100, "وسط وشرق المحيط الهندي"), (100, 145, "القارة البحرية (إندونيسيا)"),
+                    (145, 180, "غرب المحيط الهادئ"), (180, 240, "وسط المحيط الهادئ"), (240, 290, "شرق المحيط الهادئ"),
+                    (290, 360, "الأمريكتان والأطلسي")]:
+        if a <= lon < b:
+            return n
+    return ""
+
+
+def get(url, headers=None, tries=3):
+    for k in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": UA, **(headers or {})})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return r.read()
+        except Exception as e:
+            if k == tries - 1:
+                raise
+            print(f"retry {url}: {e}", flush=True)
+    return None
+
+
+# ------------------------------------------------------------------ GFS
+FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):")]
+
+
+def gfs_fields(cycle, fh):
+    """u200, v200, pw on the 1 degree grid (lat 90..-90, lon 0..359) for one GFS file, by byte ranges."""
+    import pygrib
+    d, hh = cycle[:8], cycle[8:10]
+    base = f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.1p00.f{fh:03d}"
+    idx = get(base + ".idx").decode().splitlines()
+    starts = [int(l.split(":")[1]) for l in idx]
+    out = {}
+    for name, pat in FIELDS:
+        k = next(i for i, l in enumerate(idx) if re.search(pat, l))
+        end = starts[k + 1] - 1 if k + 1 < len(starts) else ""
+        blob = get(base, {"Range": f"bytes={starts[k]}-{end}"})
+        tmp = f"/tmp/gfs_{os.getpid()}.grb"
+        open(tmp, "wb").write(blob)
+        with pygrib.open(tmp) as g:
+            m = g.message(1)
+            a = np.array(m.values, dtype=np.float32)
+            la = m.latlons()[0][:, 0]
+        if la[0] < la[-1]:
+            a = a[::-1]
+        out[name] = a
+    return out
+
+
+def latest_cycle():
+    now = datetime.now(timezone.utc)
+    for k in range(0, 4):
+        d = (now - timedelta(days=k)).strftime("%Y%m%d")
+        try:
+            get(f"{AWS}/gfs.{d}/00/atmos/gfs.t00z.pgrb2.1p00.f{FC_DAYS * 24:03d}.idx")
+            return d + "00"
+        except Exception:
+            continue
+    raise RuntimeError("no GFS forecast found")
+
+
+# ------------------------------------------------------------------ helpers
+def doy(dt):
+    """0..364, 29 February counted as 28 February."""
+    d = dt.timetuple().tm_yday - 1
+    if dt.month > 2 and (dt.year % 4 == 0 and (dt.year % 100 != 0 or dt.year % 400 == 0)):
+        d -= 1
+    return min(max(d, 0), 364)
+
+
+def clim_chi_1deg(clim, dt):
+    """Climatological chi for a date, interpolated from 2.5 to 1 degree."""
+    from scipy.ndimage import map_coordinates
+    c = clim["chi"][doy(dt)]
+    jj = (90 - LAT1) / 2.5
+    ii = LON1 / 2.5
+    J, I = np.meshgrid(jj, ii, indexing="ij")
+    return map_coordinates(np.hstack([c, c[:, :1]]), [J, I], order=1, mode="nearest")
+
+
+def box_mean(field, lat, lon, s, n, w, e):
+    j = (lat >= s) & (lat <= n)
+    i = (lon >= w) & (lon <= e)
+    return float(np.mean(field[np.ix_(j, i)]))
+
+
+def rmm_phase(r1, r2):
+    a = math.degrees(math.atan2(r2, r1))
+    return int(((a + 180) // 45) % 8) + 1
+
+
+def read_rmm():
+    txt = get(RMM_URL).decode("latin-1").splitlines()
+    out = []
+    for l in txt:
+        p = l.split()
+        if len(p) >= 7 and p[0].isdigit() and len(p[0]) == 4:
+            try:
+                r1, r2, amp = float(p[3]), float(p[4]), float(p[6])
+            except ValueError:
+                continue
+            if abs(r1) > 900 or abs(amp) > 900:
+                continue
+            out.append((date(int(p[0]), int(p[1]), int(p[2])), r1, r2, int(p[5]), amp))
+    return out
+
+
+# ------------------------------------------------------------------ images
+def mercator_png(path, field, lat, lon, stops, south=-45, north=45, west=0, east=360, w=720):
+    """Field on a regular lat/lon grid -> palette PNG whose rows follow Web Mercator (for a Leaflet overlay)."""
+    from PIL import Image
+    from scipy.ndimage import map_coordinates
+    merc = lambda p: math.log(math.tan(math.pi / 4 + math.radians(p) / 2))
+    ys, yn = merc(south), merc(north)
+    step = math.radians(east - west) / w
+    h = int(round((yn - ys) / step))
+    lons = west + (np.arange(w) + 0.5) * (east - west) / w
+    my = yn - (np.arange(h) + 0.5) * (yn - ys) / h
+    lats = np.degrees(2 * np.arctan(np.exp(my)) - np.pi / 2)
+    dlat, dlon = lat[1] - lat[0], lon[1] - lon[0]
+    f = np.hstack([field, field[:, :1]]) if east - west >= 359 else field
+    J, I = np.meshgrid((lats - lat[0]) / dlat, ((lons - lon[0]) % 360) / dlon, indexing="ij")
+    v = map_coordinates(f, [J, I], order=1, mode="nearest")
+    vals = np.array([s[0] for s in stops], float)
+    cols = np.array([[int(s[1][i:i + 2], 16) for i in (1, 3, 5)] for s in stops], float)
+    t = np.linspace(vals[0], vals[-1], 255)
+    pal = np.stack([np.interp(t, vals, cols[:, k]) for k in range(3)], 1)
+    alpha = np.interp(t, vals, [s[2] for s in stops])
+    idx = 1 + np.clip(np.rint((v - vals[0]) / (vals[-1] - vals[0]) * 254), 0, 254)
+    img = Image.fromarray(idx.astype(np.uint8), "P")
+    img.putpalette([0, 0, 0] + [int(round(x)) for x in pal.reshape(-1)])
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    img.save(path, transparency=bytes([0] + [int(round(a)) for a in alpha]), optimize=True)
+
+
+WARM = [(-12, "#0b1440", 225), (-8, "#1d4fa8", 215), (-4, "#5f9fd0", 190), (-1.5, "#d5e4ef", 110), (0, "#f2f2f2", 60),
+        (1.5, "#efd8d2", 110), (4, "#df8a6c", 190), (8, "#b5292a", 215), (12, "#4a0716", 225)]
+CHANGE = [(-6, "#1f3f78", 215), (-3, "#6f9fd2", 190), (-1, "#dde8f1", 110), (0, "#f4f1ea", 60), (1, "#f5dfb5", 110),
+          (3, "#ef9a4c", 190), (6, "#b8321b", 215), (9, "#5e0d10", 225)]
+PWA = [(-100, "#8a5a2b", 0), (110, "#e9f6e5", 0), (125, "#bfe6b6", 150), (150, "#5cc28a", 200), (175, "#2a9fb5", 215),
+       (200, "#2a63d0", 225), (250, "#5b2fa8", 235), (300, "#2b0f55", 240)]
+
+
+def legend(stops, label, unit, lo, hi):
+    return {"label": label, "unit": unit, "vmin": lo, "vmax": hi,
+            "stops": [{"p": round((s[0] - lo) / (hi - lo), 4), "v": s[0], "c": s[1], "a": s[2]} for s in stops]}
+
+
+def arrows(u, v, lat, lon, every=6, south=-40, north=40, scale=1.0, vmin=0.8):
+    out = []
+    for j in range(0, len(lat), every):
+        if not south <= lat[j] <= north:
+            continue
+        for i in range(0, len(lon), every):
+            a, b = float(u[j, i]) * scale, float(v[j, i]) * scale
+            if math.hypot(a, b) >= vmin:
+                out.append([round(float(lat[j]), 1), round(float(lon[i]), 1), round(a, 1), round(b, 1)])
+    return out
+
+
+# ------------------------------------------------------------------ main
+def main():
+    clim_dir, state, out = sys.argv[1:4]
+    os.makedirs(state, exist_ok=True)
+    os.makedirs(out, exist_ok=True)
+    clim = dict(np.load(os.path.join(clim_dir, "clim.npz")))
+    hist_dir = os.path.join(state, "hist")
+    os.makedirs(hist_dir, exist_ok=True)
+
+    cycle = latest_cycle()
+    t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+    print("GFS cycle", cycle, flush=True)
+
+    # 1. analyses of the last HIST_DAYS days (cached)
+    hist = {}
+    for k in range(HIST_DAYS, 0, -1):
+        dt = t0 - timedelta(days=k)
+        p = os.path.join(hist_dir, dt.strftime("%Y%m%d") + ".npz")
+        if not os.path.exists(p):
+            try:
+                f = gfs_fields(dt.strftime("%Y%m%d00"), 0)
+                chi = sphere.velocity_potential(f["u"], f["v"], LAT1, LON1)
+                np.savez_compressed(p, chi=(chi / 1e6).astype(np.float16), pw=f["pw"].astype(np.float16))
+            except Exception as e:
+                print("skip", dt.date(), e, flush=True)
+                continue
+        z = np.load(p)
+        hist[dt] = {"chi": z["chi"].astype(np.float32) * 1e6, "pw": z["pw"].astype(np.float32)}
+    for f in os.listdir(hist_dir):  # keep the cache small
+        try:
+            if datetime.strptime(f[:8], "%Y%m%d").replace(tzinfo=timezone.utc) < t0 - timedelta(days=HIST_DAYS + 2):
+                os.remove(os.path.join(hist_dir, f))
+        except ValueError:
+            pass
+    print("analyses", len(hist), flush=True)
+
+    # 2. the forecast: day 0 (analysis) to FC_DAYS
+    fc = {}
+    for d in range(0, FC_DAYS + 1):
+        f = gfs_fields(cycle, d * 24)
+        fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"]}
+    print("forecast days", len(fc), flush=True)
+
+    # 3. anomalies: minus climatology, minus the mean anomaly of the previous MEAN_DAYS days
+    def anom(dt, rec):
+        return rec["chi"] - clim_chi_1deg(clim, dt)
+    past = [anom(dt, r) for dt, r in hist.items() if dt >= t0 - timedelta(days=MEAN_DAYS)]
+    bias = np.mean(past, axis=0) if past else 0.0
+    series = {}
+    for dt, r in sorted({**hist, **fc}.items()):
+        series[dt] = -(anom(dt, r) - bias) / 1e6   # warm event positive, 10^6 m^2/s
+
+    # 4. maps for the forecast days (and the day before for the change)
+    vec_all = {}
+    days = sorted(fc)
+    for k, dt in enumerate(days):
+        W = series[dt]
+        mercator_png(os.path.join(out, "wc", f"{k:02d}.png"), W, LAT1, LON1, WARM)
+        prev = series.get(dt - timedelta(days=1))
+        if prev is not None:
+            mercator_png(os.path.join(out, "wcd", f"{k:02d}.png"), W - prev, LAT1, LON1, CHANGE)
+        u, v = sphere.divergent_wind(-W * 1e6, LAT1)   # anomalous outflow at 200 hPa
+        vec_all[k] = arrows(u, v, LAT1, LON1)
+    json.dump(vec_all, open(os.path.join(out, "wc_vec.json"), "w"), separators=(",", ":"))
+
+    # 5. Hovmoller: 15S-15N mean, 2.5 degree steps, last 60 days + forecast
+    band = (LAT1 >= -15) & (LAT1 <= 15)
+    hov_days = [dt for dt in sorted(series) if dt >= t0 - timedelta(days=60)]
+    lon25 = np.arange(0, 360, 2.5)
+    hov = []
+    for dt in hov_days:
+        prof = series[dt][band].mean(0)
+        hov.append([round(float(x), 1) for x in np.interp(lon25, np.append(LON1, 360), np.append(prof, prof[0]))])
+
+    # 6. RMM: observed, and a forecast through the wave-1 of the equatorial index
+    rmm = read_rmm()
+    rmm_by = {d: (r1, r2) for d, r1, r2, ph, amp in rmm}
+    lam = np.radians(LON1)
+
+    def wave1(dt):
+        prof = series[dt][band].mean(0)
+        return np.mean(prof * np.cos(lam)), np.mean(prof * np.sin(lam))
+    X, Y = [], []
+    for dt in sorted(series):
+        if dt > t0 or dt < t0 - timedelta(days=90):
+            continue
+        if dt.date() in rmm_by:
+            c, s = wave1(dt)
+            X.append([c, s, 1.0]); Y.append(rmm_by[dt.date()])
+    fit = None
+    fc_rmm = []
+    if len(X) >= 30:
+        X, Y = np.array(X), np.array(Y)
+        coef, *_ = np.linalg.lstsq(X, Y, rcond=None)
+        pred = X @ coef
+        r = [float(np.corrcoef(pred[:, k], Y[:, k])[0, 1]) for k in (0, 1)]
+        fit = {"days": len(X), "r1": round(r[0], 2), "r2": round(r[1], 2)}
+        last_obs = max(d for d in rmm_by if d <= t0.date()) if rmm_by else None
+        off = np.zeros(2)
+        if last_obs:
+            dt_lo = datetime(last_obs.year, last_obs.month, last_obs.day, tzinfo=timezone.utc)
+            if dt_lo in series:
+                c, s = wave1(dt_lo)
+                off = np.array(rmm_by[last_obs]) - np.array([c, s, 1.0]) @ coef
+        for dt in days:
+            c, s = wave1(dt)
+            lead = (dt.date() - (last_obs or t0.date())).days
+            if lead <= 0:
+                continue
+            p = np.array([c, s, 1.0]) @ coef + off * math.exp(-lead / 7.0)
+            amp = float(math.hypot(*p))
+            fc_rmm.append({"d": dt.strftime("%Y-%m-%d"), "r1": round(float(p[0]), 2), "r2": round(float(p[1]), 2),
+                           "phase": rmm_phase(*p), "amp": round(amp, 2)})
+    obs = [{"d": d.isoformat(), "r1": round(r1, 2), "r2": round(r2, 2), "phase": ph, "amp": round(amp, 2)}
+           for d, r1, r2, ph, amp in rmm if d >= t0.date() - timedelta(days=60)]
+
+    # 7. where the warm and cold events are now
+    prof = series[t0][band].mean(0)
+    warm_lon, cold_lon = float(LON1[int(np.argmax(prof))]), float(LON1[int(np.argmin(prof))])
+
+    # 8. moisture over Saudi Arabia: precipitable water against the climatology
+    plat, plon = clim["pw_lat"], clim["pw_lon"]
+    pw_rows = []
+    for k, dt in enumerate(days):
+        row = {"d": dt.strftime("%Y-%m-%d")}
+        for key, (name, s, n, w, e) in BOXES.items():
+            g = box_mean(fc[dt]["pw"], LAT1, LON1, s, n, w, e)
+            c = box_mean(clim["pw"][doy(dt)], plat, plon, s, n, w, e)
+            row[key] = {"pw": round(g, 1), "clim": round(c, 1), "pct": int(round(100 * g / max(c, 1)))}
+        pw_rows.append(row)
+        # percent of normal map over Arabia
+        from scipy.ndimage import map_coordinates
+        cl = clim["pw"][doy(dt)]
+        J = (LAT1[:, None] - plat[0]) / (plat[1] - plat[0]) * np.ones((1, len(LON1)))
+        I = (LON1[None, :] - plon[0]) / (plon[1] - plon[0]) * np.ones((len(LAT1), 1))
+        clim1 = map_coordinates(cl, [J, I], order=1, mode="nearest")
+        pct = 100 * fc[dt]["pw"] / np.maximum(clim1, 1)
+        sub_j = (LAT1 >= 5) & (LAT1 <= 40)
+        sub_i = (LON1 >= 25) & (LON1 <= 65)
+        mercator_png(os.path.join(out, "pw", f"{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i], PWA,
+                     south=6, north=39, west=25, east=65, w=400)
+
+    # 9. assessment and report (written from fixed templates)
+    month = t0.month
+    wet_season = month in (11, 12, 1, 2, 3, 4)
+    now_obs = obs[-1] if obs else None
+    surge = []
+    for row in pw_rows[1:11]:
+        for key, (name, *_b) in BOXES.items():
+            v = row[key]
+            if v["pct"] >= 150 and v["pw"] - v["clim"] >= 5:
+                surge.append({"d": row["d"], "region": name, "pct": v["pct"], "pw": v["pw"]})
+    fc_wet = [x for x in fc_rmm[:10] if x["phase"] in WET_PHASES and x["amp"] >= 1]
+    status = {
+        "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "cycle": cycle,
+        "rmm_now": now_obs, "rmm_obs": obs, "rmm_fc": fc_rmm, "fit": fit,
+        "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
+        "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
+        "wet_season": wet_season, "surge": surge, "pw": pw_rows,
+        "days": [dt.strftime("%Y-%m-%d") for dt in days],
+        "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
+                "first_fc": t0.strftime("%Y-%m-%d")},
+        "legends": {"wc": legend(WARM, "مؤشر الحدث الدافئ والبارد", "مليون م²/ث", -12, 12),
+                    "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
+                    "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
+        "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
+    }
+    status["report"] = report(status, fc_wet) if surge else None
+    json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+    if status["report"]:
+        rd = os.path.join(out, "reports")
+        os.makedirs(rd, exist_ok=True)
+        json.dump(status["report"], open(os.path.join(rd, t0.strftime("%Y%m%d") + ".json"), "w"), ensure_ascii=False)
+    print("done; surge days:", len(surge), "fit:", fit, flush=True)
+
+
+AR_DIGITS = str.maketrans("0123456789.", "٠١٢٣٤٥٦٧٨٩٫")
+AR_DAYS = ["الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+
+
+def ar(x):
+    return str(x).translate(AR_DIGITS)
+
+
+def ar_date(s):
+    d = date.fromisoformat(s)
+    return f"{AR_DAYS[d.weekday()]} {ar(d.day)} {AR_MONTHS[d.month - 1]}"
+
+
+def strength(a):
+    return "ضعيف" if a < 1 else "متوسط" if a < 1.5 else "قوي" if a < 2.5 else "قوي جدًا"
+
+
+def report(st, fc_wet):
+    """Arabic report from fixed sentences."""
+    now = st["rmm_now"]
+    lines = []
+    title = f"تقرير مد رطوبي على المملكة: {ar_date(st['surge'][0]['d'])}"
+    if now:
+        ph = now["phase"]
+        lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(now['amp'])} ({strength(now['amp'])})، "
+                     f"والحمل العميق المصاحب له فوق {PHASE_AREA[ph]}.")
+        if st["wet_season"]:
+            lines.append("هذا الطور من الأطوار الرطبة للمملكة في موسم الأمطار (١ و٢ و٧ و٨)، إذ تقوى فيه الرياح الشرقية والجنوبية الشرقية الحاملة لرطوبة بحر العرب."
+                         if ph in WET_PHASES else
+                         "هذا الطور من الأطوار الجافة للمملكة في موسم الأمطار (٣ إلى ٦)، فالدعم من التذبذب ضعيف، والمد الرطوبي المتوقع يأتي من نظام آخر.")
+    lines.append(f"الحدث الدافئ (الحمل المدعوم) يتمركز فوق {st['warm']['region']}، والحدث البارد (الحمل المكبوت) فوق {st['cold']['region']}.")
+    if st["rmm_fc"]:
+        last = st["rmm_fc"][min(9, len(st["rmm_fc"]) - 1)]
+        lines.append(f"بحسب توقع جي إف إس يتجه التذبذب خلال عشرة أيام إلى الطور {ar(last['phase'])} بشدة {ar(last['amp'])}.")
+    by_region = {}
+    for s in st["surge"]:
+        by_region.setdefault(s["region"], []).append(s)
+    for reg, items in by_region.items():
+        top = max(items, key=lambda x: x["pct"])
+        span = f"من {ar_date(items[0]['d'])} إلى {ar_date(items[-1]['d'])}" if len(items) > 1 else f"يوم {ar_date(items[0]['d'])}"
+        lines.append(f"مد رطوبي فوق {reg} {span}: يرتفع الماء القابل للهطول إلى {ar(top['pct'])}٪ من المعدل "
+                     f"({ar(top['pw'])} ملم) يوم {ar_date(top['d'])}.")
+    if fc_wet and st["wet_season"]:
+        lines.append("الخلاصة: المد الرطوبي يتزامن مع طور رطب للتذبذب، فترتفع فرص السحب الرعدية والأمطار مع وجود محفز من منخفض علوي أو التقاء رياح، وتُتابع خرائط النموذج عالي الدقة يوميًا.")
+    else:
+        lines.append("الخلاصة: رطوبة أعلى من المعدل بوضوح، وتحتاج لمحفز رفع حتى تتحول إلى سحب رعدية؛ تُتابع خرائط النموذج عالي الدقة يوميًا.")
+    return {"date": st["cycle"][:8], "title": title, "lines": lines, "surge": st["surge"]}
+
+
+if __name__ == "__main__":
+    main()
