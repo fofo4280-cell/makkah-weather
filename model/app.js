@@ -17,6 +17,7 @@
   const fmtDay = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "long", day: "numeric", month: "long" });
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
+  const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
   const HOURLY = ["refl", "rain1h", "rainacc", "t2", "wind", "wup"];
   const DAILY = ["refl_day", "rain_day"];
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
@@ -439,12 +440,13 @@
     $("statusDot").className = "dot " + cls;
     const steps = (s.steps || []).map((x) => {
       const [lab, c] = STATE[x.state] || [x.state, "wait"];
-      return `<li><span>${x.label}${x.note ? ` <small>${x.note}</small>` : ""}</span>
+      const note = x.note && !/-\d/.test(x.note) ? arDigits(x.note) : "";
+      return `<li><span>${x.label}${note ? ` <small>${note}</small>` : ""}</span>
         <span><small>${x.state === "running" || x.state === "done" ? dur(x.started, x.ended) : ""}</small> <span class="pill ${c}">${lab}</span></span></li>`;
     }).join("");
     const what = (s.cycle || "").length !== 10 ? "التثبيت" : `الدورة: ${runName(s.cycle)}`;
     $("statusCard").innerHTML = `<div class="phase"><span class="pill ${cls}">${ph}</span></div>
-      <div>${s.message || ""}</div><div class="muted" style="font-size:.8rem">${what} · آخر تحديث ${ago(s.updated)}</div>
+      <div>${arDigits((s.message || "").replace(/\s*\d{10}\s*/, " "))}</div><div class="muted" style="font-size:.8rem">${what} · آخر تحديث ${ago(s.updated)}</div>
       <ul class="steps">${steps}</ul>`;
     $("historyList").innerHTML = (s.history || []).length ? s.history.map((h) => `<div class="hist">
       <span>${runName(h.cycle)}</span><span class="pill ${h.ok ? "ok" : "err"}">${h.ok ? "اكتملت" : "ناقصة"}</span>
