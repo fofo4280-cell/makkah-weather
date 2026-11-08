@@ -226,6 +226,8 @@
   $("prodSelect").onchange = (e) => setProduct(e.target.value);
 
   // ------------------------------------------------------------------ cities
+  // the places shown on the map and in the cities tab (older runs carry a longer list)
+  const CITY_KEEP = new Set(["makkah", "jumum", "taif", "jeddah", "rabigh", "khulais", "kamil", "lith", "qunfudhah", "madinah"]);
   function series(c, key) { return (c.series && c.series[key]) || []; }
 
   function reflColor(v) { return v >= 10 ? colorAt("refl", v) : null; }
@@ -375,6 +377,7 @@
     S.run = run;
     try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
     try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
+    if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
       if (Array.isArray(p.legend)) {  // runs made before the gradient colours
         const n = p.legend.length;
