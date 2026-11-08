@@ -452,7 +452,7 @@ def main():
         except Exception as e:
             print("wave figure failed", k, e, flush=True)
         # deepest wave trough next to the Kingdom (a trough axis need not be a closed low)
-        jb, ib = (LAT1 >= 16) & (LAT1 <= 33), (LON1 >= 26) & (LON1 <= 48)
+        jb, ib = (LAT1 >= 16) & (LAT1 <= 30), (LON1 >= 26) & (LON1 <= 48)
         sub = zp[np.ix_(jb, ib)]
         jj, ii = np.unravel_index(int(np.argmin(sub)), sub.shape)
         trough = [("L", float(LAT1[jb][jj]), float(LON1[ib][ii]), float(sub[jj, ii]))] if sub[jj, ii] <= -15 else []
