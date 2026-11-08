@@ -41,13 +41,14 @@
   const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 13 }).setView([23.5, 44], 5);
   // basemaps: dark by default, place names drawn above the model colours
   map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
-  const carto = "© OpenStreetMap · © CARTO";
-  const dark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: carto, subdomains: "abcd" });
-  const light = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png", { maxZoom: 19, attribution: carto, subdomains: "abcd" });
+  // Esri's grey canvas tiles need no key (CARTO started requiring one and stamps its tiles otherwise)
+  const esri = (svc) => `https://server.arcgisonline.com/ArcGIS/rest/services/${svc}/MapServer/tile/{z}/{y}/{x}`;
+  const esriAttr = "© Esri, HERE, Garmin, © OpenStreetMap";
+  const dark = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
+  const light = L.tileLayer(esri("Canvas/World_Light_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
   const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
-  const shade = L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Elevation/World_Hillshade_Dark/MapServer/tile/{z}/{y}/{x}",
-    { maxZoom: 13, opacity: 0.45, attribution: "Esri" });
-  const labelsDark = L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png", { pane: "labels", subdomains: "abcd", maxZoom: 19 });
+  const shade = L.tileLayer(esri("Elevation/World_Hillshade_Dark"), { maxZoom: 13, opacity: 0.45, attribution: "Esri" });
+  const labelsDark = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { pane: "labels", maxZoom: 19, maxNativeZoom: 16 });
   const bases = { "داكنة": dark, "فاتحة": light, "تضاريس": topo };
   const baseKey = store.get("base2") || "داكنة";
   (bases[baseKey] || dark).addTo(map);
