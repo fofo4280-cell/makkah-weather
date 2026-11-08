@@ -23,6 +23,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sphere  # noqa: E402
 import figures  # noqa: E402
+import waves  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
@@ -78,7 +79,11 @@ def get(url, headers=None, tries=3):
 FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):")]
 
 
-def gfs_fields(cycle, fh):
+Z500 = ("z500", r":HGT:500 mb:")
+WAVE_DAYS = 10
+
+
+def gfs_fields(cycle, fh, extra=()):
     """u200, v200, pw on the 1 degree grid (lat 90..-90, lon 0..359) for one GFS file, by byte ranges."""
     import pygrib
     d, hh = cycle[:8], cycle[8:10]
@@ -86,7 +91,7 @@ def gfs_fields(cycle, fh):
     idx = get(base + ".idx").decode().splitlines()
     starts = [int(l.split(":")[1]) for l in idx]
     out = {}
-    for name, pat in FIELDS:
+    for name, pat in list(FIELDS) + list(extra):
         k = next(i for i, l in enumerate(idx) if re.search(pat, l))
         end = starts[k + 1] - 1 if k + 1 < len(starts) else ""
         blob = get(base, {"Range": f"bytes={starts[k]}-{end}"})
@@ -190,6 +195,14 @@ def read_ao(t0):
         fc.append({"d": vt, "mean": round(float(a.mean()), 2), "p10": round(float(np.percentile(a, 10)), 2),
                    "p90": round(float(np.percentile(a, 90)), 2), "n": int(a.size)})
     return {"obs": obs, "fc": fc, "init": init}
+
+
+def trough_area(lat, lon):
+    if lon < 33:
+        return "مصر وشرق المتوسط" if lat >= 25 else "شمال السودان"
+    if lon < 40:
+        return "شمال البحر الأحمر وشمال غرب المملكة" if lat >= 25 else "البحر الأحمر وغرب المملكة"
+    return "شمال المملكة" if lat >= 27 else "وسط المملكة"
 
 
 def ao_words(v):
@@ -300,8 +313,9 @@ def main():
     # 2. the forecast: day 0 (analysis) to FC_DAYS
     fc = {}
     for d in range(0, FC_DAYS + 1):
-        f = gfs_fields(cycle, d * 24)
-        fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"]}
+        f = gfs_fields(cycle, d * 24, (Z500,) if d <= WAVE_DAYS else ())
+        fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"],
+                                      "z500": f.get("z500")}
     print("forecast days", len(fc), flush=True)
 
     # 3. anomalies: minus climatology, minus the mean anomaly of the previous MEAN_DAYS days
@@ -422,6 +436,30 @@ def main():
         except Exception as e:
             print("figure failed pw", k, e, flush=True)
 
+    # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
+    wave_rows = []
+    for k, dt in enumerate(days[:WAVE_DAYS + 1]):
+        z = fc[dt].get("z500")
+        if z is None:
+            continue
+        zp = waves.band(z)
+        fx, fy = waves.plumb_flux(zp, LAT1, LON1)
+        marks = waves.extremes(zp, LAT1, LON1, (5, 55, 5, 95))
+        try:
+            figures.draw_waves(os.path.join(out, "fig", f"wave_{k:02d}.png"), zp, fx, fy, LAT1, LON1, (5, 95, 5, 55), marks)
+        except Exception as e:
+            print("wave figure failed", k, e, flush=True)
+        trough = [m for m in waves.extremes(zp, LAT1, LON1, (15, 40, 22, 48), size=11, minimum=15) if m[0] == "L"]
+        ridge = [m for m in waves.extremes(zp, LAT1, LON1, (10, 35, 46, 70), size=11, minimum=15) if m[0] == "H"]
+        row = {"d": dt.strftime("%Y-%m-%d")}
+        if trough:
+            t = min(trough, key=lambda m: m[3])
+            row["trough"] = {"lat": t[1], "lon": t[2], "v": int(round(t[3])), "area": trough_area(t[1], t[2])}
+        if ridge:
+            r = max(ridge, key=lambda m: m[3])
+            row["ridge"] = {"lat": r[1], "lon": r[2], "v": int(round(r[3]))}
+        wave_rows.append(row)
+
     # 9. Arctic Oscillation
     try:
         ao = read_ao(t0)
@@ -453,6 +491,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
+        "waves": wave_rows,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
@@ -461,7 +500,7 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw")},
+        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave")},
     }
     status["report"] = report(status, fc_wet) if (surge or ao_cold) else None
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
@@ -519,6 +558,15 @@ def report(st, fc_wet):
         span = f"من {ar_date(items[0]['d'])} إلى {ar_date(items[-1]['d'])}" if len(items) > 1 else f"يوم {ar_date(items[0]['d'])}"
         lines.append(f"مد رطوبي فوق {reg} {span}: يرتفع الماء القابل للهطول إلى {ar(top['pct'])}٪ من المعدل "
                      f"({ar(top['pw'])} ملم) يوم {ar_date(top['d'])}.")
+    deep = [w for w in st.get("waves", [])[1:8] if "trough" in w and w["trough"]["v"] <= -25]
+    if deep:
+        w = min(deep, key=lambda x: x["trough"]["v"])
+        t = w["trough"]
+        line = (f"في الطبقة الوسطى (٥٠٠ هكتوباسكال) يتعمق أخدود فوق {t['area']} يوم {ar_date(w['d'])} "
+                f"بعمق {ar(abs(t['v']))} مترًا جيوديناميكيًا")
+        if "ridge" in w:
+            line += "، يقابله مرتفع فوق بحر العرب وعُمان، فيقع الحجاز في جريان جنوبي غربي يجلب الرطوبة ويدعم الصعود أمام الأخدود"
+        lines.append(line + ".")
     ao = st.get("ao")
     if ao and ao["fc"] and st.get("cold_season"):
         now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]

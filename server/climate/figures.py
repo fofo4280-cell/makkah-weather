@@ -28,6 +28,13 @@ def legend(kind):
 
 
 def _ar(text):
+    """Arabic for matplotlib: new versions shape and order Arabic themselves; older ones need help."""
+    try:
+        import matplotlib
+        if tuple(int(x) for x in matplotlib.__version__.split(".")[:2]) >= (3, 10):
+            return text
+    except Exception:
+        pass
     try:
         import arabic_reshaper
         from bidi.algorithm import get_display
@@ -133,5 +140,89 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
         from PIL import Image
         im = Image.open(path).convert("RGB")
         im.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:
+        pass
+
+
+SCALES["wave"] = {"vmin": -60, "vmax": 60, "cols": [(0, "#0f3f7a"), (.18, "#2f78c4"), (.36, "#9ec6e8"), (.5, "#f4f2ec"),
+                                                   (.64, "#f6d48f"), (.82, "#e39a2d"), (1, "#8a4b08")],
+                  "label": "موجات الطبقة الوسطى (٥٠٠ هكتوباسكال)", "unit": "متر جيوديناميكي", "ticks": [-60, -40, -20, 0, 20, 40, 60]}
+
+
+def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
+    """Wave height (filled + contours), H/L marks and wave-activity arrows over a regional map."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import patheffects as pe
+    from scipy.ndimage import zoom
+    sc = SCALES["wave"]
+    w, e, s, n = extent
+    j = (lat >= s - 2) & (lat <= n + 2)
+    i = (lon >= w - 2) & (lon <= e + 2)
+    la, lo = lat[j], lon[i]
+    z = zp[np.ix_(j, i)]
+    u, v = fx[np.ix_(j, i)], fy[np.ix_(j, i)]
+    aspect = (e - w) / (n - s)
+    fig_w = width_px / 200
+    fig = plt.figure(figsize=(fig_w, fig_w / aspect + 0.4), dpi=200)
+    fig.patch.set_facecolor("#f7f5f0")
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    pc = ccrs.PlateCarree()
+    lm = 75 / width_px
+    ax = fig.add_axes([lm, 0.08, 0.99 - lm, 0.9], projection=ccrs.PlateCarree(central_longitude=(w + e) / 2))
+    ax.set_extent([w, e, s, n], crs=pc)
+    up = 6
+    fine = zoom(z, up, order=3)
+    ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=_cmap(sc["cols"]), vmin=sc["vmin"],
+              vmax=sc["vmax"], interpolation="bilinear", transform=pc, regrid_shape=fine.shape)
+    try:
+        import cartopy.io.shapereader as shp
+        shp.natural_earth(resolution="50m", category="physical", name="coastline")
+        ax.coastlines(resolution="50m", linewidth=0.5, color="#2a2a2a")
+        shp.natural_earth(resolution="50m", category="cultural", name="admin_0_boundary_lines_land")
+        ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.35, edgecolor="#555555")
+    except Exception as ex:
+        print("coastlines unavailable:", str(ex)[:80])
+    levels = [x for x in range(-90, 91, 10) if x != 0]
+    cs = ax.contour(lo, la, z, levels=levels, colors=["#1d4f8f" if x < 0 else "#a8640c" for x in levels],
+                    linewidths=0.7, alpha=0.8, transform=pc)
+    ax.clabel(cs, fmt=lambda x: str(int(abs(x))).translate(AR), fontsize=6)
+    ax.contour(lo, la, z, levels=[0], colors="#ffffff", linewidths=1.1, linestyles="dashdot", transform=pc)
+    # wave-activity arrows, every 4 degrees where the flux matters
+    st = 4
+    mag = np.hypot(u, v)
+    thr = max(float(np.nanpercentile(mag, 70)), 1e-6)
+    sub = (slice(None, None, st), slice(None, None, st))
+    U, V, M = u[sub], v[sub], mag[sub]
+    LO, LA = np.meshgrid(lo[::st], la[::st])
+    keep = M >= thr
+    if keep.any():
+        ref = float(np.nanpercentile(M[keep], 90))
+        ax.quiver(LO[keep], LA[keep], U[keep] / ref, V[keep] / ref, transform=pc, color="#263238", alpha=0.75,
+                  scale=28, width=0.0022, headwidth=4, headlength=4.5, zorder=4)
+    halo = [pe.withStroke(linewidth=2.6, foreground="white")]
+    for kind, y, x, val in marks:
+        col = "#d2442a" if kind == "H" else "#1f6fc0"
+        ax.text(x, y + 0.6, _ar("مرتفع") if kind == "H" else _ar("منخفض"), transform=pc, ha="center", va="bottom",
+                fontsize=8, fontweight="bold", color=col, path_effects=halo, zorder=6)
+        ax.text(x, y - 0.4, str(int(round(abs(val)))).translate(AR), transform=pc,
+                ha="center", va="top", fontsize=7.5, fontweight="bold", color=col, path_effects=halo, zorder=6)
+        ax.plot(x, y, marker="o", markersize=3.2, color=col, transform=pc, zorder=6, markeredgecolor="white")
+    ax.spines["geo"].set_edgecolor("#999999")
+    xt = np.arange(np.ceil(w / 10) * 10, e + 0.1, 10)
+    yt = np.arange(np.ceil(s / 10) * 10, n + 0.1, 10)
+    ax.set_xticks(xt, crs=pc); ax.set_yticks(yt, crs=pc)
+    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=7, color="#555555")
+    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=7, color="#555555")
+    ax.tick_params(length=2.5, color="#999999")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=220, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:
         pass

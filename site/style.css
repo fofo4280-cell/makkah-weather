@@ -176,3 +176,6 @@ a { color: var(--sea); }
 .ao-now { display: flex; gap: 10px; flex-wrap: wrap; font-size: .88rem; margin-bottom: 6px; }
 .ao-now b { color: var(--sea); }
 #aoChart svg { width: 100%; display: block; }
+.figwrap.fit .wavefig { width: 100%; height: auto; display: block; }
+.wave-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: .82rem; }
+.wave-row b { color: var(--sea); font-weight: 600; }
