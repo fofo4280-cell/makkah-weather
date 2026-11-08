@@ -1,15 +1,84 @@
 {
-  "_note": "Free setup (GitHub runners, 4 cores): 9 km parent over western Arabia and the Red Sea, 3 km over Makkah Region. The larger three-domain design for a dedicated server is in domains_big.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
-  "map": {"map_proj": "lambert", "ref_lat": 21.6, "ref_lon": 40.6, "truelat1": 18.0, "truelat2": 30.0, "stand_lon": 45.0},
-  "e_vert": 45,
-  "p_top": 5000,
-  "time_step": 45,
-  "domains": [
-    {"id": "d01", "name": "غرب المملكة", "res": "٩ كم", "dx": 9000, "e_we": 166, "e_sn": 151,
-     "parent": 0, "ratio": 1, "ips": 1, "jps": 1, "hours": 27, "geog": "default",
-     "max_dt": 54, "min_dt": 18, "cu": 3, "gwd": 1},
-    {"id": "d02", "name": "منطقة مكة المكرمة", "res": "٣ كم", "dx": 3000, "e_we": 172, "e_sn": 190,
-     "parent": 1, "ratio": 3, "ips": 55, "jps": 40, "hours": 27, "geog": "cop90+default",
-     "max_dt": 18, "min_dt": 6, "cu": 0, "gwd": 0}
-  ]
+ "_note": "Free setup (GitHub runners, 4 cores): 9 km parent over western Arabia and the Red Sea, 3 km over Makkah Region, and a 1 km nest over Jeddah, Makkah, Al-Jumum, Mudrakah, Taif, Al-Hada and Al-Shafa that runs only in the peak window of each cycle (windows: forecast hours [start, end] by GFS cycle hour; starts must fall on the 3-hourly GFS times). The larger design for a dedicated server is in domains_big.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 21.6,
+  "ref_lon": 40.6,
+  "truelat1": 18.0,
+  "truelat2": 30.0,
+  "stand_lon": 45.0
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {
+   "id": "d01",
+   "name": "غرب المملكة",
+   "res": "٩ كم",
+   "dx": 9000,
+   "e_we": 166,
+   "e_sn": 151,
+   "parent": 0,
+   "ratio": 1,
+   "ips": 1,
+   "jps": 1,
+   "hours": 27,
+   "geog": "default",
+   "max_dt": 54,
+   "min_dt": 18,
+   "cu": 3,
+   "gwd": 1
+  },
+  {
+   "id": "d02",
+   "name": "منطقة مكة المكرمة",
+   "res": "٣ كم",
+   "dx": 3000,
+   "e_we": 172,
+   "e_sn": 190,
+   "parent": 1,
+   "ratio": 3,
+   "ips": 55,
+   "jps": 40,
+   "hours": 27,
+   "geog": "cop90+default",
+   "max_dt": 18,
+   "min_dt": 6,
+   "cu": 0,
+   "gwd": 0
+  },
+  {
+   "id": "d03",
+   "name": "جدة ومكة والطائف",
+   "res": "١ كم",
+   "dx": 1000,
+   "e_we": 163,
+   "e_sn": 166,
+   "parent": 2,
+   "ratio": 3,
+   "ips": 33,
+   "jps": 84,
+   "hours": 15,
+   "windows": {
+    "0": [
+     9,
+     15
+    ],
+    "12": [
+     12,
+     18
+    ],
+    "default": [
+     9,
+     15
+    ]
+   },
+   "geog": "cop90+default",
+   "max_dt": 6,
+   "min_dt": 2,
+   "cu": 0,
+   "gwd": 0
+  }
+ ]
 }

@@ -16,7 +16,7 @@ from netCDF4 import Dataset
 from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from products import PRODUCTS, DAILY, POINT_VARS, palette, classify, legend, encode_point, fields_from_frame  # noqa: E402
+from products import PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point, fields_from_frame  # noqa: E402
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", "domains.json")))
@@ -131,6 +131,7 @@ class Processor:
         self.grids = {}
         self.dom = {d["id"]: d for d in CFG["domains"]}
         self.prev_acc = {}
+        self._first = dict(self.st.s.get("first", {}))
 
     def files(self, did):
         return sorted(glob.glob(os.path.join(self.wrfdir, f"wrfout_{did}_*")))
@@ -139,6 +140,16 @@ class Processor:
         if did not in self.grids:
             self.grids[did] = Grid(self.dom[did], np.array(nc.variables["XLAT"][0]), np.array(nc.variables["XLONG"][0]))
         return self.grids[did]
+
+    def first_hour(self, did):
+        """Forecast hour of a domain's first output (late-starting nests begin mid-run)."""
+        if did not in self._first:
+            fs = self.files(did)
+            if fs:
+                self._first[did] = int(round((frame_time(fs[0]) - self.init).total_seconds() / 3600))
+            else:
+                return 0
+        return self._first[did]
 
     def acc_path(self, did):
         return os.path.join(self.st.dir, f".acc_{did}.npy")
@@ -149,18 +160,24 @@ class Processor:
         prev = self.prev_acc.get(did)
         if prev is None and os.path.exists(self.acc_path(did)) and h > 0:
             prev = np.load(self.acc_path(did))
+        first = h == self.first_hour(did)  # nothing accumulated yet (start of the run, or of a late nest)
         with Dataset(path) as nc:
             g = self.grid(did, nc)
-            fields, acc = fields_from_frame(nc, prev if h > 0 else None)
+            fields, acc = fields_from_frame(nc, None if first else prev)
+        if first:
+            fields.pop("rain1h", None)
+        late = self.first_hour(did) > 0
         for pid, f in fields.items():
-            if pid not in PRODUCTS:
+            if pid not in PRODUCTS or (late and pid == "rainacc"):
                 continue
-            if pid in ("wind", "wup", "rain1h") and h == 0:
+            if pid in ("wind", "wup") and first:
                 continue
             save_png(os.path.join(self.st.dir, did, pid, f"{h:03d}.png"), g.sample(f), PRODUCTS[pid])
+        if h == SINGLE["rain24"]["from_h"]:
+            np.save(os.path.join(self.st.dir, f".acc3_{did}.npy"), acc)
         # daily accumulators (local day in Riyadh time, hour ending at valid time)
         day = (t - timedelta(minutes=1)).astimezone(RIYADH).strftime("%Y%m%d")
-        if h > 0:
+        if not first and not late:
             for dpid, spec in DAILY.items():
                 src = fields.get(spec["from"])
                 if src is None:
@@ -175,6 +192,7 @@ class Processor:
         # one byte per grid cell and variable, for tapping any point on the map
         pts = np.stack([encode_point(k, fields[k]) if k in fields else np.zeros(fields["t2"].shape, np.uint8)
                         for k in POINT_VARS])
+        fields["_first"] = first; fields["_late"] = late
         np.save(os.path.join(self.st.dir, f".pts_{did}_{h:03d}.npy"), pts)
         # city series
         self.city_values(did, g, fields, h)
@@ -198,16 +216,40 @@ class Processor:
                 arr = rec.setdefault(k, {})
                 arr[str(h)] = None if val is None or not np.isfinite(val) else round(float(val), nd)
             put("t2", fields["t2"][j, i])
-            put("rain", fields["rain1h"][j, i] if h > 0 else None)
-            put("acc", fields["rainacc"][j, i])
+            if "rain1h" in fields:
+                put("rain", fields["rain1h"][j, i])
+            if not fields.get("_late"):
+                put("acc", fields["rainacc"][j, i])
             if "refl" in fields:
                 put("refl", neighbourhood_max(fields["refl"], i, j, r), 0)
-            if h > 0:
+            if not fields.get("_first"):
                 put("wind", fields["wind"][j, i], 0)
                 if "wup" in fields:
                     put("wup", neighbourhood_max(fields["wup"], i, j, r))
 
+    def single_products(self):
+        """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far."""
+        spec = SINGLE["rain24"]
+        out = self.st.s.setdefault("single", {})
+        for d in CFG["domains"]:
+            did = d["id"]
+            a3 = os.path.join(self.st.dir, f".acc3_{did}.npy")
+            hours = self.st.s["done"].get(did, [])
+            if self.first_hour(did) > 0 or not os.path.exists(a3) or not os.path.exists(self.acc_path(did)) or not hours:
+                continue
+            last = max(hours)
+            if last <= spec["from_h"] or out.get(did, {}).get("to") == last:
+                continue
+            g = self.grids.get(did)
+            if g is None:
+                with Dataset(self.files(did)[0]) as nc:
+                    g = self.grid(did, nc)
+            tot = np.maximum(np.load(self.acc_path(did)) - np.load(a3), 0)
+            save_png(os.path.join(self.st.dir, did, "rain24", "main.png"), g.sample(tot), spec)
+            out[did] = {"from": spec["from_h"], "to": last}
+
     def daily_products(self, final):
+        self.single_products()
         for did, days in self.st.s["daily"].items():
             g = self.grids.get(did)
             if g is None:
@@ -239,8 +281,15 @@ class Processor:
             for day, hrs in sorted(self.st.s["daily"].get(did, {}).items()):
                 if os.path.exists(os.path.join(self.st.dir, did, "refl_day", f"{day}.png")):
                     days.append({"date": day, "hours": len(hrs)})
+            late = self.first_hour(did) > 0
+            prods = [k for k in PRODUCTS if not (late and k == "rainacc")]
+            if not late:
+                prods += list(DAILY)
+            if did in self.st.s.get("single", {}):
+                prods.append("rain24")
             doms[did] = {"name": d["name"], "res": d["res"], "bounds": bounds, "hours": hours,
-                         "planned": d["hours"], "days": days}
+                         "planned": d["hours"], "days": days, "products": prods,
+                         "rain24": self.st.s.get("single", {}).get(did)}
             pinfo = self.write_points(did, hours)
             if pinfo:
                 doms[did]["points"] = pinfo
@@ -249,7 +298,7 @@ class Processor:
                "domains": doms,
                "proj": {**CFG["map"], "R": R_EARTH},
                "products": {k: {"label": v["label"], "unit": v["unit"], "legend": legend(v)}
-                            for k, v in {**PRODUCTS, **DAILY}.items()}}
+                            for k, v in {**PRODUCTS, **DAILY, **SINGLE}.items()}}
         jdump(os.path.join(self.st.dir, "manifest.json"), man)
         # city series in a compact form: per city the finest domain available
         meteo = {"run": self.run, "init": man["init"], "cities": []}
@@ -257,7 +306,7 @@ class Processor:
             rec = self.st.s["meteo"].get(c["id"])
             if not rec:
                 continue
-            best = max(rec.keys(), key=lambda k: (self.dom[k]["dx"] * -1, len(rec[k].get("t2", {}))))
+            best = max(rec.keys(), key=lambda k: (len(rec[k].get("t2", {})), -self.dom[k]["dx"]))
             # use the finest domain but fill later hours from coarser ones
             series = {}
             for did in sorted(rec.keys(), key=lambda k: self.dom[k]["dx"], reverse=True):
@@ -269,6 +318,7 @@ class Processor:
                 out[var] = [[hh, vals[str(hh)]] for hh in hs]
             meteo["cities"].append({**c, "domain": best, "series": out})
         jdump(os.path.join(self.st.dir, "meteo.json"), meteo)
+        self.st.s["first"] = self._first
         self.st.save()
         update_index(self.web, self.run, status, doms)
 

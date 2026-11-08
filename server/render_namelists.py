@@ -4,6 +4,11 @@
 render_namelists.py wps   <start YYYYMMDDHH> <geog_path> <out>
 render_namelists.py input <start YYYYMMDDHH> <num_metgrid_levels> <num_metgrid_soil_levels> <out> [max_dom]
 render_namelists.py geohash                    print a hash of the grid design (to know when to rerun geogrid)
+render_namelists.py maxh  <start YYYYMMDDHH>   last forecast hour needed from GFS
+
+A domain may run only part of the forecast: "windows" gives [first, last] forecast hour by GFS cycle hour.
+Such a nest starts from the evolved parent fields and reads only its own terrain and land data (fine_input_stream=2).
+For quick tests: SWRF_HOURS caps the forecast length, SWRF_WINDOW="a,b" overrides every window.
 """
 import hashlib, json, os, sys
 from datetime import datetime, timedelta
@@ -16,6 +21,26 @@ def doms(max_dom=None):
     return d[: max_dom or len(d)]
 
 
+def span(d, start):
+    """(first, last) forecast hour of a domain for the cycle starting at 'start'."""
+    cap = int(os.environ["SWRF_HOURS"]) if os.environ.get("SWRF_HOURS") else None
+    if "windows" in d:
+        if os.environ.get("SWRF_WINDOW"):
+            a, b = (int(v) for v in os.environ["SWRF_WINDOW"].split(","))
+        else:
+            w = d["windows"]
+            a, b = w.get(str(int(start[8:10])), w["default"])
+    else:
+        a, b = 0, d["hours"]
+    if cap is not None:
+        b = min(b, cap)
+    return a, b
+
+
+def maxh(start):
+    return max(span(d, start)[1] for d in CFG["domains"])
+
+
 def row(key, vals, fmt="{}"):
     return f" {key:<26}= " + ", ".join(fmt.format(v) for v in vals) + ","
 
@@ -23,13 +48,14 @@ def row(key, vals, fmt="{}"):
 def wps(start, geog, max_dom=None):
     D = doms(max_dom)
     t0 = datetime.strptime(start, "%Y%m%d%H")
-    t1 = t0 + timedelta(hours=D[0]["hours"])
     fmt = "%Y-%m-%d_%H:%M:%S"
     m = CFG["map"]
+    sp = [span(x, start) for x in D]
+    starts = [(t0 + timedelta(hours=a)).strftime(fmt) for a, _ in sp]
     L = ["&share", " wrf_core = 'ARW',", f" max_dom = {len(D)},",
-         row("start_date", [t0.strftime(fmt)] * len(D), "'{}'"),
+         row("start_date", starts, "'{}'"),
          # nests need only their first time; the parent needs the whole period for boundaries
-         row("end_date", [t1.strftime(fmt)] + [t0.strftime(fmt)] * (len(D) - 1), "'{}'"),
+         row("end_date", [(t0 + timedelta(hours=sp[0][1])).strftime(fmt)] + starts[1:], "'{}'"),
          " interval_seconds = 10800,", " io_form_geogrid = 2,", "/", "",
          "&geogrid",
          row("parent_id", [max(1, x["parent"]) for x in D]),
@@ -56,15 +82,20 @@ def nml_input(start, nlev, nsoil, max_dom=None):
     D = doms(max_dom)
     n = len(D)
     t0 = datetime.strptime(start, "%Y%m%d%H")
-    ends = [t0 + timedelta(hours=x["hours"]) for x in D]
+    sp = [span(x, start) for x in D]
+    begs = [t0 + timedelta(hours=a) for a, _ in sp]
+    ends = [t0 + timedelta(hours=b) for _, b in sp]
+    late = [a > 0 for a, _ in sp]
     L = ["&time_control",
-         f" run_days = 0,", f" run_hours = {D[0]['hours']},", " run_minutes = 0,", " run_seconds = 0,",
-         row("start_year", [t0.year] * n), row("start_month", [f"{t0.month:02d}"] * n),
-         row("start_day", [f"{t0.day:02d}"] * n), row("start_hour", [f"{t0.hour:02d}"] * n),
+         f" run_days = 0,", f" run_hours = {sp[0][1]},", " run_minutes = 0,", " run_seconds = 0,",
+         row("start_year", [b.year for b in begs]), row("start_month", [f"{b.month:02d}" for b in begs]),
+         row("start_day", [f"{b.day:02d}" for b in begs]), row("start_hour", [f"{b.hour:02d}" for b in begs]),
          row("end_year", [e.year for e in ends]), row("end_month", [f"{e.month:02d}" for e in ends]),
          row("end_day", [f"{e.day:02d}" for e in ends]), row("end_hour", [f"{e.hour:02d}" for e in ends]),
          " interval_seconds = 10800,",
          row("input_from_file", [".true."] * n),
+         # a nest that starts late takes the weather from its parent and only terrain/land from its file
+         row("fine_input_stream", [2 if x else 0 for x in late]), " io_form_auxinput2 = 2,",
          row("history_interval", [60] * n),
          row("frames_per_outfile", [1] * n),
          " restart = .false.,", " restart_interval = 100000,",
@@ -119,8 +150,8 @@ def nml_input(start, nlev, nsoil, max_dom=None):
 
 
 def geohash():
-    keys = ["map", "domains"]
-    blob = json.dumps({k: CFG[k] for k in keys}, sort_keys=True)
+    geo = ["dx", "e_we", "e_sn", "parent", "ratio", "ips", "jps", "geog"]
+    blob = json.dumps({"map": CFG["map"], "domains": [{k: d[k] for k in geo} for d in CFG["domains"]]}, sort_keys=True)
     blob += open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "patch_geogrid_tbl.py")).read()
     return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
@@ -133,3 +164,5 @@ if __name__ == "__main__":
         open(a[5], "w").write(nml_input(a[2], int(a[3]), int(a[4]), int(a[6]) if len(a) > 6 else None))
     elif a[1] == "geohash":
         print(geohash())
+    elif a[1] == "maxh":
+        print(maxh(a[2]))

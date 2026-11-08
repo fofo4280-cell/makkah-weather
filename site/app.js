@@ -20,6 +20,7 @@
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
   const HOURLY = ["refl", "rain1h", "rainacc", "t2", "wind", "wup"];
   const DAILY = ["refl_day", "rain_day"];
+  const SINGLE = ["rain24"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
   const $ = (id) => document.getElementById(id);
@@ -69,7 +70,7 @@
   function frameURL(i) {
     const f = S.frames[i];
     if (!f) return null;
-    const name = DAILY.includes(S.prod) ? f.date : String(f.h).padStart(3, "0");
+    const name = f.single ? "main" : DAILY.includes(S.prod) ? f.date : String(f.h).padStart(3, "0");
     return `${DATA}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
   }
 
@@ -118,6 +119,10 @@
   }
 
   function frameLabel(f) {
+    if (f.single) {
+      const n = f.to - f.from, b = new Date(Date.parse(S.man.init) + f.to * 3600e3);
+      return `مجموع ${num(n)} ${n >= 3 && n <= 10 ? "ساعات" : "ساعة"} حتى ${fmtWhen.format(b)}`;
+    }
     if (f.date) {
       const t = new Date(Date.UTC(+f.date.slice(0, 4), +f.date.slice(4, 6) - 1, +f.date.slice(6, 8), 9));
       return fmtDay.format(t) + (f.hours < 24 ? ` · ${num(f.hours)} ساعة فقط` : "");
@@ -131,6 +136,9 @@
     const d = S.man && S.man.domains[S.dom];
     const prevKey = keepTime && S.frames[S.idx] ? S.frames[S.idx] : null;
     if (!d) { S.frames = []; return; }
+    // a domain may not have every product (the 1 km nest has hourly maps only)
+    if (d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
+    if (SINGLE.includes(S.prod)) { const r = d[S.prod]; S.frames = r ? [{ single: true, from: r.from, to: r.to }] : []; S.idx = 0; return; }
     if (DAILY.includes(S.prod)) S.frames = (d.days || []).map((x) => ({ date: x.date, hours: x.hours }));
     else S.frames = d.hours.filter((h) => !(NO_H0.has(S.prod) && h === 0)).map((h) => ({ h }));
     if (prevKey) {
@@ -184,7 +192,7 @@
     const opt = (k) => (P[k] ? `<option value="${k}">${P[k].label}</option>` : "");
     sel.innerHTML = `<optgroup label="رصد مباشر"><option value="lightning">⚡ رادار البرق المباشر</option></optgroup>
                      <optgroup label="توقعات النموذج كل ساعة">${HOURLY.map(opt).join("")}</optgroup>
-                     <optgroup label="خلاصة اليوم">${DAILY.map(opt).join("")}</optgroup>`;
+                     <optgroup label="المجاميع">${SINGLE.map(opt).join("")}${DAILY.map(opt).join("")}</optgroup>`;
     if (!P[S.prod] && S.prod !== "lightning") S.prod = "refl";
     sel.value = S.prod;
   }
@@ -438,7 +446,7 @@
     const box = $("cityList");
     if (!S.meteo || !S.meteo.cities.length) { box.innerHTML = `<p class="muted">لا توجد بيانات مدن لهذا التشغيل بعد.</p>`; return; }
     const q = $("cityFilter").value.trim();
-    const res = { d01: "٩ كم", d02: "٣ كم", d03: "٦٠٠ م" };
+    const res = Object.fromEntries(Object.entries((S.man && S.man.domains) || {}).map(([k, d]) => [k, d.res]));
     box.innerHTML = S.meteo.cities.filter((c) => !q || c.name.includes(q)).map((c) => `
       <div class="city"><div class="city-head"><span class="city-name">${c.name}</span>
       <span class="city-sum">${res[c.domain] || ""}</span></div>
@@ -481,32 +489,41 @@
   }
   const DECODE = { rain1h: (c) => (c / 25) ** 2, refl: (c) => c / 3, t2: (c) => c / 4 - 10, wind: (c) => c / 2 };
   async function pointSeries(lat, lon) {
-    // finest domain that contains the point
-    const order = Object.keys(S.man.domains).sort((a, b) => b.localeCompare(a));
+    // every domain that contains the point, coarse first; finer domains replace the hours they cover
+    const order = Object.keys(S.man.domains).sort();
+    const merged = {};
+    let best = null;
     for (const dom of order) {
       const pd = await pointData(dom);
       if (!pd || !pd.bytes) continue;
       const P = pd.info, [x, y] = lccForward(S.man.proj, lon, lat);
       const i = Math.round((x - P.x00) / P.dx), j = Math.round((y - P.y00) / P.dx);
       if (i < 1 || j < 1 || i > P.nx - 2 || j > P.ny - 2) continue;
-      const nh = P.hours.length, series = {};
+      best = dom;
+      const nh = P.hours.length;
       P.vars.forEach((v, k) => {
-        series[v] = P.hours.map((h, hi) => [h, DECODE[v](pd.bytes[((k * nh + hi) * P.ny + j) * P.nx + i])]);
+        const m = merged[v] || (merged[v] = new Map());
+        P.hours.forEach((h, hi) => {
+          // the first hour of a domain has no rain or gust yet
+          if (hi === 0 && (v === "rain1h" || v === "wind")) { if (!m.has(h)) m.set(h, null); return; }
+          m.set(h, DECODE[v](pd.bytes[((k * nh + hi) * P.ny + j) * P.nx + i]));
+        });
       });
-      series.rain = series.rain1h.map(([h, v]) => [h, h === 0 ? null : Math.round(v * 10) / 10]);
-      let acc = 0;
-      series.acc = series.rain.map(([h, v]) => [h, (acc += v || 0)]);
-      series.wind = series.wind.map(([h, v]) => [h, h === 0 ? null : v]);
-      return { dom, series, lat, lon };
     }
-    return null;
+    if (!best) return null;
+    const series = {};
+    for (const [v, m] of Object.entries(merged)) series[v] = [...m.entries()].sort((p, q) => p[0] - q[0]);
+    series.rain = series.rain1h.map(([h, v]) => [h, v == null ? null : Math.round(v * 10) / 10]);
+    let acc = 0;
+    series.acc = series.rain.map(([h, v]) => [h, (acc += v || 0)]);
+    return { dom: best, series, lat, lon };
   }
   function pointHTML(pt) {
     if (!pt) return `<div class="muted">خارج مجالات النموذج</div>`;
     const f = S.frames[S.idx];
     const h = f && f.h != null ? f.h : null;
     const at = (v) => { const r = (pt.series[v] || []).find((x) => x[0] === h); return r ? r[1] : null; };
-    const res = { d01: "٩ كم", d02: "٣ كم", d03: "٦٠٠ م" }[pt.dom] || "";
+    const res = (S.man.domains[pt.dom] || {}).res || "";
     const now = h == null ? "" : `<div class="pt-now">
         <span><b>${num(at("rain"), 1)}</b> ملم</span><span><b>${num(at("refl"))}</b> ديسيبل</span>
         <span><b>${num(at("t2"))}</b>°</span><span><b>${num(at("wind"))}</b> كم/س</span></div>`;

@@ -13,7 +13,7 @@ if ! flock -n 9; then log "another cycle is running"; exit 0; fi
 CYCLES=${CYCLES:-18}             # GFS cycles used by the scheduled run
 WAIT_MIN=${WAIT_MIN:-120}        # how long to wait for GFS files
 KEEP_RUNS=${KEEP_RUNS:-3}
-MAXH=$(python3 -c "import json;print(max(d['hours'] for d in json.load(open('$HERE/domains.json'))['domains']))")
+MAXH=27   # recomputed once the cycle is known (windows depend on the cycle hour)
 PY=$VENV/bin/python
 NOMADS=https://nomads.ncep.noaa.gov
 AWS=https://noaa-gfs-bdp-pds.s3.amazonaws.com
@@ -49,6 +49,10 @@ if [[ $CYC == WAIT:* ]]; then
   gfs_exists "$CYC" "$MAXH" || { status phase error "تأخرت بيانات جي إف إس للدورة $CYC"; exit 1; }
 fi
 if [ -f "$STATE/done_$CYC" ] && [ -z "${FORCE_CYCLE:-}" ]; then log "cycle $CYC already done"; exit 0; fi
+MAXH=$(python3 "$HERE/render_namelists.py" maxh "$CYC")
+# stop the model in time to publish what is done when the job has a hard time limit (GitHub: 6 h)
+DEADLINE=0
+[ -n "${JOB_T0:-}" ] && DEADLINE=$(( JOB_T0 + ${JOB_BUDGET_MIN:-335} * 60 ))
 
 RUN=$WORK/run/$CYC
 mkdir -p "$RUN"/{gfs,wps,wrf}
@@ -148,6 +152,10 @@ run_wrf() {
   local n=0
   while kill -0 $WPID 2>/dev/null; do
     sleep 120
+    if [ "$DEADLINE" -gt 0 ] && [ "$(date -u +%s)" -gt "$DEADLINE" ]; then
+      log "time budget used up: stopping the model and publishing the hours that are done"
+      pkill -f wrf.exe; sleep 20; break
+    fi
     n=$((n + 1)); [ $((n % 10)) -eq 0 ] && hook
     local last hrs
     last=$(grep -h "Timing for main" rsl.out.0000 2>/dev/null | tail -1 | grep -o '[0-9]\{4\}-[0-9][0-9]-[0-9][0-9]_[0-9:]*' | head -1)

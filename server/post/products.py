@@ -29,14 +29,18 @@ PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
     "rainacc": {"label": "المطر المتراكم منذ البداية", "unit": "ملم", "stops": RAINACC, "tf": "sqrt"},
-    "t2":      {"label": "درجة الحرارة على ارتفاع مترين", "unit": "°م", "stops": TEMP, "tf": "lin", "opaque": True},
-    "wind":    {"label": "أقصى رياح سطحية خلال الساعة", "unit": "كم/س", "stops": WIND, "tf": "lin"},
     "wup":     {"label": "أقصى تيار صاعد خلال الساعة", "unit": "م/ث", "stops": WUP, "tf": "sqrt"},
 }
 DAILY = {
     "refl_day": {"label": "أقصى انعكاسية خلال اليوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl"},
     "rain_day": {"label": "مجموع مطر اليوم", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from": "rain1h"},
 }
+
+# One map per run: rain over the 24 hours after the first 3 (the model's spin-up), or as far as the run got.
+SINGLE = {
+    "rain24": {"label": "مجموع المطر خلال ٢٤ ساعة", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24},
+}
+# Temperature and wind are no longer drawn as maps but stay in the tap-anywhere values and city charts.
 
 # Point values for tap-anywhere: one byte per value.
 POINT_VARS = ["rain1h", "refl", "t2", "wind"]

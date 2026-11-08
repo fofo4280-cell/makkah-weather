@@ -30,7 +30,7 @@ concurrency:
 jobs:
   forecast:
     runs-on: ubuntu-24.04
-    timeout-minutes: 350
+    timeout-minutes: 355
     env:
       SWRF: /home/runner/swrf
       WEB: /home/runner/web
@@ -48,6 +48,7 @@ jobs:
 
       - name: Prepare folders
         run: |
+          echo "JOB_T0=$(date -u +%s)" >> "$GITHUB_ENV"   # the cycle stops the model in time to publish
           mkdir -p "$SWRF/state" "$SWRF/logs" "$WEB"
           ln -sfn "$GITHUB_WORKSPACE/code" "$SWRF/repo"
           touch "$SWRF/state/installed"
@@ -84,12 +85,16 @@ jobs:
       - name: Python tools
         run: STAGES="netcdf python" bash "$SWRF/repo/server/install.sh"
 
+      - name: Grid design id
+        id: gh
+        run: echo "id=$(python3 code/server/render_namelists.py geohash)" >> "$GITHUB_OUTPUT"
+
       - name: Restore static grid
         id: geo
         uses: actions/cache/restore@v4
         with:
           path: /home/runner/swrf/work/static
-          key: geo-${{ hashFiles('code/server/domains.json', 'code/server/patch_geogrid_tbl.py') }}
+          key: geo-${{ steps.gh.outputs.id }}
 
       - name: Static data (only when the grid changes)
         if: steps.geo.outputs.cache-hit != 'true'
