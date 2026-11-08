@@ -10,7 +10,6 @@ The daily means are smoothed to the annual mean plus three harmonics.
 build_clim.py <out_dir> [first_year last_year]
 """
 import os, sys, time
-from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
 from netCDF4 import Dataset
@@ -79,9 +78,9 @@ def main():
     y0, y1 = (int(sys.argv[2]), int(sys.argv[3])) if len(sys.argv) > 3 else (1991, 2020)
     os.makedirs(out, exist_ok=True)
     years = list(range(y0, y1 + 1))
-    with ThreadPoolExecutor(4) as ex:
-        winds = list(ex.map(wind_year, years))
-        pws = list(ex.map(pw_year, years))
+    # one file at a time: the netCDF library is not safe to use from several threads
+    winds = [wind_year(y) for y in years]
+    pws = [pw_year(y) for y in years]
     u = np.mean([w[0] for w in winds], axis=0)
     v = np.mean([w[1] for w in winds], axis=0)
     lat = np.linspace(90, -90, 73)
