@@ -1,0 +1,106 @@
+# Nightly high-resolution model for Makkah Region (WRF: 9 km parent, 3 km nest, 27 hours).
+# Code lives on the saudi-wrf branch; results are pushed to the model-data branch and shown at /model/.
+# 22:25 UTC = 01:25 Makkah time, after the 18 UTC GFS run is out. GitHub may start scheduled runs late.
+name: Saudi model 3 km
+
+on:
+  schedule:
+    - cron: '25 22 * * *'
+  workflow_dispatch:
+    inputs:
+      cycle:
+        description: 'GFS cycle YYYYMMDDHH (leave empty for the newest available)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saudi-model
+  cancel-in-progress: false
+
+jobs:
+  forecast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    env:
+      SWRF: /home/runner/swrf
+      WEB: /home/runner/web
+      SWRF_TEST: '1'
+      NPROC: '4'
+      KEEP_RUNS: '2'
+      CYCLES: '18'
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - name: Model code
+        uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+
+      - name: Prepare folders
+        run: |
+          mkdir -p "$SWRF/state" "$SWRF/logs" "$WEB"
+          ln -sfn "$GITHUB_WORKSPACE/code" "$SWRF/repo"
+          touch "$SWRF/state/installed"
+          git clone -q --depth 1 --branch model-data "https://github.com/${GITHUB_REPOSITORY}" "$WEB/data" || mkdir -p "$WEB/data"
+          rm -rf "$WEB/data/.git"
+          echo "PUBLISH_HOOK=$SWRF/repo/server/ci/publish.sh" >> "$GITHUB_ENV"
+
+      - name: System packages
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q gfortran m4 csh tcsh cmake rsync \
+            libnetcdf-dev libnetcdff-dev netcdf-bin libhdf5-dev libopenmpi-dev openmpi-bin libpng-dev zlib1g-dev
+
+      - name: Restore compiled model
+        id: build
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/swrf/build
+          key: wrf-build-u2404-${{ hashFiles('code/server/install.sh', 'code/server/env.sh', 'code/server/pick_option.py', 'code/server/patch_geogrid_tbl.py') }}
+
+      - name: Compile model (first run only)
+        if: steps.build.outputs.cache-hit != 'true'
+        run: |
+          STAGES="jasper netcdf wrf wps" bash "$SWRF/repo/server/install.sh"
+          bash "$SWRF/repo/server/ci/prune_build.sh"
+
+      - name: Keep compiled model
+        if: steps.build.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/swrf/build
+          key: ${{ steps.build.outputs.cache-primary-key }}
+
+      - name: Python tools
+        run: STAGES="netcdf python" bash "$SWRF/repo/server/install.sh"
+
+      - name: Restore static grid
+        id: geo
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/swrf/work/static
+          key: geo-${{ hashFiles('code/server/domains.json', 'code/server/patch_geogrid_tbl.py') }}
+
+      - name: Static data (only when the grid changes)
+        if: steps.geo.outputs.cache-hit != 'true'
+        run: bash "$SWRF/repo/server/ci/static_data.sh"
+
+      - name: Keep static grid
+        if: steps.geo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/swrf/work/static
+          key: ${{ steps.geo.outputs.cache-primary-key }}
+
+      - name: Forecast
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then export ANY_CYCLE=1; fi
+          if [ -n "${{ inputs.cycle }}" ]; then export FORCE_CYCLE="${{ inputs.cycle }}"; fi
+          bash "$SWRF/repo/server/run_cycle.sh"
+
+      - name: Publish results
+        if: always()
+        run: bash "$SWRF/repo/server/ci/publish.sh"

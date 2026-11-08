@@ -16,6 +16,8 @@ self.addEventListener('fetch', (e) => {
     e.respondWith(fetch(e.request).then((r) => { const copy = r.clone(); caches.open(VERSION).then((c) => c.put(e.request, copy)); return r; }).catch(() => caches.match(e.request).then((r) => r || caches.match('index.html'))));
     return;
   }
+  // the private model's maps and status (model-data branch) change every night; let them pass untouched
+  if (url.pathname.includes('/model-data/')) return;
   if (API_HOSTS.includes(url.hostname)) {
     e.respondWith((async () => {
       const cache = await caches.open('mwx-api');

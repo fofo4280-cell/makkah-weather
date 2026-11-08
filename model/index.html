@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نموذج فهد العيسي عالي الدقة</title>
+<meta name="theme-color" content="#0b1d2c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="brand-name">نموذج فهد العيسي عالي الدقة</span>
+      <span class="brand-sub" id="runLabel">منطقة مكة المكرمة بدقة ٣ كم · تشغيل خاص</span>
+    </div>
+    <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
+  </header>
+
+  <main class="panels">
+    <!-- map -->
+    <section class="panel" id="p-map">
+      <div id="map" dir="ltr"></div>
+      <div class="map-top">
+        <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
+        <select id="prodSelect" class="prod-select" aria-label="المنتج"></select>
+      </div>
+      <div class="map-empty" id="mapEmpty" hidden>
+        <div class="map-empty-box">
+          <strong>لا توجد خرائط بعد</strong>
+          <span id="mapEmptyMsg">النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.</span>
+        </div>
+      </div>
+      <div class="map-bottom">
+        <div class="legend" id="legend"></div>
+        <div class="timebar" dir="ltr">
+          <button class="icon-btn" id="btnPrev" aria-label="السابق">‹</button>
+          <button class="icon-btn play" id="btnPlay" aria-label="تشغيل">▶</button>
+          <button class="icon-btn" id="btnNext" aria-label="التالي">›</button>
+          <div class="time-box">
+            <div class="time-label" id="timeLabel" dir="rtl">—</div>
+            <input type="range" id="timeRange" min="0" max="0" value="0" dir="ltr" aria-label="الوقت">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- cities -->
+    <section class="panel scroll" id="p-cities" hidden>
+      <div class="wrap">
+        <p class="hint">لكل مدينة: الحرارة (خط)، ومطر كل ساعة (أعمدة)، وأقصى انعكاسية في دائرة نصف قطرها ٥ كم (الشريط الملوّن). تؤخذ القيم من أدق مجال يغطي المدينة.</p>
+        <input id="cityFilter" class="search" type="search" placeholder="ابحث عن مدينة">
+        <div id="cityList"></div>
+      </div>
+    </section>
+
+    <!-- status -->
+    <section class="panel scroll" id="p-status" hidden>
+      <div class="wrap">
+        <div class="card" id="statusCard"></div>
+        <div class="card"><h3>آخر الدورات</h3><div id="historyList"></div></div>
+        <div class="card"><h3>السجلات</h3>
+          <div class="logs">
+            <a data-log="cycle" target="_blank">سجل الدورة</a>
+            <a data-log="wrf_rsl" target="_blank">سجل النموذج</a>
+            <a data-log="install" target="_blank">سجل التثبيت</a>
+            <a data-log="system" target="_blank">حالة الخادم</a>
+            <a data-log="task" target="_blank">مهمة الصيانة</a>
+          </div>
+        </div>
+        <div class="card about">
+          <h3>عن النموذج</h3>
+          <p>نموذج البحث والتنبؤ بالطقس يعمل مرة كل ليلة على خوادم جيت هب المجانية، ويأخذ حالته الابتدائية وحدوده من نموذج جي إف إس الأمريكي لدورة الساعة ١٨ بالتوقيت العالمي، أي التاسعة مساءً بتوقيت مكة، فتجهز الخرائط بعد منتصف الليل تقريبًا.</p>
+          <p>مجالان متداخلان مدتهما ٢٧ ساعة تغطي اليوم التالي كاملًا: غرب المملكة والبحر الأحمر بدقة ٩ كم، وداخله منطقة مكة المكرمة من القنفذة إلى رابغ ورنية بدقة ٣ كم، وفيه تُحاكى العواصف الرعدية صراحة دون تقدير تقريبي للحمل. تضاريس المجال الداخلي مأخوذة من نموذج الارتفاعات الرقمي كوبرنيكوس بدقة ٩٠ م، فتظهر جبال مكة المحلية والحافة والهدا والشفا.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="map">الخريطة</button>
+    <button class="tab" data-tab="cities">المدن</button>
+    <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
+  </nav>
+</div>
+<script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
