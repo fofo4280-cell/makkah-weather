@@ -49,7 +49,9 @@ a { color: var(--sea); }
 #map { position: absolute; inset: 0; background: #cfd8de; }
 .map-top { position: absolute; top: 10px; left: 10px; right: 10px; z-index: 500; display: flex; flex-wrap: wrap; gap: 8px; pointer-events: none; }
 .map-top > * { pointer-events: auto; }
-.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; }
+.dom-select { font-weight: 600; max-width: 52vw; }
+.map-top .prod-select#prodSelect { flex: 1 1 140px; min-width: 0; }
 .chip { height: 34px; padding: 0 12px; border-radius: 17px; border: 1px solid var(--glass-line); background: var(--glass);
   color: var(--glass-ink); font-size: .82rem; cursor: pointer; white-space: nowrap; }
 .chip small { color: var(--glass-muted); margin-inline-start: 4px; font-size: .72rem; }

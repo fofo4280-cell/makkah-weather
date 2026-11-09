@@ -229,19 +229,19 @@
     return null;
   }
 
+  // the domains as one drop-down list, next to the options list
   function drawChips() {
     const box = $("domChips");
-    box.innerHTML = "";
-    const ids = ["sa", "d02", "d03"];  // the western 9 km parent is not shown; the Kingdom-wide 9 km run replaces it
-    for (const id of ids) {
-      const d = S.man && S.man.domains[id];
-      if (!d) continue;
-      const b = document.createElement("button");
-      b.className = "chip" + (id === S.dom ? " active" : "");
-      b.innerHTML = `${d.name}<small>${d.res}</small>`;
-      b.onclick = () => setDomain(id, true);
-      box.appendChild(b);
+    const ids = ["sa", "d02", "d03"].filter((id) => S.man && S.man.domains[id]);  // the Kingdom-wide run replaces the western 9 km parent
+    if (!ids.length) { box.innerHTML = ""; return; }
+    let sel = $("domSelect");
+    if (!sel) {
+      box.innerHTML = `<select id="domSelect" class="prod-select dom-select" aria-label="المجال"></select>`;
+      sel = $("domSelect");
+      sel.onchange = () => setDomain(sel.value, true);
     }
+    sel.innerHTML = ids.map((id) => { const d = S.man.domains[id]; return `<option value="${id}">${d.name} ${d.res}</option>`; }).join("");
+    sel.value = ids.includes(S.dom) ? S.dom : ids[0];
   }
 
   function drawProducts() {
