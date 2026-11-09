@@ -182,16 +182,16 @@ def type_word(d):
 
 
 def hail_level(d, fzl=None):
-    """0 none, 1 possible, 2 likely; from the strongest echo (lower thresholds on the 9 km grid) and the freezing level."""
+    """0 none, 1 possible, 2 likely: an echo of 55 dBZ or more with the freezing level at 4200 m or lower is
+    likely hail; 50 dBZ, or 55 with a higher freezing level, is possible hail; a freezing level of 4800 m or more
+    melts most of it (unless the echo reaches 58)."""
     z = d.get("zmax", 0)
-    lim = (50, 55) if d.get("dx", 9000) <= 3000 else (45, 50)
-    lvl = 2 if z >= lim[1] else 1 if z >= lim[0] else 0
-    if lvl and fzl is not None and np.isfinite(fzl):
-        if fzl <= 4000:
-            lvl = min(2, lvl + (1 if z >= lim[0] + 2 else 0))
-        elif fzl >= 4800:
-            lvl -= 1
-    return lvl
+    f = fzl if fzl is not None and np.isfinite(fzl) else None
+    if z >= 55 and (f is None or f <= 4200):
+        return 2
+    if z >= 50 and not (f is not None and f >= 4800 and z < 58):
+        return 1
+    return 0
 
 
 # ------------------------------------------------------------------ the environment of the storms
