@@ -26,7 +26,7 @@
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_vec", ref: 12 } };
   const DAILY = ["refl_day"];
   // current names, also for runs made before an option was renamed
-  const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤" };
+  const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤", ivt: "تدفق الأنهار الجوية" };
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 

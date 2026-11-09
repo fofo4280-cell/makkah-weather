@@ -17,7 +17,7 @@ self.addEventListener('fetch', (e) => {
     return;
   }
   // the private model's maps and status (model-data branch) change every night; let them pass untouched
-  if (url.pathname.includes('/model-data/')) return;
+  if (/\/model-data(-sa)?\//.test(url.pathname)) return;
   if (API_HOSTS.includes(url.hostname)) {
     e.respondWith((async () => {
       const cache = await caches.open('mwx-api');
