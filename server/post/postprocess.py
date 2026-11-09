@@ -479,6 +479,7 @@ def main():
     ap.add_argument("--watch", help="file whose existence means WRF has finished")
     ap.add_argument("--finish", action="store_true")
     ap.add_argument("--failed", action="store_true", help="WRF stopped early: publish what exists")
+    ap.add_argument("--partial", action="store_true", help="first part of a run split over two runners: publish what exists, the run goes on")
     a = ap.parse_args()
     P = Processor(a.wrfdir, a.web, a.run)
     if a.watch:
@@ -494,7 +495,11 @@ def main():
                 break
             if n == 0:
                 time.sleep(30)
-    if a.finish or a.failed:
+    if a.partial:
+        P.step(True)
+        P.daily_products(final=False)
+        P.manifest("running")
+    elif a.finish or a.failed:
         P.step(True)
         P.daily_products(final=True)
         P.manifest("failed" if a.failed else "complete")

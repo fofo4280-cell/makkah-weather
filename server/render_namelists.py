@@ -87,8 +87,17 @@ def nml_input(start, nlev, nsoil, max_dom=None):
     begs = [t0 + timedelta(hours=a) for a, _ in sp]
     ends = [t0 + timedelta(hours=b) for _, b in sp]
     late = [a > 0 for a, _ in sp]
+    # a long run split over two runners: the first stops at SWRF_STOP_H writing restart files every hour,
+    # the second starts from the restart files of hour SWRF_RESTART_H (real.exe always sees the full period)
+    stop = int(os.environ["SWRF_STOP_H"]) if os.environ.get("SWRF_STOP_H") else None
+    rst = int(os.environ["SWRF_RESTART_H"]) if os.environ.get("SWRF_RESTART_H") else None
+    if stop is not None:
+        ends = [min(e, t0 + timedelta(hours=stop)) for e in ends]
+    if rst is not None:
+        begs = [max(b, t0 + timedelta(hours=rst)) for b in begs]
+    run_h = (stop if stop is not None else sp[0][1]) - (rst or 0)
     L = ["&time_control",
-         f" run_days = 0,", f" run_hours = {sp[0][1]},", " run_minutes = 0,", " run_seconds = 0,",
+         f" run_days = 0,", f" run_hours = {run_h},", " run_minutes = 0,", " run_seconds = 0,",
          row("start_year", [b.year for b in begs]), row("start_month", [f"{b.month:02d}" for b in begs]),
          row("start_day", [f"{b.day:02d}" for b in begs]), row("start_hour", [f"{b.hour:02d}" for b in begs]),
          row("end_year", [e.year for e in ends]), row("end_month", [f"{e.month:02d}" for e in ends]),
@@ -99,7 +108,8 @@ def nml_input(start, nlev, nsoil, max_dom=None):
          row("fine_input_stream", [2 if x else 0 for x in late]), " io_form_auxinput2 = 2,",
          row("history_interval", [60] * n),
          row("frames_per_outfile", [1] * n),
-         " restart = .false.,", " restart_interval = 100000,",
+         f" restart = {tf(rst is not None)},", f" restart_interval = {60 if stop is not None else 100000},",
+         " write_hist_at_0h_rst = .false.,", " override_restart_timers = .true.,",
          " io_form_history = 2,", " io_form_restart = 2,", " io_form_input = 2,", " io_form_boundary = 2,",
          " nwp_diagnostics = 1,", " debug_level = 0,", "/", "",
          "&domains",

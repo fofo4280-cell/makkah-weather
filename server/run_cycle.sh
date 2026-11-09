@@ -2,6 +2,9 @@
 # One forecast cycle: GFS download -> WPS -> real -> WRF (images made while it runs) -> publish.
 # Runs as the wrf user from cron. ANY_CYCLE=1 takes the newest GFS run of any hour.
 # FORCE_CYCLE=YYYYMMDDHH runs that exact cycle.
+# A run too long for one runner is split over two: SWRF_STOP_H=N makes the first stop at hour N, writing
+# restart files every hour and leaving the newest good ones in $RUN/handoff.txt; RESUME=1 (with FORCE_CYCLE)
+# makes the second go on from the restart files already placed in $RUN/wrf, skipping GFS, WPS and real.
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib.sh"
@@ -61,7 +64,11 @@ exec > >(tee -a "$LOG") 2>&1
 T_START=$(date -u +%s)
 log "cycle $CYC on $NPROC cores"
 
-status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
+if [ "${RESUME:-0}" = 1 ]; then
+  status plan cycle "$CYC" wrf=تشغيل_النموذج_الجزء_الثاني post=الخرائط_والنشر
+else
+  status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
+fi
 status phase cycle "الدورة قيد التشغيل"
 
 publish() { publish_log "$LOG" cycle; }
@@ -76,6 +83,18 @@ fail() {
   exit 1
 }
 
+link_wrf_files() {
+  for f in "$WRF_DIR"/run/*; do
+    case $(basename "$f") in namelist.input|wrf.exe|real.exe|ndown.exe|tc.exe) ;; *) ln -sf "$f" . ;; esac
+  done
+  ln -sf "$WRF_DIR/main/real.exe" "$WRF_DIR/main/wrf.exe" .
+}
+hour_of() { # wrf file name -> forecast hour of this cycle
+  local t; t=$(basename "$1" | grep -o '[0-9]\{4\}-[0-9][0-9]-[0-9][0-9]_[0-9][0-9]')
+  echo $(( ($(date -u -d "${t/_/ }:00" +%s) - $(date -u -d "${CYC:0:8} ${CYC:8:2}:00" +%s)) / 3600 ))
+}
+
+if [ "${RESUME:-0}" != 1 ]; then
 # ---------------------------------------------------------------- 1. GFS
 get_gfs() {
   local d=${CYC:0:8} c=${CYC:8:2} f out url
@@ -120,23 +139,23 @@ run_real() {
   cd "$RUN/wrf" || return 1
   find . -maxdepth 1 -type l -delete
   rm -f rsl.* wrfinput_d0* wrfbdy_d01 wrfout_* namelist.input
-  for f in "$WRF_DIR"/run/*; do
-    case $(basename "$f") in namelist.input|wrf.exe|real.exe|ndown.exe|tc.exe) ;; *) ln -sf "$f" . ;; esac
-  done
-  ln -sf "$WRF_DIR/main/real.exe" "$WRF_DIR/main/wrf.exe" .
+  link_wrf_files
   ln -sf "$RUN"/wps/met_em.d0* .
   local m nlev nsoil
   m=$(ls met_em.d01.* | head -1)
   nlev=$("$NETCDF/bin/ncdump" -h "$m" | sed -n 's/.*num_metgrid_levels = \([0-9]*\).*/\1/p' | head -1)
   nsoil=$("$NETCDF/bin/ncdump" -h "$m" | sed -n 's/.*NUM_METGRID_SOIL_LEVELS = \([0-9]*\).*/\1/p' | head -1)
   log "metgrid levels: $nlev, soil levels: ${nsoil:-4}"
-  "$PY" "$HERE/render_namelists.py" input "$CYC" "$nlev" "${nsoil:-4}" namelist.input
+  echo "$nlev ${nsoil:-4}" > levels.txt
+  # real.exe always prepares the whole period, also when this runner stops the model early
+  SWRF_STOP_H= "$PY" "$HERE/render_namelists.py" input "$CYC" "$nlev" "${nsoil:-4}" namelist.input
   mpirun --bind-to none -np "$NPROC" ./real.exe > real.out 2>&1
   grep -q "SUCCESS COMPLETE REAL_EM" rsl.out.0000 || { tail -n 40 rsl.error.0000; return 1; }
   mkdir -p real_logs && mv rsl.* real_logs/
 }
 step real run_real || fail "فشلت تهيئة النموذج"
 publish; hook
+fi
 
 # ---------------------------------------------------------------- 4. WRF (+ images while it runs)
 DONE_FLAG=$RUN/wrf/WRF_DONE
@@ -144,6 +163,19 @@ rm -f "$DONE_FLAG"
 NP_WRF=$(( NPROC > 4 ? NPROC - 1 : NPROC ))   # one core left for making images
 run_wrf() {
   cd "$RUN/wrf" || return 1
+  if [ "${RESUME:-0}" = 1 ]; then
+    find . -maxdepth 1 -type l -delete
+    link_wrf_files
+    local r0; r0=$(ls wrfrst_d01_* 2>/dev/null | sort | tail -1)
+    [ -n "$r0" ] && [ -s wrfbdy_d01 ] && [ -s levels.txt ] || { log "restart files missing"; return 1; }
+    export SWRF_RESTART_H; SWRF_RESTART_H=$(hour_of "$r0")
+    log "going on from the restart files of hour $SWRF_RESTART_H"
+    rm -f rsl.* namelist.input
+  fi
+  if [ -n "${SWRF_STOP_H:-}" ] || [ "${RESUME:-0}" = 1 ]; then
+    read -r nlev nsoil < levels.txt
+    "$PY" "$HERE/render_namelists.py" input "$CYC" "$nlev" "$nsoil" namelist.input || return 1
+  fi
   "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --watch "$DONE_FLAG" \
      > "$RUN/post_watch.log" 2>&1 &
   local POSTPID=$!
@@ -164,6 +196,10 @@ run_wrf() {
       status step wrf running "الساعة $hrs من ${MAXH}"
     fi
     publish_log rsl.error.0000 wrf_rsl 80
+    # first part of a split run: keep only the two newest sets of restart files
+    if [ -n "${SWRF_STOP_H:-}" ]; then
+      ls wrfrst_d01_* 2>/dev/null | sort | head -n -2 | while read -r f; do rm -f wrfrst_d0?_"${f#wrfrst_d01_}"; done
+    fi
   done
   wait $WPID; local rc=$?
   touch "$DONE_FLAG"
@@ -177,7 +213,33 @@ step wrf run_wrf || WRF_OK=0
 publish
 
 # ---------------------------------------------------------------- 5. finish images and publish
+# first part of a split run: pick the restart files the second runner goes on from
+HANDOFF=""
+if [ -n "${SWRF_STOP_H:-}" ]; then
+  cd "$RUN/wrf"
+  if [ $WRF_OK = 1 ]; then
+    HANDOFF=$SWRF_STOP_H
+  else   # stopped early: the newest restart time the model got past
+    for f in $(ls wrfrst_d01_* 2>/dev/null | sort -r); do
+      h=$(hour_of "$f")
+      ls wrfout_d01_"$(date -u -d "${CYC:0:8} ${CYC:8:2}:00 $(( h + 1 )) hours" +%Y-%m-%d_%H)":* >/dev/null 2>&1 && { HANDOFF=$h; break; }
+    done
+  fi
+  if [ -n "$HANDOFF" ] && [ "$HANDOFF" -lt "$MAXH" ]; then
+    echo "$HANDOFF" > "$RUN/handoff.txt"
+    log "first part done to hour $HANDOFF; the second runner goes on from there"
+    WRF_OK=1
+  else
+    HANDOFF=""
+  fi
+  cd "$RUN"
+fi
+
 finish() {
+  if [ -n "$HANDOFF" ]; then
+    "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --partial
+    return   # the accumulators (hidden .npy files) are still needed by the second part
+  fi
   if [ $WRF_OK = 1 ]; then
     "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --finish
   else
@@ -199,7 +261,9 @@ step post finish || log "post-processing reported a problem"
 T_END=$(date -u +%s)
 MINS=$(( (T_END - T_START) / 60 ))
 status history "{\"cycle\":\"$CYC\",\"ok\":$WRF_OK,\"minutes\":$MINS,\"cores\":$NPROC,\"finished\":\"$(date -u +%Y-%m-%dT%H:%MZ)\"}"
-if [ $WRF_OK = 1 ]; then
+if [ -n "$HANDOFF" ]; then
+  status phase cycle "اكتمل الجزء الأول حتى الساعة $HANDOFF، ويكمل خادم ثانٍ بقية الساعات"
+elif [ $WRF_OK = 1 ]; then
   touch "$STATE/done_$CYC"
   status phase idle "اكتملت آخر دورة في $MINS دقيقة"
   rm -rf "$RUN/gfs" "$RUN"/wrf/wrfout_* "$RUN"/wps/met_em.*
