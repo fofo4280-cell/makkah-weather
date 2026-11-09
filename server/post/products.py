@@ -4,6 +4,8 @@ Colours are continuous gradients: each image is an 8-bit palette PNG whose 255 e
 smoothly through the colour stops, with transparency fading in at the weak end so storm
 edges look soft instead of stepped.
 """
+import math
+
 import numpy as np
 
 # Stops: (value, colour, alpha 0-255). tf: how values are spread along the scale.
@@ -186,3 +188,93 @@ def fields_from_frame(nc, prev_acc):
         "wup": np.array(v["W_UP_MAX"][0], dtype=np.float32) if "W_UP_MAX" in v else None,
     }
     return {k: f for k, f in out.items() if f is not None}, acc
+
+
+COMPASS = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]
+
+
+def _from_dir(u, v):
+    """Meteorological direction the wind blows from (degrees) and its 8-point name."""
+    a = (math.degrees(math.atan2(-u, -v)) + 360) % 360
+    return a, COMPASS[int((a + 22.5) // 45) % 8]
+
+
+def conv_labels(cv, u, v, hgt, lat, lon, dx, thr=3.0, seg_km=80.0, min_km2=300.0):
+    """Where the 925 hPa air meets, which winds make it: one label per piece of each convergence area (pieces of
+    about 80 km along long lines), placed on the strongest part of the colour.
+    'W - E': a west wind meets an east wind (the one blowing from the larger compass angle first).
+    'SW - Orographic': the lift comes from the wind running up the high ground.
+    Returns [[lat, lon, text], ...]."""
+    from scipy.ndimage import label, binary_dilation
+    good = np.isfinite(cv)
+    blobs, n = label(np.where(good, cv, 0) >= thr, structure=np.ones((3, 3)))
+    if n == 0:
+        return []
+    hx = np.gradient(hgt.astype(np.float64), dx, axis=1)
+    hy = np.gradient(hgt.astype(np.float64), dx, axis=0)
+    r = max(2, int(round(15000.0 / dx)))
+    jj, ii = np.mgrid[0:cv.shape[0], 0:cv.shape[1]]
+    min_cells = max(4, int(min_km2 * 1e6 / dx ** 2))
+    out = []
+    for b in range(1, n + 1):
+        m = blobs == b
+        if m.sum() < min_cells:
+            continue
+        y, x = jj[m].astype(float), ii[m].astype(float)
+        c = np.array([x.mean(), y.mean()])
+        cov = np.cov(np.vstack([x - c[0], y - c[1]])) if m.sum() > 2 else np.eye(2)
+        ev, evec = np.linalg.eigh(cov)
+        ax = evec[:, 1]                              # along the line
+        s = (x - c[0]) * ax[0] + (y - c[1]) * ax[1]
+        nseg = max(1, int(round((s.max() - s.min()) * dx / 1000.0 / seg_km)))
+        edges = np.linspace(s.min(), s.max() + 1e-6, nseg + 1)
+        for k in range(nseg):
+            sel = (s >= edges[k]) & (s < edges[k + 1])
+            if sel.sum() < min_cells // 2 + 1:
+                continue
+            seg = np.zeros_like(m); seg[jj[m][sel], ii[m][sel]] = True
+            w = np.clip(cv[seg], 0, None)
+            sx, sy = (ii[seg] * w).sum() / w.sum(), (jj[seg] * w).sum() / w.sum()
+            q = int(np.argmin((ii[seg] - sx) ** 2 + (jj[seg] - sy) ** 2))
+            pj, pi = jj[seg][q], ii[seg][q]
+            ring = binary_dilation(seg, iterations=r) & ~m & np.isfinite(u) & np.isfinite(v)
+            side = ((ii - sx) * -ax[1] + (jj - sy) * ax[0]) > 0          # the two sides of the line
+            winds = []
+            for part in (ring & side, ring & ~side):
+                if part.sum() >= 3:
+                    winds.append((float(np.nanmean(u[part])), float(np.nanmean(v[part]))))
+            if not winds:
+                continue
+            near = binary_dilation(seg, iterations=r)
+            wu, wv = np.nanmean(u[near]), np.nanmean(v[near])
+            up = np.nanmean((u * hx + v * hy)[near & np.isfinite(u)])          # m/s lifted by the slope
+            # does the ground rise ahead of the wind? (250 m or more within 50 km downwind)
+            toward = False
+            sp = math.hypot(wu, wv)
+            if sp > 1.5:
+                h0 = float(np.nanmean(hgt[seg]))
+                ahead = []
+                for dkm in range(10, 55, 5):
+                    ti = int(round(sx + wu / sp * dkm * 1000 / dx)); tj = int(round(sy + wv / sp * dkm * 1000 / dx))
+                    if 0 <= tj < hgt.shape[0] and 0 <= ti < hgt.shape[1]:
+                        ahead.append(float(hgt[tj, ti]))
+                toward = bool(ahead) and max(ahead) - h0 >= 250
+            names = [_from_dir(*wnd) for wnd in winds]
+            two = len(names) == 2 and min(abs(names[0][0] - names[1][0]), 360 - abs(names[0][0] - names[1][0])) >= 45 \
+                and names[0][1] != names[1][1]
+            oro = (np.isfinite(up) and up >= 0.05) or toward
+            if two and not oro:
+                a, b2 = sorted(names, key=lambda t: -t[0])
+                txt = f"{a[1]} - {b2[1]}"
+            elif oro:
+                # the main wind: the one blowing towards the high ground, else the mean
+                main = _from_dir(wu, wv)[1]
+                if two:
+                    a, b2 = sorted(names, key=lambda t: -t[0])
+                    txt = f"{a[1]} - {b2[1]} · Orographic"
+                else:
+                    txt = f"{main} - Orographic"
+            else:
+                txt = f"{_from_dir(wu, wv)[1]}"                              # one wind slowing down
+            out.append([round(float(lat[pj, pi]), 3), round(float(lon[pj, pi]), 3), txt])
+    return out
