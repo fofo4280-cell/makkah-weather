@@ -26,6 +26,8 @@ THR_KEEP = 150.0                           # the track goes on while the core st
 SA_BOX = (17.0, 32.0, 36.0, 55.0)          # the Kingdom and its coasts
 HEJAZ_BOX = (19.0, 25.0, 38.5, 42.0)
 NEAR_SA = (5.0, 32.0, 32.0, 65.0)          # where a river counts as coming near the Kingdom
+NEAR_STAY = (3.0, 34.0, 30.0, 72.0)        # and where its track is followed
+IO_BOX = (-20.0, 22.0, 40.0, 98.0)         # where the strongest river is looked for
 # category edges of the colours (the same as the regional river scale used by Khalid Al-Otaibi)
 CATS = [150, 260, 370, 480, 560, 670]
 CAT_COLS = ["#5ea4d8", "#f2c14e", "#f08a2a", "#e0535a", "#7b3fc0", "#1c1b2b"]
@@ -158,8 +160,10 @@ def _objects(ms, mag, lat, lon, thr=THR_CORE):
     return sorted(out, reverse=True)
 
 
-def _follow(MS, lat, lon, k0, la0, lo0):
-    """Follow a core forward from step k0: at each step the strongest transport near the expected position."""
+def _follow(MS, lat, lon, k0, la0, lo0, stay=None):
+    """Follow a core forward from step k0: at each step the strongest transport near the expected position.
+    stay = (south, north, west, east): the track ends when the core leaves it."""
+    stay = stay or (BOX[0] + 1, BOX[1] - 1, BOX[2] + 1, BOX[3] - 1)
     pts = [(k0, la0, lo0, float(MS[k0][np.argmin(np.abs(lat - la0)), np.argmin(np.abs(lon - lo0))]))]
     vla = vlo = 0.0
     for k in range(k0 + 1, len(MS)):
@@ -173,16 +177,30 @@ def _follow(MS, lat, lon, k0, la0, lo0):
         nla, nlo = float(lat[j]), float(lon[i])
         vla, vlo = 0.5 * vla + 0.5 * (nla - pla), 0.5 * vlo + 0.5 * (nlo - plo)
         pts.append((k, nla, nlo, float(MS[k][j, i])))
-        if not (BOX[0] + 1 < nla < BOX[1] - 1 and BOX[2] + 1 < nlo < BOX[3] - 1):
+        if not (stay[0] <= nla <= stay[1] and stay[2] <= nlo <= stay[3]):
             break
     return pts
 
 
-def _box_max(a, lat, lon, box):
-    s, n, w, e = box
-    j = (lat >= s) & (lat <= n)
-    i = (lon >= w) & (lon <= e)
-    return float(np.nanmax(a[np.ix_(j, i)]))
+def saudi_mask(lat, lon):
+    """Grid points over the land of the Kingdom (the box around it if the country outline cannot be read)."""
+    LO, LA = np.meshgrid(lon, lat)
+    try:
+        import cartopy.io.shapereader as shp
+        import shapely
+        rec = next(r for r in shp.Reader(shp.natural_earth("50m", "cultural", "admin_0_countries")).records()
+                   if r.attributes.get("ADM0_A3") == "SAU")
+        m = shapely.contains_xy(rec.geometry, LO, LA)
+        if m.sum() > 50:
+            return m
+    except Exception as e:
+        print("country outline unavailable:", str(e)[:80], flush=True)
+    s, n, w, e = SA_BOX
+    return (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
+
+
+def _masked_max(a, mask):
+    return float(np.nanmax(np.where(mask, a, np.nan)))
 
 
 def region(la, lo):
@@ -220,8 +238,8 @@ def analyse(cycle, t0):
     MS = np.array([gaussian_filter(m, 2.0) for m in mag])       # about 1 degree, so the core is the river's middle
     times = [t0 + timedelta(hours=h) for h in hours]
     tracks = []
-    # 1. the strongest river now (core between 20S and 30N)
-    obj = [o for o in _objects(MS[0], mag[0], lat, lon) if -20 <= o[1] <= 30]
+    # 1. the strongest river over the Indian Ocean now
+    obj = [o for o in _objects(MS[0], mag[0], lat, lon) if IO_BOX[0] <= o[1] <= IO_BOX[1] and IO_BOX[2] <= o[2] <= IO_BOX[3]]
     if obj:
         _, la0, lo0, _ = obj[0]
         tracks.append({"kind": "main", "pts": _follow(MS, lat, lon, 0, la0, lo0)})
@@ -238,10 +256,13 @@ def analyse(cycle, t0):
             if p and np.hypot((p[0][2] - lo0) * np.cos(np.radians(la0)), p[0][1] - la0) < 6:
                 same = True
         if not same:
-            tracks.append({"kind": "near", "pts": _follow(MS, lat, lon, k, la0, lo0)})
+            tracks.append({"kind": "near", "pts": _follow(MS, lat, lon, k, la0, lo0, NEAR_STAY)})
         break
-    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_box_max(mag[k], lat, lon, SA_BOX))),
-           "hejaz": int(round(_box_max(mag[k], lat, lon, HEJAZ_BOX)))} for k, t in enumerate(times)]
+    land = saudi_mask(lat, lon)
+    LO, LA = np.meshgrid(lon, lat)
+    hj = land & (LA >= HEJAZ_BOX[0]) & (LA <= HEJAZ_BOX[1]) & (LO >= HEJAZ_BOX[2]) & (LO <= HEJAZ_BOX[3])
+    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_masked_max(MS[k], land))),
+           "hejaz": int(round(_masked_max(MS[k], hj)))} for k, t in enumerate(times)]
     out_tracks = []
     for t in tracks:
         pts = [{"t": times[k].strftime("%Y-%m-%dT%H:%MZ"), "k": k, "lat": round(la, 2), "lon": round(lo, 2),

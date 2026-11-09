@@ -368,10 +368,8 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     U, V, M = qu[k][::st, ::st], qv[k][::st, ::st], m[::st, ::st]
     keep = M >= 120
     if keep.any():
-        q = ax.quiver(LO[keep], LA[keep], U[keep], V[keep], transform=pc, color="#1b1b1b", scale=26000, width=0.0016,
+        ax.quiver(LO[keep], LA[keep], U[keep], V[keep], transform=pc, color="#1b1b1b", scale=26000, width=0.0016,
                       headwidth=3.6, headlength=4, zorder=4, alpha=0.85)
-        ax.quiverkey(q, 0.075, 0.07, 500, "500", labelpos="E", coordinates="axes", fontproperties={"size": 6},
-                     color="#1b1b1b")
     halo = [pe.withStroke(linewidth=2.2, foreground="white")]
     cols = {"main": "#111111", "near": "#0b7a53"}
     t_now = times[k]
@@ -430,7 +428,7 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
         sx.plot([tt(p["t"]) for p in tr["pts"]], [p["v"] for p in tr["pts"]], color=cols.get(tr["kind"], "#111111"),
                 linewidth=1.1, marker="o", markersize=1.6, label=names.get(tr["kind"], tr["kind"]))
     sx.plot(times, [r["v"] for r in data["sa"]], color="#2f6fc0", linewidth=1.0, linestyle="--",
-            label="Max over Saudi Arabia")
+            label="Max over Saudi land")
     sx.axhline(AR.THR_CORE, color="#999999", linewidth=0.6, linestyle=":")
     sx.axvline(t_now, color="#d13b2e", linewidth=0.9)
     sx.set_xlim(times[0], times[-1])
