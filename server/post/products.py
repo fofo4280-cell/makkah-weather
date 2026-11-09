@@ -50,7 +50,7 @@ DAILY = {
 SINGLE = {
     "rain24": {"label": "المطر التراكمي +٢٤", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24},
     "tsprob": {"label": "احتمال العواصف الرعدية +٢٤", "unit": "٪", "stops": TSPROB, "tf": "lin", "from_h": 3,
-               "dbz": 40, "radius_km": 25},
+               "len": 24, "dbz": 40, "radius_km": 25},
 }
 # Temperature and wind are no longer drawn as maps but stay in the tap-anywhere values and city charts.
 

@@ -542,31 +542,9 @@ def main():
         print("atmospheric rivers unavailable:", e, flush=True)
         ar_data = None
 
-    # 8e. rain of each Makkah day for 15 days (GFS 0.25 degree), region by region, for the long-range outlook.
-    #     The report is written near midnight Makkah time, so it is about the day that starts then.
+    # the report is written near midnight Makkah time, so it is about the day that starts then
     mk = datetime.now(timezone.utc) + timedelta(hours=3)
     day0 = mk.date() + timedelta(days=1 if mk.hour >= 18 else 0)
-    regs = sa_geo.tag_towns(sa_geo.regions())
-    gfs_rain = None
-    try:
-        start = datetime(day0.year, day0.month, day0.day, tzinfo=timezone.utc) - timedelta(hours=3)
-        fh0 = int((start - t0).total_seconds() // 3600)
-        acc, la25, lo25 = [], None, None
-        for k in range(16):
-            fh = max(0, fh0 + 24 * k)
-            if fh == 0:
-                acc.append(None)
-                continue
-            f = gfs_fields(cycle, fh, res="0p25", fields=[("apcp", r":APCP:surface:0-[0-9]+ (hour|day) acc")])
-            la = np.linspace(90, -90, f["apcp"].shape[0]); lo = np.linspace(0, 360, f["apcp"].shape[1], endpoint=False)
-            j, i = (la >= 15) & (la <= 33.5), (lo >= 33.5) & (lo <= 56.5)
-            la25, lo25 = la[j], lo[i]
-            acc.append(f["apcp"][np.ix_(j, i)])
-        acc = [np.zeros_like(acc[-1]) if a is None else a for a in acc]
-        gfs_rain = long_range.gfs_days(acc, la25, lo25, day0, regs)
-        print("GFS daily rain by region:", len(gfs_rain), "days", flush=True)
-    except Exception as e:
-        print("GFS daily rain unavailable:", e, flush=True)
 
     # 9. Arctic Oscillation
     try:
@@ -611,21 +589,18 @@ def main():
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv")},
     }
     status["report"] = report(status, fc_wet)   # every day; its title says whether something stands out
-    # the weather of the day over the Kingdom, region by region, and signs of a new rain wave in 15 and 45 days
+    # the weather of the day over the Kingdom region by region (rain from our own model only, set against the
+    # large-scale picture), and signs of a new rain wave in 15 and 45 days from the large-scale picture only
     om = sa_geo.OpenMeteo()
     secs = []
     try:
-        secs.append(today_wx.situation(day0, os.environ.get("SA_DATA"), state, om))
+        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA")]
+        secs.append(today_wx.situation(day0, ours, state, status, om))
     except Exception as e:
         print("today's section failed:", repr(e), flush=True)
     secs.append({"heading": "التذبذب المداري والأنظمة المؤثرة", "lines": status["report"]["lines"]})
-    ec = None
     try:
-        ec = long_range.ec46(om, regs)
-    except Exception as e:
-        print("ECMWF extended range unavailable:", repr(e), flush=True)
-    try:
-        secs.append(long_range.outlook(status, day0, gfs_rain, ec))
+        secs.append(long_range.outlook(status, day0))
     except Exception as e:
         print("long-range section failed:", repr(e), flush=True)
     status["report"]["sections"] = secs

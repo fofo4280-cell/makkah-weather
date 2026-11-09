@@ -179,8 +179,11 @@ class Processor:
             save_png(os.path.join(self.st.dir, self.pub[did], pid, f"{h:03d}.png"), g.sample(f), PRODUCTS[pid])
         if h == SINGLE["rain24"]["from_h"]:
             np.save(os.path.join(self.st.dir, f".acc3_{did}.npy"), acc)
+        if h == SINGLE["rain24"]["from_h"] + SINGLE["rain24"]["len"]:   # end of the 24-hour map when the run is longer
+            np.save(os.path.join(self.st.dir, f".acc27_{did}.npy"), acc)
         # strongest radar echo since hour 3, for the thunderstorm chance map
-        if not late and h >= SINGLE["tsprob"]["from_h"] and "refl" in fields:
+        ts = SINGLE["tsprob"]
+        if not late and ts["from_h"] <= h <= ts["from_h"] + ts["len"] and "refl" in fields:
             rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
             cur = np.load(rp) if os.path.exists(rp) and h > SINGLE["tsprob"]["from_h"] else None
             np.save(rp, fields["refl"] if cur is None else np.maximum(cur, fields["refl"]))
@@ -288,7 +291,7 @@ class Processor:
             hours = self.st.s["done"].get(did, [])
             if self.first_hour(did) > 0 or not os.path.exists(rp) or not hours:
                 continue
-            last = max(hours)
+            last = min(max(hours), spec["from_h"] + spec["len"])   # a 24-hour map even when the run is longer
             if last <= spec["from_h"] or out.get(did, {}).get("to") == last:
                 continue
             g = self.grids.get(did)
@@ -304,7 +307,7 @@ class Processor:
             out[did] = {"from": spec["from_h"], "to": last}
 
     def single_products(self):
-        """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far."""
+        """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far (never past hour 27)."""
         spec = SINGLE["rain24"]
         out = self.st.s.setdefault("single", {})
         for d in PUB:
@@ -313,14 +316,16 @@ class Processor:
             hours = self.st.s["done"].get(did, [])
             if self.first_hour(did) > 0 or not os.path.exists(a3) or not os.path.exists(self.acc_path(did)) or not hours:
                 continue
-            last = max(hours)
+            last = min(max(hours), spec["from_h"] + spec["len"])   # a 24-hour map even when the run is longer
             if last <= spec["from_h"] or out.get(did, {}).get("to") == last:
                 continue
             g = self.grids.get(did)
             if g is None:
                 with Dataset(self.files(did)[0]) as nc:
                     g = self.grid(did, nc)
-            tot = np.maximum(np.load(self.acc_path(did)) - np.load(a3), 0)
+            a27 = os.path.join(self.st.dir, f".acc27_{did}.npy")
+            end = a27 if last == spec["from_h"] + spec["len"] and os.path.exists(a27) else self.acc_path(did)
+            tot = np.maximum(np.load(end) - np.load(a3), 0)
             save_png(os.path.join(self.st.dir, self.pub[did], "rain24", "main.png"), g.sample(tot), spec)
             out[did] = {"from": spec["from_h"], "to": last}
 
