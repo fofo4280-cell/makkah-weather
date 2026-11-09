@@ -1,0 +1,20 @@
+# Temporary: checks which Open-Meteo request names work (removed after use).
+name: Probe
+on: {workflow_dispatch: {}}
+jobs:
+  p:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: |
+          S="https://seasonal-api.open-meteo.com/v1/seasonal?latitude=18.2&longitude=42.5"
+          q() { echo "== $1"; curl -s -m 60 "$1" | head -c 1500; echo; }
+          for m in ecmwf_ec46 ecmwf_ec46_ensemble_mean ecmwf_seasonal_seamless; do
+            for w in precipitation_mean precipitation_mean_anomaly precipitation_anomaly precipitation_efi precipitation_anomaly_gt0 temperature_2m_mean_anomaly temperature_2m_anomaly temperature_2m_efi total_column_integrated_water_vapour_mean_anomaly; do
+              q "$S&weekly=$w&models=$m"
+            done
+          done
+          q "$S&daily=precipitation_sum&models=ecmwf_ec46&forecast_days=46"
+          q "$S&daily=precipitation_sum,temperature_2m_max&models=ecmwf_ec46_ensemble_mean&forecast_days=46"
+          q "https://air-quality-api.open-meteo.com/v1/air-quality?latitude=24.7,21.4&longitude=46.7,39.8&hourly=dust,aerosol_optical_depth&forecast_days=2&timezone=Asia/Riyadh"
+          q "https://api.open-meteo.com/v1/forecast?latitude=24.7,21.4&longitude=46.7,39.8&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,wind_gusts_10m_max&models=ecmwf_ifs025,gfs_seamless,icon_seamless&forecast_days=2&timezone=Asia/Riyadh"
+          q "https://seasonal-api.open-meteo.com/v1/seasonal?latitude=18.2&longitude=42.5&weekly=precipitation_mean&models=ecmwf_ec46&format=json&bogus=1"
