@@ -1,11 +1,12 @@
 # Daily MJO, warm/cold event and moisture-surge products for the model page (the التذبذب tab).
 # Code: saudi-wrf branch, server/climate. Results: climate-data branch.
-# 05:05 UTC = 08:05 Makkah time, when the 00 UTC GFS run is complete to 15 days; the report is out by about 08:30.
+# Scheduled early (04:13 UTC) because GitHub often starts late; the job waits for the 00 UTC GFS run to reach
+# 15 days (about 04:45 UTC), so the report is out by about 08:30 Makkah time.
 name: Climate MJO
 
 on:
   schedule:
-    - cron: '5 5 * * *'
+    - cron: '13 4 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/climate.yml', 'model/climate-now.txt']
@@ -23,6 +24,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 150
     steps:
+      - name: Wait for today's GFS run
+        if: github.event_name == 'schedule'
+        run: |
+          D=$(date -u +%Y%m%d)
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/00/atmos/gfs.t00z.pgrb2.1p00.f360.idx"
+          for i in $(seq 1 80); do curl -sf -m 30 "$U" >/dev/null && exit 0; sleep 60; done
+
       - name: Code
         uses: actions/checkout@v4
         with:
