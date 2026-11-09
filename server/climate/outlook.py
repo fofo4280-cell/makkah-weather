@@ -14,7 +14,7 @@ from datetime import date, timedelta
 import numpy as np
 
 import sa_geo as G
-from sa_geo import ar, num, ar_date, ar_span, join
+from sa_geo import ar, num, ar_date, ar_span, join, deg
 
 WET_PHASES = {7, 8, 1, 2}
 
@@ -135,27 +135,33 @@ def ec_signals(ec, day0):
 
 # ------------------------------------------------------------------ MJO
 def mjo_window(st, today):
-    """When the MJO would reach the phases that favour rain over the Kingdom (7, 8, 1, 2 in November-April):
-    from the 15-day GFS projection, then carried on at the speed it has in that projection (an inference)."""
+    """When the MJO is in, or reaches, the phases that favour rain over the Kingdom (7, 8, 1, 2 in November-April):
+    read from the 15-day GFS projection; and the next return to those phases after it, carried on at the speed the
+    MJO has in that projection (an inference only)."""
     fc = st.get("rmm_fc") or []
     if not st.get("wet_season") or len(fc) < 5:
         return None
-    in_fc = [x for x in fc if x["phase"] in WET_PHASES and x["amp"] >= 1]
-    if in_fc:
-        return {"kind": "forecast", "d": date.fromisoformat(in_fc[0]["d"]), "phase": in_fc[0]["phase"],
-                "amp": in_fc[0]["amp"]}
+    out = {"wet": None, "next": None}
+    wet = [i for i, x in enumerate(fc) if x["phase"] in WET_PHASES and x["amp"] >= 1]
+    if wet:
+        i0 = wet[0]; i1 = i0
+        while i1 + 1 < len(fc) and fc[i1 + 1]["phase"] in WET_PHASES and fc[i1 + 1]["amp"] >= 1:
+            i1 += 1
+        out["wet"] = {"a": date.fromisoformat(fc[i0]["d"]), "b": date.fromisoformat(fc[i1]["d"]),
+                      "phase": fc[i0]["phase"], "amp": fc[i0]["amp"], "ends": i1 + 1 < len(fc)}
     ang = np.unwrap([math.atan2(x["r2"], x["r1"]) for x in fc])
     w = math.degrees(ang[-1] - ang[0]) / max(1, len(fc) - 1)     # degrees per day, eastward positive
     last = fc[-1]
+    if out["wet"] and not out["wet"]["ends"]:
+        return out                                                 # still in the wet phases at the end of the projection
     if last["amp"] < 1 or not (4 <= w <= 15):
-        return {"kind": "none", "speed": w, "amp": last["amp"], "phase": last["phase"]}
+        out["next"] = {"kind": "none", "speed": w, "amp": last["amp"]}
+        return out
     th = math.degrees(math.atan2(last["r2"], last["r1"]))
     need = (90 - th) % 360                                         # phase 7 starts at 90 degrees
-    days = need / w
-    d = date.fromisoformat(last["d"]) + timedelta(days=round(days))
-    if (d - today).days > 45:
-        return {"kind": "late", "d": d, "speed": w, "period": 360 / w}
-    return {"kind": "inferred", "d": d, "speed": w, "period": 360 / w, "phase": last["phase"], "amp": last["amp"]}
+    d = date.fromisoformat(last["d"]) + timedelta(days=round(need / w))
+    out["next"] = {"kind": "inferred" if (d - today).days <= 46 else "late", "d": d, "speed": w, "period": 360 / w}
+    return out
 
 
 # ------------------------------------------------------------------ text
@@ -174,11 +180,10 @@ def outlook(st, day0, gfs, ec, log=print):
                 cont = e["a"] == 1 and any(r["mean"] >= 0.5 or r["cov"] >= 0.1 for r in gfs[0]["regions"])
                 lines.append(
                     f"خلال ١٥ يومًا (قراءة من جي إف إس، أمطار كل يوم على مناطق المملكة بدقة ربع درجة): "
-                    f"{'استمرار الحالة الحالية' if cont else 'حالة مطرية'} {ar_span(e['da'], e['db'])} على "
-                    f"{join(n for n, _ in top[:5])}، أغزرها على {pk_name} حتى {num(pk['max'])} ملم قرب {pk['at']} "
-                    f"يوم {ar_date(pk['d'])}" + ("؛ والثقة فيه أقل لأنه بعد اليوم السابع." if (e["da"] - today).days >= 7 else "."))
-                if not cont:
-                    windows.append(("جي إف إس", e["da"], e["db"]))
+                    f"{'تستمر الحالة الحالية' if cont else 'حالة مطرية'} {ar_span(e['da'], e['db'])}، وأكثر المناطق مطرًا "
+                    f"{join(n for n, _ in top[:5])}، وأعلى كمية يومية {num(pk['max'])} ملم قرب {pk['at']} ({pk_name}) "
+                    f"يوم {ar_date(pk['d'])}" + ("؛ والثقة فيها أقل لأنها بعد اليوم السابع." if (e["da"] - today).days >= 7 else "."))
+                windows.append(("جي إف إس", e["da"], e["db"]))
         else:
             mx = max((r for x in gfs[1:] for r in x["regions"]), key=lambda r: r["max"], default=None)
             ln = "خلال ١٥ يومًا (قراءة من جي إف إس): لا تظهر حالة مطرية واسعة على المملكة"
@@ -238,18 +243,30 @@ def outlook(st, day0, gfs, ec, log=print):
 
     # 3. MJO
     mw = mjo_window(st, today)
-    if mw and mw["kind"] == "forecast":
-        lines.append(f"التذبذب المداري (قراءة من إسقاط جي إف إس لخمسة عشر يومًا): يدخل الطور {ar(mw['phase'])} الرطب "
-                     f"للمملكة بشدة {num(mw['amp'], 1)} يوم {ar_date(mw['d'])}، وهذا يدعم أي حالة مطرية في الأيام التالية له.")
-        windows.append(("التذبذب المداري", mw["d"], mw["d"] + timedelta(days=10)))
-    elif mw and mw["kind"] == "inferred":
-        lines.append(f"التذبذب المداري (استنتاج): في آخر إسقاط جي إف إس يدور التذبذب شرقًا نحو {num(mw['speed'])} درجات "
-                     f"في اليوم (دورة كاملة في نحو {num(mw['period'])} يومًا)، فإن حافظ على سرعته وشدته يصل إلى الأطوار "
-                     f"الرطبة للمملكة (٧ و٨ و١ و٢) قرابة {ar_date(mw['d'])}، بهامش أسبوع تقريبًا. "
-                     f"هذا استنتاج من سرعة الدوران لا توقع، وثقته منخفضة.")
-        windows.append(("التذبذب المداري", mw["d"] - timedelta(days=5), mw["d"] + timedelta(days=10)))
-    elif mw and mw["kind"] == "none":
-        lines.append(f"التذبذب المداري: {'ضعيف' if mw['amp'] < 1 else 'لا يدور بانتظام'} في آخر إسقاط جي إف إس، "
+    if mw and mw["wet"]:
+        x = mw["wet"]
+        if x["a"] <= today:
+            ln = (f"التذبذب المداري (قراءة من إسقاط جي إف إس لخمسة عشر يومًا): في طور رطب للمملكة الآن (الطور {ar(x['phase'])} "
+                  f"بشدة {num(x['amp'], 1)})")
+        else:
+            ln = (f"التذبذب المداري (قراءة من إسقاط جي إف إس لخمسة عشر يومًا): يدخل الطور {ar(x['phase'])} الرطب للمملكة "
+                  f"بشدة {num(x['amp'], 1)} يوم {ar_date(x['a'])}")
+        ln += (f"، ويبقى في الأطوار الرطبة حتى {ar_date(x['b'])}، فيدعم أي حالة مطرية في هذه المدة." if x["ends"] else
+               "، ويبقى فيها حتى نهاية الإسقاط، فيدعم الحالات المطرية في هذه المدة.")
+        lines.append(ln)
+        windows.append(("التذبذب المداري", max(x["a"], today), x["b"]))
+    nx = mw and mw["next"]
+    if nx and nx["kind"] == "inferred":
+        lines.append(f"التذبذب المداري بعد ذلك (استنتاج): يدور التذبذب شرقًا في آخر إسقاط جي إف إس نحو {deg(nx['speed'])} "
+                     f"في اليوم (دورة كاملة في نحو {num(nx['period'])} يومًا)، فإن حافظ على سرعته وشدته يعود إلى الأطوار "
+                     f"الرطبة للمملكة (٧ و٨ و١ و٢) قرابة {ar_date(nx['d'])}، بهامش أسبوع تقريبًا. "
+                     "هذا استنتاج من سرعة الدوران لا توقع، وثقته منخفضة.")
+        windows.append(("التذبذب المداري", nx["d"] - timedelta(days=5), nx["d"] + timedelta(days=10)))
+    elif nx and nx["kind"] == "late":
+        lines.append(f"التذبذب المداري بعد ذلك (استنتاج): بسرعة دورانه الحالية لا يعود إلى الأطوار الرطبة للمملكة قبل "
+                     f"{ar_date(nx['d'])} تقريبًا، أي بعد مدى الخمسة والأربعين يومًا.")
+    elif nx and nx["kind"] == "none":
+        lines.append(f"التذبذب المداري بعد خمسة عشر يومًا: {"يضعف" if nx['amp'] < 1 else 'لا يدور بانتظام'} في آخر إسقاط جي إف إس، "
                      "فلا يمكن الاستنتاج منه لما بعد خمسة عشر يومًا.")
 
     # 4. what agrees with what, for the coming fifteen days and for days 16 to 45: the days on which the
