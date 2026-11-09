@@ -1,25 +1,27 @@
-# Twice-daily high-resolution model for Makkah Region (WRF: 9 km parent, 3 km nest, 27 hours).
-# Code lives on the saudi-wrf branch; results are pushed to the model-data branch and shown at /model/.
-# Two runs 12 hours apart on the main synoptic cycles (full radiosonde assimilation):
-# 03:20 UTC = 06:20 Makkah time for the 00 UTC GFS run (maps by about 10:30, before the afternoon storms).
-# 15:25 UTC = 18:25 Makkah time for the 12 UTC GFS run (maps by about 22:30, before night and dawn coastal storms).
-# A scheduled run waits for its cycle's files if they are not out yet. GitHub may start scheduled runs late.
+# Short test of the model servers on a code branch; nothing is published (the maps are kept as run artifacts).
+# By default it tests the western highlands run split over two runners: part 1 stops at hour stop_h and
+# hands its restart files to part 2, which goes on to hour 'hours'.
 name: Saudi model test
 
 on:
-  push:
-    branches: [main]
-    paths: ['model/test-now.txt']
   workflow_dispatch:
     inputs:
       ref:
         description: 'code branch'
         required: false
-        default: 'saudi-wrf' 
+        default: 'saudi-wrf'
       hours:
-        description: 'forecast hours for every job (empty: the matrix values)'
+        description: 'forecast hours (empty: the full run)'
         required: false
-        default: ''
+        default: '4'
+      stop_h:
+        description: 'hour where part 1 hands over to part 2 (empty: one runner)'
+        required: false
+        default: '2'
+      with_1km:
+        description: 'also test the 1 km server'
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -29,132 +31,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  forecast:
-    # two servers in parallel: the Makkah nests (9 km west, 3 km, 1 km) and the Kingdom-wide 9 km run
-    name: ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: west
-            domains: domains_west.json
-            branch: model-data
-            hours: '6'
-            window: '3,6'
-          - name: makkah1km
-            domains: domains.json
-            branch: model-data-1km
-            hours: '6'
-            window: '3,6' 
-    runs-on: ubuntu-24.04
-    timeout-minutes: 360
-    env:
-      SWRF: /home/runner/swrf
-      WEB: /home/runner/web
-      SWRF_TEST: '1'
-      NPROC: '4'
-      KEEP_RUNS: '3'
-      SWRF_HOURS: ${{ inputs.hours || matrix.hours }}
-      SWRF_WINDOW: ${{ inputs.hours == '' && matrix.window || '' }}
-      CYCLES: '0 12'
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      SWRF_DOMAINS: ${{ matrix.domains }}
-      PUBLISH_BRANCH: ${{ matrix.branch }}
-    steps:
-      - name: Model code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.ref || 'saudi-wrf' }}
-          path: code
+  west:
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      code_ref: ${{ inputs.ref }}
+      publish: false
+      hours: ${{ inputs.hours }}
+      stop_h: ${{ inputs.stop_h }}
 
-      - name: Prepare folders
-        run: |
-          echo "JOB_T0=$(date -u +%s)" >> "$GITHUB_ENV"   # the cycle stops the model in time to publish
-          mkdir -p "$SWRF/state" "$SWRF/logs" "$WEB"
-          ln -sfn "$GITHUB_WORKSPACE/code" "$SWRF/repo"
-          touch "$SWRF/state/installed"
-          mkdir -p "$WEB/data"
+  west2:
+    needs: west
+    if: always() && needs.west.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      code_ref: ${{ inputs.ref }}
+      publish: false
+      hours: ${{ inputs.hours }}
+      resume: true
 
-      - name: System packages
-        run: |
-          sudo apt-get update -q
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q gfortran m4 csh tcsh cmake rsync \
-            libnetcdf-dev libnetcdff-dev netcdf-bin libhdf5-dev libopenmpi-dev openmpi-bin libpng-dev zlib1g-dev
-
-      - name: Restore compiled model
-        id: build
-        uses: actions/cache/restore@v4
-        with:
-          path: /home/runner/swrf/build
-          key: wrf-build-u2404-${{ hashFiles('code/server/install.sh', 'code/server/env.sh', 'code/server/pick_option.py', 'code/server/patch_geogrid_tbl.py') }}
-
-      - name: Compile model (first run only)
-        if: steps.build.outputs.cache-hit != 'true'
-        run: |
-          STAGES="jasper netcdf wrf wps" bash "$SWRF/repo/server/install.sh"
-          bash "$SWRF/repo/server/ci/prune_build.sh"
-
-      - name: Keep compiled model
-        if: steps.build.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /home/runner/swrf/build
-          key: ${{ steps.build.outputs.cache-primary-key }}
-
-      - name: Python tools
-        run: STAGES="netcdf python" bash "$SWRF/repo/server/install.sh"
-
-      - name: Grid design id
-        id: gh
-        run: echo "id=$(python3 code/server/render_namelists.py geohash)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore static grid
-        id: geo
-        uses: actions/cache/restore@v4
-        with:
-          path: /home/runner/swrf/work/static
-          key: geo-${{ steps.gh.outputs.id }}
-
-      - name: Static data (only when the grid changes)
-        if: steps.geo.outputs.cache-hit != 'true'
-        run: bash "$SWRF/repo/server/ci/static_data.sh"
-
-      - name: Keep static grid
-        if: steps.geo.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /home/runner/swrf/work/static
-          key: ${{ steps.geo.outputs.cache-primary-key }}
-
-      - name: Forecast (short test, not published)
-        run: |
-          export ANY_CYCLE=1
-          bash "$SWRF/repo/server/run_cycle.sh"
-
-      - name: Report
-        if: always()
-        run: |
-          echo "---- model speed: wall seconds per model hour, by domain"
-          grep "Timing for main" "$SWRF"/work/run/*/wrf/rsl.out.0000 | awk '{split($5,a,"_"); split(a[2],b,":"); d=$8+0; h=b[1]; t[d" "h]+=$9} END {for (k in t) print k, t[k]}' | sort -n -k1 -k2 || true
-          grep "Timing for main" "$SWRF"/work/run/*/wrf/rsl.out.0000 | tail -n 4 || true
-          R=$(ls -d "$WEB"/data/runs/*/ 2>/dev/null | head -1)
-          [ -n "$R" ] && python3 - "$R" <<'PY' || true
-          import json, os, sys
-          r = sys.argv[1]
-          m = json.load(open(os.path.join(r, "manifest.json")))
-          print("status", m["status"])
-          for k, d in m["domains"].items():
-              print(k, d["hours"], d.get("products"), d.get("rain24"))
-          PY
-          [ -n "$R" ] && ls "$R" "$R"/d02 || true
-          tail -n 15 "$SWRF"/work/run/*/wrf/rsl.error.0000 || true
-          cat "$SWRF"/logs/cycle_*.log | tail -n 40 || true
-
-      - name: Keep the maps for checking the viewer
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: web-${{ matrix.name }}
-          path: ${{ env.WEB }}/data
-          retention-days: 3
-          if-no-files-found: ignore
+  makkah1km:
+    if: inputs.with_1km
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: makkah1km
+      domains: domains.json
+      branch: model-data-1km
+      code_ref: ${{ inputs.ref }}
+      publish: false
+      hours: ${{ inputs.hours }}
+      window: ${{ inputs.hours != '' && '3,6' || '' }}
