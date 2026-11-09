@@ -817,7 +817,11 @@
     const st = M.st, obsNow = st.rmm_now, now = st.rmm_today || st.rmm_now;
     const r = st.report;
     $("mjoReport").hidden = !r;
-    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("") +
+    const para = (l, i, sec) => /^(المصادر|الخلاصة)/.test(l) ? `<p class="${l.startsWith("المصادر") ? "src" : "sum"}">${l}</p>`
+      : `<p${i === 0 && sec === 0 ? ' class="lead"' : ""}>${l}</p>`;
+    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
+      ? r.sections.map((s, k) => `<details class="rsec" open><summary>${s.heading}</summary>${s.lines.map((l, i) => para(l, i, k)).join("")}</details>`).join("")
+      : r.lines.map((l) => `<p>${l}</p>`).join("")) +
       `<p class="hint">يصدر هذا التقرير وكل ما في هذه الصفحة كل يوم قرابة الساعة ١٢ ليلًا بتوقيت مكة${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {

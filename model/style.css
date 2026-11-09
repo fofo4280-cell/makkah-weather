@@ -155,6 +155,10 @@ a { color: var(--sea); }
 .report { border-color: var(--amber); }
 .report h3 { color: var(--amber); }
 .report p { margin: 0 0 8px; line-height: 1.75; }
+.report .rsec { border-top: 1px solid var(--line, rgba(127,127,127,.25)); padding-top: 8px; margin-top: 8px; }
+.report .rsec summary { font-weight: 700; cursor: pointer; margin-bottom: 8px; color: var(--amber); }
+.report .rsec p.lead, .report .rsec p.sum { font-weight: 700; }
+.report .rsec p.src { font-size: .82em; opacity: .75; }
 .mjo-big { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
 .mjo-big b { font-size: 1.7rem; color: var(--sea); }
 .mjo-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: .9rem; }

@@ -1,4 +1,5 @@
-# Daily MJO, warm/cold event and moisture-surge products for the model page (the التذبذب tab).
+# Daily MJO, warm/cold event and moisture-surge products for the model page (the التذبذب tab), and the daily
+# report: the day's weather over the Kingdom region by region, and signs of a new rain wave in 15 and 45 days.
 # Code: saudi-wrf branch, server/climate. Results: climate-data branch.
 # Everything on the page is refreshed once a day around midnight Makkah time (20:31 UTC) from the 12 UTC GFS run;
 # the job waits for that run to reach 15 days if it is not complete yet.
@@ -70,7 +71,12 @@ jobs:
           git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out || mkdir -p /home/runner/out
           rm -rf /home/runner/out/.git
 
+      - name: Our Kingdom model run (rain of the day in the report)
+        run: git clone -q --depth 1 --branch model-data-sa "https://github.com/${GITHUB_REPOSITORY}" /home/runner/sa || true
+
       - name: Compute
+        env:
+          SA_DATA: /home/runner/sa
         run: python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/out
 
       - name: Keep recent analyses
