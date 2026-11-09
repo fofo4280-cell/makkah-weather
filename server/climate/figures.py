@@ -347,7 +347,7 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     except Exception as ex:
         print("land unavailable:", str(ex)[:80])
     m = mag[k]
-    fine = zoom(m, 3, order=1)
+    fine = zoom(m, max(1, int(round(3 * abs(lon[1] - lon[0]) / 0.5))), order=1)
     la_f = np.linspace(lat[0], lat[-1], fine.shape[0])
     lo_f = np.linspace(lon[0], lon[-1], fine.shape[1])
     cmap = ListedColormap(AR.CAT_COLS)
@@ -363,7 +363,7 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     except Exception as ex:
         print("coastlines unavailable:", str(ex)[:80])
     # transport arrows every 2 degrees where it is a river or close to one
-    st = 4
+    st = max(1, int(round(2.0 / abs(lon[1] - lon[0]))))
     LO, LA = np.meshgrid(lon[::st], lat[::st])
     U, V, M = qu[k][::st, ::st], qv[k][::st, ::st], m[::st, ::st]
     keep = M >= 120
@@ -409,7 +409,7 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     run = datetime.strptime(data["cycle"], "%Y%m%d%H")
     fig.text(0.5, 1 - y(0.16), "Atmospheric River Tracking — Indian Ocean & Arabia", ha="center", va="center",
              fontsize=9, fontweight="bold", color="#1b2a3a")
-    fig.text(0.5, 1 - y(0.33), f"GFS 0.5° · Run {run:%HZ %d %b %Y} · Valid {t_now:%a %d %b %Y %H:%M} UTC (+{k * data['step_h']}h) · "
+    fig.text(0.5, 1 - y(0.33), f"GFS {data.get('res', '0p50').replace('0p', '0.')}° · Run {run:%HZ %d %b %Y} · Valid {t_now:%a %d %b %Y %H:%M} UTC (+{k * data['step_h']}h) · "
              "IVT 1000–600 hPa (kg m⁻¹ s⁻¹)", ha="center", va="center", fontsize=5.8, color="#4a5560")
     # category bar
     cax = fig.add_axes([0.12, y(ser_h + 0.15 + 0.17), 0.80, y(0.11)])
@@ -421,12 +421,12 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     cax.set_xlim(0, len(AR.CAT_COLS)); cax.set_ylim(0, 1); cax.axis("off")
     # strength of the cores and the largest transport over the Kingdom
     sx = fig.add_axes([0.09, y(0.32), 0.88, y(ser_h - 0.36)])
-    names = {"main": "Strongest river core", "near": "River near Saudi Arabia"}
+    names = {"main": "Main river (forward trajectory)", "near": "River near Saudi Arabia"}
     for tr in data["tracks"]:
         if len(tr["pts"]) < 2:
             continue
         sx.plot([tt(p["t"]) for p in tr["pts"]], [p["v"] for p in tr["pts"]], color=cols.get(tr["kind"], "#111111"),
-                linewidth=1.1, marker="o", markersize=1.6, label=names.get(tr["kind"], tr["kind"]))
+                linewidth=1.1, marker="o", markersize=1.2, label=names.get(tr["kind"], tr["kind"]))
     sx.plot(times, [r["v"] for r in data["sa"]], color="#2f6fc0", linewidth=1.0, linestyle="--",
             label="Max over Saudi land")
     sx.axhline(AR.THR_CORE, color="#999999", linewidth=0.6, linestyle=":")

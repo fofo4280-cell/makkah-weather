@@ -958,10 +958,12 @@
     if (!r || !(r.frames || []).length) { $("arCard").hidden = true; return; }
     $("arCard").hidden = false;
     const show = (k) => {
-      const url = `${CL}fig/ar_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(M.st.updated)}`;
+      const pad = r.frames.length > 20 ? 3 : 2;   // a frame every 3 hours (older runs: one a day)
+      const url = `${CL}fig/ar_${String(k).padStart(pad, "0")}.png?v=${encodeURIComponent(M.st.updated)}`;
       $("arFig").src = url; $("arLink").href = url;
       const t = new Date(r.frames[k].replace("Z", ":00Z"));
-      $("arDayLabel").textContent = (k === 0 ? "الآن: " : `+${num(k)} · `) + fmtWhen.format(t);
+      const h = Math.round((t - new Date(r.frames[0].replace("Z", ":00Z"))) / 3600e3);
+      $("arDayLabel").textContent = (k === 0 ? "الآن: " : `+${num(h)} س · `) + fmtWhen.format(t);
     };
     $("arDay").max = r.frames.length - 1;
     $("arDay").oninput = (e) => show(+e.target.value);

@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261109d">
+<link rel="stylesheet" href="style.css?v=20261109e">
 </head>
 <body>
 <div class="app">
@@ -85,11 +85,11 @@
           <h3>تتبع الأنهار الجوية</h3>
           <div class="figwrap fit" dir="ltr"><a id="arLink" target="_blank" rel="noopener"><img id="arFig" class="wavefig" alt="خريطة تتبع الأنهار الجوية"></a></div>
           <div class="mjo-time">
-            <input type="range" id="arDay" min="0" max="12" value="0" dir="ltr" aria-label="اليوم">
+            <input type="range" id="arDay" min="0" max="96" value="0" dir="ltr" aria-label="اليوم">
             <span id="arDayLabel"></span>
           </div>
           <div id="arList" class="ar-list"></div>
-          <p class="hint">نقل بخار الماء من سطح الأرض إلى ٦٠٠ هكتوباسكال، من توقع جي إف إس كل ست ساعات لاثني عشر يومًا. الخط الأسود: مسار قلب أقوى نهر جوي، والخط الأخضر: أقرب نهر إلى المملكة، والنجمة موقعه في اليوم المختار. الرسم السفلي: شدة كل قلب، والخط الأزرق المتقطع: أعلى نقل فوق المملكة. يبدأ النهر الجوي من ٢٥٠ كغ/م/ث.</p>
+          <p class="hint">نقل بخار الماء من سطح الأرض إلى ٦٠٠ هكتوباسكال، من توقع جي إف إس بدقة ربع درجة، لقطة كل ثلاث ساعات لاثني عشر يومًا. الخط الأسود: مسار أقوى نهر جوي من طرفه الذي يتكوّن منه إلى قلبه، والخط الأخضر: أقرب نهر إلى المملكة، والنجمة موقعه في الوقت المختار. الرسم السفلي: شدة كل قلب، والخط الأزرق المتقطع: أعلى نقل فوق المملكة. يبدأ النهر الجوي من ٢٥٠ كغ/م/ث.</p>
         </div>
         <div class="card">
           <h3>موجات روسبي في الطبقة الوسطى</h3>
@@ -149,6 +149,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261109d"></script>
+<script src="app.js?v=20261109e"></script>
 </body>
 </html>

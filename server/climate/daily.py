@@ -522,14 +522,17 @@ def main():
     ar_data = None
     try:
         ar_data, (alat, alon, aqu, aqv, amag) = rivers.analyse(cycle, t0)
-        nper = 24 // rivers.STEP_H
-        frames = [kd for kd in range(rivers.DAYS + 1) if kd * nper < len(ar_data["times"])]
-        for kd in frames:
+        fd = os.path.join(out, "fig")
+        os.makedirs(fd, exist_ok=True)
+        for f in os.listdir(fd):                      # yesterday's frames
+            if f.startswith("ar_"):
+                os.remove(os.path.join(fd, f))
+        for k in range(len(ar_data["times"])):      # one frame every 3 hours
             try:
-                figures.draw_ar(os.path.join(out, "fig", f"ar_{kd:02d}.png"), kd * nper, ar_data, alat, alon, aqu, aqv, amag)
+                figures.draw_ar(os.path.join(fd, f"ar_{k:03d}.png"), k, ar_data, alat, alon, aqu, aqv, amag)
             except Exception as e:
-                print("river figure failed", kd, e, flush=True)
-        ar_data["frames"] = [ar_data["times"][kd * nper] for kd in frames]
+                print("river figure failed", k, e, flush=True)
+        ar_data["frames"] = ar_data["times"]
         ar_data["lines"], ar_data["report"] = river_lines(ar_data)
         print("rivers:", [(t["kind"], len(t["pts"])) for t in ar_data["tracks"]], flush=True)
     except Exception as e:

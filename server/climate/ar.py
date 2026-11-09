@@ -1,8 +1,13 @@
 """Atmospheric rivers from the Indian Ocean to Arabia.
 
-Water-vapour transport integrated from 1000 to 600 hPa (IVT, kg m^-1 s^-1) from the GFS 0.5 degree forecast every
-6 hours for 12 days, the track of the core of the strongest river and of the first river that comes near the Kingdom,
-and the largest transport over the Kingdom at each time.
+Water-vapour transport integrated from 1000 to 600 hPa (IVT, kg m^-1 s^-1) from the GFS 0.25 degree forecast every
+3 hours for 12 days.
+
+The river is followed forward from the upstream end of the river (where it forms): every 3 hours the point moves to
+the strongest transport within reach of where the recent motion would take it, so it walks down the river to its
+core and then moves with the core ("feature continuity"). The core value is the raw transport at the point.
+A second track follows the first river that comes near the Kingdom, and the largest transport over the Kingdom's land
+is kept for every time.
 
 Each GFS file is read by byte ranges: only the levels and variables needed, neighbouring records fetched together.
 """
@@ -16,14 +21,16 @@ from datetime import timedelta
 import numpy as np
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
+RES = "0p25"
 LEVELS = [1000, 975, 950, 925, 900, 850, 800, 750, 700, 650, 600]
 BOX = (-25.0, 35.0, 25.0, 110.0)          # south, north, west, east of the computation and the map
-STEP_H = 6
+STEP_H = 3
 DAYS = 12
 G = 9.80665
 THR_CORE = 250.0                           # a river: transport of 250 and more
-THR_KEEP = 150.0                           # the track goes on while the core stays above 150
-SA_BOX = (17.0, 32.0, 36.0, 55.0)          # the Kingdom and its coasts
+THR_SEED = 120.0                           # the upstream end of a river, where the track starts
+THR_KEEP = 120.0                           # the track goes on while transport near the point stays above this
+SA_BOX = (17.0, 32.0, 36.0, 55.0)          # around the Kingdom (used if the country outline cannot be read)
 HEJAZ_BOX = (19.0, 25.0, 38.5, 42.0)
 NEAR_SA = (5.0, 32.0, 32.0, 65.0)          # where a river counts as coming near the Kingdom
 NEAR_STAY = (3.0, 34.0, 30.0, 72.0)        # and where its track is followed
@@ -49,7 +56,7 @@ def _get(url, headers=None, tries=4):
 def _fetch(cycle, fh):
     """The needed GRIB records of one forecast hour, as one byte string."""
     d, hh = cycle[:8], cycle[8:10]
-    base = f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.0p50.f{fh:03d}"
+    base = f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.{RES}.f{fh:03d}"
     idx = _get(base + ".idx").decode().splitlines()
     starts = [int(l.split(":")[1]) for l in idx]
     where = {}
@@ -69,7 +76,7 @@ def _fetch(cycle, fh):
     want = sorted(set(want))
     groups, cur = [], [want[0]]
     for k in want[1:]:
-        if k - cur[-1] <= 4:
+        if k - cur[-1] <= 2:
             cur.append(k)
         else:
             groups.append(cur); cur = [k]
@@ -83,7 +90,7 @@ def _fetch(cycle, fh):
 
 
 def _decode(blob, tag):
-    """IVT components on the box (lat descending), from one forecast hour."""
+    """IVT components and integrated vapour on the box (lat descending), from one forecast hour."""
     import pygrib
     tmp = f"/tmp/ar_{os.getpid()}_{tag}.grb"
     open(tmp, "wb").write(blob)
@@ -118,24 +125,29 @@ def _decode(blob, tag):
     sp = f[("sp", 0)]
     qu = np.zeros_like(sp)
     qv = np.zeros_like(sp)
+    iwv = np.zeros_like(sp)
     for a, b in zip(LEVELS[:-1], LEVELS[1:]):
         above = (sp >= a * 100.0).astype(np.float32)        # both levels above the ground
         dp = (a - b) * 100.0
         qu += above * 0.5 * (f[("q", a)] * f[("u", a)] + f[("q", b)] * f[("u", b)]) * dp / G
         qv += above * 0.5 * (f[("q", a)] * f[("v", a)] + f[("q", b)] * f[("v", b)]) * dp / G
-    return lat, lon, qu, qv
+        iwv += above * 0.5 * (f[("q", a)] + f[("q", b)]) * dp / G
+    return lat, lon, qu, qv, iwv
 
 
 def fields(cycle):
-    """IVT every STEP_H hours from the analysis to DAYS days: times (hours), lat, lon, qu[t], qv[t]."""
+    """Every STEP_H hours from the analysis to DAYS days: hours, lat, lon, qu[t], qv[t], iwv[t] (1000-600 hPa)."""
     hours = list(range(0, DAYS * 24 + 1, STEP_H))
-    with ThreadPoolExecutor(8) as ex:
-        blobs = list(ex.map(lambda h: _fetch(cycle, h), hours))
-    qu, qv = [], []
-    for h, b in zip(hours, blobs):
-        lat, lon, u, v = _decode(b, h)
-        qu.append(u); qv.append(v)
-    return hours, lat, lon, np.array(qu), np.array(qv)
+    qu, qv, iwv = [], [], []
+    lat = lon = None
+    with ThreadPoolExecutor(12) as ex:
+        for c in range(0, len(hours), 12):      # a dozen files at a time, so memory stays small
+            chunk = hours[c:c + 12]
+            for h, b in zip(chunk, ex.map(lambda x: _fetch(cycle, x), chunk)):
+                lat, lon, u, v, w = _decode(b, h)
+                qu.append(u); qv.append(v); iwv.append(w)
+            print("rivers: read to hour", chunk[-1], flush=True)
+    return hours, lat, lon, np.array(qu), np.array(qv), np.array(iwv)
 
 
 # ------------------------------------------------------------------ tracking
@@ -144,42 +156,74 @@ def _dist(lat, lon, la0, lo0):
     return np.hypot((lon[None, :] - lo0) * np.cos(np.radians(la0)), lat[:, None] - la0)
 
 
+def _at(a, lat, lon, la, lo):
+    """Value of a grid at a point (bilinear)."""
+    fj = (lat[0] - la) / (lat[0] - lat[1])
+    fi = (lo - lon[0]) / (lon[1] - lon[0])
+    j0 = int(np.clip(np.floor(fj), 0, len(lat) - 2)); i0 = int(np.clip(np.floor(fi), 0, len(lon) - 2))
+    tj, ti = float(np.clip(fj - j0, 0, 1)), float(np.clip(fi - i0, 0, 1))
+    return float((1 - tj) * ((1 - ti) * a[j0, i0] + ti * a[j0, i0 + 1]) + tj * ((1 - ti) * a[j0 + 1, i0] + ti * a[j0 + 1, i0 + 1]))
+
+
 def _objects(ms, mag, lat, lon, thr=THR_CORE):
-    """Connected regions of transport above thr: (score, core lat, core lon, core value)."""
+    """Connected regions of transport above thr: (score, core lat, core lon, core value, mask)."""
     from scipy.ndimage import label
     lab, n = label(ms >= thr)
     w = np.cos(np.radians(lat))[:, None]
     out = []
     for k in range(1, n + 1):
         m = lab == k
-        if m.sum() < 6:
+        if m.sum() < 24:
             continue
         sub = np.where(m, ms, -1)
         j, i = np.unravel_index(int(np.argmax(sub)), sub.shape)
-        out.append((float((mag * w)[m].sum()), float(lat[j]), float(lon[i]), float(ms[j, i])))
-    return sorted(out, reverse=True)
+        out.append((float((mag * w)[m].sum()), float(lat[j]), float(lon[i]), float(ms[j, i]), m))
+    return sorted(out, key=lambda o: -o[0])
 
 
-def _follow(MS, lat, lon, k0, la0, lo0, stay=None):
-    """Follow a core forward from step k0: at each step the strongest transport near the expected position.
-    stay = (south, north, west, east): the track ends when the core leaves it."""
+def _upstream(ms, qu, qv, lat, lon, la0, lo0):
+    """Upstream end of the river through (la0, lo0): walk against the transport while it stays above THR_SEED."""
+    la, lo = la0, lo0
+    for _ in range(80):
+        u, v = _at(qu, lat, lon, la, lo), _at(qv, lat, lon, la, lo)
+        s = float(np.hypot(u, v))
+        if s < 1e-6:
+            break
+        nla, nlo = la - 0.25 * v / s, lo - 0.25 * u / s / max(np.cos(np.radians(la)), 0.3)
+        if not (BOX[0] + 1 < nla < BOX[1] - 1 and BOX[2] + 1 < nlo < BOX[3] - 1):
+            break
+        if _at(ms, lat, lon, nla, nlo) < THR_SEED:
+            break
+        la, lo = nla, nlo
+    return la, lo
+
+
+def _follow(MS, MAG, lat, lon, k0, la0, lo0, stay=None):
+    """Follow the river forward from step k0: every 3 hours the strongest transport within reach of the expected
+    position (the last position moved on by the recent motion). From an upstream starting point this walks down
+    the river to its core within the first day, then moves with the core."""
     stay = stay or (BOX[0] + 1, BOX[1] - 1, BOX[2] + 1, BOX[3] - 1)
-    pts = [(k0, la0, lo0, float(MS[k0][np.argmin(np.abs(lat - la0)), np.argmin(np.abs(lon - lo0))]))]
+    reach = 2.5 * STEP_H / 3.0                     # degrees in one step (about 25 m/s at most)
+    pts = [(k0, la0, lo0)]
     vla = vlo = 0.0
     for k in range(k0 + 1, len(MS)):
-        _, pla, plo, _ = pts[-1]
-        gla, glo = pla + vla, plo + vlo
+        _, la, lo = pts[-1]
+        gla, glo = la + vla, lo + vlo
         d = _dist(lat, lon, gla, glo)
-        score = np.where((MS[k] >= THR_KEEP) & (d <= 8.0), MS[k] * np.exp(-0.5 * (d / 4.0) ** 2), -1)
+        score = np.where((MS[k] >= THR_KEEP) & (d <= reach), MS[k] * np.exp(-0.5 * (d / (0.6 * reach)) ** 2), -1)
         if score.max() <= 0:
             break
         j, i = np.unravel_index(int(np.argmax(score)), score.shape)
         nla, nlo = float(lat[j]), float(lon[i])
-        vla, vlo = 0.5 * vla + 0.5 * (nla - pla), 0.5 * vlo + 0.5 * (nlo - plo)
-        pts.append((k, nla, nlo, float(MS[k][j, i])))
+        vla, vlo = 0.3 * vla + 0.3 * (nla - la), 0.3 * vlo + 0.3 * (nlo - lo)
+        pts.append((k, nla, nlo))
         if not (stay[0] <= nla <= stay[1] and stay[2] <= nlo <= stay[3]):
             break
-    return pts
+    out = []
+    for k, la, lo in pts:
+        near = _dist(lat, lon, la, lo) <= 0.75
+        out.append((k, la, lo, float(MAG[k][near].max()) if near.any() else _at(MAG[k], lat, lon, la, lo)))
+    return out
 
 
 def saudi_mask(lat, lon):
@@ -233,41 +277,43 @@ def region(la, lo):
 def analyse(cycle, t0):
     """Everything for the card and the report; the fields are returned too for the figures."""
     from scipy.ndimage import gaussian_filter
-    hours, lat, lon, qu, qv = fields(cycle)
+    hours, lat, lon, qu, qv, iwv = fields(cycle)
     mag = np.hypot(qu, qv)
-    MS = np.array([gaussian_filter(m, 2.0) for m in mag])       # about 1 degree, so the core is the river's middle
+    sig = 1.0 / abs(lat[0] - lat[1])                              # one degree
+    MS = np.array([gaussian_filter(m, sig) for m in mag])
     times = [t0 + timedelta(hours=h) for h in hours]
     tracks = []
-    # 1. the strongest river over the Indian Ocean now
+    # 1. the strongest river over the Indian Ocean now, followed from its upstream end
     obj = [o for o in _objects(MS[0], mag[0], lat, lon) if IO_BOX[0] <= o[1] <= IO_BOX[1] and IO_BOX[2] <= o[2] <= IO_BOX[3]]
     if obj:
-        _, la0, lo0, _ = obj[0]
-        tracks.append({"kind": "main", "pts": _follow(MS, lat, lon, 0, la0, lo0)})
+        _, la0, lo0, _, _ = obj[0]
+        sla, slo = _upstream(MS[0], gaussian_filter(qu[0], sig), gaussian_filter(qv[0], sig), lat, lon, la0, lo0)
+        tracks.append({"kind": "main", "pts": _follow(MS, mag, lat, lon, 0, sla, slo)})
     # 2. the first river whose core comes near the Kingdom in the first week, if it is not the same one
     for k in range(0, min(len(MS), 7 * 24 // STEP_H + 1)):
         near = [o for o in _objects(MS[k], mag[k], lat, lon)
                 if NEAR_SA[0] <= o[1] <= NEAR_SA[1] and NEAR_SA[2] <= o[2] <= NEAR_SA[3]]
         if not near:
             continue
-        _, la0, lo0, _ = near[0]
+        _, la0, lo0, _, _ = near[0]
         same = False
         for t in tracks:
             p = [x for x in t["pts"] if x[0] == k]
             if p and np.hypot((p[0][2] - lo0) * np.cos(np.radians(la0)), p[0][1] - la0) < 6:
                 same = True
         if not same:
-            tracks.append({"kind": "near", "pts": _follow(MS, lat, lon, k, la0, lo0, NEAR_STAY)})
+            tracks.append({"kind": "near", "pts": _follow(MS, mag, lat, lon, k, la0, lo0, NEAR_STAY)})
         break
     land = saudi_mask(lat, lon)
     LO, LA = np.meshgrid(lon, lat)
     hj = land & (LA >= HEJAZ_BOX[0]) & (LA <= HEJAZ_BOX[1]) & (LO >= HEJAZ_BOX[2]) & (LO <= HEJAZ_BOX[3])
-    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_masked_max(MS[k], land))),
-           "hejaz": int(round(_masked_max(MS[k], hj)))} for k, t in enumerate(times)]
+    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_masked_max(mag[k], land))),
+           "hejaz": int(round(_masked_max(mag[k], hj)))} for k, t in enumerate(times)]
     out_tracks = []
     for t in tracks:
         pts = [{"t": times[k].strftime("%Y-%m-%dT%H:%MZ"), "k": k, "lat": round(la, 2), "lon": round(lo, 2),
                 "v": int(round(v)), "region": region(la, lo)} for k, la, lo, v in t["pts"]]
         out_tracks.append({"kind": t["kind"], "pts": pts})
-    data = {"cycle": cycle, "step_h": STEP_H, "times": [t.strftime("%Y-%m-%dT%H:%MZ") for t in times],
+    data = {"cycle": cycle, "step_h": STEP_H, "res": RES, "times": [t.strftime("%Y-%m-%dT%H:%MZ") for t in times],
             "tracks": out_tracks, "sa": sa}
     return data, (lat, lon, qu, qv, mag)
