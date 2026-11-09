@@ -72,9 +72,17 @@ def outlook(st, day0, log=print):
         if k + 1 < len(fav):
             leave = fav[k + 1][0]
             nx = fav[k + 1]
-            txt = f"تبقى الصورة الكبرى محفزة للأمطار حتى {ar_date(last_good)}، ثم"
-            txt += f" يتجه التذبذب إلى الطور {ar(nx[3]['phase'])}" if nx[3] else ""
-            txt += (" و" if nx[3] and nx[4] else " ") + f"يبتعد الحدث الدافئ نحو {B.region_name(nx[4][0])}" if nx[4] else ""
+            what = ("التذبذب المداري والحدث الدافئ" if fav[0][1] and fav[0][2] else
+                    "التذبذب المداري" if fav[0][1] else "الحدث الدافئ")
+            txt = f"يبقى {what} في الوضع المحفز للأمطار حتى {ar_date(last_good)}، ثم"
+            ends = []
+            if nx[3] and (not m0 or nx[3]["phase"] != m0["phase"]):
+                ends.append(f"يتجه التذبذب إلى الطور {ar(nx[3]['phase'])}")
+            if nx[4] and not good_w(nx[4]):
+                ends.append(f"يبتعد الحدث الدافئ نحو {B.region_name(nx[4][0])}")
+            txt += " " + (" و".join(ends) if ends else "تضعف الإشارة")
+            if fav[0][2] and not fav[0][1] and m0 and m0["amp"] >= 1:
+                txt += f"، أما مؤشر التذبذب نفسه ففي الطور {ar(m0['phase'])} غير المحفز"
             lines.append(head + txt + ".")
         else:
             lines.append(head + "تبقى الصورة الكبرى محفزة للأمطار حتى نهاية مدى الإسقاط، فتبقى الحالات المطرية مدعومة.")
