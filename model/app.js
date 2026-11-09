@@ -25,7 +25,8 @@
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
   const HOURLY = ["refl", "rain1h", "conv925"];
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
-  const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_vec", ref: 12 } };
+  // (the 925 hPa convergence shows, in place of arrows, which winds meet in each coloured area: "W - E", "SW - Orographic")
+  const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_lab", ref: 0, labels: true } };
   const DAILY = ["refl_day"];
   // current names, also for runs made before an option was renamed
   const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤", ivt: "تدفق الأنهار الجوية" };
@@ -131,7 +132,7 @@
 
   // arrows of water vapour transport, drawn over the colours
   const VecLayer = L.Layer.extend({
-    initialize(opts) { this._ref = (opts && opts.ref) || 700; },
+    initialize(opts) { this._ref = (opts && opts.ref) || 700; this._labels = !!(opts && opts.labels); },
     onAdd(m) {
       this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
       m.getPane("lightning").appendChild(this._c);
@@ -148,6 +149,22 @@
       const ctx = c.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
       if (!this._v) return;
+      if (this._labels) {        // wind labels on the convergence areas, small and soft, never on top of each other
+        ctx.font = "600 11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.lineJoin = "round";
+        const boxes = [];
+        this._v.forEach(([lat, lon, t]) => {
+          const p = m.latLngToContainerPoint([lat, lon]);
+          if (p.x < -40 || p.y < -10 || p.x > size.x + 40 || p.y > size.y + 10) return;
+          const w = ctx.measureText(t).width + 8, h = 16;
+          const b = [p.x - w / 2, p.y - h / 2, p.x + w / 2, p.y + h / 2];
+          if (boxes.some((q) => b[0] < q[2] && b[2] > q[0] && b[1] < q[3] && b[3] > q[1])) return;
+          boxes.push(b);
+          ctx.strokeStyle = "rgba(10,14,20,.78)"; ctx.lineWidth = 3; ctx.strokeText(t, p.x, p.y);
+          ctx.fillStyle = "#ffffff"; ctx.fillText(t, p.x, p.y);
+        });
+        return;
+      }
       const z = m.getZoom(), every = z <= 4 ? 2 : 1, used = new Set(), cell = z <= 5 ? 26 : 34;
       ctx.lineCap = "round"; ctx.lineJoin = "round";
       this._v.forEach(([lat, lon, u, v], i) => {
@@ -172,11 +189,11 @@
     const vc = VEC[S.prod];
     if (!vc || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
     const url = `${base(d)}runs/${S.run}/${S.dom}/${vc.dir}/${String(f.h).padStart(3, "0")}.json`;
-    if (vec.layer && vec.ref !== vc.ref) { map.removeLayer(vec.layer); vec.layer = null; }
-    if (!vec.layer) { vec.layer = new VecLayer({ ref: vc.ref }); vec.ref = vc.ref; vec.layer.addTo(map); }
+    if (vec.layer && vec.dir !== vc.dir) { map.removeLayer(vec.layer); vec.layer = null; }
+    if (!vec.layer) { vec.layer = new VecLayer(vc); vec.dir = vc.dir; vec.layer.addTo(map); }
     if (vec.url === url) return;
     vec.url = url;
-    try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
+    try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(vc.labels ? j.l : j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
   }
 
   function showFrame() {
