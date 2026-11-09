@@ -567,6 +567,8 @@
   function drawCityMarkers() {
     if (S.cityLayer) map.removeLayer(S.cityLayer);
     S.cityLayer = L.layerGroup().addTo(map);
+    return;  // the base map already names the cities; the extra dots and Arabic labels were clutter
+    // eslint-disable-next-line no-unreachable
     if (!S.meteo) return;
     for (const c of S.meteo.cities) {
       L.circleMarker([c.lat, c.lon], { bubblingMouseEvents: false, radius: 4, color: "#0b1d2c", weight: 1.5, fillColor: "#ffffff", fillOpacity: 1 })
