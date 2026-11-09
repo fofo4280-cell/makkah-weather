@@ -781,7 +781,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); aoChart(); waveCard();
+    mjoMap(); aoChart(); waveCard(); convCard();
   }
 
   function mjoText() {
@@ -949,6 +949,22 @@
       `<div class="wave-row"><span>${fmtDayD.format(dOf(r.d))}</span><span>أخدود فوق ${r.trough.area} بعمق <b>${num(Math.abs(r.trough.v))}</b> م</span></div>`);
     $("waveList").innerHTML = items.length ? `<h4 class="sub">الأخاديد القريبة من المملكة</h4>` + items.join("")
       : `<p class="muted">لا أخاديد واضحة قرب المملكة في الأيام السبعة القادمة.</p>`;
+  }
+
+  // where air meets at 925 hPa, one map a day at 3 pm Makkah time
+  function convCard() {
+    const st = M.st, rows = st.conv || [];
+    if (!rows.length) { $("convDayLabel").textContent = "غير متاح اليوم"; return; }
+    const show = (k) => {
+      const url = `${CL}fig/conv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("convFig").src = url; $("convLink").href = url;
+      const d = rows[k] && rows[k].d;
+      $("convDayLabel").textContent = d ? `${fmtDayD.format(dOf(d))} · ٣ م` : "";
+    };
+    $("convDay").max = rows.length - 1;
+    $("convDay").oninput = (e) => show(+e.target.value);
+    show(+$("convDay").value || 0);
+    if (st.figs && st.figs.conv) $("convLegend").innerHTML = legendHTML(st.figs.conv);
   }
 
   // Arctic Oscillation: observed bars and the ensemble forecast
