@@ -23,7 +23,7 @@ concurrency:
 jobs:
   daily:
     runs-on: ubuntu-24.04
-    timeout-minutes: 150
+    timeout-minutes: 300
     steps:
       - name: Wait for today's GFS run
         run: |
@@ -71,12 +71,31 @@ jobs:
           git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out || mkdir -p /home/runner/out
           rm -rf /home/runner/out/.git
 
-      - name: Our Kingdom model run (rain of the day in the report)
-        run: git clone -q --depth 1 --branch model-data-sa "https://github.com/${GITHUB_REPOSITORY}" /home/runner/sa || true
+      - name: Wait for our Kingdom run of 15 UTC (rain of the next day in the report)
+        run: |
+          # the 12 UTC Kingdom run (33 hours) covers the whole next Makkah day; wait for it up to two and a half hours
+          R="$(date -u +%Y%m%d)12"
+          for i in $(seq 1 30); do
+            curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/model-data-sa/runs.json?$i" \
+              | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if r and r[0]['status']=='complete' else 1)" \
+              && { echo "run $R complete"; exit 0; }
+            [ "$(date -u +%H)" -lt 17 ] && exit 0      # a run by hand during the day does not wait
+            sleep 300
+          done
+          echo "run $R not complete; the report uses what is published"
+
+      - name: Our model runs (rain of the day in the report)
+        run: |
+          for b in model-data-sa:sa model-data:west; do
+            git clone -q --depth 1 --filter=blob:none --sparse --branch "${b%%:*}" "https://github.com/${GITHUB_REPOSITORY}" "/home/runner/${b##*:}" || continue
+            git -C "/home/runner/${b##*:}" sparse-checkout set --no-cone '/runs.json' '/runs/*/manifest.json' '/runs/*/*/points.bin' || true
+          done
+          du -sh /home/runner/sa /home/runner/west 2>/dev/null || true
 
       - name: Compute
         env:
           SA_DATA: /home/runner/sa
+          WEST_DATA: /home/runner/west
         run: python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/out
 
       - name: Keep recent analyses
