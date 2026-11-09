@@ -421,7 +421,7 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
     cax.set_xlim(0, len(AR.CAT_COLS)); cax.set_ylim(0, 1); cax.axis("off")
     # strength of the cores and the largest transport over the Kingdom
     sx = fig.add_axes([0.09, y(0.32), 0.88, y(ser_h - 0.36)])
-    names = {"main": "Main river (forward trajectory)", "near": "River near Saudi Arabia"}
+    names = {"main": "Main river core", "near": "River near Saudi Arabia"}
     for tr in data["tracks"]:
         if len(tr["pts"]) < 2:
             continue

@@ -237,11 +237,7 @@ def _follow(MS, MAG, lat, lon, k0, la0, lo0, stay=None, QU=None, QV=None):
         pts.append((k, nla, nlo))
         if not (stay[0] <= nla <= stay[1] and stay[2] <= nlo <= stay[3]):
             break
-    out = []
-    for k, la, lo in pts:
-        near = _dist(lat, lon, la, lo) <= 0.75
-        out.append((k, la, lo, float(MAG[k][near].max()) if near.any() else _at(MAG[k], lat, lon, la, lo)))
-    return out
+    return [(k, la, lo, _at(MAG[k], lat, lon, la, lo)) for k, la, lo in pts]   # raw transport at the point
 
 
 def saudi_mask(lat, lon):
