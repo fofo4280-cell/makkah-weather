@@ -266,7 +266,7 @@ def outlook(st, day0, gfs, ec, log=print):
         lines.append(f"التذبذب المداري بعد ذلك (استنتاج): بسرعة دورانه الحالية لا يعود إلى الأطوار الرطبة للمملكة قبل "
                      f"{ar_date(nx['d'])} تقريبًا، أي بعد مدى الخمسة والأربعين يومًا.")
     elif nx and nx["kind"] == "none":
-        lines.append(f"التذبذب المداري بعد خمسة عشر يومًا: {"يضعف" if nx['amp'] < 1 else 'لا يدور بانتظام'} في آخر إسقاط جي إف إس، "
+        lines.append(f"التذبذب المداري بعد خمسة عشر يومًا: {'يضعف' if nx['amp'] < 1 else 'لا يدور بانتظام'} في آخر إسقاط جي إف إس، "
                      "فلا يمكن الاستنتاج منه لما بعد خمسة عشر يومًا.")
 
     # 4. what agrees with what, for the coming fifteen days and for days 16 to 45: the days on which the
