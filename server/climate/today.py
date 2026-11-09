@@ -182,6 +182,97 @@ def our_model_day(dirs, day, log=print):
             "h0": (loc(c0["hs"][0]) - 1) % 24, "h1": loc(c0["hs"][-1]) or 24}
 
 
+MAKKAH_TOWNS = ["مكة المكرمة", "جدة", "الطائف", "الجموم", "بحرة", "الكامل", "خليص", "رابغ", "الليث", "الهدا", "الشفا"]
+
+
+def finest_city_rain(dirs, day, towns=MAKKAH_TOWNS):
+    """Rain of each town over the Makkah day from the finest grid of our runs that covers each hour (1 km in its
+    window, else 3 km), as on the town charts of the map page. Coarser than 3 km is not used here.
+    Returns {"towns": {name: {"tot", "peak", "peak_h"}}, "res": {dx: [local hours]}, "h0", "h1"} or None."""
+    t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) - timedelta(hours=3)
+    t_b = t_a + timedelta(hours=24)
+    doms = []
+    for root in [d for d in dirs if d and os.path.exists(os.path.join(d, "runs.json"))]:
+        for r in json.load(open(os.path.join(root, "runs.json"))).get("runs", []):
+            p = os.path.join(root, "runs", r["run"], "manifest.json")
+            if not os.path.exists(p):
+                continue
+            man = json.load(open(p))
+            init = datetime.strptime(man["init"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
+            for dom, d in (man.get("domains") or {}).items():
+                P = d.get("points")
+                if not P or P["dx"] > 3000 or not os.path.exists(os.path.join(root, "runs", r["run"], P["file"])):
+                    continue
+                doms.append({"root": root, "run": r["run"], "init": init, "P": P, "proj": d.get("proj") or man["proj"]})
+    if not doms:
+        return None
+    cell = {}          # (domain index, town) -> (i, j) when the town is inside
+    for q, c in enumerate(doms):
+        for t in towns:
+            la, lo = G.PLACE[t]
+            x, y = lcc_forward(c["proj"], la, lo)
+            i = int(round((float(x) - c["P"]["x00"]) / c["P"]["dx"])); j = int(round((float(y) - c["P"]["y00"]) / c["P"]["dx"]))
+            if 1 <= i <= c["P"]["nx"] - 2 and 1 <= j <= c["P"]["ny"] - 2:
+                cell[(q, t)] = (i, j)
+    # for each hour of the day, the finest domain (then the newest run) that has it
+    pick = {}
+    for q, c in enumerate(doms):
+        for k, h in enumerate(c["P"]["hours"]):
+            vt = c["init"] + timedelta(hours=h)
+            if k == 0 or not (t_a < vt <= t_b):
+                continue
+            key = int((vt - t_a).total_seconds() // 3600)           # local hour ending at key
+            best = pick.get(key)
+            if best is None or (c["P"]["dx"], -c["init"].timestamp()) < (doms[best[0]]["P"]["dx"], -doms[best[0]]["init"].timestamp()):
+                pick[key] = (q, k)
+    if len(pick) < 6:
+        return None
+    arrs = {}
+    out = {t: {"tot": 0.0, "peak": 0.0, "peak_h": None} for t in towns}
+    res = {}
+    for key, (q, k) in sorted(pick.items()):
+        c = doms[q]
+        if q not in arrs:
+            P = c["P"]
+            raw = np.fromfile(os.path.join(c["root"], "runs", c["run"], P["file"]), np.uint8)
+            arrs[q] = raw.reshape(len(P["vars"]), len(P["hours"]), P["ny"], P["nx"])[P["vars"].index("rain1h")]
+        res.setdefault(c["P"]["dx"], []).append(key)
+        for t in towns:
+            if (q, t) not in cell:
+                continue
+            i, j = cell[(q, t)]
+            v = float((arrs[q][k, j, i] / 25.0) ** 2)
+            out[t]["tot"] += v
+            if v > out[t]["peak"]:
+                out[t]["peak"], out[t]["peak_h"] = v, key
+    hrs = sorted(pick)
+    return {"towns": out, "res": res, "h0": hrs[0] - 1, "h1": hrs[-1]}
+
+
+def city_line(cr):
+    """One Arabic paragraph for Makkah, Jeddah, Taif and the towns around them."""
+    def spans(hs):
+        hs = sorted(hs); out = []; a = b = hs[0]
+        for h in hs[1:]:
+            if h == b + 1:
+                b = h
+            else:
+                out.append((a, b)); a = b = h
+        out.append((a, b))
+        return "، و".join(f"من الساعة {ar(x - 1)} إلى الساعة {ar(y)}" for x, y in out)
+    res = "؛ و".join(f"{'١ كم' if dx <= 1500 else '٣ كم'} {spans(hs)}" for dx, hs in sorted(cr["res"].items()))
+    wet = sorted([(t, v) for t, v in cr["towns"].items() if v["tot"] >= 0.5], key=lambda x: -x[1]["tot"])
+    dry = [t for t, v in cr["towns"].items() if v["tot"] < 0.5]
+    txt = f"مكة المكرمة وجدة والطائف وما حولها (من أدق شبكات نموذجنا: {res} بتوقيت مكة): "
+    if wet:
+        txt += "، ".join(f"{t} {num(v['tot'], 1 if v['tot'] < 10 else 0)} ملم"
+                         + (f" أشدها الساعة {ar(v['peak_h'])}" if v["peak"] >= 1 else "") for t, v in wet)
+        txt += (f"؛ ولا أمطار تُذكر على {join(dry)}." if dry else ".")
+    else:
+        txt += f"لا أمطار تُذكر على {join(dry)}."
+    return txt
+
+
 # ------------------------------------------------------------------ assessment
 RAIN_WORDS = [(30, "أمطار غزيرة"), (15, "أمطار متوسطة إلى غزيرة"), (5, "أمطار متوسطة"), (1, "أمطار خفيفة"),
               (0, "رذاذ أو زخات خفيفة متفرقة")]
@@ -250,6 +341,13 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
         else:
             lines.append(f"الأمطار ({span}): لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة.")
         data["rain"] = [{k: v for k, v in x.items() if k != "at"} for x in rainy]
+    try:
+        cr = finest_city_rain(our_dirs, day)
+        if cr:
+            lines.append(city_line(cr))
+            data["towns"] = cr["towns"]
+    except Exception as e:
+        log(f"report: town rain from the finest grids failed: {e!r}")
         data["our_runs"] = wrf["doms"]
     if st is not None:
         try:

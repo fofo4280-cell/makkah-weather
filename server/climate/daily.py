@@ -594,7 +594,7 @@ def main():
     om = sa_geo.OpenMeteo()
     secs = []
     try:
-        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA")]
+        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
         secs.append(today_wx.situation(day0, ours, state, status, om))
     except Exception as e:
         print("today's section failed:", repr(e), flush=True)
