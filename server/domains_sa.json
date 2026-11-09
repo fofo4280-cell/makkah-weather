@@ -30,7 +30,7 @@
    "min_dt": 18,
    "cu": 3,
    "gwd": 1,
-   "ivt": true
+   "ivt": false
   }
  ]
 }

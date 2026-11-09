@@ -312,3 +312,144 @@ def draw_conv(path, conv, the, u, v, ground, lat, lon, extent, width_px=1300):
         im.quantize(colors=230, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:
         pass
+
+
+def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
+    """Atmospheric river map at step k: transport in categories, its arrows, the tracks of the river cores with
+    a date every day, and below it the strength of each core and the largest transport over the Kingdom."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import patheffects as pe
+    from matplotlib.colors import BoundaryNorm, ListedColormap
+    from datetime import datetime
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    from scipy.ndimage import zoom
+    import ar as AR
+    s, n, w, e = AR.BOX[0], AR.BOX[1], AR.BOX[2], AR.BOX[3]
+    pc = ccrs.PlateCarree()
+    tt = lambda x: datetime.strptime(x, "%Y-%m-%dT%H:%MZ")
+    times = [tt(x) for x in data["times"]]
+    fig_w = width_px / 200
+    map_h = fig_w * 0.97 * (n - s) / (e - w)
+    top_h, cbar_h, ser_h = 0.42, 0.42, 1.45
+    H = top_h + map_h + cbar_h + ser_h + 0.15
+    fig = plt.figure(figsize=(fig_w, H), dpi=200)
+    fig.patch.set_facecolor("#ffffff")
+    y = lambda inches: inches / H
+    ax = fig.add_axes([0.06, y(cbar_h + ser_h + 0.15), 0.92, y(map_h)], projection=ccrs.PlateCarree(central_longitude=(w + e) / 2))
+    ax.set_extent([w, e, s, n], crs=pc)
+    try:
+        import cartopy.io.shapereader as shp
+        shp.natural_earth(resolution="50m", category="physical", name="land")
+        ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#e9edf1", edgecolor="none", zorder=0)
+    except Exception as ex:
+        print("land unavailable:", str(ex)[:80])
+    m = mag[k]
+    fine = zoom(m, 3, order=1)
+    la_f = np.linspace(lat[0], lat[-1], fine.shape[0])
+    lo_f = np.linspace(lon[0], lon[-1], fine.shape[1])
+    cmap = ListedColormap(AR.CAT_COLS)
+    norm = BoundaryNorm(AR.CATS + [10000], cmap.N)
+    ax.contourf(lo_f, la_f, np.where(fine >= AR.CATS[0], fine, np.nan), levels=AR.CATS + [10000], cmap=cmap, norm=norm,
+                transform=pc, zorder=1, alpha=0.92)
+    try:
+        import cartopy.io.shapereader as shp
+        shp.natural_earth(resolution="50m", category="physical", name="coastline")
+        ax.coastlines(resolution="50m", linewidth=0.5, color="#4a5560", zorder=3)
+        shp.natural_earth(resolution="50m", category="cultural", name="admin_0_boundary_lines_land")
+        ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.3, edgecolor="#7a8590", zorder=3)
+    except Exception as ex:
+        print("coastlines unavailable:", str(ex)[:80])
+    # transport arrows every 2 degrees where it is a river or close to one
+    st = 4
+    LO, LA = np.meshgrid(lon[::st], lat[::st])
+    U, V, M = qu[k][::st, ::st], qv[k][::st, ::st], m[::st, ::st]
+    keep = M >= 120
+    if keep.any():
+        q = ax.quiver(LO[keep], LA[keep], U[keep], V[keep], transform=pc, color="#1b1b1b", scale=26000, width=0.0016,
+                      headwidth=3.6, headlength=4, zorder=4, alpha=0.85)
+        ax.quiverkey(q, 0.075, 0.07, 500, "500", labelpos="E", coordinates="axes", fontproperties={"size": 6},
+                     color="#1b1b1b")
+    halo = [pe.withStroke(linewidth=2.2, foreground="white")]
+    cols = {"main": "#111111", "near": "#0b7a53"}
+    t_now = times[k]
+    for tr in data["tracks"]:
+        pts = tr["pts"]
+        if len(pts) < 2:
+            continue
+        c = cols.get(tr["kind"], "#111111")
+        xs, ys = [p["lon"] for p in pts], [p["lat"] for p in pts]
+        ax.plot(xs, ys, color="white", linewidth=3.0, transform=pc, zorder=5, solid_capstyle="round")
+        ax.plot(xs, ys, color=c, linewidth=1.5, transform=pc, zorder=6, solid_capstyle="round")
+        last_lab = None
+        for p in pts:
+            t = tt(p["t"])
+            if t.hour != times[0].hour:
+                continue
+            if last_lab and np.hypot(p["lon"] - last_lab[0], p["lat"] - last_lab[1]) < 2.2:
+                continue
+            ax.plot(p["lon"], p["lat"], marker="o", markersize=2.6, color=c, transform=pc, zorder=7)
+            ax.text(p["lon"] + 0.5, p["lat"] + 0.55, f"{t:%b %d}\n{t:%H}Z", transform=pc, fontsize=4.6, ha="left",
+                    va="bottom", color="#111111", linespacing=0.95, zorder=8,
+                    bbox={"boxstyle": "round,pad=0.18", "fc": "white", "ec": c, "lw": 0.4, "alpha": 0.9})
+            last_lab = (p["lon"], p["lat"])
+        now = [p for p in pts if p["k"] == k]
+        if now:
+            ax.plot(now[0]["lon"], now[0]["lat"], marker="*", markersize=11, color="#ffd23f", markeredgecolor="#111111",
+                    markeredgewidth=0.7, transform=pc, zorder=9)
+    ax.spines["geo"].set_edgecolor("#9aa3ab")
+    xt = np.arange(np.ceil(w / 20) * 20, e + 0.1, 20)
+    yt = np.arange(np.ceil(s / 10) * 10, n + 0.1, 10)
+    ax.set_xticks(xt, crs=pc); ax.set_yticks(yt, crs=pc)
+    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=6.5, color="#444444")
+    ax.set_yticklabels([lat_label(v) for v in yt], fontsize=6.5, color="#444444")
+    ax.tick_params(length=2.5, color="#9aa3ab")
+    for v in yt:
+        ax.plot([w, e], [v, v], color="#000000", alpha=0.06 if v else 0.2, linewidth=0.5, transform=pc, zorder=2)
+    run = datetime.strptime(data["cycle"], "%Y%m%d%H")
+    fig.text(0.5, 1 - y(0.16), "Atmospheric River Tracking — Indian Ocean & Arabia", ha="center", va="center",
+             fontsize=9, fontweight="bold", color="#1b2a3a")
+    fig.text(0.5, 1 - y(0.33), f"GFS 0.5° · Run {run:%HZ %d %b %Y} · Valid {t_now:%a %d %b %Y %H:%M} UTC (+{k * data['step_h']}h) · "
+             "IVT 1000–600 hPa (kg m⁻¹ s⁻¹)", ha="center", va="center", fontsize=5.8, color="#4a5560")
+    # category bar
+    cax = fig.add_axes([0.12, y(ser_h + 0.15 + 0.17), 0.80, y(0.11)])
+    for j, col in enumerate(AR.CAT_COLS):
+        cax.add_patch(plt.Rectangle((j, 0), 1, 1, color=col))
+        hi = AR.CATS[j + 1] - 1 if j + 1 < len(AR.CATS) else None
+        cax.text(j + 0.5, -0.25, f"{AR.CATS[j]}–{hi}" if hi else f"≥{AR.CATS[j]}", ha="center", va="top", fontsize=5.3,
+                 color="#333333")
+    cax.set_xlim(0, len(AR.CAT_COLS)); cax.set_ylim(0, 1); cax.axis("off")
+    # strength of the cores and the largest transport over the Kingdom
+    sx = fig.add_axes([0.09, y(0.32), 0.88, y(ser_h - 0.36)])
+    names = {"main": "Strongest river core", "near": "River near Saudi Arabia"}
+    for tr in data["tracks"]:
+        if len(tr["pts"]) < 2:
+            continue
+        sx.plot([tt(p["t"]) for p in tr["pts"]], [p["v"] for p in tr["pts"]], color=cols.get(tr["kind"], "#111111"),
+                linewidth=1.1, marker="o", markersize=1.6, label=names.get(tr["kind"], tr["kind"]))
+    sx.plot(times, [r["v"] for r in data["sa"]], color="#2f6fc0", linewidth=1.0, linestyle="--",
+            label="Max over Saudi Arabia")
+    sx.axhline(AR.THR_CORE, color="#999999", linewidth=0.6, linestyle=":")
+    sx.axvline(t_now, color="#d13b2e", linewidth=0.9)
+    sx.set_xlim(times[0], times[-1])
+    sx.set_ylim(0, max(700, max([p["v"] for tr in data["tracks"] for p in tr["pts"]] + [r["v"] for r in data["sa"]]) * 1.1))
+    import matplotlib.dates as mdates
+    sx.xaxis.set_major_locator(mdates.DayLocator(interval=2))
+    sx.xaxis.set_major_formatter(mdates.DateFormatter("%b %d"))
+    sx.tick_params(labelsize=5.8, length=2, colors="#444444")
+    sx.set_ylabel("IVT", fontsize=6, color="#444444")
+    for sp in ("top", "right"):
+        sx.spines[sp].set_visible(False)
+    sx.grid(axis="y", alpha=0.2, linewidth=0.5)
+    sx.legend(fontsize=5.3, loc="upper left", frameon=False, ncol=3)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:
+        pass

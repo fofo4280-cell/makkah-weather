@@ -22,7 +22,8 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sphere  # noqa: E402
-import figures  # noqa: E402
+import figures
+import ar as rivers  # noqa: E402
 import waves  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
@@ -517,6 +518,24 @@ def main():
         conv_rows.append({"t": vt.strftime("%Y-%m-%dT%H:%MZ"), "k": k,
                           "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
 
+    # 8d. atmospheric rivers from the Indian Ocean to Arabia (GFS 0.5 degree, every 6 hours, 12 days)
+    ar_data = None
+    try:
+        ar_data, (alat, alon, aqu, aqv, amag) = rivers.analyse(cycle, t0)
+        nper = 24 // rivers.STEP_H
+        frames = [kd for kd in range(rivers.DAYS + 1) if kd * nper < len(ar_data["times"])]
+        for kd in frames:
+            try:
+                figures.draw_ar(os.path.join(out, "fig", f"ar_{kd:02d}.png"), kd * nper, ar_data, alat, alon, aqu, aqv, amag)
+            except Exception as e:
+                print("river figure failed", kd, e, flush=True)
+        ar_data["frames"] = [ar_data["times"][kd * nper] for kd in frames]
+        ar_data["lines"], ar_data["report"] = river_lines(ar_data)
+        print("rivers:", [(t["kind"], len(t["pts"])) for t in ar_data["tracks"]], flush=True)
+    except Exception as e:
+        print("atmospheric rivers unavailable:", e, flush=True)
+        ar_data = None
+
     # 9. Arctic Oscillation
     try:
         ao = read_ao(t0)
@@ -548,7 +567,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "waves": wave_rows, "conv": conv_rows,
+        "waves": wave_rows, "conv": conv_rows, "ar": ar_data,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
@@ -581,6 +600,43 @@ def ar(x):
 def ar_date(s):
     d = date.fromisoformat(s)
     return f"{AR_DAYS[d.weekday()]} {ar(d.day)} {AR_MONTHS[d.month - 1]}"
+
+
+def river_lines(d):
+    """Arabic sentences for the river card, and the ones that also go into the daily report."""
+    lines, rep = [], []
+    day = lambda s: ar_date((datetime.strptime(s, "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).strftime("%Y-%m-%d"))
+    for tr in d["tracks"]:
+        p = tr["pts"]
+        if len(p) < 2:
+            continue
+        a, b, top = p[0], p[-1], max(p, key=lambda x: x["v"])
+        if tr["kind"] == "main":
+            line = f"أقوى نهر جوي الآن فوق {a['region']} بشدة قلب {ar(a['v'])} كغ/م/ث"
+        else:
+            when = "الآن" if a["k"] == 0 else f"يوم {day(a['t'])}"
+            line = f"أقرب نهر جوي إلى المملكة يظهر {when} فوق {a['region']} بشدة قلب {ar(a['v'])} كغ/م/ث"
+        line += (f"، وينتهي مساره فوق {b['region']} يوم {day(b['t'])}" if b["region"] != a["region"]
+                 else f"، ويبقى في المنطقة نفسها حتى {day(b['t'])}")
+        line += f"، وأشد ما يكون {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}."
+        lines.append(line)
+        if tr["kind"] == "near":
+            rep.append(line)
+    sa = d["sa"]
+    hit = [r for r in sa if r["v"] >= 250]
+    top = max(sa, key=lambda r: r["v"])
+    if hit:
+        span = f"من {day(hit[0]['t'])} إلى {day(hit[-1]['t'])}" if day(hit[0]["t"]) != day(hit[-1]["t"]) else f"يوم {day(hit[0]['t'])}"
+        line = (f"يبلغ نقل بخار الماء فوق المملكة وسواحلها حد النهر الجوي (٢٥٠ كغ/م/ث فأكثر) {span}، "
+                f"وأعلاه {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}.")
+    else:
+        line = (f"لا يبلغ نقل بخار الماء فوق المملكة حد النهر الجوي (٢٥٠ كغ/م/ث) في الأيام الاثني عشر القادمة، "
+                f"وأعلاه {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}.")
+    lines.append(line); rep.append(line)
+    hj = max(sa, key=lambda r: r["hejaz"])
+    if hj["hejaz"] >= 150:
+        lines.append(f"فوق الحجاز وتهامة: أعلى قيمة {ar(hj['hejaz'])} كغ/م/ث يوم {day(hj['t'])}.")
+    return lines, rep
 
 
 def strength(a):
@@ -633,6 +689,8 @@ def report(st, fc_wet):
         top = max(cv, key=lambda c: c["hejaz_max"])
         lines.append(f"التقاء رياح واضح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة خلال الأربع والعشرين ساعة القادمة، من الساعة "
                      f"{ar(loc(cv[0]))} إلى الساعة {ar(loc(cv[-1]))} بتوقيت مكة، وأقواه الساعة {ar(loc(top))}.")
+    if st.get("ar"):
+        lines += st["ar"].get("report", [])
     ao = st.get("ao")
     if ao and ao["fc"] and st.get("cold_season"):
         now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]
