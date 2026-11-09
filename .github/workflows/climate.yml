@@ -23,7 +23,7 @@ concurrency:
 jobs:
   daily:
     runs-on: ubuntu-24.04
-    timeout-minutes: 330
+    timeout-minutes: 345
     steps:
       - name: Wait for today's GFS run
         run: |
@@ -71,19 +71,22 @@ jobs:
           git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out || mkdir -p /home/runner/out
           rm -rf /home/runner/out/.git
 
-      - name: Wait for our 12 UTC runs (rain of the next day in the report)
+      - name: Wait for our 12 UTC Kingdom run (rain of the next day in the report)
+        id: wait
         run: |
-          # the 12 UTC Kingdom run (33 hours) covers the whole next Makkah day, the western 3 km run (split over two
-          # runners) the next day to 18:00; wait for both, but not past 23:30 UTC (02:30 Makkah time)
+          # the 12 UTC Kingdom run (33 hours) covers the whole next Makkah day; wait for it, but not past 22:30 UTC.
+          # The western 3 km run (two runners, also 33 hours) ends later: if it is not complete now, the day's
+          # sections of the report are rebuilt and published again when it is (see the last steps).
           R="$(date -u +%Y%m%d)12"
+          echo "run=$R" >> "$GITHUB_OUTPUT"
           done_on() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
             | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if r and r[0]['status']=='complete' else 1)"; }
-          while true; do
-            done_on model-data-sa && done_on model-data && { echo "runs $R complete"; exit 0; }
-            [ "$(date -u +%H)" -lt 17 ] && exit 0      # a run by hand during the day does not wait
-            [ "$(date -u +%H%M)" -ge 2330 ] && { echo "not complete by 23:30 UTC; the report uses what is published"; exit 0; }
+          if [ "$(date -u +%H)" -lt 17 ]; then echo "west=skip" >> "$GITHUB_OUTPUT"; exit 0; fi   # a run by hand during the day
+          until done_on model-data-sa; do
+            [ "$(date -u +%H%M)" -ge 2230 ] && { echo "Kingdom run $R not complete by 22:30 UTC"; break; }
             sleep 300
           done
+          if done_on model-data; then echo "west=done" >> "$GITHUB_OUTPUT"; else echo "west=later" >> "$GITHUB_OUTPUT"; fi
 
       - name: Our model runs (rain of the day in the report)
         run: |
@@ -114,4 +117,36 @@ jobs:
           git init -q -b data
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data
+
+      - name: Wait for the western 3 km run and rebuild the day's report
+        id: refresh
+        if: steps.wait.outputs.west == 'later'
+        env:
+          SA_DATA: /home/runner/sa
+          WEST_DATA: /home/runner/west
+          KM1_DATA: /home/runner/km1
+        run: |
+          R="${{ steps.wait.outputs.run }}"
+          done_on() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
+            | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if r and r[0]['status']=='complete' else 1)"; }
+          until done_on model-data; do
+            h=$(date -u +%H%M); if [ "$h" -ge 0130 ] && [ "$h" -lt 1700 ]; then echo "western run $R not complete by 01:30 UTC"; exit 0; fi
+            sleep 300
+          done
+          for b in model-data:west model-data-1km:km1; do
+            rm -rf "/home/runner/${b##*:}"
+            git clone -q --depth 1 --filter=blob:none --sparse --branch "${b%%:*}" "https://github.com/${GITHUB_REPOSITORY}" "/home/runner/${b##*:}" || continue
+            git -C "/home/runner/${b##*:}" sparse-checkout set --no-cone '/runs.json' '/runs/*/manifest.json' '/runs/*/*/points.bin' || true
+          done
+          rm -rf /home/runner/out/.git
+          python3 code/server/climate/refresh_report.py /home/runner/mjo_state /home/runner/out && echo "done=yes" >> "$GITHUB_OUTPUT"
+
+      - name: Publish the rebuilt report
+        if: steps.refresh.outputs.done == 'yes'
+        run: |
+          cd /home/runner/out
+          git init -q -b data
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, report with the 3 km run $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data

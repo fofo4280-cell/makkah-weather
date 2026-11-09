@@ -822,7 +822,7 @@
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
       ? r.sections.map((s, k) => `<details class="rsec" open><summary>${s.heading}</summary>${s.lines.map((l, i) => para(l, i, k)).join("")}</details>`).join("")
       : r.lines.map((l) => `<p>${l}</p>`).join("")) +
-      `<p class="hint">يصدر هذا التقرير وكل ما في هذه الصفحة كل ليلة بعد اكتمال تشغيل نموذجنا المسائي، بين منتصف الليل والثانية والنصف فجرًا بتوقيت مكة${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
+      `<p class="hint">يصدر هذا التقرير وكل ما في هذه الصفحة كل ليلة قرابة منتصف الليل بتوقيت مكة بعد اكتمال تشغيل نموذجنا للمملكة، ويُعاد بناء قسمي المملكة ومنطقة مكة حين يكتمل تشغيل ٣ كم قبل الرابعة والنصف فجرًا${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
