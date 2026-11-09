@@ -340,7 +340,7 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
                 j = int(np.nanargmax(mx))
                 cov = lambda t: float(np.nanmean(mx[gm] >= t))
                 lvl = 3 if cov(1000) >= 0.15 else 2 if cov(500) >= 0.15 else 1 if cov(200) >= 0.25 else 0
-                rec.update(dmax=float(mx[j]), lvl=lvl, dcov=cov(200),
+                rec.update(dmax=float(mx[j]), lvl=lvl, dcov=cov(200), lcov=cov({3: 1000, 2: 500, 1: 200, 0: 200}[lvl]),
                            dat=G.nearest_place(dlat[m_k][j], dlon[m_k][j], r)[0],
                            dhour=int(np.nanargmax(dust[:, np.flatnonzero(m_k)[j]])))
         if rec.get("lvl", 0) > 0:
@@ -354,7 +354,9 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
             return {3: "غبار كثيف قد يصل إلى عاصفة ترابية تخفض الرؤية بشدة", 2: "غبار مثار يحد من مدى الرؤية",
                     1: "غبار عالق خفيف"}[v]
         lines.append("الغبار: " + "، و".join(
-            f"{x['name']} ({dword(x['lvl'])} على نحو {num(100 * x['dcov'])}٪ من المنطقة، أشده قرب {x['dat']} نحو الساعة {ar(x['dhour'])} "
+            f"{x['name']} ({dword(x['lvl'])} على نحو {num(100 * x['lcov'])}٪ من المنطقة"
+            + (f" وغبار عالق على نحو {num(100 * x['dcov'])}٪ منها" if x["lvl"] > 1 and x["dcov"] - x["lcov"] >= 0.1 else "")
+            + f"، أشده قرب {x['dat']} نحو الساعة {ar(x['dhour'])} "
             f"بتركيز {num(x['dmax'])} ميكروغرام/م³" + (f"، وهبات رياح حتى {num(x['gust'])} كم/س" if x["gust"] >= 40 else "")
             + ")" for x in dusty[:6]) + ".")
         head.append(f"{'غبار كثيف' if dusty[0]['lvl'] == 3 else 'غبار'} على {join(x['name'] for x in dusty[:3])}")
