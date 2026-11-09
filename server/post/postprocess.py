@@ -17,7 +17,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from products import (PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point,  # noqa: E402
-                      fields_from_frame, ivt_from_frame, conv925_from_frame)
+                      fields_from_frame, ivt_from_frame, conv925_from_frame, conv_labels)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
@@ -270,15 +270,17 @@ class Processor:
             cv, u, v = conv925_from_frame(nc, dx)
             lat, lon = np.array(nc.variables["XLAT"][0]), np.array(nc.variables["XLONG"][0])
         save_png(os.path.join(self.st.dir, self.pub[did], "conv925", f"{h:03d}.png"), g.sample(cv), PRODUCTS["conv925"])
-        k = max(1, int(round(max(30000, 5 * dx) / dx)))  # one arrow every 30-45 km
-        sl = (slice(k // 2, None, k), slice(k // 2, None, k))
-        la, lo, a, b = lat[sl], lon[sl], u[sl], v[sl]
-        keep = np.isfinite(a) & np.isfinite(b)
-        vec = [[round(float(x), 2), round(float(y), 2), round(float(p), 1), round(float(q), 1)]
-               for x, y, p, q in zip(la[keep], lo[keep], a[keep], b[keep])]
-        out = os.path.join(self.st.dir, self.pub[did], "conv_vec", f"{h:03d}.json")
+        # in place of arrows: which winds meet in each area of convergence (or run up the high ground)
+        try:
+            with Dataset(path) as nc:
+                hgt = np.array(nc.variables["HGT"][0], dtype=np.float32)
+            labs = conv_labels(cv, u, v, hgt, lat, lon, dx)
+        except Exception as e:
+            print(f"convergence labels failed {path}: {e}", file=sys.stderr)
+            labs = []
+        out = os.path.join(self.st.dir, self.pub[did], "conv_lab", f"{h:03d}.json")
         os.makedirs(os.path.dirname(out), exist_ok=True)
-        jdump(out, {"h": h, "v": vec})
+        jdump(out, {"h": h, "l": labs})
 
     def tsprob(self):
         """Share of points within 25 km where the radar echo reached 40 dBZ at some hour since hour 3."""
