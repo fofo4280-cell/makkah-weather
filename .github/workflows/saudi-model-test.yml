@@ -10,6 +10,12 @@ on:
   push:
     branches: [main]
     paths: ['model/test-now.txt']
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'code branch'
+        required: false
+        default: 'saudi-wrf' 
 
 permissions:
   contents: write
@@ -26,12 +32,16 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: makkah
-            domains: domains.json
+          - name: west
+            domains: domains_west.json
             branch: model-data
-          - name: kingdom
-            domains: domains_sa.json
-            branch: model-data-sa
+            hours: '3'
+            window: '3,6'
+          - name: makkah1km
+            domains: domains.json
+            branch: model-data-1km
+            hours: '6'
+            window: '3,6' 
     runs-on: ubuntu-24.04
     timeout-minutes: 180
     env:
@@ -40,8 +50,8 @@ jobs:
       SWRF_TEST: '1'
       NPROC: '4'
       KEEP_RUNS: '3'
-      SWRF_HOURS: '6'
-      SWRF_WINDOW: '3,6'
+      SWRF_HOURS: ${{ matrix.hours }}
+      SWRF_WINDOW: ${{ matrix.window }}
       CYCLES: '0 12'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SWRF_DOMAINS: ${{ matrix.domains }}
@@ -50,7 +60,7 @@ jobs:
       - name: Model code
         uses: actions/checkout@v4
         with:
-          ref: saudi-wrf
+          ref: ${{ inputs.ref || 'saudi-wrf' }}
           path: code
 
       - name: Prepare folders
@@ -129,7 +139,11 @@ jobs:
           for k, d in m["domains"].items():
               print(k, d["hours"], d.get("products"), d.get("rain24"))
           PY
-          ls "$R"/d03/refl || true
+          ls "$R" || true
+          ls "$R"/d03/refl "$R"/d02/conv925 || true
           tail -n 30 "$SWRF"/work/run/*/wrf/rsl.error.0000 || true
           grep -i "d03\|nest" "$SWRF"/work/run/*/wrf/rsl.out.0000 | head -20 || true
           cat "$SWRF"/logs/cycle_*.log | tail -n 40
+          echo "---- model speed (wall seconds per model step, last lines)"
+          grep "Timing for main" "$SWRF"/work/run/*/wrf/rsl.out.0000 | tail -n 6 || true
+          grep -c "Timing for main" "$SWRF"/work/run/*/wrf/rsl.out.0000 || true
