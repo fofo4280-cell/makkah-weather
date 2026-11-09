@@ -16,6 +16,10 @@ on:
         description: 'code branch'
         required: false
         default: 'saudi-wrf' 
+      hours:
+        description: 'forecast hours for every job (empty: the matrix values)'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -43,15 +47,15 @@ jobs:
             hours: '6'
             window: '3,6' 
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 360
     env:
       SWRF: /home/runner/swrf
       WEB: /home/runner/web
       SWRF_TEST: '1'
       NPROC: '4'
       KEEP_RUNS: '3'
-      SWRF_HOURS: ${{ matrix.hours }}
-      SWRF_WINDOW: ${{ matrix.window }}
+      SWRF_HOURS: ${{ inputs.hours || matrix.hours }}
+      SWRF_WINDOW: ${{ inputs.hours == '' && matrix.window || '' }}
       CYCLES: '0 12'
       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       SWRF_DOMAINS: ${{ matrix.domains }}
@@ -145,3 +149,12 @@ jobs:
           [ -n "$R" ] && ls "$R" "$R"/d02 || true
           tail -n 15 "$SWRF"/work/run/*/wrf/rsl.error.0000 || true
           cat "$SWRF"/logs/cycle_*.log | tail -n 40 || true
+
+      - name: Keep the maps for checking the viewer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-${{ matrix.name }}
+          path: ${{ env.WEB }}/data
+          retention-days: 3
+          if-no-files-found: ignore
