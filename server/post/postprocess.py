@@ -21,6 +21,8 @@ from products import (PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, le
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
+# grids that only feed a nest are run but not drawn or published ("publish": false)
+PUB = [d for d in PUB if d.get("publish", True)]
 CITIES = json.load(open(os.path.join(HERE, "cities.json")))
 R_EARTH = 6370000.0
 RIYADH = timezone(timedelta(hours=3))
@@ -130,8 +132,8 @@ class Processor:
         self.st = RunState(webdir, run)
         self.init = datetime.strptime(run, "%Y%m%d%H").replace(tzinfo=timezone.utc)
         self.grids = {}
-        self.dom = {d["id"]: d for d in CFG["domains"]}
-        self.pub = {d["id"]: d.get("pub", d["id"]) for d in CFG["domains"]}  # name used on the website
+        self.dom = {d["id"]: d for d in PUB}
+        self.pub = {d["id"]: d.get("pub", d["id"]) for d in PUB}  # name used on the website
         self.prev_acc = {}
         self._first = dict(self.st.s.get("first", {}))
 
@@ -280,7 +282,7 @@ class Processor:
         from scipy.ndimage import convolve
         spec = SINGLE["tsprob"]
         out = self.st.s.setdefault("single_ts", {})
-        for d in CFG["domains"]:
+        for d in PUB:
             did = d["id"]
             rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
             hours = self.st.s["done"].get(did, [])
@@ -305,7 +307,7 @@ class Processor:
         """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far."""
         spec = SINGLE["rain24"]
         out = self.st.s.setdefault("single", {})
-        for d in CFG["domains"]:
+        for d in PUB:
             did = d["id"]
             a3 = os.path.join(self.st.dir, f".acc3_{did}.npy")
             hours = self.st.s["done"].get(did, [])
@@ -346,7 +348,7 @@ class Processor:
 
     def manifest(self, status):
         doms = {}
-        for d in CFG["domains"]:
+        for d in PUB:
             did = d["id"]
             hours = self.st.s["done"].get(did, [])
             if not hours:
@@ -445,7 +447,7 @@ class Processor:
 
     def step(self, done_flag):
         n = 0
-        for d in CFG["domains"]:
+        for d in PUB:
             for f in self.pending(d["id"], done_flag):
                 try:
                     self.process(d["id"], f)

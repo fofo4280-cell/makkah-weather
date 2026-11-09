@@ -1,0 +1,20 @@
+{
+ "_note": "Western highlands 3 km run: one 3 km grid over the Sarawat escarpment and its plains from Jazan through Asir, Al-Baha, Taif and Makkah to the harrats north of Makkah (16.3-23.7 N, 38.8-43.9 E), inside a 9 km parent; 27 hours on its own runner, published to the model-data branch as d02. The 1 km nest over Jeddah-Makkah-Taif runs on a separate runner (domains.json, model-data-1km).",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 20.0,
+  "ref_lon": 41.4,
+  "truelat1": 15.0,
+  "truelat2": 25.0,
+  "stand_lon": 41.4
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {"id": "d01", "name": "غرب المملكة", "res": "٩ كم", "dx": 9000, "e_we": 127, "e_sn": 136, "parent": 0, "ratio": 1,
+   "ips": 1, "jps": 1, "hours": 27, "geog": "default", "max_dt": 54, "min_dt": 18, "cu": 3, "gwd": 1},
+  {"id": "d02", "name": "المرتفعات الغربية", "res": "٣ كم", "dx": 3000, "e_we": 175, "e_sn": 274, "parent": 1, "ratio": 3,
+   "ips": 34, "jps": 23, "hours": 27, "geog": "cop90+default", "max_dt": 18, "min_dt": 6, "cu": 0, "gwd": 0}
+ ]
+}

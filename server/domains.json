@@ -1,5 +1,5 @@
 {
- "_note": "Free setup (GitHub runners, 4 cores): 9 km parent over western Arabia and the Red Sea, 3 km over Makkah Region, and a 1 km nest over Jeddah, Makkah, Al-Jumum, Mudrakah, Taif, Al-Hada and Al-Shafa that runs only in the peak window of each cycle (windows: forecast hours [start, end] by GFS cycle hour; starts must fall on the 3-hourly GFS times). The larger design for a dedicated server is in domains_big.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
+ "_note": "Jeddah-Makkah-Taif 1 km run: the 9 km and 3 km grids here exist only to feed the 1 km nest (not published: publish=false); they run to hour 18 so the nest's window fits both cycles. Published to the model-data-1km branch. The 3 km map on the site comes from domains_west.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
  "map": {
   "map_proj": "lambert",
   "ref_lat": 21.6,
@@ -23,12 +23,13 @@
    "ratio": 1,
    "ips": 1,
    "jps": 1,
-   "hours": 27,
+   "hours": 18,
    "geog": "default",
    "max_dt": 54,
    "min_dt": 18,
    "cu": 3,
-   "gwd": 1
+   "gwd": 1,
+   "publish": false
   },
   {
    "id": "d02",
@@ -41,12 +42,13 @@
    "ratio": 3,
    "ips": 55,
    "jps": 40,
-   "hours": 27,
+   "hours": 18,
    "geog": "cop90+default",
    "max_dt": 18,
    "min_dt": 6,
    "cu": 0,
-   "gwd": 0
+   "gwd": 0,
+   "publish": false
   },
   {
    "id": "d03",
