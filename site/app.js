@@ -21,7 +21,9 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "ivt"];
+  const HOURLY = ["refl", "rain1h", "conv925", "ivt"];
+  // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
+  const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_vec", ref: 12 } };
   const DAILY = ["refl_day"];
   // current names, also for runs made before an option was renamed
   const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤" };
@@ -150,9 +152,11 @@
   const vec = { layer: null, url: null };
   async function showVectors() {
     const f = S.frames[S.idx], d = S.man && S.man.domains[S.dom];
-    if (S.prod !== "ivt" || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
-    const url = `${base(d)}runs/${S.run}/${S.dom}/ivt_vec/${String(f.h).padStart(3, "0")}.json`;
-    if (!vec.layer) { vec.layer = new VecLayer({ ref: 700 }); vec.layer.addTo(map); }
+    const vc = VEC[S.prod];
+    if (!vc || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
+    const url = `${base(d)}runs/${S.run}/${S.dom}/${vc.dir}/${String(f.h).padStart(3, "0")}.json`;
+    if (vec.layer && vec.ref !== vc.ref) { map.removeLayer(vec.layer); vec.layer = null; }
+    if (!vec.layer) { vec.layer = new VecLayer({ ref: vc.ref }); vec.ref = vc.ref; vec.layer.addTo(map); }
     if (vec.url === url) return;
     vec.url = url;
     try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
@@ -671,6 +675,7 @@
       const sa = await getJSON(`${DATA_SA}runs/${run}/manifest.json`);
       if (!S.man) S.man = { ...sa, domains: {} };
       for (const [k, d] of Object.entries(sa.domains || {})) S.man.domains[k] = { ...d, base: DATA_SA, proj: sa.proj };
+      S.man.products = { ...(sa.products || {}), ...(S.man.products || {}) };
     } catch (e) { /* not made for this run */ }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
@@ -781,7 +786,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); aoChart(); waveCard(); convCard();
+    mjoMap(); aoChart(); waveCard();
   }
 
   function mjoText() {

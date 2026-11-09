@@ -17,7 +17,7 @@ from PIL import Image
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from products import (PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, legend, encode_point,  # noqa: E402
-                      fields_from_frame, ivt_from_frame)
+                      fields_from_frame, ivt_from_frame, conv925_from_frame)
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
@@ -170,7 +170,7 @@ class Processor:
             fields.pop("rain1h", None)
         late = self.first_hour(did) > 0
         for pid, f in fields.items():
-            if pid not in PRODUCTS or (late and pid == "rainacc") or PRODUCTS[pid].get("only"):
+            if pid not in PRODUCTS or (late and pid == "rainacc") or PRODUCTS[pid].get("only") or PRODUCTS[pid].get("computed"):
                 continue
             if pid in ("wind", "wup") and first:
                 continue
@@ -182,6 +182,11 @@ class Processor:
             rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
             cur = np.load(rp) if os.path.exists(rp) and h > SINGLE["tsprob"]["from_h"] else None
             np.save(rp, fields["refl"] if cur is None else np.maximum(cur, fields["refl"]))
+        if "conv925" in PRODUCTS:
+            try:
+                self.conv925(did, path, g, h)
+            except Exception as e:
+                print(f"conv925 failed {path}: {e}", file=sys.stderr)
         if self.dom[did].get("ivt"):
             try:
                 self.ivt(did, path, g, h)
@@ -253,6 +258,22 @@ class Processor:
         out = os.path.join(self.st.dir, self.pub[did], "ivt_vec", f"{h:03d}.json")
         os.makedirs(os.path.dirname(out), exist_ok=True)
         jdump(out, {"h": h, "max": int(round(float(np.nanmax(mag)))), "v": vec})
+
+    def conv925(self, did, path, g, h):
+        dx = self.dom[did]["dx"]
+        with Dataset(path) as nc:
+            cv, u, v = conv925_from_frame(nc, dx)
+            lat, lon = np.array(nc.variables["XLAT"][0]), np.array(nc.variables["XLONG"][0])
+        save_png(os.path.join(self.st.dir, self.pub[did], "conv925", f"{h:03d}.png"), g.sample(cv), PRODUCTS["conv925"])
+        k = max(1, int(round(max(30000, 5 * dx) / dx)))  # one arrow every 30-45 km
+        sl = (slice(k // 2, None, k), slice(k // 2, None, k))
+        la, lo, a, b = lat[sl], lon[sl], u[sl], v[sl]
+        keep = np.isfinite(a) & np.isfinite(b)
+        vec = [[round(float(x), 2), round(float(y), 2), round(float(p), 1), round(float(q), 1)]
+               for x, y, p, q in zip(la[keep], lo[keep], a[keep], b[keep])]
+        out = os.path.join(self.st.dir, self.pub[did], "conv_vec", f"{h:03d}.json")
+        os.makedirs(os.path.dirname(out), exist_ok=True)
+        jdump(out, {"h": h, "v": vec})
 
     def tsprob(self):
         """Share of points within 25 km where the radar echo reached 40 dBZ at some hour since hour 3."""

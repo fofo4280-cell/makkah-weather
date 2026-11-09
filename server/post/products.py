@@ -32,10 +32,14 @@ IVT = [(150, "#56a3d4", 190), (259, "#56a3d4", 205), (260, "#f1c04c", 215), (369
 TSPROB = [(5, "#efeefe", 0), (10, "#d9d6fb", 150), (16, "#b9c7f1", 190), (20, "#55d3d6", 215), (25, "#27eee6", 225),
           (30, "#8cf37a", 230), (35, "#f4ee1d", 235), (40, "#ffb000", 240), (46, "#ff5810", 245), (50, "#e20000", 248),
           (60, "#8a0012", 250), (66, "#4a1b29", 250), (72, "#575757", 250), (90, "#c9c9c9", 250)]
+# Where the air meets at 925 hPa (10^-5 /s); nothing is drawn where the ground is above 925 hPa
+CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "#ea6a25", 225), (6, "#cf2d22", 240),
+        (9, "#8f1030", 250), (13, "#4d0a3a", 255)]
 
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
+    "conv925": {"label": "التقاء الرياح عند ٩٢٥ هكتوباسكال", "unit": "×١٠⁻⁵ /ث", "stops": CONV, "tf": "lin", "computed": True},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
 DAILY = {
@@ -129,6 +133,33 @@ def ivt_from_frame(nc):
         sa, ca = np.array(v["SINALPHA"][0]), np.array(v["COSALPHA"][0])
         qu, qv = qu * ca - qv * sa, qv * ca + qu * sa
     return np.hypot(qu, qv), qu, qv
+
+
+def conv925_from_frame(nc, dx):
+    """Convergence at 925 hPa (10^-5 /s, NaN where the ground is higher) and the earth-relative wind there (m/s)."""
+    from scipy.ndimage import gaussian_filter
+    v = nc.variables
+    p = np.array(v["P"][0], dtype=np.float32) + np.array(v["PB"][0], dtype=np.float32)
+    U, V = np.array(v["U"][0], dtype=np.float32), np.array(v["V"][0], dtype=np.float32)
+    u, w = 0.5 * (U[:, :, 1:] + U[:, :, :-1]), 0.5 * (V[:, 1:, :] + V[:, :-1, :])
+    above = p < 92500.0                      # levels above 925 hPa
+    k1 = np.argmax(above, axis=0)            # first level above
+    ok = k1 > 0                              # 925 hPa is above the ground here
+    k0 = np.clip(k1 - 1, 0, p.shape[0] - 1)
+    take = lambda a, k: np.take_along_axis(a, k[None], 0)[0]
+    p0, p1 = take(p, k0), take(p, k1)
+    f = np.clip((np.log(p0) - np.log(92500.0)) / np.maximum(np.log(p0) - np.log(p1), 1e-6), 0, 1)
+    u9 = take(u, k0) + f * (take(u, k1) - take(u, k0))
+    v9 = take(w, k0) + f * (take(w, k1) - take(w, k0))
+    sig = max(1.0, 9000.0 / dx)              # smooth to about 9 km so the lines stand out from the noise
+    us, vs = gaussian_filter(u9, sig), gaussian_filter(v9, sig)
+    conv = -(np.gradient(us, dx, axis=1) + np.gradient(vs, dx, axis=0)) * 1e5
+    conv[~ok] = np.nan
+    if "SINALPHA" in v and "COSALPHA" in v:
+        sa, ca = np.array(v["SINALPHA"][0]), np.array(v["COSALPHA"][0])
+        u9, v9 = u9 * ca - v9 * sa, v9 * ca + u9 * sa
+    u9[~ok], v9[~ok] = np.nan, np.nan
+    return conv, u9, v9
 
 
 def fields_from_frame(nc, prev_acc):

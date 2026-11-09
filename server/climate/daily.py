@@ -509,11 +509,8 @@ def main():
         i = (lo >= 25) & (lo <= 65)
         sub = {n: a[np.ix_(j, i)] for n, a in f.items()}
         cv, te = conv925(sub, la[j], lo[i])
-        try:
-            figures.draw_conv(os.path.join(out, "fig", f"conv_{k:02d}.png"), cv, te, sub["u"], sub["v"],
-                              sub["psfc"] < 92500, la[j], lo[i], (30, 60, 10, 35))
-        except Exception as e:
-            print("convergence figure failed", k, e, flush=True)
+        # (the map itself now comes from our own model runs, as an option on the main map; here only the numbers
+        #  for the report are kept)
         hj = (la[j] >= 19) & (la[j] <= 24)
         hi = (lo[i] >= 38.5) & (lo[i] <= 42)
         box = np.where(sub["psfc"] >= 92500, cv, np.nan)[np.ix_(hj, hi)]
