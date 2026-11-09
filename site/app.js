@@ -951,7 +951,7 @@
     $("arDay").max = r.frames.length - 1;
     $("arDay").oninput = (e) => show(+e.target.value);
     show(Math.min(+$("arDay").value || 0, r.frames.length - 1));
-    $("arList").innerHTML = (r.lines || []).map((l) => `<p>${l}</p>`).join("");
+    $("arList").innerHTML = (r.lines || []).map((l) => `<p>${l.replace(/كغ\/م\/ث/g, '<span class="nw">كغ/م/ث</span>')}</p>`).join("");
   }
 
   function waveCard() {

@@ -182,3 +182,4 @@ a { color: var(--sea); }
 .wave-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: .82rem; }
 .wave-row b { color: var(--sea); font-weight: 600; }
 .ar-list p { margin: 6px 0; font-size: 14px; line-height: 1.75; }
+.nw { white-space: nowrap; }
