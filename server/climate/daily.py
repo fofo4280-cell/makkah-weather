@@ -615,7 +615,9 @@ def river_lines(d):
             continue
         a, b, top = p[0], p[-1], max(p, key=lambda x: x["v"])
         if tr["kind"] == "main":
-            line = f"أقوى نهر جوي الآن فوق {a['region']} بشدة قلب {ar(a['v'])} كغ/م/ث"
+            lines.append(f"أقوى نهر جوي يتكوّن الآن فوق {a['region']}، ويبلغ قلبه أشده {ar(top['v'])} كغ/م/ث "
+                         f"يوم {day(top['t'])}، وينتهي مساره فوق {b['region']} يوم {day(b['t'])}.")
+            continue
         else:
             when = "الآن" if a["k"] == 0 else f"يوم {day(a['t'])}"
             line = f"أقرب نهر جوي إلى المملكة يظهر {when} فوق {a['region']} بشدة قلب {ar(a['v'])} كغ/م/ث"
