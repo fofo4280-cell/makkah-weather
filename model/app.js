@@ -62,13 +62,28 @@
   (bases[baseKey] || dark).addTo(map);
   if (store.get("shade") !== "0") shade.addTo(map);
   if (store.get("labels") !== "0") labelsDark.addTo(map);
-  L.control.layers(bases, { "ظلال التضاريس": shade, "أسماء الأماكن": labelsDark }, { position: "topleft" }).addTo(map);
-  map.on("baselayerchange", (e) => { store.set("base2", e.name); document.body.classList.toggle("light-map", e.name !== "داكنة"); });
+  // boundaries of the Kingdom's 13 regions (Natural Earth), above the model colours and below the lightning
+  map.createPane("regions"); map.getPane("regions").style.zIndex = 630; map.getPane("regions").style.pointerEvents = "none";
+  const regionStyle = (f) => {
+    const darkMap = !document.body.classList.contains("light-map");
+    const col = darkMap ? "rgba(235,238,242,0.62)" : "rgba(40,44,52,0.6)";
+    return f && f.properties.k === "border" ? { color: col, weight: 1.4, opacity: 1, fill: false, interactive: false }
+      : { color: col, weight: 1, opacity: 1, dashArray: "5 4", fill: false, interactive: false };
+  };
+  const regions = L.geoJSON(null, { pane: "regions", style: regionStyle, interactive: false });
+  if (store.get("regions") !== "0") regions.addTo(map);
+  fetch("sa_regions.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
+  L.control.layers(bases, { "حدود المناطق": regions, "ظلال التضاريس": shade, "أسماء الأماكن": labelsDark }, { position: "topleft" }).addTo(map);
+  map.on("baselayerchange", (e) => {
+    store.set("base2", e.name); document.body.classList.toggle("light-map", e.name !== "داكنة");
+    regions.setStyle(regionStyle);
+  });
   document.body.classList.toggle("light-map", baseKey !== "داكنة");
   map.on("overlayadd overlayremove", (e) => {
     const on = e.type === "overlayadd" ? "1" : "0";
     if (e.layer === shade) store.set("shade", on);
     if (e.layer === labelsDark) store.set("labels", on);
+    if (e.layer === regions) store.set("regions", on);
   });
   L.control.zoom({ position: "topleft" }).addTo(map);
   map.attributionControl.setPrefix(false);
