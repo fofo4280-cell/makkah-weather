@@ -11,6 +11,8 @@
   const DATA = window.SWRF_DATA || "data/";
   // the Kingdom-wide 9 km run is made on its own server in parallel and kept on its own branch
   const DATA_SA = window.SWRF_DATA_SA || DATA.replace("/model-data/", "/model-data-sa/");
+  // the 1 km nest over Jeddah, Makkah and Taif runs on a third server and is kept on its own branch
+  const DATA_1K = window.SWRF_DATA_1K || DATA.replace("/model-data/", "/model-data-1km/");
   const base = (d) => (d && d.base) || DATA;
   const TZ = "Asia/Riyadh";
   const LOC = "ar-SA-u-nu-arab-ca-gregory";
@@ -691,6 +693,13 @@
       if (!S.man) S.man = { ...sa, domains: {} };
       for (const [k, d] of Object.entries(sa.domains || {})) S.man.domains[k] = { ...d, base: DATA_SA, proj: sa.proj };
       S.man.products = { ...(sa.products || {}), ...(S.man.products || {}) };
+    } catch (e) { /* not made for this run */ }
+    try {  // the 1 km nest (only its own grid; the 9 and 3 km grids there just feed it)
+      const k1 = await getJSON(`${DATA_1K}runs/${run}/manifest.json`);
+      if (S.man && k1.domains && k1.domains.d03) {
+        S.man.domains.d03 = { ...k1.domains.d03, base: DATA_1K, proj: k1.proj };
+        S.man.products = { ...(k1.products || {}), ...(S.man.products || {}) };
+      }
     } catch (e) { /* not made for this run */ }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
