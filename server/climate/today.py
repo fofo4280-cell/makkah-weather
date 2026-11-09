@@ -289,15 +289,26 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
             hail = [x for x in rainy if x.get("hail")]
             sc = [x for x in rainy if x.get("sc")]
             hl = []
+            h2 = [x for x in hail if x["hail"] == 2]; h1 = [x for x in hail if x["hail"] == 1]
             if hail:
-                hl.append("البَرَد: " + "، و".join(
-                    f"{'فرص جيدة' if x['hail'] == 2 else 'فرص واردة'} على {x['name']} (أقوى صدى رادار {num(x['zmax'])} ديسيبل "
-                    f"الساعة {ar(x['zh'])})" for x in sorted(hail, key=lambda x: -x["hail"])))
+                t_ = []
+                if h2:
+                    t_.append("فرص جيدة على " + join(f"{x['name']} (صدى رادار {num(x['zmax'])} ديسيبل الساعة {ar(x['zh'])})" for x in h2))
+                if h1:
+                    t_.append("فرص واردة على " + join(x["name"] for x in h1))
+                hl.append("البَرَد: " + "، و".join(t_))
             if sc:
-                hl.append("الخلايا العملاقة (سوبر سل): " + "، و".join(
-                    f"{'فرص متوسطة' if x['sc'] == 2 else 'فرص ضعيفة'} على {x['name']}"
-                    + (f" (طاقة الحمل حتى {num(x['sc_vals'][0], -2)} جول/كغ وقص الرياح حتى {num(x['sc_vals'][1])} م/ث)"
-                       if x["sc_vals"] and x["sc_vals"][0] and x["sc_vals"][1] else "") for x in sc))
+                s2 = [x for x in sc if x["sc"] == 2]; s1 = [x for x in sc if x["sc"] == 1]
+                t_ = []
+                if s2:
+                    t_.append("فرص متوسطة على " + join(x["name"] for x in s2))
+                if s1:
+                    t_.append("فرص ضعيفة على " + join(x["name"] for x in s1))
+                best = max(sc, key=lambda x: (x["sc"], (x["sc_vals"] or (0, 0))[0] or 0))
+                v_ = best["sc_vals"]
+                hl.append("الخلايا العملاقة (سوبر سل): " + "، و".join(t_)
+                          + (f" (أعلاها على {best['name']}: طاقة الحمل حتى {num(v_[0], -2)} جول/كغ وقص الرياح حتى {num(v_[1])} م/ث)"
+                             if v_ and v_[0] and v_[1] else ""))
             lines.append(("؛ و".join(hl) + ".") if hl else "البَرَد والخلايا العملاقة: لا مؤشرات عليها اليوم.")
             head.append(f"أمطار على {join(x['name'] for x in rainy[:4])}")
             if hail:
