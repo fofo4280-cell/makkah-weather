@@ -202,3 +202,9 @@ def ar_span(a, b):
 
 def join(names):
     return " و".join(names)
+
+
+def deg(x):
+    """'درجة' / 'درجتين' / '٣ درجات' / '١٢ درجة' for a rounded amount of degrees."""
+    n = int(round(abs(float(x))))
+    return "درجة" if n == 1 else "درجتين" if n == 2 else f"{ar(n)} درجات" if 3 <= n <= 10 else f"{ar(n)} درجة"

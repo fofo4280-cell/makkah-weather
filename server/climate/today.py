@@ -16,7 +16,7 @@ from datetime import date, datetime, timedelta, timezone
 import numpy as np
 
 import sa_geo as G
-from sa_geo import ar, num, ar_date, join
+from sa_geo import ar, num, ar_date, join, deg
 
 MODELS = [("ecmwf_ifs025", "الأوروبي"), ("gfs_seamless", "الأمريكي"), ("icon_seamless", "الألماني")]
 DVARS = ["precipitation_sum", "temperature_2m_max", "temperature_2m_min", "wind_gusts_10m_max"]
@@ -202,10 +202,10 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
         if len(rainy) == 1:
             line = "الأمطار: على منطقة واحدة هي " + parts[0] + "."
         elif len(rainy) <= 5:
-            line = "الأمطار، من الأغزر إلى الأقل: " + "، ثم ".join(parts[:-1]) + "، وأقلها " + parts[-1] + "."
+            line = "الأمطار، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts[:-1]) + "، وأقلها " + parts[-1] + "."
         else:
             rest = rainy[5:]
-            line = "الأمطار، من الأغزر إلى الأقل: " + "، ثم ".join(parts) + "."
+            line = "الأمطار، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts) + "."
             line += (f" وأقلها {rest[0]['name']}." if len(rest) == 1 else
                      f" وأمطار أقل على {join(x['name'] for x in rest[:-1])}، وأقلها {rest[-1]['name']}.")
         agree = [x["name"] for x in rainy if len(x["wet"]) == x["n"] == 3]
@@ -275,7 +275,7 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
                "tmax": float(tx[jx]), "tmax_at": G.nearest_place(lat[jx], lon[jx], r)[0],
                "dmin": float(np.nanmean(dtn[m_k])), "dmax": float(np.nanmean(dtx[m_k])), "amin": a_n, "amax": a_x}
         data["regions"].append(rec)
-        if (a_n is not None and a_n <= -4) or rec["tmin"] <= 2 or (rec["dmin"] <= -4 and (a_n is None or a_n <= -2)):
+        if (a_n is not None and a_n <= -4) or rec["tmin"] <= 2 or (rec["dmin"] <= -5 and (a_n is None or a_n <= -3)):
             cold.append(rec)
         elif rec["dmin"] <= -3 or rec["dmax"] <= -4:
             falls.append(rec)
@@ -285,13 +285,13 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
             rises.append(rec)
 
     def anom_txt(a):
-        return "" if a is None else (f"، أقل من معدلها بنحو {num(-a)} درجات" if a <= -1.5 else
-                                     f"، أعلى من معدلها بنحو {num(a)} درجات" if a >= 1.5 else "، قريبة من معدلها")
+        return "" if a is None else (f"، أقل من معدلها بنحو {deg(a)}" if a <= -1.5 else
+                                     f"، أعلى من معدلها بنحو {deg(a)}" if a >= 1.5 else "، قريبة من معدلها")
     if cold:
         cold.sort(key=lambda x: x["tmin"])
         ln = "موجة باردة: " + "، و".join(
             f"{x['name']} (الصغرى {num(x['tmin'])}° قرب {x['tmin_at']}{anom_txt(x['amin'])}"
-            + (f"، وتنخفض {num(-x['dmin'])} درجات عن أمس" if x["dmin"] <= -2 else "") + ")" for x in cold[:6]) + "."
+            + (f"، وتنخفض {deg(x['dmin'])} عن أمس" if x["dmin"] <= -2 else "") + ")" for x in cold[:6]) + "."
         if any(x["tmin"] <= 0 for x in cold):
             ln += f" يُتوقع الصقيع على {join(x['tmin_at'] for x in cold if x['tmin'] <= 0)}."
         lines.append(ln)
@@ -303,10 +303,10 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
         head.append(f"موجة حارة على {join(x['name'] for x in hot[:3])}")
     if falls:
         lines.append("انخفاض ملموس في درجات الحرارة عن أمس على " + join(
-            f"{x['name']} (نحو {num(-min(x['dmin'], x['dmax']))} درجات)" for x in falls) + ".")
+            f"{x['name']} (نحو {deg(min(x['dmin'], x['dmax']))})" for x in falls) + ".")
     if rises:
         lines.append("ارتفاع ملموس في درجات الحرارة عن أمس على " + join(
-            f"{x['name']} (نحو {num(x['dmax'])} درجات)" for x in rises) + ".")
+            f"{x['name']} (نحو {deg(x['dmax'])})" for x in rises) + ".")
     if data["regions"]:
         lo_ = min(data["regions"], key=lambda x: x["tmin"]); hi_ = max(data["regions"], key=lambda x: x["tmax"])
         lines.append(f"{'' if cold or hot else 'الحرارة في حدود معدلاتها دون موجة حارة أو باردة. '}"
@@ -330,26 +330,29 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
         if dust is not None:
             m_k = dri == k
             mx = np.nanmax(dust[:, m_k], axis=0) if m_k.any() else np.array([0.0])
-            if np.isfinite(mx).any():
+            gm = dgrid[m_k] if m_k.any() else np.array([False])
+            if np.isfinite(mx).any() and gm.any():
                 j = int(np.nanargmax(mx))
-                rec.update(dmax=float(mx[j]), dcov=float(np.nanmean(mx[dgrid[m_k]] >= 200)) if dgrid[m_k].any() else 0.0,
+                cov = lambda t: float(np.nanmean(mx[gm] >= t))
+                lvl = 3 if cov(1000) >= 0.15 else 2 if cov(500) >= 0.15 else 1 if cov(200) >= 0.25 else 0
+                rec.update(dmax=float(mx[j]), lvl=lvl, dcov=cov(200),
                            dat=G.nearest_place(dlat[m_k][j], dlon[m_k][j], r)[0],
                            dhour=int(np.nanargmax(dust[:, np.flatnonzero(m_k)[j]])))
-        if rec.get("dmax", 0) >= 500 or (rec.get("dmax", 0) >= 200 and rec.get("dcov", 0) >= 0.15):
+        if rec.get("lvl", 0) > 0:
             dusty.append(rec)
         elif gx >= 50 and g_k.any():
             windy.append(rec)
     if dusty:
-        dusty.sort(key=lambda x: -x["dmax"])
+        dusty.sort(key=lambda x: (-x["lvl"], -x["dcov"]))
 
         def dword(v):
-            return "غبار كثيف أو عاصفة ترابية تخفض الرؤية بشدة" if v >= 1000 else \
-                   "غبار مثار يحد من مدى الرؤية" if v >= 500 else "غبار عالق خفيف"
+            return {3: "غبار كثيف قد يصل إلى عاصفة ترابية تخفض الرؤية بشدة", 2: "غبار مثار يحد من مدى الرؤية",
+                    1: "غبار عالق خفيف"}[v]
         lines.append("الغبار: " + "، و".join(
-            f"{x['name']} ({dword(x['dmax'])}، أشده قرب {x['dat']} نحو الساعة {ar(x['dhour'])} "
+            f"{x['name']} ({dword(x['lvl'])} على نحو {num(100 * x['dcov'])}٪ من المنطقة، أشده قرب {x['dat']} نحو الساعة {ar(x['dhour'])} "
             f"بتركيز {num(x['dmax'])} ميكروغرام/م³" + (f"، وهبات رياح حتى {num(x['gust'])} كم/س" if x["gust"] >= 40 else "")
             + ")" for x in dusty[:6]) + ".")
-        head.append(f"غبار على {join(x['name'] for x in dusty[:3])}")
+        head.append(f"{'غبار كثيف' if dusty[0]['lvl'] == 3 else 'غبار'} على {join(x['name'] for x in dusty[:3])}")
     if windy:
         lines.append("رياح نشطة قد تثير الأتربة على " + join(f"{x['name']} (هبات حتى {num(x['gust'])} كم/س)" for x in windy) + ".")
     if not dusty and not windy and dust is not None:
