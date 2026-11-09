@@ -3,9 +3,9 @@
 Water-vapour transport integrated from 1000 to 600 hPa (IVT, kg m^-1 s^-1) from the GFS 0.25 degree forecast every
 3 hours for 12 days.
 
-The river is followed forward from the upstream end of the river (where it forms): every 3 hours the point moves to
-the strongest transport within reach of where the recent motion would take it, so it walks down the river to its
-core and then moves with the core ("feature continuity"). The core value is the raw transport at the point.
+The river is followed forward from its upstream end (where it forms): the point first walks down the river along the
+transport to its core, then moves with the core ("feature continuity"). The core value is the raw transport at the
+point; over the Kingdom the transport is taken on a one-degree scale.
 A second track follows the first river that comes near the Kingdom, and the largest transport over the Kingdom's land
 is kept for every time.
 
@@ -198,24 +198,42 @@ def _upstream(ms, qu, qv, lat, lon, la0, lo0):
     return la, lo
 
 
-def _follow(MS, MAG, lat, lon, k0, la0, lo0, stay=None):
-    """Follow the river forward from step k0: every 3 hours the strongest transport within reach of the expected
-    position (the last position moved on by the recent motion). From an upstream starting point this walks down
-    the river to its core within the first day, then moves with the core."""
+def _follow(MS, MAG, lat, lon, k0, la0, lo0, stay=None, QU=None, QV=None):
+    """Follow the river forward from step k0.
+
+    With QU/QV (smoothed transport) the start is the river's upstream end, and the point first walks down the river
+    along the transport, 1.5 degrees every 3 hours on the axis, until it reaches the core. From there on it moves with
+    the core: every step the strongest transport within reach of where the recent motion would take it."""
     stay = stay or (BOX[0] + 1, BOX[1] - 1, BOX[2] + 1, BOX[3] - 1)
-    reach = 2.5 * STEP_H / 3.0                     # degrees in one step (about 25 m/s at most)
+    f = STEP_H / 3.0
+    reach, width = 4.0 * f, 2.0 * f
     pts = [(k0, la0, lo0)]
     vla = vlo = 0.0
+    walking = QU is not None
     for k in range(k0 + 1, len(MS)):
         _, la, lo = pts[-1]
-        gla, glo = la + vla, lo + vlo
-        d = _dist(lat, lon, gla, glo)
-        score = np.where((MS[k] >= THR_KEEP) & (d <= reach), MS[k] * np.exp(-0.5 * (d / (0.6 * reach)) ** 2), -1)
+        if walking:
+            u, v = _at(QU[k], lat, lon, la, lo), _at(QV[k], lat, lon, la, lo)
+            sp = max(float(np.hypot(u, v)), 1e-6)
+            gla = la + 1.5 * f * v / sp
+            glo = lo + 1.5 * f * u / sp / max(np.cos(np.radians(la)), 0.3)
+            d = _dist(lat, lon, gla, glo)
+            score = np.where((MS[k] >= THR_KEEP) & (d <= 1.0 * f), MS[k], -1)
+        else:
+            gla, glo = la + vla, lo + vlo
+            d = _dist(lat, lon, gla, glo)
+            score = np.where((MS[k] >= THR_KEEP) & (d <= reach), MS[k] * np.exp(-0.5 * (d / width) ** 2), -1)
         if score.max() <= 0:
             break
         j, i = np.unravel_index(int(np.argmax(score)), score.shape)
         nla, nlo = float(lat[j]), float(lon[i])
-        vla, vlo = 0.3 * vla + 0.3 * (nla - la), 0.3 * vlo + 0.3 * (nlo - lo)
+        if walking:
+            # the core is reached when nothing within reach downstream is stronger than here
+            ahead = _dist(lat, lon, nla, nlo) <= reach
+            if MS[k][j, i] >= 0.92 * float(MS[k][ahead].max()):
+                walking = False
+        else:
+            vla, vlo = 0.5 * vla + 0.5 * (nla - la), 0.5 * vlo + 0.5 * (nlo - lo)
         pts.append((k, nla, nlo))
         if not (stay[0] <= nla <= stay[1] and stay[2] <= nlo <= stay[3]):
             break
@@ -287,8 +305,10 @@ def analyse(cycle, t0):
     obj = [o for o in _objects(MS[0], mag[0], lat, lon) if IO_BOX[0] <= o[1] <= IO_BOX[1] and IO_BOX[2] <= o[2] <= IO_BOX[3]]
     if obj:
         _, la0, lo0, _, _ = obj[0]
-        sla, slo = _upstream(MS[0], gaussian_filter(qu[0], sig), gaussian_filter(qv[0], sig), lat, lon, la0, lo0)
-        tracks.append({"kind": "main", "pts": _follow(MS, mag, lat, lon, 0, sla, slo)})
+        QU = np.array([gaussian_filter(a, sig) for a in qu])
+        QV = np.array([gaussian_filter(a, sig) for a in qv])
+        sla, slo = _upstream(MS[0], QU[0], QV[0], lat, lon, la0, lo0)
+        tracks.append({"kind": "main", "pts": _follow(MS, mag, lat, lon, 0, sla, slo, QU=QU, QV=QV)})
     # 2. the first river whose core comes near the Kingdom in the first week, if it is not the same one
     for k in range(0, min(len(MS), 7 * 24 // STEP_H + 1)):
         near = [o for o in _objects(MS[k], mag[k], lat, lon)
@@ -307,8 +327,9 @@ def analyse(cycle, t0):
     land = saudi_mask(lat, lon)
     LO, LA = np.meshgrid(lon, lat)
     hj = land & (LA >= HEJAZ_BOX[0]) & (LA <= HEJAZ_BOX[1]) & (LO >= HEJAZ_BOX[2]) & (LO <= HEJAZ_BOX[3])
-    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_masked_max(mag[k], land))),
-           "hejaz": int(round(_masked_max(mag[k], hj)))} for k, t in enumerate(times)]
+    # over the Kingdom the one-degree field: a broad river, not one wet grid point
+    sa = [{"t": t.strftime("%Y-%m-%dT%H:%MZ"), "v": int(round(_masked_max(MS[k], land))),
+           "hejaz": int(round(_masked_max(MS[k], hj)))} for k, t in enumerate(times)]
     out_tracks = []
     for t in tracks:
         pts = [{"t": times[k].strftime("%Y-%m-%dT%H:%MZ"), "k": k, "lat": round(la, 2), "lon": round(lo, 2),
