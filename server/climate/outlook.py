@@ -1,300 +1,152 @@
-"""Signs of a new rain wave over the Kingdom in the next 15 and 45 days, each with where it was read from.
+"""Signs of a new rain wave over the Kingdom in the next 15 and 45 days, from the large-scale picture only:
+the MJO and the warm event (upper-level divergence) and whether they are, or come back to, the phases that favour
+rain over the Arabian Peninsula. No model rain is used here.
 
-Sources:
-  - GFS (0.25 degree), rain of each Makkah day for 15 days, region by region (from daily.py).
-  - ECMWF extended range (EC46, 51 members, 46 days) through Open-Meteo: weekly rain against the model's
-    own climate (anomaly, share of members above normal, extreme forecast index), daily rain of each member,
-    and weekly temperature anomaly, at two or three towns per region.
-  - The MJO: the GFS projection of the RMM index for 15 days (daily.py), carried on at its own speed as an
-    inference only (low confidence), and the moisture surges, troughs and polar index already in the report.
+Read from:
+  - the RMM index observed by the Australian Bureau of Meteorology (last 60 days) and its 15-day projection from
+    GFS 200 hPa winds (daily.py);
+  - the warm event: equatorial 200 hPa velocity potential anomaly, from the GFS daily analyses of the last 60 days
+    and the GFS forecast to 15 days (the Hovmoller of daily.py); its centre is the phase of the zonal wave-1.
+Inferred (and said so): beyond 15 days, the return to the favourable phases at the eastward speed measured over
+the last month, or, when that speed is not usable, from the usual MJO cycle of 30 to 60 days.
 """
-import math, warnings
+import math
 from datetime import date, timedelta
 
-import numpy as np
+import bigpic as B
+from sa_geo import ar, num, ar_date, ar_span, deg
 
-import sa_geo as G
-from sa_geo import ar, num, ar_date, ar_span, join, deg
-
-WET_PHASES = {7, 8, 1, 2}
-
-
-# ------------------------------------------------------------------ GFS, day by day
-def gfs_days(apcp, lat, lon, day0, regs):
-    """apcp: list of accumulated rain grids (mm since the start of the run) at 00 Makkah of day0, day0+1, ...
-    Returns [{d, regions: [{k, name, mean, cov, max, at}]}] for each day."""
-    la2, lo2 = np.meshgrid(lat, lon, indexing="ij")
-    sel = (la2 >= 15.5) & (la2 <= 33) & (lo2 >= 34) & (lo2 <= 56)
-    fl, fo = la2[sel], lo2[sel]
-    ri = G.region_of_points(regs, fl, fo)
-    out = []
-    for k in range(1, len(apcp)):
-        v = np.clip((apcp[k] - apcp[k - 1])[sel], 0, None)
-        rows = []
-        for j, r in enumerate(regs):
-            m = ri == j
-            if not m.any():
-                continue
-            i = int(np.argmax(np.where(m, v, -1)))
-            rows.append({"k": j, "name": r["name"], "mean": float(v[m].mean()), "cov": float((v[m] >= 1).mean()),
-                         "max": float(v[i]), "at": G.nearest_place(fl[i], fo[i], r)[0]})
-        out.append({"d": day0 + timedelta(days=k - 1), "regions": rows})
-    return out
+SRC_RMM = "مؤشر مادن-جوليان الرصدي من مكتب الأرصاد الأسترالي وإسقاطه من رياح جي إف إس العلوية لخمسة عشر يومًا"
+SRC_WARM = ("الحدث الدافئ: شذوذ جهد السرعة عند ٢٠٠ هكتوباسكال فوق خط الاستواء، من تحليلات جي إف إس اليومية "
+            "لآخر ستين يومًا وتوقعه لخمسة عشر يومًا")
+HEADING = "ملامح موجة مطرية جديدة: الصورة الكبرى (١٥ و٤٥ يومًا)"
 
 
-def episodes(days, first=0):
-    """Runs of days on which some region gets real rain (gaps of one dry day are bridged)."""
-    wet = []
-    for x in days:
-        rr = [r for r in x["regions"] if r["mean"] >= 0.5 or r["cov"] >= 0.1 or r["max"] >= 10]
-        wet.append(rr)
-    eps, cur, gap = [], None, 0
-    for i, rr in enumerate(wet):
-        if i < first:
-            continue
-        if rr:
-            if cur is None:
-                cur = {"a": i, "b": i, "regs": {}}
-            cur["b"], gap = i, 0
-            for r in rr:
-                e = cur["regs"].setdefault(r["name"], {"sum": 0.0, "max": 0.0, "at": "", "d": None})
-                e["sum"] += r["mean"]
-                if r["max"] > e["max"]:
-                    e.update(max=r["max"], at=r["at"], d=days[i]["d"])
-        elif cur is not None:
-            gap += 1
-            if gap > 1:
-                eps.append(cur); cur = None
-    if cur is not None:
-        eps.append(cur)
-    for e in eps:
-        e["da"], e["db"] = days[e["a"]]["d"], days[e["b"]]["d"]
-    return eps
+def _rmm_angle(x):
+    return math.degrees(math.atan2(x["r2"], x["r1"])) % 360
 
 
-# ------------------------------------------------------------------ ECMWF extended range
-def ec46(om, regs):
-    warnings.filterwarnings("ignore", category=RuntimeWarning)
-    towns = {r["id"]: [t for t in G.NORMAL_TOWNS[r["id"]]] for r in regs}
-    flat = [t for r in regs for t in towns[r["id"]]]
-    lat = [G.PLACE[t][0] for t in flat]; lon = [G.PLACE[t][1] for t in flat]
-    wk = om.get(G.SEASONAL, {"weekly": "precipitation_mean,precipitation_anomaly,precipitation_anomaly_gt0,"
-                             "precipitation_efi,temperature_2m_anomaly", "models": "ecmwf_ec46"}, lat, lon, weight=1)
-    dy = om.get(G.SEASONAL, {"daily": "precipitation_sum", "models": "ecmwf_ec46", "forecast_days": 46},
-                lat, lon, weight=5.1 * 46 / 14)
-    by = dict(zip(flat, zip(wk, dy)))
-    weeks = [date.fromisoformat(s) for s in wk[0]["weekly"]["time"]]
-    days = [date.fromisoformat(s) for s in dy[0]["daily"]["time"]]
-    out = {"weeks": [], "days": days, "regions": []}
-    for r in regs:
-        W = {v: [] for v in ("precipitation_mean", "precipitation_anomaly", "precipitation_anomaly_gt0",
-                             "precipitation_efi", "temperature_2m_anomaly")}
-        mem = []
-        for t in towns[r["id"]]:
-            w, d = by[t]
-            for v in W:
-                W[v].append([np.nan if x is None else x for x in w["weekly"][v]])
-            dd = d["daily"]
-            ms = sorted(k for k in dd if k.startswith("precipitation_sum_member"))
-            mem.append([[np.nan if x is None else x for x in dd[k]] for k in ms])
-        reg = {"name": r["name"], "id": r["id"]}
-        for v, a in W.items():
-            reg[v] = np.nanmean(np.array(a, float), axis=0)
-        m = np.nanmean(np.array(mem, float), axis=0)          # members x days, region average of its towns
-        reg["p1"] = np.nanmean(m >= 1, axis=0)                 # share of members with 1 mm or more each day
-        reg["wk_p5"] = np.array([np.nanmean(np.nansum(m[:, (np.array(days) >= w0) & (np.array(days) < w0 + timedelta(days=7))], 1) >= 5)
-                                 for w0 in weeks])
-        out["regions"].append(reg)
-    out["weeks"] = weeks
-    return out
-
-
-def ec_signals(ec, day0):
-    """Wet weeks: per region, weeks where 60 percent of the members or more see more rain than the model's
-    normal and the mean excess is at least 1 mm, or the extreme forecast index reaches 0.5, or 40 percent of the
-    members give the region 5 mm or more in the week while at least half are above normal."""
-    sig = []
-    for w, w0 in enumerate(ec["weeks"]):
-        if w0 + timedelta(days=6) < day0:
-            continue
-        regs = []
-        for r in ec["regions"]:
-            p, a, e, p5 = (r["precipitation_anomaly_gt0"][w], r["precipitation_anomaly"][w],
-                           r["precipitation_efi"][w], r["wk_p5"][w] if w < len(r["wk_p5"]) else np.nan)
-            if not np.isfinite(p):
-                continue
-            if (p >= 60 and a >= 1) or (np.isfinite(e) and e >= 0.5) or (np.isfinite(p5) and p5 >= 0.4 and p >= 50):
-                dd = [i for i, d in enumerate(ec["days"]) if w0 <= d < w0 + timedelta(days=7)]
-                peak = ec["days"][max(dd, key=lambda i: r["p1"][i])] if dd else w0
-                regs.append({"name": r["name"], "p": p, "a": a, "e": e, "p5": p5, "peak": peak,
-                             "strong": (p >= 70 and a >= 3) or (np.isfinite(e) and e >= 0.7)})
-        if regs:
-            sig.append({"w0": w0, "w1": w0 + timedelta(days=6), "regs": sorted(regs, key=lambda x: -x["p"])})
-    return sig
-
-
-# ------------------------------------------------------------------ MJO
-def mjo_window(st, today):
-    """When the MJO is in, or reaches, the phases that favour rain over the Kingdom (7, 8, 1, 2 in November-April):
-    read from the 15-day GFS projection; and the next return to those phases after it, carried on at the speed the
-    MJO has in that projection (an inference only)."""
-    fc = st.get("rmm_fc") or []
-    if not st.get("wet_season") or len(fc) < 5:
-        return None
-    out = {"wet": None, "next": None}
-    wet = [i for i, x in enumerate(fc) if x["phase"] in WET_PHASES and x["amp"] >= 1]
-    if wet:
-        i0 = wet[0]; i1 = i0
-        while i1 + 1 < len(fc) and fc[i1 + 1]["phase"] in WET_PHASES and fc[i1 + 1]["amp"] >= 1:
-            i1 += 1
-        out["wet"] = {"a": date.fromisoformat(fc[i0]["d"]), "b": date.fromisoformat(fc[i1]["d"]),
-                      "phase": fc[i0]["phase"], "amp": fc[i0]["amp"], "ends": i1 + 1 < len(fc)}
-    ang = np.unwrap([math.atan2(x["r2"], x["r1"]) for x in fc])
-    w = math.degrees(ang[-1] - ang[0]) / max(1, len(fc) - 1)     # degrees per day, eastward positive
-    last = fc[-1]
-    if out["wet"] and not out["wet"]["ends"]:
-        return out                                                 # still in the wet phases at the end of the projection
-    if last["amp"] < 1 or not (4 <= w <= 15):
-        out["next"] = {"kind": "none", "speed": w, "amp": last["amp"]}
-        return out
-    th = math.degrees(math.atan2(last["r2"], last["r1"]))
-    need = (90 - th) % 360                                         # phase 7 starts at 90 degrees
-    d = date.fromisoformat(last["d"]) + timedelta(days=round(need / w))
-    out["next"] = {"kind": "inferred" if (d - today).days <= 46 else "late", "d": d, "speed": w, "period": 360 / w}
-    return out
-
-
-# ------------------------------------------------------------------ text
-def outlook(st, day0, gfs, ec, log=print):
+def outlook(st, day0, log=print):
     lines = []
-    windows = []          # (source, first day, last day) of each sign of a new rain wave
-    today = day0
+    if not st.get("wet_season"):
+        lines.append("خارج موسم الأمطار الذي يرتبط فيه التذبذب المداري بأمطار المملكة (نوفمبر إلى أبريل)، "
+                     "فلا يُستنتج منه موعد موجة مطرية.")
+        return {"heading": HEADING, "lines": lines}
+    obs = st.get("rmm_obs") or []
+    fc = [x for x in (st.get("rmm_fc") or []) if x["d"] >= day0.isoformat()]
+    rmm = {x["d"]: x for x in obs + (st.get("rmm_fc") or [])}
+    w1 = B.wave1(st["hov"]) if st.get("hov") else []
+    warm = {d: (lon, amp) for d, lon, amp in w1}
+    end15 = day0 + timedelta(days=15)
+    good_m = lambda x: x is not None and x["amp"] >= 1 and x["phase"] in B.WET_PHASES
+    good_w = lambda w: w is not None and w[1] >= 4 and B.favourable(w[0])
 
-    # 1. GFS, 15 days
-    if gfs:
-        eps = episodes(gfs, first=1)
-        if eps:
-            for e in eps[:3]:
-                top = sorted(e["regs"].items(), key=lambda kv: -kv[1]["sum"])
-                pk_name, pk = max(e["regs"].items(), key=lambda kv: kv[1]["max"])
-                cont = e["a"] == 1 and any(r["mean"] >= 0.5 or r["cov"] >= 0.1 for r in gfs[0]["regions"])
-                lines.append(
-                    f"خلال ١٥ يومًا (قراءة من جي إف إس، أمطار كل يوم على مناطق المملكة بدقة ربع درجة): "
-                    f"{'تستمر الحالة الحالية' if cont else 'حالة مطرية'} {ar_span(e['da'], e['db'])}، وأكثر المناطق مطرًا "
-                    f"{join(n for n, _ in top[:5])}، وأعلى كمية يومية {num(pk['max'])} ملم قرب {pk['at']} ({pk_name}) "
-                    f"يوم {ar_date(pk['d'])}" + ("؛ والثقة فيها أقل لأنها بعد اليوم السابع." if (e["da"] - today).days >= 7 else "."))
-                windows.append(("جي إف إس", e["da"], e["db"]))
+    # 1. now
+    m0 = B.rmm_on(st, day0)
+    wv0 = warm.get(day0.isoformat())
+    now = []
+    if m0:
+        now.append(f"التذبذب المداري في الطور {ar(m0['phase'])} بشدة {num(m0['amp'], 1)}"
+                   f" ({'طور محفز للأمطار' if good_m(m0) else 'ضعيف لا أثر واضح له' if m0['amp'] < 1 else 'طور غير محفز'})")
+    if wv0:
+        now.append(f"والحدث الدافئ متمركز فوق {B.region_name(wv0[0])}"
+                   f" ({'في القطاع المحفز للجزيرة العربية' if good_w(wv0) else 'خارج القطاع المحفز'})")
+    if now:
+        lines.append("الآن: " + "، ".join(now) + ".")
+
+    # 2. the next 15 days: the GFS projection of both
+    fav = []
+    for k in range(16):
+        d = day0 + timedelta(days=k)
+        m, w = rmm.get(d.isoformat()), warm.get(d.isoformat())
+        fav.append((d, good_m(m), good_w(w), m, w))
+    both = [x for x in fav if x[1] and x[2]]
+    either = [x for x in fav if x[1] or x[2]]
+    leave, last_good = None, None
+    head = f"خلال ١٥ يومًا (قراءة من {SRC_RMM}، ومن {SRC_WARM}): "
+    if fav[0][1] or fav[0][2]:
+        k = 0
+        while k + 1 < len(fav) and (fav[k + 1][1] or fav[k + 1][2]):
+            k += 1
+        last_good = fav[k][0]
+        if k + 1 < len(fav):
+            leave = fav[k + 1][0]
+            nx = fav[k + 1]
+            txt = f"تبقى الصورة الكبرى محفزة للأمطار حتى {ar_date(last_good)}، ثم"
+            txt += f" يتجه التذبذب إلى الطور {ar(nx[3]['phase'])}" if nx[3] else ""
+            txt += (" و" if nx[3] and nx[4] else " ") + f"يبتعد الحدث الدافئ نحو {B.region_name(nx[4][0])}" if nx[4] else ""
+            lines.append(head + txt + ".")
         else:
-            mx = max((r for x in gfs[1:] for r in x["regions"]), key=lambda r: r["max"], default=None)
-            ln = "خلال ١٥ يومًا (قراءة من جي إف إس): لا تظهر حالة مطرية واسعة على المملكة"
-            if mx and mx["max"] >= 2:
-                ln += f"، وأعلى ما يظهر زخات محلية حتى {num(mx['max'])} ملم قرب {mx['at']}"
-            lines.append(ln + ".")
+            lines.append(head + "تبقى الصورة الكبرى محفزة للأمطار حتى نهاية مدى الإسقاط، فتبقى الحالات المطرية مدعومة.")
+    elif either:
+        x = both[0] if both else either[0]
+        which = ("يعود التذبذب المداري والحدث الدافئ معًا" if x[1] and x[2] else
+                 "يعود التذبذب المداري" if x[1] else "يعود الحدث الدافئ")
+        lines.append(head + f"إشارة: {which} إلى الأطوار المحفزة للجزيرة العربية يوم {ar_date(x[0])}"
+                     + (f" (الطور {ar(x[3]['phase'])} بشدة {num(x[3]['amp'], 1)})" if x[3] else "")
+                     + (f"، والحدث الدافئ فوق {B.region_name(x[4][0])}" if x[4] else "") + ".")
+    else:
+        lines.append(head + "لا يعود التذبذب ولا الحدث الدافئ إلى الأطوار المحفزة للجزيرة العربية في مدى الإسقاط.")
 
-    # 2. ECMWF extended range, 46 days
-    if ec:
-        sig = ec_signals(ec, today)
-        end = ec["days"][-1] if ec["days"] else today + timedelta(days=45)
-        near = [s for s in sig if (s["w1"] - today).days <= 15]
-        far = [s for s in sig if (s["w1"] - today).days > 15]
-
-        def wline(s):
-            rs = s["regs"]
-            best = rs[0]
-            txt = (f"أسبوع {ar_span(s['w0'], s['w1'])}: إشارة "
-                   f"{'قوية' if any(r['strong'] for r in rs) else 'متوسطة'} على {join(r['name'] for r in rs[:6])}؛ "
-                   f"{num(best['p'])}٪ من الأعضاء يرون أمطارًا فوق معدل النموذج على {best['name']}")
-            if best["a"] >= 0.5:
-                txt += f" بزيادة نحو {num(best['a'], 1)} ملم عن معدل الأسبوع"
-            if np.isfinite(best["e"]) and best["e"] >= 0.3:
-                txt += f"، ومؤشر التطرف {num(best['e'], 1)}"
-            txt += f"، وأعلى احتمال يومي للمطر يوم {ar_date(best['peak'])}"
-            return txt
-        if near:
-            lines.append("خلال الأسبوعين القادمين (قراءة من النموذج الأوروبي الممتد): " + "؛ و".join(wline(s) for s in near) + ".")
-            for s in near:
-                windows.append(("النموذج الأوروبي الممتد", s["w0"], s["w1"]))
-        if far:
-            lines.append("من ١٥ إلى ٤٥ يومًا (قراءة من النموذج الأوروبي الممتد لستة وأربعين يومًا، ٥١ عضوًا، "
-                         "بمقارنة أمطار كل أسبوع بمعدل النموذج نفسه): ملامح موجة مطرية جديدة في "
-                         + "؛ وفي ".join(wline(s) for s in far) + ".")
-            for s in far:
-                windows.append(("النموذج الأوروبي الممتد", s["w0"], s["w1"]))
+    # 3. 15 to 45 days: inference from the eastward speed of both over the last month (analyses and projection)
+    infer = []
+    still = fav[-1][1] or fav[-1][2]
+    rel = lambda s: (date.fromisoformat(s) - day0).days
+    ser = [x for x in obs if x["d"] >= (day0 - timedelta(days=30)).isoformat() and x["d"] < day0.isoformat()] + fc
+    sp_m = B.speed([_rmm_angle(x) for x in ser], [rel(x["d"]) for x in ser]) if len(ser) >= 8 else None
+    wser = [(d, lon) for d, lon, amp in w1 if d >= (day0 - timedelta(days=30)).isoformat() and amp >= 3]
+    sp_w = B.speed([lon for _, lon in wser], [rel(d) for d, _ in wser]) if len(wser) >= 8 else None
+    last_m = fc[-1] if fc else None
+    last_w = w1[-1] if w1 else None
+    if not still:
+        if last_m and sp_m and 3 <= sp_m <= 20 and last_m["amp"] >= 1:
+            need = (90 - _rmm_angle(last_m)) % 360                     # phase 7 starts at 90 degrees
+            d = date.fromisoformat(last_m["d"]) + timedelta(days=round(need / sp_m))
+            infer.append(("التذبذب المداري", d, f"يدور شرقًا بنحو {deg(sp_m)} في اليوم في الشهر الأخير "
+                                                f"(دورة كاملة في نحو {num(360 / sp_m)} يومًا)"))
+        if last_w and sp_w and 3 <= sp_w <= 20:
+            need = (B.SECTOR[0] - last_w[1]) % 360
+            d = date.fromisoformat(last_w[0]) + timedelta(days=round(need / sp_w))
+            infer.append(("الحدث الدافئ", d, f"ينتقل شرقًا بنحو {deg(sp_w)} في اليوم في الشهر الأخير"))
+    for name, d, why in infer:
+        if (d - day0).days <= 46:
+            lines.append(f"من ١٥ إلى ٤٥ يومًا (استنتاج من سرعة الانتقال): {name} {why}، فإن حافظ على سرعته "
+                         f"يعود إلى القطاع المحفز للجزيرة العربية قرابة {ar_date(d)}، بهامش أسبوع تقريبًا.")
         else:
-            top = max(((r["precipitation_anomaly_gt0"][w], r["name"], ec["weeks"][w]) for r in ec["regions"]
-                       for w in range(len(ec["weeks"])) if (ec["weeks"][w] - today).days >= 15
-                       and np.isfinite(r["precipitation_anomaly_gt0"][w])), default=None)
-            ln = (f"من ١٥ إلى ٤٥ يومًا (قراءة من النموذج الأوروبي الممتد لستة وأربعين يومًا): لا تظهر ملامح موجة "
-                  f"مطرية جديدة حتى {ar_date(end)}")
-            if top:
-                ln += f"؛ أعلى نسبة أعضاء ترى أمطارًا فوق المعدل {num(top[0])}٪ على {top[1]} في أسبوع {ar_date(top[2])}"
-            lines.append(ln + ".")
-        cold = [(r["name"], r["temperature_2m_anomaly"][w], ec["weeks"][w]) for r in ec["regions"]
-                for w in range(len(ec["weeks"])) if np.isfinite(r["temperature_2m_anomaly"][w])
-                and r["temperature_2m_anomaly"][w] <= -2 and ec["weeks"][w] >= today - timedelta(days=6)]
-        if cold:
-            first = min(c[2] for c in cold)
-            names = sorted({c[0] for c in cold if c[2] == first})
-            lines.append(f"والنموذج الأوروبي الممتد يرى أسبوعًا أبرد من معدله بدرجتين فأكثر على {join(names)} "
-                         f"ابتداءً من {ar_date(first)}.")
-
-    if not gfs and not ec:
-        lines.append("تعذر اليوم جلب توقع جي إف إس اليومي والنموذج الأوروبي الممتد، فهذا الجزء مبني على التذبذب المداري وحده.")
-
-    # 3. MJO
-    mw = mjo_window(st, today)
-    if mw and mw["wet"]:
-        x = mw["wet"]
-        if x["a"] <= today:
-            ln = (f"التذبذب المداري (قراءة من إسقاط جي إف إس لخمسة عشر يومًا): في طور رطب للمملكة الآن (الطور {ar(x['phase'])} "
-                  f"بشدة {num(x['amp'], 1)})")
+            lines.append(f"من ١٥ إلى ٤٥ يومًا (استنتاج من سرعة الانتقال): {name} {why}، وبهذه السرعة لا يعود إلى "
+                         f"القطاع المحفز قبل {ar_date(d)}، أي بعد مدى الخمسة والأربعين يومًا.")
+    usual = None
+    if not infer:
+        stall = (sp_m is not None and abs(sp_m) < 3) or (sp_w is not None and abs(sp_w) < 3)
+        why = ("التذبذب شبه ثابت في موضعه في الشهر الأخير، فلا تُقاس له سرعة يُبنى عليها" if stall else
+               "لا تُقاس للتذبذب سرعة منتظمة في الشهر الأخير")
+        if still:
+            lines.append(f"من ١٥ إلى ٤٥ يومًا (استنتاج): الصورة الكبرى ما زالت محفزة في آخر الإسقاط، ولا يُعرف متى "
+                         f"تخرج منها؛ {why}.")
         else:
-            ln = (f"التذبذب المداري (قراءة من إسقاط جي إف إس لخمسة عشر يومًا): يدخل الطور {ar(x['phase'])} الرطب للمملكة "
-                  f"بشدة {num(x['amp'], 1)} يوم {ar_date(x['a'])}")
-        ln += (f"، ويبقى في الأطوار الرطبة حتى {ar_date(x['b'])}، فيدعم أي حالة مطرية في هذه المدة." if x["ends"] else
-               "، ويبقى فيها حتى نهاية الإسقاط، فيدعم الحالات المطرية في هذه المدة.")
-        lines.append(ln)
-        windows.append(("التذبذب المداري", max(x["a"], today), x["b"]))
-    nx = mw and mw["next"]
-    if nx and nx["kind"] == "inferred":
-        lines.append(f"التذبذب المداري بعد ذلك (استنتاج): يدور التذبذب شرقًا في آخر إسقاط جي إف إس نحو {deg(nx['speed'])} "
-                     f"في اليوم (دورة كاملة في نحو {num(nx['period'])} يومًا)، فإن حافظ على سرعته وشدته يعود إلى الأطوار "
-                     f"الرطبة للمملكة (٧ و٨ و١ و٢) قرابة {ar_date(nx['d'])}، بهامش أسبوع تقريبًا. "
-                     "هذا استنتاج من سرعة الدوران لا توقع، وثقته منخفضة.")
-        windows.append(("التذبذب المداري", nx["d"] - timedelta(days=5), nx["d"] + timedelta(days=10)))
-    elif nx and nx["kind"] == "late":
-        lines.append(f"التذبذب المداري بعد ذلك (استنتاج): بسرعة دورانه الحالية لا يعود إلى الأطوار الرطبة للمملكة قبل "
-                     f"{ar_date(nx['d'])} تقريبًا، أي بعد مدى الخمسة والأربعين يومًا.")
-    elif nx and nx["kind"] == "none":
-        lines.append(f"التذبذب المداري بعد خمسة عشر يومًا: {'يضعف' if nx['amp'] < 1 else 'لا يدور بانتظام'} في آخر إسقاط جي إف إس، "
-                     "فلا يمكن الاستنتاج منه لما بعد خمسة عشر يومًا.")
+            out_d = leave or end15
+            a, b = out_d + timedelta(days=15), out_d + timedelta(days=30)
+            usual = (a, b)
+            lines.append(f"من ١٥ إلى ٤٥ يومًا (استنتاج من الدورة المعتادة): {why}. وبالدورة المعتادة للتذبذب "
+                         f"(٣٠ إلى ٦٠ يومًا، يقضي نصفها تقريبًا في الأطوار غير المحفزة) تعود الأطوار المحفزة للجزيرة "
+                         f"العربية {ar_span(a, b)} تقريبًا، بشرط أن يحافظ التذبذب على شدته. الثقة منخفضة.")
+    if last_m and last_m["amp"] < 1:
+        lines.append("تنبيه: شدة التذبذب في آخر الإسقاط دون ١، وإن ضعف فقد لا يحمل إشارة واضحة حين يعود.")
 
-    # 4. what agrees with what, for the coming fifteen days and for days 16 to 45: the days on which the
-    #    most sources see a rain wave
-    windows = [w for w in windows if w[2] > today + timedelta(days=1)]
-    summary = []
-    for k0, k1, label in ((2, 15, "خلال ١٥ يومًا"), (16, 46, "من ١٥ إلى ٤٥ يومًا")):
-        cnt = []
-        for k in range(k0, k1 + 1):
-            d = today + timedelta(days=k)
-            cnt.append((d, {s for s, a, b in windows if a <= d <= b}))
-        top = max(len(c[1]) for c in cnt)
-        if top == 0:
-            summary.append(f"{label} لا ملامح لموجة مطرية جديدة في أي من المصادر")
-            continue
-        run = []
-        for d, s_ in cnt:
-            if len(s_) == top:
-                run.append((d, s_))
-            elif run:
-                break
-        a, b, src = run[0][0], run[-1][0], sorted(run[0][1])
-        if top >= 2:
-            summary.append(f"{label} تتفق إشارات {join(src)} على موجة مطرية {ar_span(a, b)}، "
-                           f"والثقة {'متوسطة إلى جيدة' if top >= 3 else 'متوسطة'}")
-        else:
-            summary.append(f"{label} إشارة لموجة مطرية {ar_span(a, b)} من {src[0]} وحده، "
-                           "ولا يؤكدها مصدر آخر في الوقت نفسه، فالثقة منخفضة")
-    lines.append("الخلاصة: " + "؛ و".join(summary) + ". وتتضح المناطق والكميات حين تدخل الموجة في مدى النماذج "
-                 "عالية الدقة، ويُحدَّث هذا الجزء كل يوم.")
-    return {"heading": "ملامح موجة مطرية جديدة (١٥ و٤٥ يومًا)", "lines": lines}
+    # 4. the signal, in one line
+    near = sorted(d for _, d, _ in infer if 15 <= (d - day0).days <= 46)
+    if last_good:
+        sig = (f"الصورة الكبرى محفزة الآن حتى {ar_date(last_good)}" if leave else
+               "الصورة الكبرى محفزة الآن وحتى آخر مدى الإسقاط")
+    elif either:
+        sig = f"إشارة عودة إلى الأطوار المحفزة يوم {ar_date((both[0] if both else either[0])[0])}"
+    else:
+        sig = "لا إشارة عودة في الأيام الخمسة عشر القادمة"
+    if len(near) == 2 and (near[1] - near[0]).days <= 7:
+        sig += f"؛ وتتفق سرعة التذبذب والحدث الدافئ على عودة جديدة {ar_span(near[0], near[1])}، والثقة متوسطة"
+    elif near:
+        sig += f"؛ وأقرب عودة مستنتجة بعد ذلك قرابة {ar_date(near[0])}، والثقة منخفضة"
+    elif usual:
+        sig += f"؛ والعودة المستنتجة من الدورة المعتادة {ar_span(*usual)}، والثقة منخفضة"
+    lines.append("الخلاصة: " + sig + ". يُحدَّث كل يوم، وأي تغير في الإشارة يظهر هنا أولًا.")
+    return {"heading": HEADING, "lines": lines}

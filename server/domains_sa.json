@@ -1,5 +1,5 @@
 {
- "_note": "Kingdom-wide 9 km run: a single domain over all of Saudi Arabia with a margin, run in parallel with the Makkah nests (domains.json) on its own runner and published to the model-data-sa branch under the id 'sa'.",
+ "_note": "Kingdom-wide 9 km run: a single domain over all of Saudi Arabia with a margin, run in parallel with the Makkah nests (domains.json) on its own runner and published to the model-data-sa branch under the id 'sa'. 33 hours, so that the 15 UTC run covers the whole of the next Makkah day for the nightly report.",
  "map": {
   "map_proj": "lambert",
   "ref_lat": 24.3,
@@ -24,7 +24,7 @@
    "ratio": 1,
    "ips": 1,
    "jps": 1,
-   "hours": 27,
+   "hours": 33,
    "geog": "default",
    "max_dt": 54,
    "min_dt": 18,

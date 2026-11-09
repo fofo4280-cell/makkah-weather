@@ -19,7 +19,7 @@ import sa_geo as G
 from sa_geo import ar, num, ar_date, join, deg
 
 MODELS = [("ecmwf_ifs025", "الأوروبي"), ("gfs_seamless", "الأمريكي"), ("icon_seamless", "الألماني")]
-DVARS = ["precipitation_sum", "temperature_2m_max", "temperature_2m_min", "wind_gusts_10m_max"]
+DVARS = ["temperature_2m_max", "temperature_2m_min", "wind_gusts_10m_max"]   # rain comes from our own model only
 NORM_YEARS = range(2001, 2021)
 TZ = "Asia/Riyadh"
 
@@ -108,41 +108,78 @@ def lcc_inverse(pr, x, y):
     return lat, lon
 
 
-def wrf_day(sa_dir, day):
-    """Rain (mm) and highest gust (km/h) of our 9 km Kingdom run over the hours it covers of the Makkah day:
-    {run, hours, lat, lon, rain, gust, h0, h1} or None."""
-    if not sa_dir or not os.path.exists(os.path.join(sa_dir, "runs.json")):
-        return None
+def lcc_forward(pr, lat, lon):
+    r = math.pi / 180
+    p1, p2, p0, l0 = pr["truelat1"] * r, pr["truelat2"] * r, pr["ref_lat"] * r, pr["stand_lon"] * r
+    t = lambda p: np.tan(math.pi / 4 + p / 2)
+    n = math.log(math.cos(p1) / math.cos(p2)) / math.log(t(p2) / t(p1))
+    F = math.cos(p1) * t(p1) ** n / n
+    R = pr.get("R", 6370000.0)
+    rho = R * F / t(np.asarray(lat) * r) ** n
+    rho0 = R * F / t(p0) ** n
+    th = n * (np.asarray(lon) * r - l0)
+    return rho * np.sin(th), rho0 - rho * np.cos(th)
+
+
+def our_model_day(dirs, day, log=print):
+    """Rain (mm) and highest gust (km/h) of our own runs over the hours they cover of the Makkah day.
+    dirs: published data folders (the Kingdom 9 km run and the western 3 km run). Every domain with point data
+    takes part; where domains overlap, the finer one is used, as on the map page. Returns
+    {lat, lon, rain, gust, w (cell area weight), doms: [(name, res, run)], hours, h0, h1} or None."""
     t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) - timedelta(hours=3)   # 00 Makkah
     t_b = t_a + timedelta(hours=24)
-    best = None
-    for r in json.load(open(os.path.join(sa_dir, "runs.json"))).get("runs", []):
-        p = os.path.join(sa_dir, "runs", r["run"], "manifest.json")
-        if not os.path.exists(p):
-            continue
-        man = json.load(open(p))
-        d = (man.get("domains") or {}).get("sa") or {}
-        P = d.get("points")
-        if not P:
-            continue
-        init = datetime.strptime(man["init"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
-        hs = [k for k, h in enumerate(P["hours"]) if k > 0 and t_a < init + timedelta(hours=h) <= t_b]
-        if best is None or len(hs) > len(best[2]):
-            best = (r["run"], man, hs, P, init)
-    if best is None or len(best[2]) < 9:
+    cands = []
+    for root in [d for d in dirs if d and os.path.exists(os.path.join(d, "runs.json"))]:
+        best = {}
+        for r in json.load(open(os.path.join(root, "runs.json"))).get("runs", []):
+            p = os.path.join(root, "runs", r["run"], "manifest.json")
+            if not os.path.exists(p):
+                continue
+            man = json.load(open(p))
+            init = datetime.strptime(man["init"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
+            for dom, d in (man.get("domains") or {}).items():
+                P = d.get("points")
+                if not P or not os.path.exists(os.path.join(root, "runs", r["run"], P["file"])):
+                    continue
+                hs = [k for k, h in enumerate(P["hours"]) if k > 0 and t_a < init + timedelta(hours=h) <= t_b]
+                if dom not in best or len(hs) > len(best[dom]["hs"]):
+                    best[dom] = {"root": root, "run": r["run"], "init": init, "P": P, "hs": hs, "dom": dom,
+                                 "proj": d.get("proj") or man["proj"], "name": d.get("name", dom), "res": d.get("res", "")}
+        cands += best.values()
+    if not cands:
         return None
-    run, man, hs, P, init = best
-    raw = np.fromfile(os.path.join(sa_dir, "runs", run, P["file"]), np.uint8)
-    nh, ny, nx = len(P["hours"]), P["ny"], P["nx"]
-    arr = raw.reshape(len(P["vars"]), nh, ny, nx)
-    vi = {v: k for k, v in enumerate(P["vars"])}
-    rain = ((arr[vi["rain1h"], hs].astype(np.float32) / 25) ** 2).sum(0)
-    gust = (arr[vi["wind"], hs].astype(np.float32) / 2).max(0)
-    jj, ii = np.mgrid[0:ny, 0:nx]
-    lat, lon = lcc_inverse(d.get("proj") or man["proj"], P["x00"] + ii * P["dx"], P["y00"] + jj * P["dx"])
-    loc = lambda h: (init + timedelta(hours=P["hours"][h], minutes=180)).hour
-    return {"run": run, "hours": len(hs), "lat": lat.ravel(), "lon": lon.ravel(), "rain": rain.ravel(),
-            "gust": gust.ravel(), "h0": (loc(hs[0]) - 1) % 24, "h1": loc(hs[-1]) or 24}
+    top = max(len(c["hs"]) for c in cands)
+    if top < 9:
+        return None
+    cands = [c for c in cands if len(c["hs"]) >= top - 1]          # same hours of the day (drops the 1 km window runs)
+    cands.sort(key=lambda c: -c["P"]["dx"])
+    for c in cands:
+        P = c["P"]
+        raw = np.fromfile(os.path.join(c["root"], "runs", c["run"], P["file"]), np.uint8)
+        nh, ny, nx = len(P["hours"]), P["ny"], P["nx"]
+        arr = raw.reshape(len(P["vars"]), nh, ny, nx)
+        vi = {v: k for k, v in enumerate(P["vars"])}
+        c["rain"] = ((arr[vi["rain1h"], c["hs"]].astype(np.float32) / 25) ** 2).sum(0).ravel()
+        c["gust"] = (arr[vi["wind"], c["hs"]].astype(np.float32) / 2).max(0).ravel()
+        jj, ii = np.mgrid[0:ny, 0:nx]
+        la, lo = lcc_inverse(c["proj"], P["x00"] + ii * P["dx"], P["y00"] + jj * P["dx"])
+        c["lat"], c["lon"] = la.ravel(), lo.ravel()
+        c["keep"] = np.ones(c["lat"].shape, bool)
+    for k, c in enumerate(cands):     # leave to a finer domain (or an earlier one as fine) what it covers
+        for q, f in enumerate(cands):
+            if q == k or f["P"]["dx"] > c["P"]["dx"] or (f["P"]["dx"] == c["P"]["dx"] and q > k):
+                continue
+            x, y = lcc_forward(f["proj"], c["lat"], c["lon"])
+            i = np.round((x - f["P"]["x00"]) / f["P"]["dx"]); j = np.round((y - f["P"]["y00"]) / f["P"]["dx"])
+            c["keep"] &= ~((i >= 2) & (j >= 2) & (i <= f["P"]["nx"] - 3) & (j <= f["P"]["ny"] - 3))
+    cat = lambda key: np.concatenate([c[key][c["keep"]] for c in cands])
+    c0 = cands[0]
+    loc = lambda h: (c0["init"] + timedelta(hours=c0["P"]["hours"][h], minutes=180)).hour
+    log("report: our runs used: " + ", ".join(f"{c['run']} {c['dom']} {len(c['hs'])} h" for c in cands))
+    return {"lat": cat("lat"), "lon": cat("lon"), "rain": cat("rain"), "gust": cat("gust"),
+            "w": np.concatenate([np.full(int(c["keep"].sum()), float(c["P"]["dx"]) ** 2) for c in cands]),
+            "doms": [(c["name"], c["res"], c["run"]) for c in cands], "hours": top,
+            "h0": (loc(c0["hs"][0]) - 1) % 24, "h1": loc(c0["hs"][-1]) or 24}
 
 
 # ------------------------------------------------------------------ assessment
@@ -154,7 +191,7 @@ def rain_word(peak):
     return next(w for t, w in RAIN_WORDS if peak >= t)
 
 
-def situation(day, sa_dir, state_dir, om=None, log=print):
+def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
     om = om or G.OpenMeteo()
     regs = G.tag_towns(G.regions())
     lat, lon, ri, names = G.grid_points(regs, 0.5)
@@ -164,93 +201,61 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
     data = {"day": day.isoformat(), "regions": []}
     lines, head = [], []
 
-    # ---- rain
-    rain_rows = []
-    for k, r in enumerate(regs):
-        m_k = ri == k
-        g_k = m_k & grid
-        per = []
-        for m, mname in MODELS:
-            pr = M[m]["precipitation_sum"][1]
-            if not np.isfinite(pr[g_k]).any():
-                continue
-            v = np.nan_to_num(pr)
-            j = int(np.argmax(np.where(m_k, v, -1)))
-            per.append({"m": mname, "mean": float(v[g_k].mean()), "cov": float((v[g_k] >= 1).mean()),
-                        "max": float(v[j]), "at": (float(lat[j]), float(lon[j]))})
-        if not per:
-            continue
-        wet = [p for p in per if p["cov"] >= 0.08 or p["max"] >= 5]
-        row = {"k": k, "name": r["name"], "mean": float(np.median([p["mean"] for p in per])),
-               "cov": float(np.median([p["cov"] for p in per])), "peak": float(np.median([p["max"] for p in per])),
-               "top": max(per, key=lambda p: p["max"]), "wet": [p["m"] for p in wet], "n": len(per)}
-        rain_rows.append(row)
-    rainy = sorted([x for x in rain_rows if len(x["wet"]) >= 2 or (len(x["wet"]) == 1 and x["peak"] >= 5)],
-                   key=lambda x: -(x["mean"] + 0.05 * x["peak"]))
+    # ---- rain: our own model only, set against the large-scale picture
     wrf = None
     try:
-        wrf = wrf_day(sa_dir, day)
+        wrf = our_model_day(our_dirs, day, log)
     except Exception as e:
-        log(f"report: our Kingdom run unreadable: {e}")
-    if rainy:
-        parts = []
-        for x in rainy[:5]:
-            pl, dist = G.nearest_place(*x["top"]["at"], regs[x["k"]])
-            near = f"قرب {pl}" if dist <= 45 else "في أنحاء من المنطقة"
-            parts.append(f"{x['name']} ({rain_word(x['peak'])}؛ تغطي نحو {num(100 * x['cov'])}٪ من المنطقة، "
-                         f"وتصل إلى {num(x['top']['max'])} ملم {near} في النموذج {x['top']['m']})")
-        if len(rainy) == 1:
-            line = "الأمطار: على منطقة واحدة هي " + parts[0] + "."
-        elif len(rainy) <= 5:
-            line = "الأمطار، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts[:-1]) + "، وأقلها " + parts[-1] + "."
-        else:
-            rest = rainy[5:]
-            line = "الأمطار، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts) + "."
-            line += (f" وأقلها {rest[0]['name']}." if len(rest) == 1 else
-                     f" وأمطار أقل على {join(x['name'] for x in rest[:-1])}، وأقلها {rest[-1]['name']}.")
-        agree = [x["name"] for x in rainy if len(x["wet"]) == x["n"] == 3]
-        single = [(x["name"], x["wet"][0]) for x in rainy if len(x["wet"]) == 1]
-        notes = []
-        if agree:
-            notes.append(f"تتفق النماذج الثلاثة على أمطار {join(agree)}")
-        if single:
-            notes.append("ويراها نموذج واحد فقط على " + join(f"{a} (النموذج {b})" for a, b in single))
-        if notes:
-            line += " " + "، ".join(notes) + "."
-        dry = [x["name"] for x in rain_rows if x not in rainy]
-        if dry:
-            line += f" ولا أمطار تُذكر على {join(dry)}."
-        lines.append(line)
-        head.append(f"أمطار على {join(x['name'] for x in rainy[:4])}")
+        log(f"report: our model runs unreadable: {e!r}")
+    rainy = []
+    if wrf is None:
+        lines.append("الأمطار: لم يكتمل تشغيل نموذجنا الذي يغطي هذا اليوم عند كتابة التقرير، فلا ترتيب للمناطق اليوم.")
     else:
-        top = max(rain_rows, key=lambda x: x["top"]["max"], default=None)
-        line = "الأمطار: لا تتوقع النماذج الثلاثة أمطارًا تُذكر على مناطق المملكة"
-        if top and top["top"]["max"] >= 1:
-            pl, _ = G.nearest_place(*top["top"]["at"], regs[top["k"]])
-            line += f"، عدا زخات معزولة قد تصل إلى {num(top['top']['max'])} ملم قرب {pl} في النموذج {top['top']['m']}"
-        lines.append(line + ".")
-    if wrf is not None:
         wri = G.region_of_points(regs, wrf["lat"], wrf["lon"])
         rows = []
         for k, r in enumerate(regs):
             m_k = wri == k
             if not m_k.any():
                 continue
-            v = wrf["rain"][m_k]
+            v, w = wrf["rain"][m_k], wrf["w"][m_k]
             j = int(np.argmax(v))
-            rows.append((r["name"], float(v.mean()), float((v >= 1).mean()), float(v[j]),
-                         float(wrf["lat"][m_k][j]), float(wrf["lon"][m_k][j]), k))
-        wet = sorted([x for x in rows if x[2] >= 0.03 or x[3] >= 5], key=lambda x: -(x[1] + 0.05 * x[3]))
-        span = f"من الساعة {ar(wrf['h0'])} إلى الساعة {ar(wrf['h1'])}"
-        if wet:
-            def one(x):
-                pl, dist = G.nearest_place(x[4], x[5], regs[x[6]])
-                return f"{x[0]} (حتى {num(x[3])} ملم{' قرب ' + pl if dist <= 45 else ''})"
-            lines.append(f"ونموذجنا للمملكة بدقة ٩ كم ({span} بتوقيت مكة)، من الأغزر: "
-                         + "، ثم ".join(one(x) for x in wet[:5]) + ".")
+            rows.append({"k": k, "name": r["name"], "mean": float((v * w).sum() / w.sum()),
+                         "cov": float((w * (v >= 1)).sum() / w.sum()), "max": float(v[j]),
+                         "at": (float(wrf["lat"][m_k][j]), float(wrf["lon"][m_k][j]))})
+        rainy = sorted([x for x in rows if x["cov"] >= 0.03 or x["max"] >= 5], key=lambda x: -x["mean"])
+        span = (f"من الساعة {ar(wrf['h0'])} إلى الساعة {ar(wrf['h1'])} بتوقيت مكة" if wrf["hours"] < 23
+                else "على مدى اليوم كله")
+        if rainy:
+            parts = []
+            for x in rainy[:6]:
+                pl, dist = G.nearest_place(*x["at"], regs[x["k"]])
+                near = f"قرب {pl}" if dist <= 45 else "في أنحاء من المنطقة"
+                parts.append(f"{x['name']} ({rain_word(x['max'])}، تغطي نحو {num(100 * x['cov'])}٪ من المنطقة، "
+                             f"وتصل إلى {num(x['max'])} ملم {near})")
+            if len(rainy) == 1:
+                line = f"الأمطار ({span}): على منطقة واحدة هي " + parts[0] + "."
+            elif len(rainy) <= 6:
+                line = (f"الأمطار ({span})، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts[:-1])
+                        + "، وأقلها " + parts[-1] + ".")
+            else:
+                rest = rainy[6:]
+                line = f"الأمطار ({span})، من الأغزر إلى الأقل بمجموعها على المنطقة: " + "، ثم ".join(parts) + "."
+                line += (f" وأقلها {rest[0]['name']}." if len(rest) == 1 else
+                         f" وأمطار أقل على {join(x['name'] for x in rest[:-1])}، وأقلها {rest[-1]['name']}.")
+            dry = [x["name"] for x in rows if x not in rainy]
+            if dry:
+                line += f" ولا أمطار تُذكر على {join(dry)}."
+            lines.append(line)
+            head.append(f"أمطار على {join(x['name'] for x in rainy[:4])}")
         else:
-            lines.append(f"ونموذجنا للمملكة بدقة ٩ كم ({span} بتوقيت مكة) لا يُظهر أمطارًا تُذكر.")
-        data["wrf"] = {"run": wrf["run"], "hours": wrf["hours"]}
+            lines.append(f"الأمطار ({span}): لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة.")
+        data["rain"] = [{k: v for k, v in x.items() if k != "at"} for x in rainy]
+        data["our_runs"] = wrf["doms"]
+    if st is not None:
+        try:
+            lines.append(big_picture(st, day, rainy))
+        except Exception as e:
+            log(f"report: large-scale check failed: {e!r}")
 
     # ---- temperature: extremes, change from the day before, and departure from normal at the towns
     med = lambda v, d: np.nanmedian(np.stack([M[m][v][d] for m, _ in MODELS]), axis=0)
@@ -359,14 +364,76 @@ def situation(day, sa_dir, state_dir, om=None, log=print):
         lines.append("الغبار: لا يتوقع نموذج كوبرنيكوس غبارًا مؤثرًا، والرياح في حدودها المعتادة.")
     data["dust"] = [{k: v for k, v in x.items()} for x in dusty]
 
-    srcs = "النموذج الأوروبي (٢٥ كم) والأمريكي جي إف إس والألماني أيكون"
+    srcs = ""
     if wrf is not None:
-        rd = date(int(wrf["run"][:4]), int(wrf["run"][4:6]), int(wrf["run"][6:8]))
-        srcs += (f"، ونموذجنا للمملكة بدقة ٩ كم (دورة {'الثالثة فجرًا' if wrf['run'][8:10] == '00' else 'الثالثة عصرًا'}"
-                 f" يوم {ar_date(rd)})")
-    srcs += "، والغبار من خدمة كوبرنيكوس الأوروبية لمراقبة الغلاف الجوي، والمعدلات من إعادة التحليل الأوروبية للفترة ٢٠٠١–٢٠٢٠ في مدن كل منطقة."
+        def run_txt(run):
+            rd = date(int(run[:4]), int(run[4:6]), int(run[6:8]))
+            return f"دورة {'الثالثة فجرًا' if run[8:10] == '00' else 'الثالثة عصرًا'} يوم {ar_date(rd)}"
+        srcs += "الأمطار من نموذجنا وحده (" + "، و".join(f"{n} بدقة {r}" for n, r, _ in wrf["doms"]) + f"، {run_txt(wrf['doms'][0][2])})؛ "
+    srcs += ("والحرارة والرياح من النموذج الأوروبي والأمريكي جي إف إس والألماني أيكون، والغبار من خدمة كوبرنيكوس "
+             "الأوروبية لمراقبة الغلاف الجوي، والمعدلات من إعادة التحليل الأوروبية للفترة ٢٠٠١–٢٠٢٠ في مدن كل منطقة.")
     summary = ("أبرز ما يؤثر على طقس المملكة: " + "، و".join(head) + ".") if head else \
         "لا حالة جوية بارزة على المملكة: لا أمطار تُذكر ولا موجة حارة أو باردة ولا غبار مؤثر."
     lines = [summary] + lines + [f"المصادر: {srcs}"]
     log(f"report: today's section done, Open-Meteo weight {om.used:.0f}")
     return {"heading": f"طقس المملكة يوم {ar_date(day)}", "lines": lines, "data": data}
+
+
+# ------------------------------------------------------------------ the large-scale picture of the day
+BOX_OF = {"SA-02": "west", "SA-03": "west", "SA-09": "southwest", "SA-14": "southwest", "SA-10": "southwest",
+          "SA-11": "southwest", "SA-01": "central", "SA-05": "central", "SA-04": "east", "SA-06": "north",
+          "SA-12": "north", "SA-08": "north", "SA-07": "north"}
+BOX_NAME = {"west": "الحجاز وغرب المملكة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
+            "east": "شرق المملكة", "north": "شمال المملكة"}
+
+
+def big_picture(st, day, rainy):
+    """Does the large-scale picture back the rain our model gives for the day? One Arabic paragraph."""
+    import bigpic as B
+    regs = {r["name"]: r for r in G.regions()}
+    pro, con = [], []
+    m = B.rmm_on(st, day)
+    if m and st.get("wet_season"):
+        if m["amp"] >= 1 and m["phase"] in B.WET_PHASES:
+            pro.append(f"التذبذب المداري في الطور {ar(m['phase'])} الرطب للمملكة بشدة {num(m['amp'], 1)}")
+        elif m["amp"] >= 1:
+            con.append(f"التذبذب المداري في الطور {ar(m['phase'])} الجاف للمملكة فيكبت الحمل")
+    w = next((x for x in B.wave1(st["hov"]) if x[0] == day.isoformat()), None) if st.get("hov") else None
+    if w:
+        if B.favourable(w[1]):
+            pro.append(f"الحدث الدافئ (التباعد العلوي) متمركز فوق {B.region_name(w[1])} في القطاع المحفز للجزيرة العربية")
+        else:
+            con.append(f"الحدث الدافئ بعيد فوق {B.region_name(w[1])}")
+    row = next((r for r in st.get("pw", []) if r["d"] == day.isoformat()), None)
+    if row:
+        boxes = [k for k in BOX_NAME if k in row and row[k]["pct"] >= 150]
+        if boxes:
+            pro.append("مد رطوبي فوق " + join(f"{BOX_NAME[k]} ({num(row[k]['pct'])}٪ من المعدل)" for k in boxes))
+        else:
+            dry = [k for k in BOX_NAME if k in row and row[k]["pct"] < 80]
+            if dry and rainy and all(BOX_OF[regs[x["name"]]["id"]] in dry for x in rainy):
+                con.append("الرطوبة دون المعدل فوق مناطق المطر")
+    wv = next((x for x in st.get("waves", []) if x["d"] == day.isoformat()), None)
+    if wv and "trough" in wv and wv["trough"]["v"] <= -25:
+        pro.append(f"أخدود في الطبقة الوسطى فوق {wv['trough']['area']}")
+    cv = [c for c in st.get("conv", []) if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
+    if cv:
+        pro.append("التقاء رياح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة")
+    ar_ = st.get("ar") or {}
+    mk = [r for r in ar_.get("sa", []) if (datetime.strptime(r["t"], "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).date() == day]
+    if mk and max(r["v"] for r in mk) >= 250:
+        pro.append(f"نهر جوي يبلغ أراضي المملكة بنقل {num(max(r['v'] for r in mk))} كغ/م/ث")
+    n = len(pro)
+    if rainy:
+        verdict = ("تعزز الحالة بقوة، فالأمطار جزء من نظام واسع منظم" if n >= 3 else
+                   "تعزز الحالة جزئيًا" if n >= 1 else
+                   "لا تعزز الحالة، فالأمطار محلية من تسخين النهار والتضاريس وتبقى متفرقة")
+    else:
+        verdict = ("مهيأة للمطر، لكن نموذجنا لا يُظهر أمطارًا اليوم، فتُتابع التحديثات" if n >= 2 else
+                   "لا تدعم حالة مطرية اليوم")
+    txt = f"الصورة الكبرى {verdict}"
+    if pro:
+        txt += ": " + "، و".join(pro)
+    if con:
+        txt += ("؛ وفي المقابل " if pro else ": ") + "، و".join(con)
+    return txt + "."
