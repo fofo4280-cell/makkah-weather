@@ -22,7 +22,7 @@ from products import (PRODUCTS, DAILY, SINGLE, POINT_VARS, palette, classify, le
 HERE = os.path.dirname(os.path.abspath(__file__))
 CFG = json.load(open(os.path.join(HERE, "..", os.environ.get("SWRF_DOMAINS") or "domains.json")))
 # grids that only feed a nest are run but not drawn or published ("publish": false)
-PUB = [d for d in PUB if d.get("publish", True)]
+PUB = [d for d in CFG["domains"] if d.get("publish", True)]
 CITIES = json.load(open(os.path.join(HERE, "cities.json")))
 R_EARTH = 6370000.0
 RIYADH = timezone(timedelta(hours=3))
