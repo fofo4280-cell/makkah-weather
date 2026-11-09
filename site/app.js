@@ -789,7 +789,7 @@
     const r = st.report;
     $("mjoReport").hidden = !r;
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + r.lines.map((l) => `<p>${l}</p>`).join("") +
-      `<p class="hint">يصدر هذا التقرير كل يوم قرابة الساعة ٨:٣٠ صباحًا بتوقيت مكة${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
+      `<p class="hint">يصدر هذا التقرير وكل ما في هذه الصفحة كل يوم قرابة الساعة ١٢ ليلًا بتوقيت مكة${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
@@ -958,8 +958,8 @@
     const show = (k) => {
       const url = `${CL}fig/conv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
       $("convFig").src = url; $("convLink").href = url;
-      const d = rows[k] && rows[k].d;
-      $("convDayLabel").textContent = d ? `${fmtDayD.format(dOf(d))} · ٣ م` : "";
+      const r = rows[k];
+      $("convDayLabel").textContent = r ? (r.t ? fmtWhen.format(new Date(r.t.replace("Z", ":00Z"))) : fmtDayD.format(dOf(r.d))) : "";
     };
     $("convDay").max = rows.length - 1;
     $("convDay").oninput = (e) => show(+e.target.value);

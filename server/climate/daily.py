@@ -80,7 +80,7 @@ FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entir
 
 
 Z500 = ("z500", r":HGT:500 mb:")
-CONV_DAYS = 10
+CONV_HOURS = 24
 CONV_FIELDS = [("u", r":UGRD:925 mb:"), ("v", r":VGRD:925 mb:"), ("t", r":TMP:925 mb:"), ("rh", r":RH:925 mb:"),
                ("psfc", r":PRES:surface:")]
 
@@ -134,13 +134,14 @@ def gfs_fields(cycle, fh, extra=(), res="1p00", fields=None):
 
 def latest_cycle():
     now = datetime.now(timezone.utc)
-    for k in range(0, 4):
+    for k in range(0, 4):  # newest 00 or 12 UTC run that reaches 15 days
         d = (now - timedelta(days=k)).strftime("%Y%m%d")
-        try:
-            get(f"{AWS}/gfs.{d}/00/atmos/gfs.t00z.pgrb2.1p00.f{FC_DAYS * 24:03d}.idx")
-            return d + "00"
-        except Exception:
-            continue
+        for hh in ("12", "00"):
+            try:
+                get(f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.1p00.f{FC_DAYS * 24:03d}.idx")
+                return d + hh
+            except Exception:
+                continue
     raise RuntimeError("no GFS forecast found")
 
 
@@ -488,10 +489,14 @@ def main():
             row["ridge"] = {"lat": r[1], "lon": r[2], "v": int(round(r[3]))}
         wave_rows.append(row)
 
-    # 8c. where the air meets at 925 hPa: convergence, equivalent potential temperature, wind (0.25 degree, 3 pm)
+    # 8c. where the air meets at 925 hPa, every hour of the next Makkah day (midnight to midnight), 0.25 degree
     conv_rows = []
-    for k in range(0, CONV_DAYS + 1):
-        fh = 12 + 24 * k
+    first = t0.replace(hour=21, minute=0)          # 00:00 Makkah time = 21 UTC
+    if first < t0:
+        first += timedelta(days=1)
+    fh0 = int((first - t0).total_seconds() // 3600)
+    for k in range(0, CONV_HOURS + 1):
+        fh = fh0 + k
         vt = t0 + timedelta(hours=fh)
         try:
             f = gfs_fields(cycle, fh, res="0p25", fields=CONV_FIELDS)
@@ -512,7 +517,8 @@ def main():
         hj = (la[j] >= 19) & (la[j] <= 24)
         hi = (lo[i] >= 38.5) & (lo[i] <= 42)
         box = np.where(sub["psfc"] >= 92500, cv, np.nan)[np.ix_(hj, hi)]
-        conv_rows.append({"d": vt.strftime("%Y-%m-%d"), "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
+        conv_rows.append({"t": vt.strftime("%Y-%m-%dT%H:%MZ"), "k": k,
+                          "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
 
     # 9. Arctic Oscillation
     try:
@@ -624,11 +630,12 @@ def report(st, fc_wet):
         if "ridge" in w and t["lon"] <= 42:
             line += "، يقابله مرتفع فوق بحر العرب وعُمان، فيقع الحجاز في جريان جنوبي غربي يجلب الرطوبة ويدعم الصعود أمام الأخدود"
         lines.append(line + ".")
-    cv = [c for c in st.get("conv", [])[1:8] if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
+    cv = [c for c in st.get("conv", []) if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
     if cv:
+        loc = lambda c: (datetime.strptime(c["t"], "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).hour
         top = max(cv, key=lambda c: c["hejaz_max"])
-        days_txt = "، ".join(ar_date(c["d"]) for c in cv[:4])
-        lines.append(f"التقاء رياح واضح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة وقت العصر في: {days_txt}، وأقواه يوم {ar_date(top['d'])}.")
+        lines.append(f"التقاء رياح واضح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة خلال الأربع والعشرين ساعة القادمة، من الساعة "
+                     f"{ar(loc(cv[0]))} إلى الساعة {ar(loc(cv[-1]))} بتوقيت مكة، وأقواه الساعة {ar(loc(top))}.")
     ao = st.get("ao")
     if ao and ao["fc"] and st.get("cold_season"):
         now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]
