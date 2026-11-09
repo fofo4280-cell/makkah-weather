@@ -22,7 +22,9 @@
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
   const HOURLY = ["refl", "rain1h", "ivt"];
-  const DAILY = ["refl_day", "rain_day"];
+  const DAILY = ["refl_day"];
+  // current names, also for runs made before an option was renamed
+  const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤" };
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
@@ -210,7 +212,7 @@
     const step = lg.stops.length > 7 ? 2 : 1;
     const ticks = lg.stops.map((x, i) => (i % step === 0 || i === lg.stops.length - 1)
       ? `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v, x.v < 1 ? 1 : 0)}</span>` : "").join("");
-    $("legend").innerHTML = `<div class="legend-title"><span>${p.label}</span><span>${p.unit}</span></div>
+    $("legend").innerHTML = `<div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
 
@@ -241,7 +243,7 @@
   function drawProducts() {
     const sel = $("prodSelect");
     const P = (S.man && S.man.products) || {};
-    const opt = (k) => (P[k] ? `<option value="${k}">${P[k].label}</option>` : "");
+    const opt = (k) => (P[k] ? `<option value="${k}">${LABELS[k] || P[k].label}</option>` : "");
     // one flat list, live lightning first
     sel.innerHTML = `<option value="lightning">رادار البرق المباشر</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
@@ -702,7 +704,8 @@
       const complete = S.runs.find((r) => r.status === "complete");
       const newest = S.runs[0];
       // prefer the newest run once it has at least a day of the 3 km domain
-      const pick = newest.status === "running" && complete && ((newest.hours || {}).d02 || 0) < 24 ? complete : newest;
+      // a running run is shown once it covers the day through 6 pm (hour 15); before that, the last complete one
+      const pick = newest.status === "running" && complete && ((newest.hours || {}).d02 || 0) < 15 ? complete : newest;
       sel.value = pick.run;
       await loadRun(pick.run, true);
     } else {
