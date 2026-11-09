@@ -152,9 +152,17 @@ def conv925_from_frame(nc, dx):
     u9 = take(u, k0) + f * (take(u, k1) - take(u, k0))
     v9 = take(w, k0) + f * (take(w, k1) - take(w, k0))
     sig = max(1.0, 9000.0 / dx)              # smooth to about 9 km so the lines stand out from the noise
-    us, vs = gaussian_filter(u9, sig), gaussian_filter(v9, sig)
+    # Where the ground is above 925 hPa the "925 hPa wind" would be the wind over the mountain top; leave those
+    # points out of the smoothing (normalised convolution) so the edge of the high ground does not show false
+    # convergence, and leave out a margin where the level lies within ~150 m of the ground or next to the edge.
+    from scipy.ndimage import binary_erosion
+    good = ok & (p[0] >= 94000.0)
+    wgt = gaussian_filter(good.astype(np.float32), sig)
+    us = gaussian_filter(np.where(good, u9, 0.0), sig) / np.maximum(wgt, 1e-3)
+    vs = gaussian_filter(np.where(good, v9, 0.0), sig) / np.maximum(wgt, 1e-3)
     conv = -(np.gradient(us, dx, axis=1) + np.gradient(vs, dx, axis=0)) * 1e5
-    conv[~ok] = np.nan
+    inner = binary_erosion(good, iterations=int(round(sig)) + 1, border_value=1)
+    conv[~inner] = np.nan
     if "SINALPHA" in v and "COSALPHA" in v:
         sa, ca = np.array(v["SINALPHA"][0]), np.array(v["COSALPHA"][0])
         u9, v9 = u9 * ca - v9 * sa, v9 * ca + u9 * sa
