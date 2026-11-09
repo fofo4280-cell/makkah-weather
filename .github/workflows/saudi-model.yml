@@ -1,15 +1,15 @@
 # Twice-daily high-resolution model for Makkah Region (WRF: 9 km parent, 3 km nest, 27 hours).
 # Code lives on the saudi-wrf branch; results are pushed to the model-data branch and shown at /model/.
 # Two runs 12 hours apart on the main synoptic cycles (full radiosonde assimilation):
-# 03:40 UTC = 06:40 Makkah time for the 00 UTC GFS run (maps by about 10:30, before the afternoon storms).
-# 15:40 UTC = 18:40 Makkah time for the 12 UTC GFS run (maps by about 22:30, before night and dawn coastal storms).
+# 02:47 UTC = 05:47 Makkah time for the 00 UTC GFS run (maps by about 10:30, before the afternoon storms).
+# 14:47 UTC = 17:47 Makkah time for the 12 UTC GFS run (maps by about 22:30, before night and dawn coastal storms).
 # A scheduled run waits for its cycle's files if they are not out yet. GitHub may start scheduled runs late.
 name: Saudi model 3 km
 
 on:
   schedule:
-    - cron: '40 3 * * *'
-    - cron: '40 15 * * *'
+    - cron: '47 2 * * *'
+    - cron: '47 14 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/saudi-model.yml', 'model/run-now.txt']
@@ -28,7 +28,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # GitHub often starts scheduled runs late, so the schedule is early and this small job waits until the
+  # GFS files are out; the model jobs then start at once with their full time allowance.
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Wait for the GFS cycle
+        run: |
+          [ "${{ github.event_name }}" = "schedule" ] || exit 0
+          H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); D=$(date -u +%Y%m%d)
+          U="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f027.idx"
+          for i in $(seq 1 90); do
+            if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $D $C ready"; exit 0; fi
+            sleep 60
+          done
+          echo "still waiting after 90 minutes; the model job will wait or fall back"
+
   forecast:
+    needs: gate
     # two servers in parallel: the Makkah nests (9 km west, 3 km, 1 km) and the Kingdom-wide 9 km run
     name: ${{ matrix.name }}
     strategy:
