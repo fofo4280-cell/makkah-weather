@@ -21,7 +21,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "conv925", "ivt"];
+  const HOURLY = ["refl", "rain1h", "conv925"];
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_vec", ref: 12 } };
   const DAILY = ["refl_day"];
@@ -786,7 +786,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); aoChart(); waveCard();
+    mjoMap(); aoChart(); waveCard(); riverCard();
   }
 
   function mjoText() {
@@ -937,6 +937,23 @@
     return `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
+  // atmospheric rivers from the Indian Ocean to Arabia: one figure a day for 12 days, and the tracks in words
+  function riverCard() {
+    const r = M.st && M.st.ar;
+    if (!r || !(r.frames || []).length) { $("arCard").hidden = true; return; }
+    $("arCard").hidden = false;
+    const show = (k) => {
+      const url = `${CL}fig/ar_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(M.st.updated)}`;
+      $("arFig").src = url; $("arLink").href = url;
+      const t = new Date(r.frames[k].replace("Z", ":00Z"));
+      $("arDayLabel").textContent = (k === 0 ? "الآن: " : `+${num(k)} · `) + fmtWhen.format(t);
+    };
+    $("arDay").max = r.frames.length - 1;
+    $("arDay").oninput = (e) => show(+e.target.value);
+    show(Math.min(+$("arDay").value || 0, r.frames.length - 1));
+    $("arList").innerHTML = (r.lines || []).map((l) => `<p>${l}</p>`).join("");
+  }
+
   function waveCard() {
     const st = M.st, rows = st.waves || [];
     if (!rows.length) { $("waveList").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; return; }
