@@ -251,3 +251,64 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
         im.quantize(colors=220, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:
         pass
+
+
+SCALES["conv"] = {"vmin": 0, "vmax": 6, "cols": [(0, "#f6f3ec"), (.15, "#f6f3ec"), (.3, "#f9d77e"), (.5, "#f39a2b"), (.7, "#e04e1f"),
+                                                (.85, "#b4162a"), (1, "#5c0a2a")],
+                  "label": "التقاء الرياح عند ٩٢٥ هكتوباسكال", "unit": "×١٠⁻⁵ /ث", "ticks": [0, 1, 2, 3, 4, 5, 6]}
+
+
+def draw_conv(path, conv, the, u, v, ground, lat, lon, extent, width_px=1300):
+    """Where air meets at 925 hPa: convergence shaded, equivalent potential temperature contours, wind streamlines.
+    Where the ground is higher than 925 hPa (the Hijaz highlands) the level is underground and is greyed out."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    from scipy.ndimage import zoom
+    sc = SCALES["conv"]
+    w, e, s, n = extent
+    pc = ccrs.PlateCarree()
+    fig_w = width_px / 200
+    fig = plt.figure(figsize=(fig_w, fig_w * (n - s) / (e - w) + 0.4), dpi=200)
+    fig.patch.set_facecolor("#f7f5f0")
+    lm = 75 / width_px
+    ax = fig.add_axes([lm, 0.08, 0.99 - lm, 0.9], projection=ccrs.PlateCarree(central_longitude=(w + e) / 2))
+    ax.set_extent([w, e, s, n], crs=pc)
+    c = np.where(ground, np.nan, np.clip(conv, 0, None))
+    fine = zoom(np.nan_to_num(c, nan=0), 4, order=1)
+    ax.imshow(fine, extent=[lon[0], lon[-1], lat[-1], lat[0]], origin="upper", cmap=_cmap(sc["cols"]), vmin=sc["vmin"],
+              vmax=sc["vmax"], interpolation="bilinear", transform=pc, regrid_shape=fine.shape)
+    g = np.where(ground, 1.0, np.nan)
+    ax.contourf(lon, lat, g, levels=[0.5, 1.5], colors=["#bdbab3"], alpha=0.85, transform=pc, zorder=3)
+    try:
+        import cartopy.io.shapereader as shp
+        shp.natural_earth(resolution="50m", category="physical", name="coastline")
+        ax.coastlines(resolution="50m", linewidth=0.6, color="#1b1b1b", zorder=5)
+        shp.natural_earth(resolution="50m", category="cultural", name="admin_0_boundary_lines_land")
+        ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.35, edgecolor="#555555", zorder=5)
+    except Exception as ex:
+        print("coastlines unavailable:", str(ex)[:80])
+    cs = ax.contour(lon, lat, the, levels=np.arange(300, 372, 4), cmap="viridis", linewidths=0.8, alpha=0.9,
+                    transform=pc, zorder=4)
+    ax.clabel(cs, fmt=lambda x: f"{int(x)}", fontsize=5.5)
+    la, uu, vv = lat[::-1], u[::-1], v[::-1]
+    ax.streamplot(lon, la, uu, vv, color="#2b3440", linewidth=0.6, density=(1.6, 1.4), arrowsize=0.6, transform=pc,
+                  zorder=6)
+    ax.spines["geo"].set_edgecolor("#999999")
+    xt = np.arange(np.ceil(w / 5) * 5, e + 0.1, 5)
+    yt = np.arange(np.ceil(s / 5) * 5, n + 0.1, 5)
+    ax.set_xticks(xt, crs=pc); ax.set_yticks(yt, crs=pc)
+    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=7, color="#555555")
+    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=7, color="#555555")
+    ax.tick_params(length=2.5, color="#999999")
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=230, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:
+        pass

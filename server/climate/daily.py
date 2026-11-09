@@ -80,18 +80,40 @@ FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entir
 
 
 Z500 = ("z500", r":HGT:500 mb:")
+CONV_DAYS = 10
+CONV_FIELDS = [("u", r":UGRD:925 mb:"), ("v", r":VGRD:925 mb:"), ("t", r":TMP:925 mb:"), ("rh", r":RH:925 mb:"),
+               ("psfc", r":PRES:surface:")]
+
+
+def conv925(f, lat, lon):
+    """Convergence (10^-5 /s, positive where air meets) and equivalent potential temperature (K) at 925 hPa."""
+    from scipy.ndimage import gaussian_filter
+    a = 6.371e6
+    phi = np.radians(lat)[:, None]
+    dl = np.radians(lon[1] - lon[0])
+    dp = np.radians(lat[1] - lat[0])
+    u, v = gaussian_filter(f["u"], 1.5), gaussian_filter(f["v"], 1.5)
+    dudx = np.gradient(u, dl, axis=1) / (a * np.cos(phi))
+    dvdy = np.gradient(v * np.cos(phi), dp, axis=0) / (a * np.cos(phi))
+    conv = -(dudx + dvdy) * 1e5
+    t = f["t"]
+    es = 6.112 * np.exp(17.67 * (t - 273.15) / (t - 29.65))
+    e = np.clip(f["rh"], 1, 100) / 100 * es
+    r = 0.622 * e / (925 - e)
+    the = (t + 2.5e6 * r / 1004.0) * (1000 / 925) ** 0.2854
+    return conv, gaussian_filter(the, 1.0)
 WAVE_DAYS = 10
 
 
-def gfs_fields(cycle, fh, extra=()):
-    """u200, v200, pw on the 1 degree grid (lat 90..-90, lon 0..359) for one GFS file, by byte ranges."""
+def gfs_fields(cycle, fh, extra=(), res="1p00", fields=None):
+    """Fields from one GFS file by byte ranges, on its grid (lat 90..-90, lon 0..): u200, v200, pw by default."""
     import pygrib
     d, hh = cycle[:8], cycle[8:10]
-    base = f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.1p00.f{fh:03d}"
+    base = f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.{res}.f{fh:03d}"
     idx = get(base + ".idx").decode().splitlines()
     starts = [int(l.split(":")[1]) for l in idx]
     out = {}
-    for name, pat in list(FIELDS) + list(extra):
+    for name, pat in list(FIELDS if fields is None else fields) + list(extra):
         k = next(i for i, l in enumerate(idx) if re.search(pat, l))
         end = starts[k + 1] - 1 if k + 1 < len(starts) else ""
         blob = get(base, {"Range": f"bytes={starts[k]}-{end}"})
@@ -466,6 +488,32 @@ def main():
             row["ridge"] = {"lat": r[1], "lon": r[2], "v": int(round(r[3]))}
         wave_rows.append(row)
 
+    # 8c. where the air meets at 925 hPa: convergence, equivalent potential temperature, wind (0.25 degree, 3 pm)
+    conv_rows = []
+    for k in range(0, CONV_DAYS + 1):
+        fh = 12 + 24 * k
+        vt = t0 + timedelta(hours=fh)
+        try:
+            f = gfs_fields(cycle, fh, res="0p25", fields=CONV_FIELDS)
+        except Exception as e:
+            print("925 hPa fields unavailable", fh, e, flush=True)
+            continue
+        la = np.linspace(90, -90, f["u"].shape[0])
+        lo = np.linspace(0, 360, f["u"].shape[1], endpoint=False)
+        j = (la >= 5) & (la <= 40)
+        i = (lo >= 25) & (lo <= 65)
+        sub = {n: a[np.ix_(j, i)] for n, a in f.items()}
+        cv, te = conv925(sub, la[j], lo[i])
+        try:
+            figures.draw_conv(os.path.join(out, "fig", f"conv_{k:02d}.png"), cv, te, sub["u"], sub["v"],
+                              sub["psfc"] < 92500, la[j], lo[i], (30, 60, 10, 35))
+        except Exception as e:
+            print("convergence figure failed", k, e, flush=True)
+        hj = (la[j] >= 19) & (la[j] <= 24)
+        hi = (lo[i] >= 38.5) & (lo[i] <= 42)
+        box = np.where(sub["psfc"] >= 92500, cv, np.nan)[np.ix_(hj, hi)]
+        conv_rows.append({"d": vt.strftime("%Y-%m-%d"), "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
+
     # 9. Arctic Oscillation
     try:
         ao = read_ao(t0)
@@ -497,7 +545,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "waves": wave_rows,
+        "waves": wave_rows, "conv": conv_rows,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
@@ -506,7 +554,7 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave")},
+        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv")},
     }
     status["report"] = report(status, fc_wet)   # every day; its title says whether something stands out
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
@@ -576,6 +624,11 @@ def report(st, fc_wet):
         if "ridge" in w and t["lon"] <= 42:
             line += "، يقابله مرتفع فوق بحر العرب وعُمان، فيقع الحجاز في جريان جنوبي غربي يجلب الرطوبة ويدعم الصعود أمام الأخدود"
         lines.append(line + ".")
+    cv = [c for c in st.get("conv", [])[1:8] if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
+    if cv:
+        top = max(cv, key=lambda c: c["hejaz_max"])
+        days_txt = "، ".join(ar_date(c["d"]) for c in cv[:4])
+        lines.append(f"التقاء رياح واضح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة وقت العصر في: {days_txt}، وأقواه يوم {ar_date(top['d'])}.")
     ao = st.get("ao")
     if ao and ao["fc"] and st.get("cold_season"):
         now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]
