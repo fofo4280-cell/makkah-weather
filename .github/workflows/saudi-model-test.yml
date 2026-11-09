@@ -11,13 +11,13 @@ on:
         required: false
         default: 'saudi-wrf'
       hours:
-        description: 'forecast hours (empty: the full run)'
+        description: "forecast hours, a multiple of 3, or 'full' for the whole run"
         required: false
-        default: '4'
+        default: 'full'
       stop_h:
-        description: 'hour where part 1 hands over to part 2 (empty: one runner)'
+        description: "hour where part 1 hands over to part 2, or 'none' for one runner"
         required: false
-        default: '2'
+        default: '15'
       with_1km:
         description: 'also test the 1 km server'
         type: boolean
@@ -39,8 +39,8 @@ jobs:
       branch: model-data
       code_ref: ${{ inputs.ref }}
       publish: false
-      hours: ${{ inputs.hours }}
-      stop_h: ${{ inputs.stop_h }}
+      hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
+      stop_h: ${{ inputs.stop_h != 'none' && inputs.stop_h || '' }}
 
   west2:
     needs: west
@@ -52,7 +52,7 @@ jobs:
       branch: model-data
       code_ref: ${{ inputs.ref }}
       publish: false
-      hours: ${{ inputs.hours }}
+      hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
       resume: true
 
   makkah1km:
@@ -64,5 +64,5 @@ jobs:
       branch: model-data-1km
       code_ref: ${{ inputs.ref }}
       publish: false
-      hours: ${{ inputs.hours }}
-      window: ${{ inputs.hours != '' && '3,6' || '' }}
+      hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
+      window: ${{ inputs.hours != 'full' && '3,6' || '' }}
