@@ -538,9 +538,15 @@ def big_picture(st, day, rainy):
 def stratiform_alert(what, items):
     """items: (area, 9 km rain, echo aloft in the finer grid)."""
     why = []
-    if any(e for _, _, e in items):
-        why.append("صدى سحب ممطرة في الأعلى يتبخر قبل الأرض في " + join(n for n, _, e in items if e))
-    why.append("ونموذج ٩ كم يُنزل أمطارًا خفيفة (" + "، ".join(f"{n} حتى {num(r, 1)} ملم" for n, r, _ in items) + ")")
+    if len(items) == 1:
+        n, r, e = items[0]
+        if e:
+            why.append("صدى سحب ممطرة في الأعلى يتبخر قبل الأرض")
+        why.append(f"ونموذج ٩ كم يُنزل عليها أمطارًا خفيفة حتى {num(r, 1)} ملم" if e else f"نموذج ٩ كم يُنزل عليها أمطارًا خفيفة حتى {num(r, 1)} ملم")
+    else:
+        if any(e for _, _, e in items):
+            why.append("صدى سحب ممطرة في الأعلى يتبخر قبل الأرض في " + join(n for n, _, e in items if e))
+        why.append(("و" if why else "") + "نموذج ٩ كم يُنزل أمطارًا خفيفة (" + "، ".join(f"{n} حتى {num(r, 1)} ملم" for n, r, _ in items) + ")")
     return (f"تنبيه: احتمال أمطار ديمية خفيفة إلى متوسطة أعلى مما يُظهر {what} على {join(n for n, _, _ in items)}: "
             + "، ".join(why) + "، والصورة الكبرى تعزز الحالة. مثل هذه الأمطار يكثر أن تفوت النماذج حين تكون "
             "الطبقة تحت السحاب فيها أجف من الواقع (كما حدث في الجموم يوم ١٠ نوفمبر).")
