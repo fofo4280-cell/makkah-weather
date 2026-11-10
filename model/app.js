@@ -49,7 +49,7 @@
   }
 
   // ------------------------------------------------------------------ map
-  const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 13 }).setView([23.5, 44], 5);
+  const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 16 }).setView([23.5, 44], 5);
   // basemaps: dark by default, place names drawn above the model colours
   map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
   // Esri's grey canvas tiles need no key (CARTO started requiring one and stamps its tiles otherwise)
@@ -57,10 +57,12 @@
   const esriAttr = "© Esri, HERE, Garmin, © OpenStreetMap";
   const dark = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
   const light = L.tileLayer(esri("Canvas/World_Light_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
-  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
-  const shade = L.tileLayer(esri("Elevation/World_Hillshade_Dark"), { maxZoom: 13, opacity: 0.45, attribution: "Esri" });
+  // OpenTopoMap and OpenStreetMap carry the local (Arabic) names: villages, wadis, mountains and landmarks when zoomed in
+  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 16, maxNativeZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
+  const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 16, maxNativeZoom: 19, attribution: "© OpenStreetMap" });
+  const shade = L.tileLayer(esri("Elevation/World_Hillshade_Dark"), { maxZoom: 16, maxNativeZoom: 13, opacity: 0.45, attribution: "Esri" });
   const labelsDark = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { pane: "labels", maxZoom: 19, maxNativeZoom: 16 });
-  const bases = { "داكنة": dark, "فاتحة": light, "تضاريس": topo };
+  const bases = { "داكنة": dark, "فاتحة": light, "تضاريس وأودية (أسماء عربية)": topo, "تفصيلية: القرى والمعالم (أسماء عربية)": osm };
   const baseKey = store.get("base2") || "داكنة";
   (bases[baseKey] || dark).addTo(map);
   if (store.get("shade") !== "0") shade.addTo(map);
@@ -76,7 +78,7 @@
   const regions = L.geoJSON(null, { pane: "regions", style: regionStyle, interactive: false });
   if (store.get("regions") !== "0") regions.addTo(map);
   fetch("sa_regions.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
-  L.control.layers(bases, { "حدود المناطق": regions, "ظلال التضاريس": shade, "أسماء الأماكن": labelsDark }, { position: "topleft" }).addTo(map);
+  L.control.layers(bases, { "حدود المناطق": regions, "ظلال التضاريس": shade, "أسماء المدن الكبرى": labelsDark }, { position: "topleft" }).addTo(map);
   map.on("baselayerchange", (e) => {
     store.set("base2", e.name); document.body.classList.toggle("light-map", e.name !== "داكنة");
     regions.setStyle(regionStyle);
