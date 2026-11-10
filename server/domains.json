@@ -1,5 +1,5 @@
 {
- "_note": "Jeddah-Makkah-Taif 1 km run: the 9 km and 3 km grids here exist only to feed the 1 km nest (not published: publish=false); they run to hour 18 so the nest's window fits both cycles. Published to the model-data-1km branch. The 3 km map on the site comes from domains_west.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
+ "_note": "Jeddah-Makkah-Taif 1 km run: the 9 km and 3 km grids here exist only to feed the 1 km nest (not published: publish=false); they run to hour 18; the nest runs hours 9-18 of both cycles: 12:00-21:00 Makkah time in the morning run (the afternoon and evening storms), 00:00-09:00 in the evening run (night and dawn on the coast). Published to the model-data-1km branch. The 3 km map on the site comes from domains_west.json. Keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
  "map": {
   "map_proj": "lambert",
   "ref_lat": 21.6,
@@ -61,19 +61,19 @@
    "ratio": 3,
    "ips": 33,
    "jps": 84,
-   "hours": 15,
+   "hours": 18,
    "windows": {
     "0": [
      9,
-     15
+     18
     ],
     "12": [
-     12,
+     9,
      18
     ],
     "default": [
      9,
-     15
+     18
     ]
    },
    "geog": "cop90+default",
