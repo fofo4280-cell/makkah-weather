@@ -116,6 +116,9 @@ stage_wrf() {
   log "WRF configure option: $opt"
   printf '%s\n1\n' "$opt" | ./configure > configure.out 2>&1
   [ -f configure.wrf ] || { cat configure.out; return 1; }
+  # faster code for the runners' processors (AMD EPYC, AVX2): higher optimisation and vector instructions
+  sed -i -E 's/^(FCOPTIM[[:space:]]*=).*/\1 -O3 -march=x86-64-v3 -ftree-vectorize -funroll-loops/' configure.wrf
+  grep -E "^FCOPTIM" configure.wrf
   log "compiling WRF (takes a while)…"
   ./compile -j "$NPROC" em_real > compile.log 2>&1
   if [ ! -x main/wrf.exe ] || [ ! -x main/real.exe ]; then
