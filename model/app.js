@@ -276,7 +276,9 @@
       sel = $("domSelect");
       sel.onchange = () => setDomain(sel.value, true);
     }
-    sel.innerHTML = ids.map((id) => { const d = S.man.domains[id]; return `<option value="${id}">${d.name} ${d.res}</option>`; }).join("");
+    sel.innerHTML = ids.map((id) => { const d = S.man.domains[id]; return `<option value="${id}">${d.name} ${d.res}</option>`; }).join("")
+      // the 1 km nest runs only in its window of hours: say so while it has not reached it yet
+      + (S.k1wait && !ids.includes("d03") ? `<option value="" disabled>جدة ومكة والطائف ١ كم · يُحسب، تظهر خرائطه حين تبلغ ساعاته</option>` : "");
     sel.value = ids.includes(S.dom) ? S.dom : ids[0];
   }
 
@@ -713,13 +715,15 @@
       for (const [k, d] of Object.entries(sa.domains || {})) S.man.domains[k] = { ...d, base: DATA_SA, proj: sa.proj };
       S.man.products = { ...(sa.products || {}), ...(S.man.products || {}) };
     } catch (e) { /* not made for this run */ }
+    S.k1wait = false;
     try {  // the 1 km nest (only its own grid; the 9 and 3 km grids there just feed it)
       const k1 = await getJSON(`${DATA_1K}runs/${run}/manifest.json`);
+      S.k1wait = !(k1.domains && k1.domains.d03) && k1.status === "running";
       if (S.man && k1.domains && k1.domains.d03) {
         S.man.domains.d03 = { ...k1.domains.d03, base: DATA_1K, proj: k1.proj };
         S.man.products = { ...(k1.products || {}), ...(S.man.products || {}) };
       }
-    } catch (e) { /* not made for this run */ }
+    } catch (e) { S.k1wait = S.runs && S.runs[0] && S.runs[0].run === run && S.runs[0].status === "running"; }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
       if (Array.isArray(p.legend)) {  // runs made before the gradient colours
