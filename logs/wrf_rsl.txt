@@ -1,0 +1,80 @@
+Timing for main (dt=  6.00): time 2026-11-11_05:55:28 on domain   3:    1.32798 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:55:34 on domain   3:    1.26337 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:55:40 on domain   3:    1.27413 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:55:39 on domain   2:    6.43752 elapsed seconds
+Timing for main (dt= 54.00): time 2026-11-11_05:55:39 on domain   1:   21.54831 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:55:46 on domain   3:    1.27652 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:55:52 on domain   3:    1.27304 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:55:58 on domain   3:    1.24047 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:55:57 on domain   2:    6.39047 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:04 on domain   3:    1.25106 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:10 on domain   3:    1.25301 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:16 on domain   3:    1.24974 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:56:15 on domain   2:    6.32854 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:22 on domain   3:    1.28054 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:28 on domain   3:    1.25453 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:34 on domain   3:    1.26375 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:56:33 on domain   2:    6.38630 elapsed seconds
+Timing for main (dt= 54.00): time 2026-11-11_05:56:33 on domain   1:   21.44025 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:40 on domain   3:    1.28429 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:46 on domain   3:    1.28664 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:52 on domain   3:    1.26323 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:56:51 on domain   2:    6.41205 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:56:58 on domain   3:    1.25729 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:04 on domain   3:    1.24653 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:10 on domain   3:    1.24803 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:57:09 on domain   2:    6.35175 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:16 on domain   3:    1.29683 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:22 on domain   3:    1.27304 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:28 on domain   3:    1.27501 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:57:27 on domain   2:    6.43350 elapsed seconds
+Timing for main (dt= 54.00): time 2026-11-11_05:57:27 on domain   1:   21.56006 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:34 on domain   3:    1.25131 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:40 on domain   3:    1.26709 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:46 on domain   3:    1.27117 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:57:45 on domain   2:    6.40567 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:52 on domain   3:    1.27163 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:57:58 on domain   3:    1.34524 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:58:04 on domain   3:    1.24006 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:58:03 on domain   2:    6.47400 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:58:10 on domain   3:    1.26303 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:58:16 on domain   3:    1.26479 elapsed seconds
+Timing for main (dt=  6.00): time 2026-11-11_05:58:22 on domain   3:    1.26076 elapsed seconds
+Timing for main (dt= 18.00): time 2026-11-11_05:58:21 on domain   2:    6.38915 elapsed seconds
+Timing for main (dt= 54.00): time 2026-11-11_05:58:21 on domain   1:   21.64734 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:27 on domain   3:    1.23555 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:33 on domain   3:    1.24811 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:38 on domain   3:    1.25104 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_05:58:37 on domain   2:    6.29772 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:44 on domain   3:    1.25891 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:49 on domain   3:    1.25460 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:58:55 on domain   3:    1.24793 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_05:58:54 on domain   2:    6.35451 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:00 on domain   3:    1.26347 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:06 on domain   3:    1.26367 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:11 on domain   3:    1.25600 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_05:59:10 on domain   2:    6.36129 elapsed seconds
+Timing for main (dt= 49.47): time 2026-11-11_05:59:10 on domain   1:   31.35323 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:17 on domain   3:    1.25055 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:22 on domain   3:    1.25954 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:27 on domain   3:    1.24991 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_05:59:27 on domain   2:    6.38608 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:33 on domain   3:    1.24484 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:38 on domain   3:    1.24483 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:44 on domain   3:    1.25825 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_05:59:43 on domain   2:    6.31098 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:49 on domain   3:    1.24691 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_05:59:55 on domain   3:    1.25738 elapsed seconds
+Timing for main (dt=  5.50): time 2026-11-11_06:00:00 on domain   3:    1.31568 elapsed seconds
+ mediation_integrate.G        1249 DATASET=HISTORY
+ mediation_integrate.G        1250  grid%id            3  grid%oid            2
+Timing for Writing wrfout_d03_2026-11-11_06:00:00 for domain        3:    1.94772 elapsed seconds
+Timing for main (dt= 16.49): time 2026-11-11_06:00:00 on domain   2:    8.40031 elapsed seconds
+ mediation_integrate.G        1249 DATASET=HISTORY
+ mediation_integrate.G        1250  grid%id            2  grid%oid            2
+Timing for Writing wrfout_d02_2026-11-11_06:00:00 for domain        2:    2.46405 elapsed seconds
+Timing for main (dt= 49.47): time 2026-11-11_06:00:00 on domain   1:   26.11170 elapsed seconds
+ mediation_integrate.G        1249 DATASET=HISTORY
+ mediation_integrate.G        1250  grid%id            1  grid%oid            2
+Timing for Writing wrfout_d01_2026-11-11_06:00:00 for domain        1:    2.08105 elapsed seconds
+d01 2026-11-11_06:00:00 wrf: SUCCESS COMPLETE WRF

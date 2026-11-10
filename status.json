@@ -1,0 +1,60 @@
+{
+ "phase": "idle",
+ "steps": [
+  {
+   "id": "gfs",
+   "label": "تنزيل بيانات جي إف إس",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-10T15:44:02Z",
+   "ended": "2026-11-10T15:49:41Z"
+  },
+  {
+   "id": "wps",
+   "label": "المعالجة المسبقة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-10T15:49:41Z",
+   "ended": "2026-11-10T15:49:58Z"
+  },
+  {
+   "id": "real",
+   "label": "التهيئة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-10T15:49:58Z",
+   "ended": "2026-11-10T15:50:12Z"
+  },
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-10T15:50:14Z",
+   "note": "الساعة 18 من 18",
+   "ended": "2026-11-10T20:33:19Z"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-10T20:33:19Z",
+   "ended": "2026-11-10T20:33:19Z"
+  }
+ ],
+ "history": [
+  {
+   "cycle": "2026111012",
+   "ok": 1,
+   "minutes": 289,
+   "cores": 4,
+   "finished": "2026-11-10T20:33Z"
+  }
+ ],
+ "cycle": "2026111012",
+ "message": "اكتملت آخر دورة في 289 دقيقة",
+ "started": "2026-11-10T15:44:00Z",
+ "updated": "2026-11-10T20:33:19Z",
+ "finished": "2026-11-10T20:33:19Z"
+}
