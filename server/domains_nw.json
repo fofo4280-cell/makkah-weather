@@ -1,0 +1,54 @@
+{
+ "_note": "Regional 3 km run (شمال غرب المملكة, about 23.5-32.0 N, 34.4-40.0 E) inside a 9 km parent with a 270 km margin; one of five regional grids that with the western highlands cover the Kingdom at 3 km (the eastern Empty Quarter excepted). 33 hours on two runners handing over at hour 16; only the 3 km grid is published, to the model-data-nw branch under the id 'nw'.",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 27.75,
+  "ref_lon": 37.2,
+  "truelat1": 22.75,
+  "truelat2": 32.75,
+  "stand_lon": 37.2
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {
+   "id": "d01",
+   "name": "محيط شمال غرب المملكة",
+   "res": "٩ كم",
+   "dx": 9000,
+   "e_we": 123,
+   "e_sn": 166,
+   "parent": 0,
+   "ratio": 1,
+   "ips": 1,
+   "jps": 1,
+   "hours": 33,
+   "geog": "default",
+   "max_dt": 54,
+   "min_dt": 18,
+   "cu": 3,
+   "gwd": 1,
+   "publish": false
+  },
+  {
+   "id": "d02",
+   "pub": "nw",
+   "name": "شمال غرب المملكة",
+   "res": "٣ كم",
+   "dx": 3000,
+   "e_we": 187,
+   "e_sn": 316,
+   "parent": 1,
+   "ratio": 3,
+   "ips": 31,
+   "jps": 31,
+   "hours": 33,
+   "geog": "cop90+default",
+   "max_dt": 18,
+   "min_dt": 6,
+   "cu": 0,
+   "gwd": 0
+  }
+ ]
+}
