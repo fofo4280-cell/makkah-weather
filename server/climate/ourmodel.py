@@ -261,3 +261,12 @@ def area_text(name, d, place, hail, sc, sc_vals):
     elif sc == 1:
         t += "، وفرص ضعيفة لخلايا عملاقة (سوبر سل)"
     return t
+
+
+def aloft(cells, m, dbz=15.0):
+    """How many places-and-hours of the area have a rain echo aloft (15 dBZ or more) but under 0.1 mm at the
+    ground: rain the model makes in the cloud and evaporates on the way down. When the real low levels are moister
+    than the model's, that rain reaches the ground, mostly as steady light rain (Al-Jumum, 10 November 2026: an
+    echo of 18 dBZ east of Makkah in our 3 km run, no rain at the ground, two hours of steady rain in reality)."""
+    rf, rn = cells["refl"][:, m], cells["rain"][:, m]
+    return int(((rf >= dbz) & (rn < 0.1)).sum())

@@ -323,8 +323,26 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
             lines.append(big_picture(st, day, rainy))
         except Exception as e:
             log(f"report: large-scale check failed: {e!r}")
+    bp_n = getattr(big_picture, "n", 0)
     try:
-        makkah = makkah_section(day, doms, env, regs, lat, lon, ri, our_dirs, log)
+        if king is not None and bp_n >= 2:
+            sa9 = O.composite([d_ for d_ in doms if d_["dx"] >= 9000 and d_["name"] == "السعودية"])
+            al = []
+            if sa9 is not None:
+                sri = G.region_of_points(regs, sa9["lat"], sa9["lon"])
+                for x in rows:
+                    if x in rainy:
+                        continue
+                    a_ = O.aloft(king, kri == x["k"])
+                    r9 = float(sa9["rain"][:, sri == x["k"]].sum(0).max()) if (sri == x["k"]).any() else 0.0
+                    if (a_ >= 1 and r9 >= 0.5) or (r9 >= 2 and bp_n >= 3):
+                        al.append((x["name"], r9, a_ >= 1))
+            if al:
+                lines.append(stratiform_alert("نموذجنا", al))
+    except Exception as e:
+        log(f"report: stratiform check failed: {e!r}")
+    try:
+        makkah = makkah_section(day, doms, env, regs, lat, lon, ri, our_dirs, log, bp_n)
     except Exception as e:
         log(f"report: Makkah region section failed: {e!r}")
         makkah = None
@@ -501,6 +519,7 @@ def big_picture(st, day, rainy):
     if mk and max(r["v"] for r in mk) >= 250:
         pro.append(f"نهر جوي يبلغ أراضي المملكة بنقل {num(max(r['v'] for r in mk))} كغ/م/ث")
     n = len(pro)
+    big_picture.n = n
     if rainy:
         verdict = ("تعزز الحالة بقوة، فالأمطار جزء من نظام واسع منظم" if n >= 3 else
                    "تعزز الحالة جزئيًا" if n >= 1 else
@@ -516,6 +535,17 @@ def big_picture(st, day, rainy):
     return txt + "."
 
 
+def stratiform_alert(what, items):
+    """items: (area, 9 km rain, echo aloft in the finer grid)."""
+    why = []
+    if any(e for _, _, e in items):
+        why.append("صدى سحب ممطرة في الأعلى يتبخر قبل الأرض في " + join(n for n, _, e in items if e))
+    why.append("ونموذج ٩ كم يُنزل أمطارًا خفيفة (" + "، ".join(f"{n} حتى {num(r, 1)} ملم" for n, r, _ in items) + ")")
+    return (f"تنبيه: احتمال أمطار ديمية خفيفة إلى متوسطة أعلى مما يُظهر {what} على {join(n for n, _, _ in items)}: "
+            + "، ".join(why) + "، والصورة الكبرى تعزز الحالة. مثل هذه الأمطار يكثر أن تفوت النماذج حين تكون "
+            "الطبقة تحت السحاب فيها أجف من الواقع (كما حدث في الجموم يوم ١٠ نوفمبر).")
+
+
 # ------------------------------------------------------------------ Makkah region at 3 km
 MAKKAH_AREAS = [
     ("جدة والساحل الشمالي (رابغ وخليص)", ["جدة", "رابغ", "خليص"]),
@@ -526,7 +556,7 @@ MAKKAH_AREAS = [
 ]
 
 
-def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print):
+def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print, bp_n=0):
     """Makkah region from our 3 km grid (1 km only for the towns paragraph): the region, then five parts of it."""
     import ourmodel as O
     reg = next(r for r in regs if r["id"] == "SA-02")
@@ -562,14 +592,27 @@ def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print):
     gla, glo = glat[gpts], glon[gpts]
     gnear = np.argmin((gla[:, None] - tl[None]) ** 2 + ((glo[:, None] - to[None]) * np.cos(np.radians(21.5))) ** 2, axis=1)
     garea = np.array([towns[i][0] for i in gnear])
-    parts, dry = [], []
+    parts, dry, alerts = [], [], []
+    sa9 = O.composite([d_ for d_ in doms if d_["dx"] >= 9000 and d_["name"] == "السعودية"])
     for name, ts in MAKKAH_AREAS:
         m = np.zeros(inr.shape, bool); m[np.flatnonzero(inr)[area_of == name]] = True
         if not m.any():
             continue
         dd = O.describe(mk, m)
         if not dd["wet"] or (dd["cov"] < 0.03 and dd["max"] < 5):
-            dry.append(name.split(" (")[0]); continue
+            dry.append(name.split(" (")[0])
+            if bp_n >= 2 and sa9 is not None:
+                a_ = O.aloft(mk, m)
+                pm = np.zeros(sa9["lat"].shape, bool)
+                s_in = G.region_of_points(regs, sa9["lat"], sa9["lon"]) == k_reg
+                if s_in.any():
+                    sn = np.argmin((sa9["lat"][s_in, None] - tl[None]) ** 2
+                                   + ((sa9["lon"][s_in, None] - to[None]) * np.cos(np.radians(21.5))) ** 2, axis=1)
+                    pm[np.flatnonzero(s_in)[np.array([towns[i][0] for i in sn]) == name]] = True
+                r9 = float(sa9["rain"][:, pm].sum(0).max()) if pm.any() else 0.0
+                if (a_ >= 1 and r9 >= 0.5) or (r9 >= 2 and bp_n >= 3):
+                    alerts.append((name.split(" (")[0], r9, a_ >= 1))
+            continue
         j = np.flatnonzero(m)[dd["jmax"]]
         pl, _ = G.nearest_place(float(mk["lat"][j]), float(mk["lon"][j]), reg)
         p = np.zeros(gpts.shape, bool); p[np.flatnonzero(gpts)[garea == name]] = True
@@ -580,6 +623,8 @@ def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print):
         lines += [t + "." for _, t in sorted(parts, key=lambda x: -x[0])]
     if dry and parts:
         lines.append(f"ولا أمطار تُذكر على {join(dry)}.")
+    if alerts:
+        lines.append(stratiform_alert("نموذج ٣ كم", alerts))
     try:
         cr = finest_city_rain(our_dirs, day)
         if cr:
