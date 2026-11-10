@@ -23,7 +23,7 @@ concurrency:
 jobs:
   daily:
     runs-on: ubuntu-24.04
-    timeout-minutes: 345
+    timeout-minutes: 420
     steps:
       - name: Wait for today's GFS run
         run: |
@@ -131,7 +131,7 @@ jobs:
           done_on() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
             | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if r and r[0]['status']=='complete' else 1)"; }
           until done_on model-data; do
-            h=$(date -u +%H%M); if [ "$h" -ge 0130 ] && [ "$h" -lt 1700 ]; then echo "western run $R not complete by 01:30 UTC"; exit 0; fi
+            h=$(date -u +%H%M); if [ "$h" -ge 0245 ] && [ "$h" -lt 1700 ]; then echo "western run $R not complete by 02:45 UTC"; exit 0; fi
             sleep 300
           done
           for b in model-data:west model-data-1km:km1; do
