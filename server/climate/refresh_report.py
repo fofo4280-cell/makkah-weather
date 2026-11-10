@@ -22,7 +22,7 @@ def main():
     if not old or "data" not in old:
         print("no day section to refresh"); return
     day = date.fromisoformat(old["data"]["day"])
-    ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
+    ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")] + os.environ.get("REGION_DATA", "").split()
     tw = today_wx.situation(day, ours, state, st, sa_geo.OpenMeteo())
     mk = tw.pop("makkah", None)
     new = []

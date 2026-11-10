@@ -594,7 +594,7 @@ def main():
     om = sa_geo.OpenMeteo()
     secs = []
     try:
-        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
+        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")] + os.environ.get("REGION_DATA", "").split()
         tw = today_wx.situation(day0, ours, state, status, om)
         mk_sec = tw.pop("makkah", None)
         secs.append(tw)
