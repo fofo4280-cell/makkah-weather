@@ -1,9 +1,10 @@
-# Twice-daily high-resolution model for Makkah Region (WRF: 9 km parent, 3 km nest, 27 hours).
-# Code lives on the saudi-wrf branch; results are pushed to the model-data branch and shown at /model/.
-# Two runs 12 hours apart on the main synoptic cycles (full radiosonde assimilation):
-# 02:47 UTC = 05:47 Makkah time for the 00 UTC GFS run (maps by about 10:30, before the afternoon storms).
-# 14:47 UTC = 17:47 Makkah time for the 12 UTC GFS run (maps by about 22:30, before night and dawn coastal storms).
-# A scheduled run waits for its cycle's files if they are not out yet. GitHub may start scheduled runs late.
+# Twice-daily high-resolution model (WRF) on GitHub runners; code on the saudi-wrf branch, maps shown at /model/.
+#   western highlands 3 km (Jazan to the harrats north of Makkah, with the Red Sea) in a 9 km parent, 33 hours:
+#     too long for one runner, so it runs in two parts that hand over WRF restart files at hour 15 -> model-data
+#   1 km nest over Jeddah-Makkah-Taif at the storm hours, with its own 9/3 km feeder grids -> model-data-1km
+#   Kingdom-wide 9 km, 33 hours -> model-data-sa
+# Runs on the 00 and 12 UTC GFS cycles (full radiosonde assimilation). GitHub often starts scheduled runs late,
+# so the schedule is early and the gate job waits for the GFS files; the model jobs then get their full time.
 name: Saudi model 3 km
 
 on:
@@ -12,7 +13,7 @@ on:
     - cron: '47 14 * * *'
   push:
     branches: [main]
-    paths: ['.github/workflows/saudi-model.yml', 'model/run-now.txt']
+    paths: ['model/run-now.txt']
   workflow_dispatch:
     inputs:
       cycle:
@@ -28,8 +29,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # GitHub often starts scheduled runs late, so the schedule is early and this small job waits until the
-  # GFS files are out; the model jobs then start at once with their full time allowance.
   gate:
     runs-on: ubuntu-24.04
     timeout-minutes: 100
@@ -38,114 +37,47 @@ jobs:
         run: |
           [ "${{ github.event_name }}" = "schedule" ] || exit 0
           H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); D=$(date -u +%Y%m%d)
-          U="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f027.idx"
+          U="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f033.idx"
           for i in $(seq 1 90); do
             if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $D $C ready"; exit 0; fi
             sleep 60
           done
           echo "still waiting after 90 minutes; the model job will wait or fall back"
 
-  forecast:
+  west:
     needs: gate
-    # two servers in parallel: the Makkah nests (9 km west, 3 km, 1 km) and the Kingdom-wide 9 km run
-    name: ${{ matrix.name }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: makkah
-            domains: domains.json
-            branch: model-data
-          - name: kingdom
-            domains: domains_sa.json
-            branch: model-data-sa
-    runs-on: ubuntu-24.04
-    timeout-minutes: 358
-    env:
-      SWRF: /home/runner/swrf
-      WEB: /home/runner/web
-      SWRF_TEST: '1'
-      NPROC: '4'
-      KEEP_RUNS: '3'
-      CYCLES: '0 12'
-      JOB_BUDGET_MIN: '342'
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      SWRF_DOMAINS: ${{ matrix.domains }}
-      PUBLISH_BRANCH: ${{ matrix.branch }}
-    steps:
-      - name: Model code
-        uses: actions/checkout@v4
-        with:
-          ref: saudi-wrf
-          path: code
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
 
-      - name: Prepare folders
-        run: |
-          echo "JOB_T0=$(date -u +%s)" >> "$GITHUB_ENV"   # the cycle stops the model in time to publish
-          mkdir -p "$SWRF/state" "$SWRF/logs" "$WEB"
-          ln -sfn "$GITHUB_WORKSPACE/code" "$SWRF/repo"
-          touch "$SWRF/state/installed"
-          git clone -q --depth 1 --branch "$PUBLISH_BRANCH" "https://github.com/${GITHUB_REPOSITORY}" "$WEB/data" || mkdir -p "$WEB/data"
-          rm -rf "$WEB/data/.git"
-          echo "PUBLISH_HOOK=$SWRF/repo/server/ci/publish.sh" >> "$GITHUB_ENV"
+  west2:
+    needs: west
+    if: always() && needs.west.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      resume: true
 
-      - name: System packages
-        run: |
-          sudo apt-get update -q
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q gfortran m4 csh tcsh cmake rsync \
-            libnetcdf-dev libnetcdff-dev netcdf-bin libhdf5-dev libopenmpi-dev openmpi-bin libpng-dev zlib1g-dev
+  makkah1km:
+    needs: gate
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: makkah1km
+      domains: domains.json
+      branch: model-data-1km
+      cycle: ${{ inputs.cycle }}
 
-      - name: Restore compiled model
-        id: build
-        uses: actions/cache/restore@v4
-        with:
-          path: /home/runner/swrf/build
-          key: wrf-build-u2404-${{ hashFiles('code/server/install.sh', 'code/server/env.sh', 'code/server/pick_option.py', 'code/server/patch_geogrid_tbl.py') }}
-
-      - name: Compile model (first run only)
-        if: steps.build.outputs.cache-hit != 'true'
-        run: |
-          STAGES="jasper netcdf wrf wps" bash "$SWRF/repo/server/install.sh"
-          bash "$SWRF/repo/server/ci/prune_build.sh"
-
-      - name: Keep compiled model
-        if: steps.build.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /home/runner/swrf/build
-          key: ${{ steps.build.outputs.cache-primary-key }}
-
-      - name: Python tools
-        run: STAGES="netcdf python" bash "$SWRF/repo/server/install.sh"
-
-      - name: Grid design id
-        id: gh
-        run: echo "id=$(python3 code/server/render_namelists.py geohash)" >> "$GITHUB_OUTPUT"
-
-      - name: Restore static grid
-        id: geo
-        uses: actions/cache/restore@v4
-        with:
-          path: /home/runner/swrf/work/static
-          key: geo-${{ steps.gh.outputs.id }}
-
-      - name: Static data (only when the grid changes)
-        if: steps.geo.outputs.cache-hit != 'true'
-        run: bash "$SWRF/repo/server/ci/static_data.sh"
-
-      - name: Keep static grid
-        if: steps.geo.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: /home/runner/swrf/work/static
-          key: ${{ steps.geo.outputs.cache-primary-key }}
-
-      - name: Forecast
-        run: |
-          if [ "${{ github.event_name }}" != "schedule" ]; then export ANY_CYCLE=1; fi
-          if [ -n "${{ inputs.cycle }}" ]; then export FORCE_CYCLE="${{ inputs.cycle }}"; fi
-          bash "$SWRF/repo/server/run_cycle.sh"
-
-      - name: Publish results
-        if: always()
-        run: bash "$SWRF/repo/server/ci/publish.sh"
+  kingdom:
+    needs: gate
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: kingdom
+      domains: domains_sa.json
+      branch: model-data-sa
+      cycle: ${{ inputs.cycle }}
