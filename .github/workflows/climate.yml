@@ -86,21 +86,27 @@ jobs:
             [ "$(date -u +%H%M)" -ge 2230 ] && { echo "Kingdom run $R not complete by 22:30 UTC"; break; }
             sleep 300
           done
-          if done_on model-data; then echo "west=done" >> "$GITHUB_OUTPUT"; else echo "west=later" >> "$GITHUB_OUTPUT"; fi
+          # the 3 km runs (western highlands and the regional grids): complete, or not run for this cycle
+          done3() { for b in model-data model-data-nw model-data-n model-data-c model-data-e model-data-se; do
+            j=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$b/runs.json?$(date +%s)") || continue
+            echo "$j" | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if not r or r[0]['status']=='complete' else 1)" || return 1
+          done; }
+          if done3; then echo "west=done" >> "$GITHUB_OUTPUT"; else echo "west=later" >> "$GITHUB_OUTPUT"; fi
 
       - name: Our model runs (rain of the day in the report)
         run: |
-          for b in model-data-sa:sa model-data:west model-data-1km:km1; do
+          for b in model-data-sa:sa model-data:west model-data-1km:km1 model-data-nw:r_nw model-data-n:r_n model-data-c:r_c model-data-e:r_e model-data-se:r_se; do
             git clone -q --depth 1 --filter=blob:none --sparse --branch "${b%%:*}" "https://github.com/${GITHUB_REPOSITORY}" "/home/runner/${b##*:}" || continue
             git -C "/home/runner/${b##*:}" sparse-checkout set --no-cone '/runs.json' '/runs/*/manifest.json' '/runs/*/*/points.bin' || true
           done
-          du -sh /home/runner/sa /home/runner/west /home/runner/km1 2>/dev/null || true
+          du -sh /home/runner/sa /home/runner/west /home/runner/km1 /home/runner/r_* 2>/dev/null || true
 
       - name: Compute
         env:
           SA_DATA: /home/runner/sa
           WEST_DATA: /home/runner/west
           KM1_DATA: /home/runner/km1
+          REGION_DATA: /home/runner/r_nw /home/runner/r_n /home/runner/r_c /home/runner/r_e /home/runner/r_se
         run: python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/out
 
       - name: Keep recent analyses
@@ -126,15 +132,20 @@ jobs:
           SA_DATA: /home/runner/sa
           WEST_DATA: /home/runner/west
           KM1_DATA: /home/runner/km1
+          REGION_DATA: /home/runner/r_nw /home/runner/r_n /home/runner/r_c /home/runner/r_e /home/runner/r_se
         run: |
           R="${{ steps.wait.outputs.run }}"
           done_on() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
             | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if r and r[0]['status']=='complete' else 1)"; }
-          until done_on model-data; do
-            h=$(date -u +%H%M); if [ "$h" -ge 0245 ] && [ "$h" -lt 1700 ]; then echo "western run $R not complete by 02:45 UTC"; exit 0; fi
+          done3() { for b in model-data model-data-nw model-data-n model-data-c model-data-e model-data-se; do
+            j=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$b/runs.json?$(date +%s)") || continue
+            echo "$j" | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; sys.exit(0 if not r or r[0]['status']=='complete' else 1)" || return 1
+          done; }
+          until done3; do
+            h=$(date -u +%H%M); if [ "$h" -ge 0245 ] && [ "$h" -lt 1700 ]; then echo "3 km runs $R not all complete by 02:45 UTC; the report uses what is published"; break; fi
             sleep 300
           done
-          for b in model-data:west model-data-1km:km1; do
+          for b in model-data:west model-data-1km:km1 model-data-nw:r_nw model-data-n:r_n model-data-c:r_c model-data-e:r_e model-data-se:r_se; do
             rm -rf "/home/runner/${b##*:}"
             git clone -q --depth 1 --filter=blob:none --sparse --branch "${b%%:*}" "https://github.com/${GITHUB_REPOSITORY}" "/home/runner/${b##*:}" || continue
             git -C "/home/runner/${b##*:}" sparse-checkout set --no-cone '/runs.json' '/runs/*/manifest.json' '/runs/*/*/points.bin' || true
