@@ -180,7 +180,7 @@ run_wrf() {
   nice -n 15 "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --watch "$DONE_FLAG" \
      > "$RUN/post_watch.log" 2>&1 &
   local POSTPID=$!
-  timeout 20h mpirun --bind-to core -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
+  timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>  timeout 20h mpirun --bind-to core -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &1 &
   local WPID=$!
   local n=0
   while kill -0 $WPID 2>/dev/null; do
