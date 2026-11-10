@@ -22,6 +22,10 @@ on:
         description: 'also test the 1 km server'
         type: boolean
         default: false
+      ref2:
+        description: 'a second code branch run side by side on its own runner (same cycle), to compare speed'
+        required: false
+        default: 
 
 permissions:
   contents: write
@@ -66,3 +70,15 @@ jobs:
       publish: false
       hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
       window: ${{ inputs.hours != 'full' && '3,6' || '' }}
+
+  west_b:
+    if: inputs.ref2 != ''
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west_b
+      domains: domains_west.json
+      branch: model-data
+      code_ref: ${{ inputs.ref2 }}
+      publish: false
+      hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
+      stop_h: ${{ inputs.stop_h != 'none' && inputs.stop_h || '' }}
