@@ -1,6 +1,6 @@
 # Twice-daily high-resolution model (WRF) on GitHub runners; code on the saudi-wrf branch, maps shown at /model/.
 #   western highlands 3 km (Jazan to the harrats north of Makkah, with the Red Sea) in a 9 km parent, 33 hours:
-#     too long for one runner, so it runs in two parts that hand over WRF restart files at hour 15 -> model-data
+#     too long for one runner, so it runs in two parts that hand over WRF restart files at hour 16 -> model-data
 #   1 km nest over Jeddah-Makkah-Taif at the storm hours, with its own 9/3 km feeder grids -> model-data-1km
 #   Kingdom-wide 9 km, 33 hours -> model-data-sa
 # Runs on the 00 and 12 UTC GFS cycles (full radiosonde assimilation). GitHub often starts scheduled runs late,
@@ -52,7 +52,7 @@ jobs:
       domains: domains_west.json
       branch: model-data
       cycle: ${{ inputs.cycle }}
-      stop_h: '15'
+      stop_h: '16'
 
   west2:
     needs: west
