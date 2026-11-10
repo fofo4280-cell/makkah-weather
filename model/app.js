@@ -13,6 +13,8 @@
   const DATA_SA = window.SWRF_DATA_SA || DATA.replace("/model-data/", "/model-data-sa/");
   // the 1 km nest over Jeddah, Makkah and Taif runs on a third server and is kept on its own branch
   const DATA_1K = window.SWRF_DATA_1K || DATA.replace("/model-data/", "/model-data-1km/");
+  // the five regional 3 km grids that, with the western highlands, cover the Kingdom; each on its own branch
+  const REGIONS = ["nw", "n", "c", "e", "se"].map((id) => [id, DATA.replace("/model-data/", `/model-data-${id}/`)]);
   const base = (d) => (d && d.base) || DATA;
   const TZ = "Asia/Riyadh";
   const LOC = "ar-SA-u-nu-arab-ca-gregory";
@@ -94,17 +96,29 @@
   map.attributionControl.setPrefix(false);
   map.on("zoomend", () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7));
 
+  function urlFor(dom, f) {
+    const d = S.man.domains[dom];
+    if (!d || !f) return null;
+    if (d.products && !d.products.includes(S.prod)) return null;
+    if (f.single) { if (!d[S.prod]) return null; }
+    else if (f.date) { if (!(d.days || []).some((x) => x.date === f.date)) return null; }
+    else if (!(d.hours || []).includes(f.h)) return null;
+    const name = f.single ? "main" : f.date ? f.date : String(f.h).padStart(3, "0");
+    return `${base(d)}runs/${S.run}/${dom}/${S.prod}/${name}.png`;
+  }
   function frameURL(i) {
-    const f = S.frames[i];
-    if (!f) return null;
+    const f = S.frames[i], d = S.man && S.man.domains[S.dom];
+    if (!f || !d) return null;
+    if (d.members) return null;
     const name = f.single ? "main" : DAILY.includes(S.prod) ? f.date : String(f.h).padStart(3, "0");
-    return `${base(S.man.domains[S.dom])}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
+    return `${base(d)}runs/${S.run}/${S.dom}/${S.prod}/${name}.png`;
   }
 
   const cache = new Map();
   function preload(i) {
-    const u = frameURL(i);
-    if (u && !cache.has(u)) { const im = new Image(); im.src = u; cache.set(u, im); if (cache.size > 120) cache.delete(cache.keys().next().value); }
+    const d = S.man && S.man.domains[S.dom];
+    const us = d && d.members ? d.members.map((m) => urlFor(m, S.frames[i])) : [frameURL(i)];
+    for (const u of us) if (u && !cache.has(u)) { const im = new Image(); im.src = u; cache.set(u, im); if (cache.size > 240) cache.delete(cache.keys().next().value); }
   }
 
   // two image layers that cross-fade, so playback looks continuous
@@ -130,7 +144,26 @@
     };
     img.src = url;
   }
-  function clearOverlay() { fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0; }
+  function clearOverlay() { fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0; clearMulti(); }
+  // the combined 3 km view: one image per regional grid, each swapped when its new image has loaded
+  const multi = new Map();
+  function clearMulti() { multi.forEach((l) => map.removeLayer(l)); multi.clear(); }
+  function overlayMany(items) {
+    fade.layers.forEach((l) => map.removeLayer(l)); fade.layers = []; fade.front = 0;
+    const keep = new Set(items.map((x) => x.id));
+    multi.forEach((l, id) => { if (!keep.has(id)) { map.removeLayer(l); multi.delete(id); } });
+    items.forEach(({ id, url, bounds }, k) => {
+      let lay = multi.get(id);
+      if (!url) { if (lay) lay.setOpacity(0); return; }
+      if (!lay) {
+        lay = L.imageOverlay(url, L.latLngBounds(bounds), { interactive: false, zIndex: 300 + k, opacity: 1, className: "wx-layer" }).addTo(map);
+        multi.set(id, lay); return;
+      }
+      const img = new Image();
+      img.onload = img.onerror = () => { lay.setUrl(url); lay.setBounds(L.latLngBounds(bounds)); lay.setOpacity(1); };
+      img.src = url;
+    });
+  }
 
   // arrows of water vapour transport, drawn over the colours
   const VecLayer = L.Layer.extend({
@@ -190,12 +223,15 @@
     const f = S.frames[S.idx], d = S.man && S.man.domains[S.dom];
     const vc = VEC[S.prod];
     if (!vc || !f || f.h == null || !d) { if (vec.layer) { map.removeLayer(vec.layer); vec.layer = null; } vec.url = null; return; }
-    const url = `${base(d)}runs/${S.run}/${S.dom}/${vc.dir}/${String(f.h).padStart(3, "0")}.json`;
+    const doms = (d.members || [S.dom]).filter((m) => (S.man.domains[m].hours || []).includes(f.h));
+    const urls = doms.map((m) => `${base(S.man.domains[m])}runs/${S.run}/${m}/${vc.dir}/${String(f.h).padStart(3, "0")}.json`);
+    const url = urls.join("|");
     if (vec.layer && vec.dir !== vc.dir) { map.removeLayer(vec.layer); vec.layer = null; }
     if (!vec.layer) { vec.layer = new VecLayer(vc); vec.dir = vc.dir; vec.layer.addTo(map); }
     if (vec.url === url) return;
     vec.url = url;
-    try { const j = await getJSON(url); if (vec.url === url && vec.layer) vec.layer.setData(vc.labels ? j.l : j.v); } catch (e) { if (vec.layer) vec.layer.setData(null); }
+    const all = await Promise.all(urls.map((u) => getJSON(u).then((j) => (vc.labels ? j.l : j.v) || []).catch(() => [])));
+    if (vec.url === url && vec.layer) vec.layer.setData(all.flat());
   }
 
   function showFrame() {
@@ -204,7 +240,8 @@
     const d = S.man && S.man.domains[S.dom];
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
-    overlayTo(frameURL(S.idx), d.bounds);
+    if (d.members) overlayMany(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[S.idx]), bounds: S.man.domains[m].bounds })));
+    else { clearMulti(); overlayTo(frameURL(S.idx), d.bounds); }
     $("timeRange").max = S.frames.length - 1;
     $("timeRange").value = S.idx;
     $("timeLabel").textContent = frameLabel(S.frames[S.idx]);
@@ -268,7 +305,7 @@
   // the domains as one drop-down list, next to the options list
   function drawChips() {
     const box = $("domChips");
-    const ids = ["sa", "d02", "d03"].filter((id) => S.man && S.man.domains[id]);  // the Kingdom-wide run replaces the western 9 km parent
+    const ids = ["k3", "sa", "d02", "nw", "n", "c", "e", "se", "d03"].filter((id) => S.man && S.man.domains[id]);  // the Kingdom-wide run replaces the western 9 km parent
     if (!ids.length) { box.innerHTML = ""; return; }
     let sel = $("domSelect");
     if (!sel) {
@@ -311,7 +348,7 @@
   function setDomain(id, fit) {
     if (id === "d01") id = S.man && S.man.domains.sa ? "sa" : "d02";
     if (LX.on) { if (S.man && S.man.domains[id]) S.dom = id; return; }
-    if (!S.man || !S.man.domains[id]) id = ["d02", "sa", "d03"].find((k) => S.man && S.man.domains[k]) || Object.keys((S.man && S.man.domains) || {})[0] || "d01";
+    if (!S.man || !S.man.domains[id]) id = ["k3", "d02", "sa", "d03"].find((k) => S.man && S.man.domains[k]) || Object.keys((S.man && S.man.domains) || {})[0] || "d01";
     S.dom = id; store.set("dom", id);
     buildFrames(true);
     drawChips(); drawRects(); showFrame();
@@ -323,7 +360,7 @@
   function domFor(p) {
     const has = (k) => { const d = S.man && S.man.domains[k]; return d && (!d.products || d.products.includes(p)); };
     if (p === "lightning" || has(S.dom)) return S.dom;
-    return ["sa", "d02", "d03", "d01"].find(has) || S.dom;
+    return ["k3", "sa", "d02", "d03", "d01"].find(has) || S.dom;
   }
 
   function setProduct(p) {
@@ -724,6 +761,33 @@
         S.man.products = { ...(k1.products || {}), ...(S.man.products || {}) };
       }
     } catch (e) { S.k1wait = S.runs && S.runs[0] && S.runs[0].run === run && S.runs[0].status === "running"; }
+    await Promise.all(REGIONS.map(async ([id, B]) => {
+      try {
+        const m = await getJSON(`${B}runs/${run}/manifest.json`);
+        for (const [k, d] of Object.entries(m.domains || {})) {
+          if (!S.man) S.man = { ...m, domains: {} };
+          S.man.domains[k] = { ...d, base: B, proj: m.proj };
+        }
+        if (S.man) S.man.products = { ...(m.products || {}), ...(S.man.products || {}) };
+      } catch (e) { /* this region was not run */ }
+    }));
+    if (S.man) {   // the Kingdom at 3 km: the western highlands and the regional grids drawn together
+      const dxOf = (d) => d.dx || (d.points && d.points.dx) || 0;
+      const mem = ["d02", ...REGIONS.map((r) => r[0])].filter((k) => S.man.domains[k] && dxOf(S.man.domains[k]) === 3000);
+      delete S.man.domains.k3;
+      if (mem.length >= 2) {
+        const ds = mem.map((k) => S.man.domains[k]);
+        const hours = [...new Set(ds.flatMap((d) => d.hours || []))].sort((a, b) => a - b);
+        const days = {};
+        ds.forEach((d) => (d.days || []).forEach((x) => { days[x.date] = Math.max(days[x.date] || 0, x.hours); }));
+        const b = ds.map((d) => d.bounds).filter(Boolean);
+        const k3 = { name: "المملكة", res: "٣ كم", members: mem, hours, days: Object.keys(days).sort().map((k) => ({ date: k, hours: days[k] })),
+          products: [...new Set(ds.flatMap((d) => d.products || []))],
+          bounds: [[Math.min(...b.map((x) => x[0][0])), Math.min(...b.map((x) => x[0][1]))], [Math.max(...b.map((x) => x[1][0])), Math.max(...b.map((x) => x[1][1]))]] };
+        for (const p of SINGLE) { const r = ds.find((d) => d[p]); if (r) k3[p] = r[p]; }
+        S.man.domains.k3 = k3;
+      }
+    }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const p of Object.values(S.man.products)) {
       if (Array.isArray(p.legend)) {  // runs made before the gradient colours
