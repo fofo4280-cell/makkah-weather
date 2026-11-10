@@ -22,6 +22,10 @@ on:
         description: 'also test the 1 km server'
         type: boolean
         default: false
+      domains:
+        description: 'grid design to test (domains_west.json, domains_nw.json, domains_n.json, ...)'
+        required: false
+        default: 'domains_west.json'
       ref2:
         description: 'a second code branch run side by side on its own runner (same cycle), to compare speed'
         required: false
@@ -31,7 +35,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: saudi-model-test
+  group: saudi-model-test-${{ inputs.domains }}
   cancel-in-progress: false
 
 jobs:
@@ -39,7 +43,7 @@ jobs:
     uses: ./.github/workflows/wrf-job.yml
     with:
       name: west
-      domains: domains_west.json
+      domains: ${{ inputs.domains }}
       branch: model-data
       code_ref: ${{ inputs.ref }}
       publish: false
@@ -52,7 +56,7 @@ jobs:
     uses: ./.github/workflows/wrf-job.yml
     with:
       name: west
-      domains: domains_west.json
+      domains: ${{ inputs.domains }}
       branch: model-data
       code_ref: ${{ inputs.ref }}
       publish: false
