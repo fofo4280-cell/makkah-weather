@@ -127,7 +127,8 @@ def main():
     data = {}
     for part in ("pl", "sfc", "sol", "z"):
         for sn, step, lev, a in messages(f"{grib}.{part}"):
-            data[(part, sn, step if part != "z" else 0, lev)] = a
+            data[(part, sn, step if part != "z" else 0, lev if part in ("pl", "sol") else 0)] = a
+    print("fields at step 0:", sorted({(k[0], k[1]) for k in data if k[2] == 0}))
     z = next(v for k, v in data.items() if k[0] == "z")
     t0 = datetime.strptime(cycle, "%Y%m%d%H")
     for step in steps:
