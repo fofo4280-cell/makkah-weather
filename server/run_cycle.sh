@@ -8,6 +8,9 @@
 set -uo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 source "$HERE/lib.sh"
+# the second part must start on a 3-hourly boundary time of GFS: a restart between two of them blows up at the
+# next one, so the hand-over hour is rounded down to a multiple of 3 (restart files are written every 3 hours)
+if [ -n "${SWRF_STOP_H:-}" ]; then export SWRF_STOP_H=$(( SWRF_STOP_H / 3 * 3 )); fi
 
 [ -f "$STATE/installed" ] || { log "install not finished yet"; exit 0; }
 exec 9>"$STATE/cycle.lock"

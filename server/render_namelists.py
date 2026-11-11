@@ -108,7 +108,7 @@ def nml_input(start, nlev, nsoil, max_dom=None):
          row("fine_input_stream", [2 if x else 0 for x in late]), " io_form_auxinput2 = 2,",
          row("history_interval", [60] * n),
          row("frames_per_outfile", [1] * n),
-         f" restart = {tf(rst is not None)},", f" restart_interval = {60 if stop is not None else 100000},",
+         f" restart = {tf(rst is not None)},", f" restart_interval = {180 if stop is not None else 100000},",
          " write_hist_at_0h_rst = .false.,", " override_restart_timers = .true.,",
          " io_form_history = 2,", " io_form_restart = 2,", " io_form_input = 2,", " io_form_boundary = 2,",
          " nwp_diagnostics = 1,", " debug_level = 0,", "/", "",
