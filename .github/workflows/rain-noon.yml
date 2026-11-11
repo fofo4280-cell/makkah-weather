@@ -31,14 +31,14 @@ jobs:
           path: code
 
       - name: Python packages
-        run: pip install -q numpy
+        run: pip install -q numpy shapely
 
       - name: Wait for our 00 UTC runs
         run: |
           # the Kingdom run is needed; the 3 km runs are used if they are complete by 10:00 UTC (1 pm Makkah)
           R="$(date -u +%Y%m%d)00"
           st() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
-            | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')"; }
+            | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo none; }
           until [ "$(st model-data-sa)" = complete ]; do
             [ "$(date -u +%H%M)" -ge 1000 ] && { echo "Kingdom run $R not complete by 10:00 UTC; using what is published"; break; }
             sleep 240
