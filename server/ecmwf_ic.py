@@ -88,7 +88,9 @@ def messages(path):
                 ni, nj = eccodes.codes_get(g, "Ni"), eccodes.codes_get(g, "Nj")
                 la1 = eccodes.codes_get(g, "latitudeOfFirstGridPointInDegrees")
                 lo1 = eccodes.codes_get(g, "longitudeOfFirstGridPointInDegrees")
-                v = eccodes.codes_get_values(g).reshape(nj, ni)
+                v = eccodes.codes_get_values(g).reshape(nj, ni).astype(float)
+                if eccodes.codes_get(g, "bitmapPresent"):          # points without a value (soil over the sea)
+                    v[v == eccodes.codes_get(g, "missingValue")] = np.nan
             finally:
                 eccodes.codes_release(g)
             lats = la1 - 0.25 * np.arange(nj)
@@ -96,8 +98,7 @@ def messages(path):
             jj = np.where((lats >= LAT0 - 1e-6) & (lats <= LAT1 + 1e-6))[0]
             ii = np.where((lons >= LON0 - 1e-6) & (lons <= LON1 + 1e-6))[0]
             ii = ii[np.argsort(lons[ii])]
-            a = v[np.ix_(jj, ii)].astype(float)
-            a[a >= 9000] = np.nan                        # points without a value (soil over the sea)
+            a = v[np.ix_(jj, ii)]
             if lats[jj[0]] > lats[jj[-1]]:
                 a = a[::-1]
             yield sn, step, lev, a
@@ -128,6 +129,9 @@ def main():
     for part in ("pl", "sfc", "sol", "z"):
         for sn, step, lev, a in messages(f"{grib}.{part}"):
             data[(part, sn, step if part != "z" else 0, lev if part in ("pl", "sol") else 0)] = a
+    bad = [k for k, v in data.items() if k[0] != "sol" and not np.isfinite(v).all()]
+    if bad:
+        sys.exit(f"fields with missing points: {bad[:6]}")
     print("fields at step 0:", sorted({(k[0], k[1]) for k in data if k[2] == 0}))
     z = next(v for k, v in data.items() if k[0] == "z")
     t0 = datetime.strptime(cycle, "%Y%m%d%H")
