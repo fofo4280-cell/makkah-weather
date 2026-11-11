@@ -103,7 +103,7 @@ def report(st, day0):
         ref = st["mjof"].get("z_ref") or 10
         z0, r0, core0 = mf0
         eff = _component_effect(st)
-        txt = (f"مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال (على منهجية الدكتور خالد): {n1(z0)} م فوق المملكة"
+        txt = (f"مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال (بطريقة قريبة من منهجية الدكتور خالد): {n1(z0)} م فوق المملكة"
                f"{'، أي داعم بقوة للحمل' if z0 <= -ref else '، أي داعم للحمل' if z0 < 0 else '، أي كابح للحمل'}، "
                f"والأمطار المرتبطة به {n1(r0)} ملم في اليوم، ومركز غلافه فوق {B.region_name(core0)} "
                f"(خط الطول {ar(core0 if core0 <= 180 else 360 - core0)}° {'شرقًا' if core0 <= 180 else 'غربًا'}).")
@@ -220,7 +220,7 @@ def _past_cases(st, day0, v):
         out.append("الموجة الحالية للمقارنة: " + words(cur[-1]) + ".")
     if old:
         best = sorted(old, key=lambda e: abs(e["z"] - z))[:2]
-        out.append("أشبه الحالات السابقة بها في الأشهر الأربعة الماضية: " + "؛ و".join(words(e) for e in best) + ".")
+        out.append("أشبه الحالات السابقة بها في السنة الماضية: " + "؛ و".join(words(e) for e in best) + ".")
     if out:
         out.append("(مساحة الأمطار في الحالات السابقة من أول يوم في توقع جي إف إس لكل يوم: أكثر من ٥ ملم.)")
     return out
