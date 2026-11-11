@@ -1,7 +1,7 @@
 # Twice-daily high-resolution model (WRF) on GitHub runners; code on the saudi-wrf branch, maps shown at /model/.
 #   western highlands 3 km (Jazan to the harrats north of Makkah, with the Red Sea) in a 9 km parent, 33 hours:
 #     too long for one runner, so it runs in two parts that hand over WRF restart files at hour 15 (a boundary time: a restart between two 3-hourly boundary times blew up) -> model-data
-#   regional 3 km grids, split like the western one -> model-data-<id>: south-east, north (the others join as they pass their tests)
+#   regional 3 km grids, split like the western one -> model-data-<id>: south-east, north, centre (the others join as they pass their tests)
 #   (the 1 km nest over Jeddah-Makkah-Taif, domains.json -> model-data-1km, is paused until the 3 km runs settle)
 #   Kingdom-wide 9 km, 33 hours -> model-data-sa
 # Runs on the 00 and 12 UTC GFS cycles (full radiosonde assimilation). GitHub often starts scheduled runs late,
@@ -112,4 +112,24 @@ jobs:
       name: r_n
       domains: domains_n.json
       branch: model-data-n
+      resume: true
+
+  r_c:
+    needs: gate
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-c
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_c2:
+    needs: r_c
+    if: always() && needs.r_c.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-c
       resume: true
