@@ -1,0 +1,76 @@
+# The noon update of the rain report on the التذبذب tab: from our 00 UTC runs (the Kingdom at 9 km and the 3 km
+# grids), for the rest of the Makkah day (12:00 to 24:00). The night's report stays under it for comparison.
+# Code: saudi-wrf branch, server/climate. Results: climate-data branch (shared with climate.yml).
+name: Rain report noon update
+
+on:
+  schedule:
+    - cron: '41 8 * * *'
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: 'publish to the page (no: print the report only)'
+        default: 'yes'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate
+  cancel-in-progress: false
+
+jobs:
+  noon:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - name: Code
+        uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+
+      - name: Python packages
+        run: pip install -q numpy
+
+      - name: Wait for our 00 UTC runs
+        run: |
+          # the Kingdom run is needed; the 3 km runs are used if they are complete by 10:00 UTC (1 pm Makkah)
+          R="$(date -u +%Y%m%d)00"
+          st() { curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/$1/runs.json?$(date +%s)" \
+            | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')"; }
+          until [ "$(st model-data-sa)" = complete ]; do
+            [ "$(date -u +%H%M)" -ge 1000 ] && { echo "Kingdom run $R not complete by 10:00 UTC; using what is published"; break; }
+            sleep 240
+          done
+          for b in model-data model-data-nw model-data-n model-data-c model-data-e model-data-se; do
+            until s=$(st $b); [ "$s" = complete ] || [ "$s" = none ]; do
+              [ "$(date -u +%H%M)" -ge 1000 ] && { echo "$b $R: $s at 10:00 UTC"; break; }
+              sleep 240
+            done
+          done
+
+      - name: Our model runs and the published page data
+        run: |
+          for b in model-data-sa:sa model-data:west model-data-nw:r_nw model-data-n:r_n model-data-c:r_c model-data-e:r_e model-data-se:r_se; do
+            git clone -q --depth 1 --filter=blob:none --sparse --branch "${b%%:*}" "https://github.com/${GITHUB_REPOSITORY}" "/home/runner/${b##*:}" || continue
+            git -C "/home/runner/${b##*:}" sparse-checkout set --no-cone '/runs.json' '/runs/*/manifest.json' '/runs/*/*/points.bin' || true
+          done
+          git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out
+          rm -rf /home/runner/out/.git
+
+      - name: Write the noon update
+        env:
+          SA_DATA: /home/runner/sa
+          WEST_DATA: /home/runner/west
+          REGION_DATA: /home/runner/r_nw /home/runner/r_n /home/runner/r_c /home/runner/r_e /home/runner/r_se
+        run: python3 code/server/climate/refresh_report.py /tmp /home/runner/out noon
+
+      - name: Publish
+        if: github.event_name == 'schedule' || inputs.publish == 'yes'
+        run: |
+          cd /home/runner/out
+          git init -q -b data
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report noon update $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data

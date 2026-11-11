@@ -187,3 +187,17 @@ a { color: var(--sea); }
 .wave-row b { color: var(--sea); font-weight: 600; }
 .ar-list p { margin: 6px 0; font-size: 14px; line-height: 1.75; }
 .nw { white-space: nowrap; }
+
+/* the rain report table: region, day, window, heavy, moderate, light */
+.report h4.rsub { margin: 12px 0 6px; font-size: .9rem; color: var(--amber); }
+.rtab-wrap { overflow-x: auto; margin: 6px 0 12px; border-radius: 8px; border: 1px solid var(--line, rgba(127,127,127,.25)); }
+.rtab { width: 100%; border-collapse: collapse; font-size: .7rem; line-height: 1.45; table-layout: fixed; }
+.rtab col.r { width: 17%; } .rtab col.d { width: 13%; } .rtab col.w { width: 16%; } .rtab col.c { width: 18%; }
+.rtab th, .rtab td { padding: 5px 3px; overflow-wrap: anywhere; border-bottom: 1px solid var(--line, rgba(127,127,127,.2)); vertical-align: top; text-align: start; }
+.rtab thead th { background: var(--surface-2); color: var(--muted); font-weight: 700; }
+.rtab tbody th { font-weight: 700; border-inline-end: 1px solid var(--line, rgba(127,127,127,.2)); }
+.rtab tr.first > * { border-top: 2px solid var(--line, rgba(127,127,127,.35)); }
+.rtab td span { display: block; }
+.rtab td i { opacity: .35; font-style: normal; }
+.rtab th.h, .rtab td.h span { color: var(--red); } .rtab th.m { color: var(--amber); } .rtab th.l { color: var(--sea); }
+.rtab td.h span { font-weight: 600; }

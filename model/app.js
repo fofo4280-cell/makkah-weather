@@ -893,11 +893,11 @@
   async function mjoOpen() {
     if (!M.st || Date.now() - M.loaded > 30 * 60e3) {
       try { M.st = await getJSON(CL + "mjo.json"); M.loaded = Date.now(); } catch (e) {
-        $("mjoNow").innerHTML = `<p class="muted">لم تُحسب بيانات التذبذب بعد. تتحدث مرة كل يوم صباحًا.</p>`; return;
+        $("mjoNow").innerHTML = `<p class="muted">لم تُحسب بيانات التذبذب بعد. تتحدث كل ليلة عند منتصف الليل بتوقيت مكة.</p>`; return;
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); aoChart(); waveCard(); riverCard();
+    mjoMap(); waveCard();
   }
 
   function mjoText() {
@@ -906,10 +906,32 @@
     $("mjoReport").hidden = !r;
     const para = (l, i, sec) => /^(المصادر|الخلاصة)/.test(l) ? `<p class="${l.startsWith("المصادر") ? "src" : "sum"}">${l}</p>`
       : `<p${i === 0 && sec === 0 ? ' class="lead"' : ""}>${l}</p>`;
+    const rainTable = (rows) => {
+      if (!rows || !rows.length) return "";
+      const cell = (xs) => xs.length ? xs.map((x) => `<span>${x}</span>`).join("") : `<i>—</i>`;
+      let t = `<div class="rtab-wrap"><table class="rtab"><colgroup><col class="r"><col class="d"><col class="w"><col class="c"><col class="c"><col class="c"></colgroup><thead><tr><th>المنطقة</th><th>اليوم</th><th>النافذة الزمنية</th>` +
+        `<th class="h">غزير</th><th class="m">متوسط</th><th class="l">خفيف</th></tr></thead><tbody>`;
+      rows.forEach((x, i) => {
+        const first = i === 0 || rows[i - 1].region !== x.region;
+        let span = 1;
+        if (first) while (i + span < rows.length && rows[i + span].region === x.region) span++;
+        t += `<tr class="${first ? "first" : ""}">` + (first ? `<th scope="row" rowspan="${span}">${x.region}</th>` : "") +
+          `<td>${x.day}</td><td>${x.window}</td><td class="h">${cell(x.heavy)}</td><td class="m">${cell(x.moderate)}</td><td class="l">${cell(x.light)}</td></tr>`;
+      });
+      return t + "</tbody></table></div>";
+    };
+    const secHTML = (s, k) => {
+      if (!s.table || !s.table.length) return s.lines.map((l, i) => para(l, i, k)).join("");
+      // the summary first, then the table, then region by region in words
+      const j = s.lines.findIndex((l) => l.startsWith("منطقة "));
+      const head = j < 0 ? s.lines : s.lines.slice(0, j), rest = j < 0 ? [] : s.lines.slice(j);
+      return head.map((l, i) => para(l, i, k)).join("") + rainTable(s.table) +
+        (rest.length ? `<h4 class="rsub">التفصيل منطقة منطقة</h4>` + rest.map((l) => para(l, 1, k)).join("") : "");
+    };
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
-      ? r.sections.map((s, k) => `<details class="rsec" open><summary>${s.heading}</summary>${s.lines.map((l, i) => para(l, i, k)).join("")}</details>`).join("")
-      : r.lines.map((l) => `<p>${l}</p>`).join("")) +
-      `<p class="hint">يصدر هذا التقرير وكل ما في هذه الصفحة كل ليلة قرابة منتصف الليل بتوقيت مكة بعد اكتمال تشغيل نموذجنا للمملكة، ويُعاد بناء قسمي المملكة ومنطقة مكة حين يكتمل تشغيل ٣ كم قبل السادسة إلا ربعًا فجرًا${r.issued ? ` · صدر ${fmtStamp.format(new Date(r.issued))}` : ""}.</p>`;
+      ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" ${k < 2 || s.kind ? "open" : ""}><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
+      : (r.lines || []).map((l) => `<p>${l}</p>`).join("")) +
+      `<p class="hint">يصدر تقرير الأمطار مرتين كل يوم: عند منتصف الليل بتوقيت مكة من تشغيل المساء، ثم يُحدَّث ظهرًا من تشغيل الصباح للتأكد مما كُتب ليلًا. ويتحدث تقرير الصورة الكبيرة وخرائط هذه الصفحة كل ليلة عند منتصف الليل${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
@@ -1052,24 +1074,6 @@
     return `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
-  // atmospheric rivers from the Indian Ocean to Arabia: one figure a day for 12 days, and the tracks in words
-  function riverCard() {
-    const r = M.st && M.st.ar;
-    if (!r || !(r.frames || []).length) { $("arCard").hidden = true; return; }
-    $("arCard").hidden = false;
-    const show = (k) => {
-      const pad = r.frames.length > 20 ? 3 : 2;   // a frame every 3 hours (older runs: one a day)
-      const url = `${CL}fig/ar_${String(k).padStart(pad, "0")}.png?v=${encodeURIComponent(M.st.updated)}`;
-      $("arFig").src = url; $("arLink").href = url;
-      const t = new Date(r.frames[k].replace("Z", ":00Z"));
-      const h = Math.round((t - new Date(r.frames[0].replace("Z", ":00Z"))) / 3600e3);
-      $("arDayLabel").textContent = (k === 0 ? "الآن: " : `+${num(h)} س · `) + fmtWhen.format(t);
-    };
-    $("arDay").max = r.frames.length - 1;
-    $("arDay").oninput = (e) => show(+e.target.value);
-    show(Math.min(+$("arDay").value || 0, r.frames.length - 1));
-    $("arList").innerHTML = (r.lines || []).map((l) => `<p>${l.replace(/كغ\/م\/ث/g, '<span class="nw">كغ/م/ث</span>')}</p>`).join("");
-  }
 
   function waveCard() {
     const st = M.st, rows = st.waves || [];
@@ -1106,44 +1110,6 @@
     if (st.figs && st.figs.conv) $("convLegend").innerHTML = legendHTML(st.figs.conv);
   }
 
-  // Arctic Oscillation: observed bars and the ensemble forecast
-  function aoChart() {
-    const ao = M.st && M.st.ao;
-    if (!ao || !ao.obs.length) { $("aoChart").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; $("aoNow").innerHTML = ""; return; }
-    const obs = ao.obs, fc = ao.fc.filter((f) => f.d > obs[obs.length - 1].d);
-    const days = [...obs.map((o) => o.d), ...fc.map((f) => f.d)];
-    const W = 360, H = 190, L = 26, R = 6, T = 10, B = 24, n = days.length;
-    const X = (i) => L + (W - L - R) * i / Math.max(1, n - 1), Y = (v) => T + (H - T - B) * (1 - (Math.max(-4, Math.min(4, v)) + 4) / 8);
-    const css = getComputedStyle(document.body), sea = css.getPropertyValue("--sea").trim() || "#45c3e6", amber = css.getPropertyValue("--amber").trim() || "#f2b552";
-    let g = `<svg viewBox="0 0 ${W} ${H}" direction="ltr" font-family="Readex Pro, sans-serif" font-size="9">`;
-    for (const v of [-3, -2, -1, 0, 1, 2, 3]) {
-      g += `<line x1="${L}" x2="${W - R}" y1="${Y(v)}" y2="${Y(v)}" stroke="currentColor" stroke-opacity="${v === 0 ? 0.45 : 0.1}"/>`;
-      g += `<text x="${L - 4}" y="${Y(v) + 3}" text-anchor="end" fill="currentColor" fill-opacity=".6">${v < 0 ? "−" + num(-v) : num(v)}</text>`;
-    }
-    const bw = Math.max(1, (W - L - R) / n - 0.6);
-    obs.forEach((o, i) => {
-      const y0 = Y(0), y = Y(o.v);
-      g += `<rect x="${X(i) - bw / 2}" y="${Math.min(y0, y)}" width="${bw}" height="${Math.abs(y - y0)}" fill="${o.v >= 0 ? amber : sea}" fill-opacity=".85"/>`;
-    });
-    if (fc.length) {
-      const k0 = obs.length;
-      const band = fc.map((f, j) => `${X(k0 + j)},${Y(f.p90)}`).join(" ") + " " + fc.slice().reverse().map((f, j) => `${X(k0 + fc.length - 1 - j)},${Y(f.p10)}`).join(" ");
-      g += `<polygon points="${band}" fill="currentColor" fill-opacity=".13"/>`;
-      const line = [obs[obs.length - 1].v, ...fc.map((f) => f.mean)].map((v, j) => `${X(k0 - 1 + j)},${Y(v)}`).join(" ");
-      g += `<polyline points="${line}" fill="none" stroke="currentColor" stroke-width="2" stroke-dasharray="5 4"/>`;
-      g += `<line x1="${X(k0 - 0.5)}" x2="${X(k0 - 0.5)}" y1="${T}" y2="${H - B}" stroke="currentColor" stroke-opacity=".35" stroke-dasharray="2 3"/>`;
-      g += `<text x="${X(k0 - 0.5) + 4}" y="${T + 9}" fill="currentColor" fill-opacity=".7">توقع</text>`;
-    }
-    days.forEach((d, i) => {
-      if (+d.slice(8) === 1 || +d.slice(8) === 15) g += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" fill="currentColor" fill-opacity=".65">${num(+d.slice(8))}/${num(+d.slice(5, 7))}</text>`;
-    });
-    $("aoChart").innerHTML = g + "</svg>";
-    const now = obs[obs.length - 1], f10 = fc[Math.min(9, fc.length - 1)];
-    const word = (v) => (v <= -2 ? "سالب قوي" : v <= -1 ? "سالب" : v < -0.5 ? "سالب ضعيف" : v < 0.5 ? "قريب من الحياد" : v < 1 ? "موجب ضعيف" : v < 2 ? "موجب" : "موجب قوي");
-    const sgn = (v) => (v < 0 ? "−" : "") + num(Math.abs(v), 1);
-    $("aoNow").innerHTML = `<span>آخر رصد (${fmtDM.format(dOf(now.d))}/${num(+now.d.slice(5, 7))}): <b>${sgn(now.v)}</b> ${word(now.v)}</span>` +
-      (f10 ? `<span>بعد عشرة أيام تقريبًا: <b>${sgn(f10.mean)}</b> ${word(f10.mean)}</span>` : "");
-  }
 
   function mjoPwTable() {
     const st = M.st, rows = (st.pw || []).slice(1, 11);
