@@ -79,10 +79,27 @@ jobs:
         run: echo "FORCE_CYCLE=$(bash "$SWRF/repo/server/ci/handoff.sh" unpack)" >> "$GITHUB_ENV"
 
       - name: System packages
+        timeout-minutes: 40
         run: |
-          sudo apt-get update -q
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -q gfortran m4 csh tcsh cmake rsync \
-            libnetcdf-dev libnetcdff-dev netcdf-bin libhdf5-dev libopenmpi-dev openmpi-bin libpng-dev zlib1g-dev
+          # The package mirror sometimes hangs (11 Nov 2026: every job stuck here for over half an hour), so each
+          # try is time-limited and the next one switches to another Ubuntu mirror. Only the Ubuntu sources are
+          # kept: the runner's extra repositories are not needed and can hang too.
+          PKGS="gfortran m4 csh tcsh cmake rsync libnetcdf-dev libnetcdff-dev netcdf-bin libhdf5-dev libopenmpi-dev openmpi-bin libpng-dev zlib1g-dev"
+          O="-o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30 -o Acquire::Retries=3 -o DPkg::Lock::Timeout=120"
+          sudo find /etc/apt/sources.list.d -type f ! -name 'ubuntu.sources' -delete
+          for m in "" http://archive.ubuntu.com/ubuntu http://mirrors.edge.kernel.org/ubuntu http://mirror.us.leaseweb.net/ubuntu; do
+            if [ -n "$m" ]; then
+              echo "switching to $m"
+              sudo sed -i -E "s#^URIs: .*#URIs: $m#" /etc/apt/sources.list.d/ubuntu.sources
+              [ -f /etc/apt/sources.list ] && sudo sed -i -E "s#^(deb(-src)? )https?://[^ ]+#\1$m#" /etc/apt/sources.list
+            fi
+            grep -h '^URIs' /etc/apt/sources.list.d/ubuntu.sources 2>/dev/null | sort -u
+            sudo timeout 300 apt-get $O update -q \
+              && sudo DEBIAN_FRONTEND=noninteractive timeout 600 apt-get $O install -y -q $PKGS \
+              && exit 0
+            echo "packages failed on this mirror"
+          done
+          exit 1
 
       - name: Restore compiled model
         id: build
