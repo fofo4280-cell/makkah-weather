@@ -14,6 +14,13 @@ on:
     branches: [main]
     paths: ['.github/workflows/climate.yml', 'model/climate-now.txt']
   workflow_dispatch:
+    inputs:
+      ref:
+        description: 'code branch'
+        default: 'saudi-wrf'
+      target:
+        description: 'data branch to publish to (climate-data is the page)'
+        default: 'climate-data'
 
 permissions:
   contents: write
@@ -37,7 +44,7 @@ jobs:
       - name: Code
         uses: actions/checkout@v4
         with:
-          ref: saudi-wrf
+          ref: ${{ inputs.ref || 'saudi-wrf' }}
           path: code
 
       - name: Python packages
@@ -122,7 +129,7 @@ jobs:
           git init -q -b data
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:${{ inputs.target || 'climate-data' }}
 
       - name: Wait for our 12 UTC runs and write the rain report
         id: refresh
@@ -159,4 +166,4 @@ jobs:
           git init -q -b data
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report from our 12 UTC runs $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:${{ inputs.target || 'climate-data' }}

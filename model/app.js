@@ -897,7 +897,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); waveCard();
+    mjoMap(); waveCard(); mjofCard();
   }
 
   function mjoText() {
@@ -1095,6 +1095,46 @@
       `<div class="wave-row"><span>${fmtDayD.format(dOf(r.d))}</span><span>أخدود فوق ${r.trough.area} بعمق <b>${num(Math.abs(r.trough.v))}</b> م</span></div>`);
     $("waveList").innerHTML = items.length ? `<h4 class="sub">الأخاديد القريبة من المملكة</h4>` + items.join("")
       : `<p class="muted">لا أخاديد واضحة قرب المملكة في الأيام السبعة القادمة.</p>`;
+  }
+
+  // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
+  function mjofCard() {
+    const st = M.st, m = st.mjof;
+    $("mjofCard").hidden = !m;
+    if (!m) return;
+    const days = st.days || [];
+    let lay = M.mjofLayer || "mjoz";
+    const show = () => {
+      const k = +$("mjofDay").value || 0, kk = String(k).padStart(2, "0");
+      const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+      $("mjofFig").src = url; $("mjofLink").href = url;
+      const d = days[k];
+      $("mjofDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+      if (st.figs && st.figs[lay]) $("mjofLegend").innerHTML = legendHTML(st.figs[lay]);
+    };
+    document.querySelectorAll("#mjofLayer button").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("#mjofLayer button").forEach((x) => x.classList.toggle("on", x === b));
+      lay = M.mjofLayer = b.dataset.l; show();
+    });
+    $("mjofDay").max = Math.max(0, days.length - 1);
+    $("mjofDay").oninput = show;
+    show();
+    // the line: last 60 days and the forecast; bars: share of the Kingdom with 5 mm or more (GFS first day)
+    const n = m.days.length, from = Math.max(0, n - 76);
+    const D = m.days.slice(from), Z = m.z_ksa.slice(from), C = m.cover.slice(from);
+    const W = 340, H = 150, L = 34, R = 6, T = 10, B = 22, iw = W - L - R, ih = H - T - B;
+    const zr = Math.max(10, ...Z.map((v) => Math.abs(v))), x = (i) => L + (i + 0.5) * iw / D.length;
+    const yz = (v) => T + ih / 2 - (v / zr) * ih / 2;
+    const cmax = Math.max(0.2, ...C.filter((v) => v != null));
+    const today = D.indexOf(days[0]);
+    let g = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="مكوّن التذبذب فوق المملكة ومساحة الأمطار">`;
+    C.forEach((c, i) => { if (c != null && c > 0) { const h = (c / cmax) * ih; g += `<rect x="${x(i) - 1.6}" y="${T + ih - h}" width="3.2" height="${h}" fill="var(--sea)" opacity=".35"/>`; } });
+    g += `<line x1="${L}" x2="${W - R}" y1="${yz(0)}" y2="${yz(0)}" stroke="currentColor" opacity=".3"/>`;
+    if (today >= 0) g += `<line x1="${x(today)}" x2="${x(today)}" y1="${T}" y2="${T + ih}" stroke="currentColor" stroke-dasharray="3 3" opacity=".5"/>`;
+    g += `<polyline fill="none" stroke="#2950d6" stroke-width="1.8" points="${Z.map((v, i) => `${x(i).toFixed(1)},${yz(v).toFixed(1)}`).join(" ")}"/>`;
+    [zr, 0, -zr].forEach((v) => { g += `<text x="${L - 4}" y="${yz(v) + 3}" font-size="9" text-anchor="end" fill="currentColor" opacity=".7">${v < 0 ? "−" + num(Math.round(-v)) : num(Math.round(v))}</text>`; });
+    D.forEach((d, i) => { if (+d.slice(8) === 1 || i === today) g += `<text x="${x(i)}" y="${H - 6}" font-size="9" text-anchor="middle" fill="currentColor" opacity=".7">${num(+d.slice(8))}/${num(+d.slice(5, 7))}</text>`; });
+    $("mjofChart").innerHTML = g + "</svg>";
   }
 
   // where air meets at 925 hPa, one map a day at 3 pm Makkah time
