@@ -26,8 +26,11 @@ import figures
 import ar as rivers  # noqa: E402
 import waves  # noqa: E402
 import sa_geo  # noqa: E402
-import today as today_wx  # noqa: E402
-import outlook as long_range  # noqa: E402
+import outlook as long_range  # noqa: E402,F401
+import troughs  # noqa: E402
+import coldwave  # noqa: E402
+import rainreport  # noqa: E402
+import bigreport  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
@@ -84,6 +87,7 @@ FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entir
 
 
 Z500 = ("z500", r":HGT:500 mb:")
+T500 = ("t500", r":TMP:500 mb:")
 CONV_HOURS = 24
 CONV_FIELDS = [("u", r":UGRD:925 mb:"), ("v", r":VGRD:925 mb:"), ("t", r":TMP:925 mb:"), ("rh", r":RH:925 mb:"),
                ("psfc", r":PRES:surface:")]
@@ -106,7 +110,7 @@ def conv925(f, lat, lon):
     r = 0.622 * e / (925 - e)
     the = (t + 2.5e6 * r / 1004.0) * (1000 / 925) ** 0.2854
     return conv, gaussian_filter(the, 1.0)
-WAVE_DAYS = 10
+WAVE_DAYS = 15
 
 
 def gfs_fields(cycle, fh, extra=(), res="1p00", fields=None):
@@ -342,9 +346,9 @@ def main():
     # 2. the forecast: day 0 (analysis) to FC_DAYS
     fc = {}
     for d in range(0, FC_DAYS + 1):
-        f = gfs_fields(cycle, d * 24, (Z500,) if d <= WAVE_DAYS else ())
+        f = gfs_fields(cycle, d * 24, (Z500, T500) if d <= WAVE_DAYS else ())
         fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"],
-                                      "z500": f.get("z500")}
+                                      "z500": f.get("z500"), "t500": f.get("t500")}
     print("forecast days", len(fc), flush=True)
 
     # 3. anomalies: minus climatology, minus the mean anomaly of the previous MEAN_DAYS days
@@ -493,6 +497,16 @@ def main():
             row["ridge"] = {"lat": r[1], "lon": r[2], "v": int(round(r[3]))}
         wave_rows.append(row)
 
+    # 8b2. northern cold troughs, tracked day by day for 15 days
+    trough_tracks = []
+    try:
+        tdays = [(dt.date(), troughs.day_troughs(fc[dt]["z500"], fc[dt].get("t500"), LAT1, LON1))
+                 for dt in days[:WAVE_DAYS + 1] if fc[dt].get("z500") is not None]
+        trough_tracks = troughs.to_json(troughs.track(tdays))
+        print("cold troughs:", [(t["days"][0]["d"], t["arrive"], t["deepest"]) for t in trough_tracks], flush=True)
+    except Exception as e:
+        print("trough tracking failed:", repr(e), flush=True)
+
     # 8c. where the air meets at 925 hPa, every hour of the next Makkah day (midnight to midnight), 0.25 degree
     conv_rows = []
     first = t0.replace(hour=21, minute=0)          # 00:00 Makkah time = 21 UTC
@@ -521,37 +535,14 @@ def main():
         conv_rows.append({"t": vt.strftime("%Y-%m-%dT%H:%MZ"), "k": k,
                           "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
 
-    # 8d. atmospheric rivers from the Indian Ocean to Arabia (GFS 0.5 degree, every 6 hours, 12 days)
+    # (the atmospheric rivers and the Arctic Oscillation are no longer shown on the page)
     ar_data = None
-    try:
-        ar_data, (alat, alon, aqu, aqv, amag) = rivers.analyse(cycle, t0)
-        fd = os.path.join(out, "fig")
-        os.makedirs(fd, exist_ok=True)
-        for f in os.listdir(fd):                      # yesterday's frames
-            if f.startswith("ar_"):
-                os.remove(os.path.join(fd, f))
-        for k in range(len(ar_data["times"])):      # one frame every 3 hours
-            try:
-                figures.draw_ar(os.path.join(fd, f"ar_{k:03d}.png"), k, ar_data, alat, alon, aqu, aqv, amag)
-            except Exception as e:
-                print("river figure failed", k, e, flush=True)
-        ar_data["frames"] = ar_data["times"]
-        ar_data["lines"], ar_data["report"] = river_lines(ar_data)
-        print("rivers:", [(t["kind"], len(t["pts"])) for t in ar_data["tracks"]], flush=True)
-    except Exception as e:
-        print("atmospheric rivers unavailable:", e, flush=True)
-        ar_data = None
 
     # the report is written near midnight Makkah time, so it is about the day that starts then
     mk = datetime.now(timezone.utc) + timedelta(hours=3)
     day0 = mk.date() + timedelta(days=1 if mk.hour >= 18 else 0)
 
-    # 9. Arctic Oscillation
-    try:
-        ao = read_ao(t0)
-    except Exception as e:
-        print("AO unavailable:", e, flush=True)
-        ao = None
+    ao = None
 
     # 10. assessment and report (written from fixed templates)
     month = t0.month
@@ -569,7 +560,6 @@ def main():
             v = row[key]
             if v["pct"] >= 150 and v["pw"] - v["clim"] >= 5:
                 surge.append({"d": row["d"], "region": name, "pct": v["pct"], "pw": v["pw"]})
-    fc_wet = [x for x in fc_rmm[:10] if x["phase"] in WET_PHASES and x["amp"] >= 1]
     status = {
         "updated": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "cycle": cycle,
         "rmm_now": now_obs, "rmm_obs": obs, "rmm_fc": fc_rmm, "fit": fit,
@@ -588,26 +578,36 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv")},
     }
-    status["report"] = report(status, fc_wet)   # every day; its title says whether something stands out
-    # the weather of the day over the Kingdom region by region (rain from our own model only, set against the
-    # large-scale picture), and signs of a new rain wave in 15 and 45 days from the large-scale picture only
+    status["troughs"] = trough_tracks
+    # the reports: rain over the Kingdom from our own model (the Makkah day that starts at midnight), and the
+    # big picture (now, the next wave, northern cold troughs day by day, cold waves, beyond 15 days)
     om = sa_geo.OpenMeteo()
-    secs = []
     try:
-        ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")] + os.environ.get("REGION_DATA", "").split()
-        tw = today_wx.situation(day0, ours, state, status, om)
-        mk_sec = tw.pop("makkah", None)
-        secs.append(tw)
-        if mk_sec:
-            secs.append(mk_sec)
+        status["coldwaves"] = coldwave.cold_waves(om, state, day0)
     except Exception as e:
-        print("today's section failed:", repr(e), flush=True)
-    secs.append({"heading": "التذبذب المداري والأنظمة المؤثرة", "lines": status["report"]["lines"]})
+        print("cold waves unavailable:", repr(e), flush=True)
+        status["coldwaves"] = []
+    rain = None
     try:
-        secs.append(long_range.outlook(status, day0))
+        ours = ([os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
+                + os.environ.get("REGION_DATA", "").split())
+        t_a = datetime(day0.year, day0.month, day0.day, tzinfo=timezone.utc) - timedelta(hours=3)
+        if os.environ.get("RAIN_PENDING"):
+            rain = {"heading": "الأمطار على المملكة", "table": [], "data": {},
+                    "lines": ["يُكتب تقرير الأمطار حين يكتمل تشغيل نموذجنا الليلي (دورة ١٢ غرينتش) على المملكة، "
+                              "عادة بعد منتصف الليل بقليل."]}
+        else:
+            rain = rainreport.rain_report(t_a, t_a + timedelta(hours=24), ours, status, om, issue="midnight")
     except Exception as e:
-        print("long-range section failed:", repr(e), flush=True)
-    status["report"]["sections"] = secs
+        print("rain report failed:", repr(e), flush=True)
+    big = []
+    try:
+        big = bigreport.report(status, day0)
+    except Exception as e:
+        print("big-picture report failed:", repr(e), flush=True)
+    status["report"] = {"title": f"تقرير {ar_date(day0.strftime('%Y-%m-%d'))}",
+                        "issued": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "day": day0.isoformat(),
+                        "sections": ([dict(rain, kind="rain")] if rain else []) + big}
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
@@ -630,126 +630,6 @@ def ar(x):
 def ar_date(s):
     d = date.fromisoformat(s)
     return f"{AR_DAYS[d.weekday()]} {ar(d.day)} {AR_MONTHS[d.month - 1]}"
-
-
-def river_lines(d):
-    """Arabic sentences for the river card, and the ones that also go into the daily report."""
-    lines, rep = [], []
-    day = lambda s: ar_date((datetime.strptime(s, "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).strftime("%Y-%m-%d"))
-    for tr in d["tracks"]:
-        p = tr["pts"]
-        if len(p) < 2:
-            continue
-        a, b, top = p[0], p[-1], max(p, key=lambda x: x["v"])
-        if tr["kind"] == "main":
-            lines.append(f"أقوى نهر جوي يتكوّن الآن فوق {a['region']}، ويبلغ قلبه أشده {ar(top['v'])} كغ/م/ث "
-                         f"يوم {day(top['t'])}، وينتهي مساره فوق {b['region']} يوم {day(b['t'])}.")
-            continue
-        else:
-            when = "الآن" if a["k"] == 0 else f"يوم {day(a['t'])}"
-            line = f"أقرب نهر جوي إلى المملكة يظهر {when} فوق {a['region']} بشدة قلب {ar(a['v'])} كغ/م/ث"
-        line += (f"، وينتهي مساره فوق {b['region']} يوم {day(b['t'])}" if b["region"] != a["region"]
-                 else f"، ويبقى في المنطقة نفسها حتى {day(b['t'])}")
-        line += f"، وأشد ما يكون {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}."
-        lines.append(line)
-        if tr["kind"] == "near":
-            rep.append(line)
-    sa = d["sa"]
-    hit = [r for r in sa if r["v"] >= 250]
-    top = max(sa, key=lambda r: r["v"])
-    if hit:
-        span = f"من {day(hit[0]['t'])} إلى {day(hit[-1]['t'])}" if day(hit[0]["t"]) != day(hit[-1]["t"]) else f"يوم {day(hit[0]['t'])}"
-        line = (f"يبلغ نقل بخار الماء فوق أراضي المملكة حد النهر الجوي (٢٥٠ كغ/م/ث فأكثر) {span}، "
-                f"وأعلاه {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}.")
-    else:
-        line = (f"لا يبلغ نقل بخار الماء فوق أراضي المملكة حد النهر الجوي (٢٥٠ كغ/م/ث) في الأيام الاثني عشر القادمة، "
-                f"وأعلاه {ar(top['v'])} كغ/م/ث يوم {day(top['t'])}.")
-    lines.append(line); rep.append(line)
-    hj = max(sa, key=lambda r: r["hejaz"])
-    if hj["hejaz"] >= 150:
-        lines.append(f"فوق الحجاز وتهامة: أعلى قيمة {ar(hj['hejaz'])} كغ/م/ث يوم {day(hj['t'])}.")
-    return lines, rep
-
-
-def strength(a):
-    return "ضعيف" if a < 1 else "متوسط" if a < 1.5 else "قوي" if a < 2.5 else "قوي جدًا"
-
-
-def report(st, fc_wet):
-    """Arabic report from fixed sentences."""
-    now = st.get("rmm_today") or st["rmm_now"]
-    lines = []
-    today = ar_date(f"{st['cycle'][:4]}-{st['cycle'][4:6]}-{st['cycle'][6:8]}")
-    if st["surge"]:
-        title = f"تقرير اليوم ({today}): مد رطوبي على المملكة يبدأ {ar_date(st['surge'][0]['d'])}"
-    elif st.get("ao_cold"):
-        title = f"تقرير اليوم ({today}): منخفضات باردة محتملة من الشمال {ar_date(st['ao_cold']['d'])}"
-    else:
-        title = f"تقرير اليوم ({today}): لا مد رطوبي ولا اندفاع بارد واضح في الأيام العشرة القادمة"
-    if now:
-        ph = now["phase"]
-        lines.append(f"التذبذب المداري (مادن-جوليان) في الطور {ar(ph)} بشدة {ar(round(now['amp'], 1))} ({strength(now['amp'])})، "
-                     f"والحمل العميق المصاحب له فوق {PHASE_AREA[ph]}.")
-        if st["wet_season"]:
-            lines.append("هذا الطور من الأطوار الرطبة للمملكة في موسم الأمطار (١ و٢ و٧ و٨)، إذ تقوى فيه الرياح الشرقية والجنوبية الشرقية الحاملة لرطوبة بحر العرب."
-                         if ph in WET_PHASES else
-                         "هذا الطور من الأطوار الجافة للمملكة في موسم الأمطار (٣ إلى ٦)، فالدعم من التذبذب ضعيف، والمد الرطوبي المتوقع يأتي من نظام آخر.")
-    lines.append(f"الحدث الدافئ (الحمل المدعوم) يتمركز فوق {st['warm']['region']}، والحدث البارد (الحمل المكبوت) فوق {st['cold']['region']}.")
-    if st["rmm_fc"]:
-        last = st["rmm_fc"][min(9, len(st["rmm_fc"]) - 1)]
-        lines.append(f"بحسب توقع جي إف إس يتجه التذبذب خلال عشرة أيام إلى الطور {ar(last['phase'])} بشدة {ar(round(last['amp'], 1))}.")
-    by_region = {}
-    for s in st["surge"]:
-        by_region.setdefault(s["region"], []).append(s)
-    for reg, items in by_region.items():
-        top = max(items, key=lambda x: x["pct"])
-        span = f"من {ar_date(items[0]['d'])} إلى {ar_date(items[-1]['d'])}" if len(items) > 1 else f"يوم {ar_date(items[0]['d'])}"
-        lines.append(f"مد رطوبي فوق {reg} {span}: يرتفع الماء القابل للهطول إلى {ar(top['pct'])}٪ من المعدل "
-                     f"({ar(top['pw'])} ملم) يوم {ar_date(top['d'])}.")
-    deep = [w for w in st.get("waves", [])[1:8] if "trough" in w and w["trough"]["v"] <= -25]
-    if deep:
-        w = min(deep, key=lambda x: x["trough"]["v"])
-        t = w["trough"]
-        line = (f"في الطبقة الوسطى (٥٠٠ هكتوباسكال) يتعمق أخدود فوق {t['area']} يوم {ar_date(w['d'])} "
-                f"بعمق {ar(abs(t['v']))} مترًا جيوديناميكيًا")
-        if "ridge" in w and t["lon"] <= 42:
-            line += "، يقابله مرتفع فوق بحر العرب وعُمان، فيقع الحجاز في جريان جنوبي غربي يجلب الرطوبة ويدعم الصعود أمام الأخدود"
-        lines.append(line + ".")
-    cv = [c for c in st.get("conv", []) if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
-    if cv:
-        loc = lambda c: (datetime.strptime(c["t"], "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).hour
-        top = max(cv, key=lambda c: c["hejaz_max"])
-        lines.append(f"التقاء رياح واضح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة خلال الأربع والعشرين ساعة القادمة، من الساعة "
-                     f"{ar(loc(cv[0]))} إلى الساعة {ar(loc(cv[-1]))} بتوقيت مكة، وأقواه الساعة {ar(loc(top))}.")
-    if st.get("ar"):
-        lines += st["ar"].get("report", [])
-    ao = st.get("ao")
-    if ao and ao["fc"] and st.get("cold_season"):
-        now_ao = ao["obs"][-1]["v"] if ao["obs"] else ao["fc"][0]["mean"]
-        f10 = ao["fc"][min(10, len(ao["fc"]) - 1)]
-        line = (f"التذبذب القطبي الآن {ao_words(now_ao)} ({ar(round(now_ao, 1))})، ومتوسط توقع جي إف إس المجمّع بعد عشرة أيام "
-                f"{ao_words(f10['mean'])} ({ar(round(f10['mean'], 1))}).")
-        if st.get("ao_cold"):
-            c = st["ao_cold"]
-            line += (f" يهبط إلى {ar(round(c['mean'], 1))} يوم {ar_date(c['d'])}: الدوامة القطبية تضعف ويتموج التيار النفاث، "
-                     "فتزيد فرصة اندفاع أخاديد ومنخفضات باردة من الشمال نحو العروض الدنيا ومنها شمال المملكة ووسطها، وقد تتعمق إذا التقت بالرطوبة.")
-        elif f10["mean"] >= 1:
-            line += " الجريان نطاقي غالبًا، والهواء البارد محصور في الشمال، ففرص تعمق المنخفضات الباردة نحو المملكة أقل."
-        lines.append(line)
-    if not st["surge"]:
-        best = max(((r["d"], v["pct"], BOXES[k][0]) for r in st["pw"][1:11] for k, v in r.items() if k != "d"),
-                   key=lambda x: x[1], default=None)
-        if best:
-            lines.append(f"أعلى رطوبة متوقعة خلال عشرة أيام: {ar(best[1])}٪ من المعدل فوق {best[2]} يوم {ar_date(best[0])}.")
-    if st["surge"] and fc_wet and st["wet_season"]:
-        lines.append("الخلاصة: المد الرطوبي يتزامن مع طور رطب للتذبذب، فترتفع فرص السحب الرعدية والأمطار مع وجود محفز من منخفض علوي أو التقاء رياح، وتُتابع خرائط النموذج عالي الدقة يوميًا.")
-    elif st["surge"]:
-        lines.append("الخلاصة: رطوبة أعلى من المعدل بوضوح، وتحتاج لمحفز رفع حتى تتحول إلى سحب رعدية؛ تُتابع خرائط النموذج عالي الدقة يوميًا.")
-    elif st.get("ao_cold"):
-        lines.append("الخلاصة: الإشارة الأبرز من الشمال؛ تُراقب خريطة الموجات لامتداد الأخاديد جنوبًا ومدى التقائها بالرطوبة.")
-    else:
-        lines.append("الخلاصة: لا إشارة واضحة لحالة ممطرة واسعة؛ يبقى الحمل المحلي فوق المرتفعات واردًا مع تسخين النهار.")
-    return {"date": st["cycle"][:8], "issued": st["updated"], "title": title, "lines": lines, "surge": st["surge"]}
 
 
 if __name__ == "__main__":

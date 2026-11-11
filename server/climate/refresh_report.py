@@ -1,47 +1,56 @@
 #!/usr/bin/env python3
-"""Rebuild the day's sections of the published report (the Kingdom and the Makkah region) once our later model run
-is complete, without recomputing the rest of the page.
+"""Rewrite the rain section of the published report from our latest complete runs, without recomputing the rest
+of the page.
 
-refresh_report.py <state_dir> <out_dir>      (our runs from SA_DATA, WEST_DATA, KM1_DATA as in daily.py)
+refresh_report.py <state_dir> <out_dir> [midnight|noon]
+  midnight: the Makkah day of the report (00:00 to 24:00), once the evening (12Z) runs are complete;
+  noon:     an update at noon Makkah from the morning (00Z) runs, for the rest of the day (12:00 to 24:00).
+Our runs come from SA_DATA, WEST_DATA, KM1_DATA and REGION_DATA as in daily.py.
 """
 import json, os, sys
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sa_geo  # noqa: E402
-import today as today_wx  # noqa: E402
+import rainreport  # noqa: E402
 
 
 def main():
     state, out = sys.argv[1:3]
+    mode = sys.argv[3] if len(sys.argv) > 3 else "midnight"
     p = os.path.join(out, "mjo.json")
     st = json.load(open(p))
     rep = st.get("report") or {}
     secs = rep.get("sections") or []
-    old = next((s for s in secs if s.get("heading", "").startswith("طقس المملكة")), None)
-    if not old or "data" not in old:
-        print("no day section to refresh"); return
-    day = date.fromisoformat(old["data"]["day"])
-    ours = [os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")] + os.environ.get("REGION_DATA", "").split()
-    tw = today_wx.situation(day, ours, state, st, sa_geo.OpenMeteo())
-    mk = tw.pop("makkah", None)
-    new = []
-    for s in secs:
-        h = s.get("heading", "")
-        if h.startswith("طقس المملكة"):
-            new.append(tw)
-            if mk:
-                new.append(mk)
-        elif h.startswith("منطقة مكة المكرمة"):
-            continue
-        else:
-            new.append(s)
-    rep["sections"] = new
+    ours = ([os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
+            + os.environ.get("REGION_DATA", "").split())
+    if mode == "noon":
+        day = (datetime.now(timezone.utc) + timedelta(hours=3)).date()
+        t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) + timedelta(hours=9)
+        t_b = t_a + timedelta(hours=12)
+    else:
+        day = date.fromisoformat(rep.get("day") or st["days"][0])
+        t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) - timedelta(hours=3)
+        t_b = t_a + timedelta(hours=24)
+    new = rainreport.rain_report(t_a, t_b, ours, st, sa_geo.OpenMeteo(), issue=mode)
+    new["kind"] = "rain_noon" if mode == "noon" else "rain"
+    keep = [s for s in secs if s.get("kind") not in ("rain", "rain_noon")]
+    night = next((s for s in secs if s.get("kind") == "rain"), None)
+    if mode == "noon":
+        # the noon update goes first; the night's report stays under it for comparison (same day only)
+        rain = [new] + ([night] if night and rep.get("day") == day.isoformat() else [])
+    else:
+        rain = [new]
+    rep["sections"] = rain + keep
+    rep["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
+    st["report"] = rep
     json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
     rd = os.path.join(out, "reports")
-    if os.path.isdir(rd):
-        json.dump(rep, open(os.path.join(rd, st["cycle"][:8] + ".json"), "w"), ensure_ascii=False)
-    print("report refreshed for", day)
+    os.makedirs(rd, exist_ok=True)
+    json.dump(rep, open(os.path.join(rd, day.strftime("%Y%m%d") + ".json"), "w"), ensure_ascii=False)
+    print(f"rain report ({mode}) refreshed for", day, flush=True)
+    for line in [new["heading"]] + new["lines"]:
+        print(line, flush=True)
 
 
 if __name__ == "__main__":

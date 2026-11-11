@@ -43,11 +43,13 @@ def lcc_inverse(pr, x, y):
 
 
 # ------------------------------------------------------------------ data
-def load(dirs, day, log=print):
-    """Domains of our runs over the Makkah day (00 to 24): for each, the run with most hours of the day.
-    Hour keys are the local hour at the end of each hour of rain (1 to 24)."""
-    t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) - timedelta(hours=3)
-    t_b = t_a + timedelta(hours=24)
+def load(dirs, day=None, log=print, t_a=None, t_b=None):
+    """Domains of our runs over the Makkah day (00 to 24), or over [t_a, t_b) (UTC datetimes): for each, the run
+    with most hours of the window. Hour keys count the hours from the start of the window: key h is the hour
+    ending h hours after it (1 to 24 for a Makkah day: the local hour at its end)."""
+    if t_a is None:
+        t_a = datetime(day.year, day.month, day.day, tzinfo=timezone.utc) - timedelta(hours=3)
+        t_b = t_a + timedelta(hours=24)
     out = []
     for root in [d for d in dirs if d and os.path.exists(os.path.join(d, "runs.json"))]:
         best = {}
