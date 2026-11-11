@@ -1,0 +1,4 @@
+[2026-11-11T16:43:02Z] === step netcdf: start
+[2026-11-11T16:43:02Z] === step netcdf: done
+[2026-11-11T16:43:02Z] === step python: start
+[2026-11-11T16:43:13Z] === step python: done
