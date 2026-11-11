@@ -1,9 +1,12 @@
 # A probe for developing the climate reports: the GFS 500 hPa height and temperature of the latest run for 16 days
-# (1 degree), saved as a workflow artifact. By hand only.
+# (1 degree), pushed to the probe-data branch. By hand only.
 name: Climate probe
 
 on:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   probe:
@@ -28,7 +31,8 @@ jobs:
           np.savez_compressed("/tmp/z500.npz", z=np.array(z), t=np.array(t), cycle=cyc, lat=daily.LAT1, lon=daily.LON1)
           print("saved", cyc)
           PY
-      - uses: actions/upload-artifact@v4
-        with:
-          name: z500
-          path: /tmp/z500.npz
+      - name: Push
+        run: |
+          mkdir /tmp/p && cd /tmp/p && cp /tmp/z500.npz . && git init -q -b data && git add -A
+          git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m probe
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:probe-data
