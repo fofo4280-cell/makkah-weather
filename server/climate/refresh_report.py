@@ -13,6 +13,7 @@ from datetime import date, datetime, timedelta, timezone
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import sa_geo  # noqa: E402
 import rainreport  # noqa: E402
+import bigreport  # noqa: E402
 
 
 def main():
@@ -35,6 +36,10 @@ def main():
     new = rainreport.rain_report(t_a, t_b, ours, st, sa_geo.OpenMeteo(), issue=mode)
     new["kind"] = "rain_noon" if mode == "noon" else "rain"
     keep = [s for s in secs if s.get("kind") not in ("rain", "rain_noon")]
+    try:   # the big-picture sections are rebuilt too, so a change of their wording shows at the next issue
+        keep = bigreport.report(st, date.fromisoformat(rep.get("day") or st["days"][0]))
+    except Exception as e:
+        print("big-picture report not rebuilt:", repr(e), flush=True)
     night = next((s for s in secs if s.get("kind") == "rain"), None)
     if mode == "noon":
         # the noon update goes first; the night's report stays under it for comparison (same day only)

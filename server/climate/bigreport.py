@@ -1,4 +1,5 @@
-"""The big-picture report: what drives the weather over the Kingdom now and in the next 15 days and beyond.
+"""The big-picture report: what drives the weather over the Kingdom now, and the nearest rain wave to come
+(named by its drivers, with their dates and the parts of the Kingdom it reaches, followed night by night).
 
 Built from the analyses and the GFS forecast already computed by daily.py (the MJO, the warm and cold events,
 the 500 hPa Rossby waves, moisture over the Kingdom, the northern cold troughs, cold waves), and, beyond 15 days,
@@ -99,96 +100,182 @@ def report(st, day0):
         cur_end = day0 - timedelta(days=1)
     sections.append({"heading": f"الوضع الحالي ({ar_date(day0)})", "lines": now})
 
-    # ---------------------------------------------------------------- 2. the nearest wave to come
-    nxt = []
-    start = next((d for d in days if d > cur_end + timedelta(days=1) and _supported(fac[d])), None)
+    # ---------------------------------------------------------------- 2. the nearest wave to come, tracked day by day
+    lines, watch = next_wave(st, day0, days, fac, cur_end)
+    st["wave_watch"] = watch
+    sections.append({"heading": "أقرب موجة قادمة", "lines": lines})
+    return sections
+
+
+def _cold_days(st, days):
+    """{date: (area, depth dam)}: a northern cold trough whose axis reaches the Kingdom, on its arrival day and the next."""
+    out = {}
+    for c in st.get("troughs") or []:
+        if not c.get("arrive"):
+            continue
+        a = date.fromisoformat(c["arrive"])
+        t = next((x for x in c["days"] if x["d"] == c["arrive"]), None)
+        if not t:
+            continue
+        for d in (a, a + timedelta(days=1)):
+            if d in days and d not in out:
+                out[d] = (TR.kingdom_area(t["tip"][1]), -t["depth"], a)
+    return out
+
+
+def _parts(area):
+    """Kingdom parts named in an area's words: west, southwest, north, central, east."""
+    if "المملكة" not in area and "الحجاز" not in area:
+        return set()
+    out = set()
+    if "جنوب غرب" in area:
+        out.add("southwest")
+    if "شمال غرب" in area:
+        out |= {"north", "west"}
+    if "شمال شرق" in area:
+        out |= {"north", "east"}
+    if "شمال" in area:
+        out.add("north")
+    if "وسط" in area:
+        out.add("central")
+    if "شرق" in area.replace("شمال شرق", ""):
+        out.add("east")
+    if "الحجاز" in area or "غربها" in area or ("غرب" in area.replace("جنوب غرب", "").replace("شمال غرب", "")):
+        out.add("west")
+    return out
+
+
+def _span_words(ds, day0=None):
+    ds = sorted(ds)
+    if day0 and ds[0] <= day0:
+        return f"مستمر من اليوم حتى {ar_date(ds[-1])}"
+    return ar_span(ds[0], ds[-1])
+
+
+def _plural_days(n):
+    return "يوم واحد" if n == 1 else "يومان" if n == 2 else f"{ar(n)} أيام" if n <= 10 else f"{ar(n)} يومًا"
+
+
+def next_wave(st, day0, days, fac, cur_end):
+    """The nearest rain wave after the current one, from the GFS forecast (16 days, the longest it gives), and
+    beyond it from the eastward speed of the MJO and the warm event (up to 45 days). The wave is named by what
+    drives it: tropical with troughs, tropical alone (no deepening troughs), or troughs alone; each driver with
+    its own dates, and the parts of the Arabian Peninsula it reaches. Compared with yesterday's estimate."""
+    cold = _cold_days(st, days)
+    f = {d: list(fac[d]) + ([("cold", f"أخدود بارد يبلغ {cold[d][0]}")] if d in cold else []) for d in days}
+    keys = lambda d: {k for k, _ in f[d]}
+    tropical = {"mjo", "warm"}
+    ok = lambda d: (len(keys(d)) >= 2 and keys(d) & {"surge", "trough", "cold"}) or "cold" in keys(d)
+    lines, watch = [], {"day": day0.isoformat()}
+    prev = st.get("prev_watch") or {}
+    start = next((d for d in days if d > cur_end + timedelta(days=1) and ok(d)), None)
+
     if start:
         end = start
         for d in days[days.index(start) + 1:]:
-            if _supported(fac[d]):
+            if ok(d):
                 end = d
             else:
                 break
-        keys = {}
-        for d in days[days.index(start):days.index(end) + 1]:
-            for k, w in fac[d]:
-                keys.setdefault(k, w)
-        regs = []
-        for d in days[days.index(start):days.index(end) + 1]:
-            row = next((r for r in st.get("pw", []) if r["d"] == d.isoformat()), None)
-            if row:
-                regs += [BOX_NAME[k] for k in BOX_NAME if k in row and row[k]["pct"] >= 150 and BOX_NAME[k] not in regs]
-        nxt.append(f"أقرب موجة قادمة {ar_span(start, end)}، تقودها: {join(keys.values())}"
-                   + (f"؛ والمناطق الأقرب للتأثر بها {join(regs)}" if regs else "") + ".")
-        cold = [t for t in (st.get("troughs") or []) if t.get("arrive") and start - timedelta(days=1) <= date.fromisoformat(t["arrive"]) <= end + timedelta(days=1)]
-        if cold:
-            c = cold[0]
-            tip_lon = next(t for t in c["days"] if t["d"] == c["arrive"])["tip"][1]
-            nxt.append(f"ويرافقها أخدود بارد من الشمال يبلغ {TR.kingdom_area(tip_lon)} يوم {ar_date(date.fromisoformat(c['arrive']))}، "
-                       "فيزيد عدم الاستقرار ويهيئ لعواصف رعدية مع انخفاض في درجات الحرارة.")
-        nxt.append("التأثيرات المتوقعة: أمطار رعدية متفرقة إلى غزيرة أحيانًا حيث تجتمع الرطوبة مع صعود الهواء، "
-                   "وتتضح المناطق والكميات في تقرير الأمطار حين تدخل في مدى نموذجنا.")
+        def run(has):
+            """the days of the unbroken run of a driver that overlaps the wave, within the 16 days"""
+            inside = [d for d in days if start <= d <= end and has(d)]
+            if not inside:
+                return []
+            i, j = days.index(inside[0]), days.index(inside[-1])
+            while i > 0 and has(days[i - 1]):
+                i -= 1
+            while j + 1 < len(days) and has(days[j + 1]):
+                j += 1
+            return days[i:j + 1]
+        span = lambda key: run(lambda d: key in keys(d))
+        near = [d for d in days if start <= d <= end]
+        allk = set().union(*(keys(d) for d in days[days.index(start):days.index(end) + 1]))
+        T, R = allk & tropical, allk & {"trough", "cold"}
+        kind = "mixed" if T and R else "tropical" if T else "troughs"
+        title = {"mixed": "موجة مدارية مع أخاديد (مركّبة)",
+                 "tropical": "موجة مدارية معزولة، دون أخاديد متعمقة",
+                 "troughs": "موجة أخاديد، دون دعم مداري"}[kind]
+        lines.append(f"أقرب موجة قادمة {ar_span(start, end)}: {title}.")
+        drivers = []
+        if span("mjo"):
+            ph = []
+            for d in span("mjo"):
+                m = B.rmm_on(st, d)
+                if m and m["phase"] not in ph:
+                    ph.append(m["phase"])
+            drivers.append(f"التذبذب المداري (مادن-جوليان) في {'الطور' if len(ph) == 1 else 'الأطوار'} "
+                           f"{join(ar(p) for p in ph)} {'المحفز' if len(ph) == 1 else 'المحفزة'} للجزيرة العربية {_span_words(span('mjo'), day0)}")
+        if span("warm"):
+            drivers.append(f"الحدث الدافئ في القطاع المحفز، أي تباعد علوي يرفع الهواء ويغذي الحمل العميق، {_span_words(span('warm'), day0)}")
+        pwr = {r["d"]: r for r in st.get("pw", [])}
+        wet = lambda k: (lambda d: k in pwr.get(d.isoformat(), {}) and pwr[d.isoformat()][k]["pct"] >= 150)
+        boxes = {k: run(wet(k)) for k in BOX_NAME}
+        boxes = {k: v for k, v in boxes.items() if v}
+        for k, ds in boxes.items():
+            drivers.append(f"مد رطوبي فوق {BOX_NAME[k]} {_span_words(ds, day0)}")
+        areas = {}
+        for d in [d for d in span("trough") if start <= d <= end]:
+            wv = next((x for x in st.get("waves", []) if x["d"] == d.isoformat()), None)
+            if wv and "trough" in wv:
+                areas.setdefault(wv["trough"]["area"], []).append(d)
+        for a, ds in areas.items():
+            drivers.append(f"أخدود في الطبقة الوسطى فوق {a} {_span_words(ds)}")
+        seen = set()
+        for d in span("cold"):
+            area, depth, arr = cold[d]
+            if arr in seen:
+                continue
+            seen.add(arr)
+            drivers.append(f"أخدود بارد من الشمال يبلغ محوره {area} يوم {ar_date(arr)} بعمق {num(depth, 1)} ديكامتر")
+        lines.append("عواملها وتواريخ كل منها: " + "؛ ".join(drivers) + ".")
+
+        hit = set(boxes)
+        for d in span("cold"):
+            hit |= _parts(cold[d][0])
+        if not span("cold"):
+            for a in areas:
+                hit |= _parts(a)
+        if not hit:
+            hit = {"southwest", "west"} if kind == "tropical" else {"north"}
+        regs = [BOX_NAME[k] for k in ("west", "southwest", "north", "central", "east") if k in hit]
+        lines.append(f"المناطق المتأثرة من الجزيرة العربية: {join(regs)}.")
+        lines.append({"mixed": "التأثير المتوقع: الأقوى بين أنواع الموجات؛ الدعم المداري يرفع الرطوبة والحمل العميق، "
+                               "والأخاديد تنظمه، فتتسع رقعة الأمطار الرعدية وتغزر أحيانًا مع احتمال البرد.",
+                      "tropical": "التأثير المتوقع: أمطار رعدية يغذيها الحمل المداري على المرتفعات وتهامة والمناطق الرطبة، "
+                                  "تتركز بعد الظهر والمساء، وانتشارها أضيق ما لم يصلها أخدود.",
+                      "troughs": "التأثير المتوقع: يحكمه الأخدود؛ رياح وانخفاض في الحرارة وسحب رعدية على مقدمته، "
+                                 "وتبقى الأمطار متفرقة ما لم تتوفر رطوبة كافية."}[kind])
+        lines.append("تتضح المناطق والكميات بالتفصيل في تقرير الأمطار حين تدخل الموجة في مدى نموذجنا.")
+        watch.update(start=start.isoformat(), end=end.isoformat(), kind=kind, src="gfs")
     else:
-        nxt.append("لا تظهر في توقع جي إف إس لخمسة عشر يومًا موجة مطرية واسعة جديدة تجتمع فيها الرطوبة مع الأخدود أو التذبذب.")
-    sections.append({"heading": "أقرب موجة قادمة", "lines": nxt})
+        lines.append("لا تظهر موجة مطرية جديدة في توقع جي إف إس لستة عشر يومًا (أطول مدى يعطيه).")
+        try:
+            ol = outlook.outlook(st, day0)
+            far = [x for x in ol["lines"] if x.startswith("من ١٥")]
+            for x in far:
+                lines.append(x.replace("من ١٥ إلى ٤٥ يومًا", "بعد ذلك حتى ٤٥ يومًا", 1))
+        except Exception as e:
+            print("outlook failed", repr(e), flush=True)
+        watch.update(src="none")
 
-    # ---------------------------------------------------------------- 3. northern cold troughs, day by day
-    tl = []
-    trs = st.get("troughs") or []
-    arr = lambda c: date.fromisoformat(c["arrive"]) if c.get("arrive") else None
-    now_tr = [c for c in trs if arr(c) and arr(c) <= day0]
-    coming = [c for c in trs if arr(c) and arr(c) > day0]
-    passing = [c for c in trs if not arr(c) and date.fromisoformat(c["days"][0]["d"]) >= day0]
-    if now_tr:
-        c = now_tr[0]
-        t = next(x for x in c["days"] if x["d"] == c["arrive"])
-        last = next((x for x in c["days"] if date.fromisoformat(x["d"]) > day0 and not TR.reaches(x)), None)
-        tl.append(f"الأخدود المؤثر الآن: محوره يمتد من {TR.place(t['lat'], t['lon'])} جنوبًا حتى {TR.place(t['tip'][0], t['tip'][1])} "
-                  f"(قرابة {num(t['tip'][0])}° شمالًا) بعمق {num(-t['depth'], 1)} ديكامتر"
-                  + (f"، ويغادر المملكة شرقًا قرابة {ar_date(date.fromisoformat(last['d']))}" if last else "") + ".")
-    for c in coming[:3] + passing[:max(0, 2 - len(coming))]:
-        arrive = arr(c)
-        first = c["days"][0]
-        head = (f"أخدود بارد يظهر {ar_date(date.fromisoformat(first['d']))} فوق {TR.place(first['lat'], first['lon'])} "
-                f"(عمق موجته {num(-first['depth'], 1)} ديكامتر"
-                + (f"، وهواؤه أبرد من محيطه بنحو {num(-first['cold'], 1)} درجة عند ٥٠٠ هكتوباسكال" if first.get("cold") is not None and first["cold"] <= -1 else "")
-                + ")")
-        head += (f"، ويصل محوره إلى {TR.kingdom_area(next(t for t in c['days'] if t['d'] == c['arrive'])['tip'][1])} يوم {ar_date(arrive)}."
-                 if arrive else "، ولا يبلغ المملكة في مدى التوقع بل يمر شمالها.")
-        steps = []
-        for t in c["days"]:
-            d = date.fromisoformat(t["d"])
-            if arrive and d > arrive + timedelta(days=1):
-                break
-            tip = t["tip"]
-            steps.append(f"{ar_date(d)}: مركزه فوق {TR.place(t['lat'], t['lon'])}، ومحوره يمتد جنوبًا حتى {TR.place(tip[0], tip[1])} "
-                         f"(قرابة {num(tip[0])}° شمالًا)، وعمقه {num(-t['depth'], 1)} ديكامتر")
-        tl.append(head + " مساره يومًا بيوم: " + "؛ ".join(steps) + ".")
-        if arrive:
-            deep = min(t["depth"] for t in c["days"] if date.fromisoformat(t["d"]) <= arrive)
-            tip_lon = next(t for t in c["days"] if t["d"] == c["arrive"])["tip"][1]
-            tl.append(f"أثره المتوقع: {'تعمق قوي' if deep <= -10 else 'تعمق متوسط'} يدفع هواءً باردًا نحو {TR.kingdom_area(tip_lon)}، "
-                      "فتنخفض درجات الحرارة وتنشط الرياح، وإن صادف رطوبة كافية تكونت سحب رعدية على مقدمته.")
-    if not tl:
-        tl.append("لا أخاديد باردة شمالية عميقة متجهة نحو المملكة في توقع جي إف إس لخمسة عشر يومًا.")
-    sections.append({"heading": "الأخاديد الباردة الشمالية (١٥ يومًا)", "lines": tl})
-
-    # ---------------------------------------------------------------- 4. cold waves
-    cw = []
-    for w in st.get("coldwaves") or []:
-        a, b = date.fromisoformat(w["a"]), date.fromisoformat(w["b"])
-        cw.append(f"{'موجة باردة قوية' if w['strong'] else 'موجة باردة'} على {join(w['regions'])} {ar_span(a, b)} "
-                  f"(مدتها {ar(w['days'])} {'أيام' if 3 <= w['days'] <= 10 else 'يومًا' if w['days'] > 10 else 'يومان'})، "
-                  f"تنخفض فيها الصغرى عن معدلها بنحو {num(-w['anom'])} درجات، وأدناها {num(w['tmin'])}° في {w['town']}.")
-    if not cw:
-        cw.append("لا موجات باردة في الأيام الستة عشر القادمة: تبقى الصغرى قريبة من معدلاتها أو أعلى.")
-    sections.append({"heading": "الموجات الباردة", "lines": cw})
-
-    # ---------------------------------------------------------------- 5. beyond 15 days
-    try:
-        ol = outlook.outlook(st, day0)
-        keep = [x for x in ol["lines"] if x.startswith(("من ١٥", "التذبذب المداري بعد", "تنبيه"))]
-        sections.append({"heading": "النافذة البعيدة (١٥ إلى ٤٥ يومًا)", "lines": keep or ol["lines"][-1:]})
-    except Exception as e:
-        print("outlook failed", repr(e), flush=True)
-    return sections
+    # day-by-day tracking of the estimate, until the wave arrives
+    if watch.get("start"):
+        s0 = date.fromisoformat(watch["start"])
+        if prev.get("start") and prev.get("day") and prev["day"] < day0.isoformat() and prev.get("kind"):
+            p0 = date.fromisoformat(prev["start"])
+            first = prev.get("first_day", prev["day"])
+            watch["first_day"], watch["first_start"] = first, prev.get("first_start", prev["start"])
+            shift = (s0 - p0).days
+            how = ("ثابت على موعده" if shift == 0 else f"تقدّم {_plural_days(-shift)}" if shift < 0 else f"تأخر {_plural_days(shift)}")
+            track = f"متابعة يومية: كان تقدير أمس لبدئها {ar_date(p0)}، وهو اليوم {ar_date(s0)} ({how})"
+            if watch["first_start"] != prev["start"] or first != prev["day"]:
+                track += f"؛ ورُصدت أول مرة {ar_date(date.fromisoformat(first))} بموعد {ar_date(date.fromisoformat(watch['first_start']))}"
+            lines.append(track + ".")
+        else:
+            watch["first_day"], watch["first_start"] = day0.isoformat(), watch["start"]
+            lines.append(f"متابعة يومية: رُصدت هذه الموجة اليوم أول مرة، ويُحدَّث موعدها كل ليلة حتى تصل.")
+        left = (s0 - day0).days
+        lines.append(f"يتبقى على بدء مرحلة الخصب {_plural_days(left)}." if left > 1 else
+                     "تبدأ مرحلة الخصب غدًا." if left == 1 else "بدأت مرحلة الخصب اليوم.")
+    return lines, watch

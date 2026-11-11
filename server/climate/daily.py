@@ -601,6 +601,10 @@ def main():
     except Exception as e:
         print("rain report failed:", repr(e), flush=True)
     big = []
+    try:   # yesterday's estimate of the next wave, to follow it day by day
+        status["prev_watch"] = json.load(open(os.path.join(out, "mjo.json"))).get("wave_watch") or {}
+    except Exception:
+        status["prev_watch"] = {}
     try:
         big = bigreport.report(status, day0)
     except Exception as e:
