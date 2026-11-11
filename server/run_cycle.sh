@@ -176,7 +176,8 @@ run_wrf() {
     read -r nlev nsoil < levels.txt
     "$PY" "$HERE/render_namelists.py" input "$CYC" "$nlev" "$nsoil" namelist.input || return 1
   fi
-  "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --watch "$DONE_FLAG" \
+  # the maps are made at low priority so the model keeps the processors
+  nice -n 15 "$PY" "$REPO/server/post/postprocess.py" --wrfdir "$RUN/wrf" --web "$WEB" --run "$CYC" --watch "$DONE_FLAG" \
      > "$RUN/post_watch.log" 2>&1 &
   local POSTPID=$!
   timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
