@@ -18,6 +18,8 @@ Z800 = ("z800", r":HGT:800 mb:")
 APCP = ("apcp", r":APCP:surface:0-")    # the accumulation from the start of the run
 KSA = (16, 32, 36, 55)                  # south, north, west, east: the Kingdom box for the component
 EPISODE_COVER = 0.08                    # a rain day: 8 % of the Kingdom with 5 mm or more in the day
+HIST_DAYS = 400                         # more than a year, so the effect is measured over a whole rain season
+WET_MONTHS = {11, 12, 1, 2, 3, 4}
 
 
 def band(a):
@@ -115,7 +117,7 @@ def run(hist, fc, t0, log=print):
     Z = series(zd)
     last_rain = max(rd)
     R = series(rd)
-    zf = mjo_filter(Z)
+    zf = mjo_filter(Z, kmax=3)          # the height: planetary waves 1-3, a clean envelope as on Dr Khalid's map
     rf = mjo_filter(R)
     mask = kingdom_mask()
     s, n, w, e = KSA
@@ -126,15 +128,16 @@ def run(hist, fc, t0, log=print):
         info["r_ksa"].append(round(box(rf[k], s, n, w, e), 2))
         prof = zf[k][eq].mean(0)
         info["core"].append(int(LON[int(np.argmin(prof))]))
-        if d <= last_rain:
+        if d < t0 and d <= last_rain:     # the past days only: the first-day forecast as a stand-in for what fell
             day = R[k][mask]
             info["cover"].append(round(float((day >= 5).mean()), 3))
             info["rain_ksa"].append(round(float(day.mean()), 1))
         else:
             info["cover"].append(None)
             info["rain_ksa"].append(None)
-    past = [abs(v) for v, d in zip(info["z_ksa"], full) if d < t0]
-    info["z_ref"] = round(float(np.std(info["z_ksa"][:len(past)])) or 1.0, 1)
+    past = [v for v, d in zip(info["z_ksa"], full) if d < t0]
+    info["z_ref"] = round(float(np.std(past)) or 1.0, 1)
+    info["t0"] = t0.isoformat()
     log("mjo filter: days", len(full), "z ref", info["z_ref"], "core today", info["core"][full.index(t0)] if t0 in full else None)
     return full, zf, rf, info
 

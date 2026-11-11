@@ -447,7 +447,7 @@ def main():
     # 7b. the MJO component of the 800 hPa height and of the rain (Wheeler-Kiladis filter, as in Dr Khalid's maps)
     mjof = None
     try:
-        mh = mjofilt.history(state, t0, HIST_DAYS, gfs_fields)
+        mh = mjofilt.history(state, t0, mjofilt.HIST_DAYS, gfs_fields)
         ds = sorted(fc)
         fcl = []
         for k, dt in enumerate(ds):
@@ -458,13 +458,16 @@ def main():
             fcl.append((dt.date(), mjofilt.band(fc[dt]["z800"]), rain))
         full, zf, rf, mjof = mjofilt.run(mh, fcl, t0.date())
         mjof["episodes"] = mjofilt.episodes(mjof, t0.date().isoformat())
-        zmax = float(np.percentile(np.abs(zf), 99.5))
-        rmax = float(np.percentile(np.abs(rf), 99.5))
+        idx = [full.index(dt.date()) for dt in ds]
+        trop = (mjofilt.LAT >= -35) & (mjofilt.LAT <= 35)
+        zmax = float(np.percentile(np.abs(zf[idx][:, trop]), 99.5))
+        rmax = float(np.percentile(np.abs(rf[idx][:, trop]), 99.5))
         figures.mjo_scales(zmax, rmax)
-        for k, dt in enumerate(ds):
-            i = full.index(dt.date())
-            figures.draw(os.path.join(out, "fig", f"mjoz_{k:02d}.png"), zf[i], mjofilt.LAT, mjofilt.LON, "mjoz", (0, 360, -35, 35))
-            figures.draw(os.path.join(out, "fig", f"mjop_{k:02d}.png"), rf[i], mjofilt.LAT, mjofilt.LON, "mjop", (0, 360, -35, 35))
+        lon_c = np.arange(-180, 180, 1.0)          # centred on Africa and Arabia, like Dr Khalid's maps
+        for k, i in enumerate(idx):
+            for kind, arr in (("mjoz", zf[i]), ("mjop", rf[i])):
+                figures.draw(os.path.join(out, "fig", f"{kind}_{k:02d}.png"), np.roll(arr, 180, axis=1)[trop],
+                             mjofilt.LAT[trop], lon_c, kind, (-180, 180, -35, 35))
         print("mjo component episodes:", mjof["episodes"], flush=True)
     except Exception as e:
         import traceback

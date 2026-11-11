@@ -107,11 +107,17 @@ def report(st, day0):
                f"{'، أي داعم بقوة للحمل' if z0 <= -ref else '، أي داعم للحمل' if z0 < 0 else '، أي كابح للحمل'}، "
                f"والأمطار المرتبطة به {n1(r0)} ملم في اليوم، ومركز غلافه فوق {B.region_name(core0)} "
                f"(خط الطول {ar(core0 if core0 <= 180 else 360 - core0)}° {'شرقًا' if core0 <= 180 else 'غربًا'}).")
-        if eff and eff["neg"] is not None and eff["pos"] is not None:
-            clear = eff["neg"] - eff["pos"] >= 8
-            txt += (f" وأثره في الأشهر الأربعة الماضية {'واضح' if clear else 'محدود'}: في الأيام التي كان فيها سالبًا بقوة (أقل من −{n1(ref)} م) "
-                    f"أصابت الأمطار في المتوسط {ar(eff['neg'])}٪ من مساحة المملكة، مقابل {ar(eff['mid'])}٪ حين كان قريبًا "
-                    f"من الصفر و{ar(eff['pos'])}٪ حين كان موجبًا بقوة.")
+        if eff and eff.get("rank") is not None and z0 < 0 and eff["rank"] <= 10:
+            mo = round(eff["days"] / 30)
+            mo_w = "شهرين" if mo == 2 else f"{ar(mo)} أشهر" if mo <= 10 else f"{ar(mo)} شهرًا"
+            txt += ((f" وهي أعمق قيمة له في آخر {mo_w}" if eff["rank"] <= 1 else
+                     f" وهي من أعمق قيمه: أدنى من {ar(100 - eff['rank'])}٪ من أيام آخر {mo_w}")
+                    + "، وقد تزامنت مع الموجة الحالية الواسعة.")
+        if eff and None not in (eff.get("neg"), eff.get("mid"), eff.get("pos")):
+            clear = eff["neg"] >= 2 * max(eff["pos"], 0.5)
+            txt += (f" وأثره في مواسم الأمطار الماضية (نوفمبر إلى أبريل) {'واضح' if clear else 'محدود'}: في الأيام التي كان فيها "
+                    f"سالبًا بقوة (أقل من {n1(-ref)} م) أصابت الأمطار في المتوسط {n1(eff['neg'])}٪ من مساحة المملكة يوميًا، "
+                    f"مقابل {n1(eff['mid'])}٪ حين كان قريبًا من الصفر و{n1(eff['pos'])}٪ حين كان موجبًا بقوة.")
         now.append(txt)
     sections.append({"heading": f"الوضع الحالي ({ar_date(day0)})", "lines": now})
 
@@ -170,21 +176,30 @@ def n1(x):
 
 
 def _component_effect(st):
-    """what the MJO component has meant for rain over the Kingdom in the past months: mean share of the Kingdom
-    with 5 mm or more on days with the component strongly negative, near zero, and strongly positive"""
+    """what the MJO component has meant for rain over the Kingdom in the past rain seasons (November to April):
+    mean share of the Kingdom with 5 mm or more on days with the component strongly negative, near zero, and
+    strongly positive; and how today's value ranks among all past days"""
     m = st.get("mjof")
     if not m:
         return None
     ref = m.get("z_ref") or 10
-    rows = [(z, c) for z, c in zip(m["z_ksa"], m["cover"]) if c is not None]
-    if len(rows) < 40:
-        return None
+    wet = {11, 12, 1, 2, 3, 4}
+    rows = [(z, c) for d, z, c in zip(m["days"], m["z_ksa"], m["cover"]) if c is not None and int(d[5:7]) in wet]
+    past = [z for d, z, c in zip(m["days"], m["z_ksa"], m["cover"]) if c is not None]
+    out = {"ref": ref, "n": len(rows)}
+    t0 = m.get("t0")
+    if t0 and t0 in m["days"] and past:
+        z0 = m["z_ksa"][m["days"].index(t0)]
+        out["rank"] = round(100 * sum(1 for z in past if z <= z0) / len(past))
+        out["days"] = len(past)
+    if len(rows) < 30:
+        return out
     neg = [c for z, c in rows if z <= -ref]
     mid = [c for z, c in rows if -ref < z < ref]
     pos = [c for z, c in rows if z >= ref]
-    pct = lambda xs: round(100 * sum(xs) / len(xs)) if xs else None
-    return {"neg": pct(neg), "mid": pct(mid), "pos": pct(pos), "n": len(rows), "ref": ref,
-            "nneg": len(neg), "npos": len(pos)}
+    pct = lambda xs: round(100 * sum(xs) / len(xs), 1) if len(xs) >= 5 else None
+    out.update(neg=pct(neg), mid=pct(mid), pos=pct(pos), nneg=len(neg), npos=len(pos))
+    return out
 
 
 def _past_cases(st, day0, v):
