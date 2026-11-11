@@ -5,7 +5,7 @@
   --chrome: linear-gradient(135deg, #0b1d2c 0%, #0f3447 55%, #0d4f63 100%); --chrome-ink: #eaf4f8; --chrome-muted: #9fc0cc;
   --glass: rgba(10, 18, 26, .80); --glass-line: rgba(255, 255, 255, .14); --glass-ink: #eef4f7; --glass-muted: #a9bac5;
   --shadow: 0 8px 28px rgba(14, 30, 45, .16);
-  --f-ui: "Readex Pro", system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --f-ui: -apple-system, BlinkMacSystemFont, "SF Arabic", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
   --r: 14px;
 }
 @media (prefers-color-scheme: dark) {
@@ -157,7 +157,7 @@ a { color: var(--sea); }
 .report p { margin: 0 0 8px; line-height: 1.75; }
 .report .rsec { border-top: 1px solid var(--line, rgba(127,127,127,.25)); padding-top: 8px; margin-top: 8px; }
 .report .rsec summary { font-weight: 700; cursor: pointer; margin-bottom: 8px; color: var(--amber); }
-.report .rsec p.lead, .report .rsec p.sum { font-weight: 700; }
+.report .rsec p.lead, .report .rsec p.sum { font-weight: 600; }
 .report .rsec p.src { font-size: .82em; opacity: .75; }
 .mjo-big { display: flex; gap: 14px; align-items: baseline; flex-wrap: wrap; margin-bottom: 6px; }
 .mjo-big b { font-size: 1.7rem; color: var(--sea); }

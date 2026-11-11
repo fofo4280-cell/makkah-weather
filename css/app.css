@@ -10,7 +10,7 @@
   --shadow: 0 8px 28px rgba(14, 30, 45, .14); --shadow-s: 0 1px 2px rgba(14, 30, 45, .06), 0 2px 8px rgba(14, 30, 45, .05);
   --chrome: linear-gradient(135deg, #0b1d2c 0%, #0f3447 55%, #0d4f63 100%); --chrome-ink: #eaf4f8; --chrome-muted: #9fc0cc;
   --glass: rgba(10, 18, 26, .78); --glass-line: rgba(255, 255, 255, .12); --glass-ink: #eef4f7; --glass-muted: #a9bac5;
-  --f-ui: "Readex Pro", system-ui, "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --f-ui: -apple-system, BlinkMacSystemFont, "SF Arabic", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
   --f-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
   --r: 14px;
   --c-valley: #1f8a4c; --c-drift: #7cc49a; --c-anchor: #d08a12; --c-weak: #ecc36a; --c-along: #8aa0ad; --c-east: #7a3e9d; --c-fast: #2d5fb0;

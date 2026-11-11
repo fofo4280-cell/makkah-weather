@@ -1056,7 +1056,7 @@
     const lg = (st.figs && st.figs.wc) || st.legends.wc, n = h.v[0].length, cw = (w - left - 4) / n;
     h.v.forEach((row, j) => row.forEach((v, i) => { c.fillStyle = scaleColor(lg, v); c.fillRect(left + i * cw, top + j * rowH, cw + 0.6, rowH + 0.6); }));
     const fcRow = h.days.indexOf(h.first_fc);
-    c.font = "10px Readex Pro, sans-serif"; c.fillStyle = getComputedStyle(document.body).color; c.textAlign = "center";
+    c.font = "10px -apple-system, \"IBM Plex Sans Arabic\", sans-serif"; c.fillStyle = getComputedStyle(document.body).color; c.textAlign = "center";
     for (let lon = 0; lon < 360; lon += 60) {
       const x = left + (lon / h.dlon) * cw;
       c.fillText(lon === 0 ? "٠" : lon <= 180 ? `${num(lon)}ش` : `${num(360 - lon)}غ`, x, 11);
