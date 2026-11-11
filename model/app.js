@@ -289,8 +289,10 @@
     const step = lg.stops.length > 7 ? 2 : 1;
     const ticks = lg.stops.map((x, i) => (i % step === 0 || i === lg.stops.length - 1)
       ? `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v, x.v < 1 ? 1 : 0)}</span>` : "").join("");
-    $("legend").innerHTML = `<div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
+    $("legend").innerHTML = `<div class="legend-mini" style="background:linear-gradient(to right, ${grad})"></div>
+      <div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
+    placeMini();
   }
 
   // colour of a value on a product's scale (for the small charts)
@@ -309,7 +311,7 @@
     if (!ids.length) { box.innerHTML = ""; return; }
     let sel = $("domSelect");
     if (!sel) {
-      box.innerHTML = `<select id="domSelect" class="prod-select dom-select" aria-label="المجال"></select>`;
+      box.innerHTML = `<label class="mpill mpill-dom"><span class="mpill-txt" id="domTxt"></span><span class="mpill-caret">▾</span><select id="domSelect" class="prod-select dom-select" aria-label="المجال"></select></label>`;
       sel = $("domSelect");
       sel.onchange = () => setDomain(sel.value, true);
     }
@@ -317,7 +319,40 @@
       // the 1 km nest runs only in its window of hours: say so while it has not reached it yet
       + (S.k1wait && !ids.includes("d03") ? `<option value="" disabled>جدة ومكة والطائف ١ كم · يُحسب، تظهر خرائطه حين تبلغ ساعاته</option>` : "");
     sel.value = ids.includes(S.dom) ? S.dom : ids[0];
+    syncPills();
   }
+
+  // the two lists at the top are small pills that show only the chosen item; the list itself opens on a tap
+  function syncPills() {
+    for (const [s, t] of [["domSelect", "domTxt"], ["prodSelect", "prodTxt"]]) {
+      const sel = $(s), txt = $(t);
+      if (!sel || !txt) continue;
+      const o = sel.selectedOptions && sel.selectedOptions[0];
+      const v = o ? o.text : "";
+      if (txt.textContent !== v) txt.textContent = v;
+    }
+  }
+  setInterval(syncPills, 400);
+  document.addEventListener("change", (e) => { if (e.target && (e.target.id === "domSelect" || e.target.id === "prodSelect")) syncPills(); });
+
+  // the colour key: a very small strip above the "next" button; a tap opens the full key, another closes it
+  const LG = $("legend");
+  try { if (localStorage.getItem("lgOpen") === "1") LG.classList.remove("mini"); } catch (e) { /* no storage */ }
+  function lgToggle() {
+    LG.classList.toggle("mini");
+    try { localStorage.setItem("lgOpen", LG.classList.contains("mini") ? "0" : "1"); } catch (e) { /* no storage */ }
+    placeMini();
+  }
+  LG.addEventListener("click", lgToggle);
+  LG.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); lgToggle(); } });
+  function placeMini() {
+    const b = $("btnNext"), box = LG.parentElement;
+    if (!b || !box || !b.offsetWidth) return;
+    const rb = b.getBoundingClientRect(), rx = box.getBoundingClientRect();
+    box.style.setProperty("--mini-x", Math.max(0, Math.round(rb.left + rb.width / 2 - rx.left - 27)) + "px");
+  }
+  window.addEventListener("resize", placeMini);
+  setTimeout(placeMini, 300);
 
   function drawProducts() {
     const sel = $("prodSelect");
@@ -562,7 +597,7 @@
   function liLegend() {
     const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
     const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
-    $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
+    $("legend").innerHTML = `<div class="legend-mini" style="background:linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})"></div><div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
       <div class="bolt-key">${keys}</div>`;
   }
 

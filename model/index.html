@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261111j">
+<link rel="stylesheet" href="style.css?v=20261112a">
 </head>
 <body>
 <div class="app">
@@ -27,7 +27,7 @@
       <div id="map" dir="ltr"></div>
       <div class="map-top">
         <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
-        <select id="prodSelect" class="prod-select" aria-label="المنتج"></select>
+        <label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label>
       </div>
       <div class="map-empty" id="mapEmpty" hidden>
         <div class="map-empty-box">
@@ -36,7 +36,7 @@
         </div>
       </div>
       <div class="map-bottom">
-        <div class="legend" id="legend"></div>
+        <div class="legend mini" id="legend" role="button" tabindex="0" aria-label="مفتاح الألوان، اضغط للتكبير أو التصغير"></div>
         <div class="timebar" dir="ltr">
           <button class="icon-btn" id="btnPrev" aria-label="السابق">‹</button>
           <button class="icon-btn play" id="btnPlay" aria-label="تشغيل">▶</button>
@@ -150,6 +150,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261111j"></script>
+<script src="app.js?v=20261112a"></script>
 </body>
 </html>
