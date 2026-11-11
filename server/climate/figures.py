@@ -451,3 +451,19 @@ def draw_ar(path, k, data, lat, lon, qu, qv, mag, width_px=1500):
         im.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:
         pass
+
+
+def mjo_scales(zmax, rmax):
+    """The MJO component maps (800 hPa height, rain): scales set from the day's range, rounded."""
+    def nice(x, steps):
+        return next((v for v in steps if v >= x), steps[-1])
+    z = nice(zmax, [5, 8, 10, 15, 20, 25, 30, 40, 50, 60, 80, 100])
+    r = nice(rmax, [1, 2, 3, 4, 5, 6, 8, 10, 15])
+    SCALES["mjoz"] = {"vmin": -z, "vmax": z, "cols": [(0, "#000a5c"), (.15, "#0a1fd1"), (.35, "#7f8ff0"), (.5, "#f6f6f6"),
+                                                      (.65, "#f58a8a"), (.85, "#e00f0f"), (1, "#5c0000")],
+                      "label": "مكوّن التذبذب عند ٨٠٠ هكتوباسكال (الأزرق داعم للحمل)", "unit": "متر",
+                      "ticks": [round(v, 1) for v in np.linspace(-z, z, 5)]}
+    SCALES["mjop"] = {"vmin": -r, "vmax": r, "cols": [(0, "#3d2508"), (.2, "#8a5a1e"), (.4, "#d8b07a"), (.5, "#f4f2ea"),
+                                                      (.6, "#9bd18a"), (.8, "#2e8b3c"), (1, "#08451a")],
+                      "label": "الأمطار المرتبطة بالتذبذب", "unit": "ملم في اليوم",
+                      "ticks": [round(v, 1) for v in np.linspace(-r, r, 5)]}

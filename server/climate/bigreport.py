@@ -98,6 +98,21 @@ def report(st, day0):
         now.append("لا موجة مطرية قائمة على المملكة الآن؛ "
                    + (f"والعوامل الحاضرة: {join(w for _, w in f0)}، وهي وحدها لا تكفي لحالة واسعة." if f0 else "ولا عامل كبيرًا يدعمها."))
         cur_end = day0 - timedelta(days=1)
+    mf0 = _mf(st, day0)
+    if mf0:
+        ref = st["mjof"].get("z_ref") or 10
+        z0, r0, core0 = mf0
+        eff = _component_effect(st)
+        txt = (f"مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال (على منهجية الدكتور خالد): {n1(z0)} م فوق المملكة"
+               f"{'، أي داعم بقوة للحمل' if z0 <= -ref else '، أي داعم للحمل' if z0 < 0 else '، أي كابح للحمل'}، "
+               f"والأمطار المرتبطة به {n1(r0)} ملم في اليوم، ومركز غلافه فوق {B.region_name(core0)} "
+               f"(خط الطول {ar(core0 if core0 <= 180 else 360 - core0)}° {'شرقًا' if core0 <= 180 else 'غربًا'}).")
+        if eff and eff["neg"] is not None and eff["pos"] is not None:
+            clear = eff["neg"] - eff["pos"] >= 8
+            txt += (f" وأثره في الأشهر الأربعة الماضية {'واضح' if clear else 'محدود'}: في الأيام التي كان فيها سالبًا بقوة (أقل من −{n1(ref)} م) "
+                    f"أصابت الأمطار في المتوسط {ar(eff['neg'])}٪ من مساحة المملكة، مقابل {ar(eff['mid'])}٪ حين كان قريبًا "
+                    f"من الصفر و{ar(eff['pos'])}٪ حين كان موجبًا بقوة.")
+        now.append(txt)
     sections.append({"heading": f"الوضع الحالي ({ar_date(day0)})", "lines": now})
 
     # ---------------------------------------------------------------- 2. the nearest wave to come, tracked day by day
@@ -105,6 +120,95 @@ def report(st, day0):
     st["wave_watch"] = watch
     sections.append({"heading": "أقرب موجة قادمة", "lines": lines})
     return sections
+
+
+# ---------------------------------------------------------------- the strength of a day: every driver on 0..1
+def _mf(st, d):
+    """the MJO component over the Kingdom on day d: (height m, rain mm/day, core longitude) or None"""
+    m = st.get("mjof")
+    if not m or d.isoformat() not in m["days"]:
+        return None
+    i = m["days"].index(d.isoformat())
+    return m["z_ksa"][i], m["r_ksa"][i], m["core"][i]
+
+
+def _vals(st, d):
+    s = d.isoformat()
+    v = {"m": B.rmm_on(st, d)}
+    w = next((x for x in B.wave1(st["hov"]) if x[0] == s), None) if st.get("hov") else None
+    v["w"] = (w[1], w[2]) if w else None
+    row = next((r for r in st.get("pw", []) if r["d"] == s), None)
+    v["pw"] = max(((row[k]["pct"], k) for k in BOX_NAME if row and k in row), default=None)
+    wv = next((x for x in st.get("waves", []) if x["d"] == s), None)
+    v["tr"] = (wv["trough"]["v"], wv["trough"]["area"]) if wv and "trough" in wv else None
+    v["mf"] = _mf(st, d)
+    return v
+
+
+def strength(st, d):
+    """{'mjo','warm','pw','trough','mjof'} each 0..1, and 'total' (0..5)"""
+    v = _vals(st, d)
+    c = {}
+    m = v["m"]
+    c["mjo"] = min(m["amp"] / 3, 1) if m and st.get("wet_season") and m["amp"] >= 1 and m["phase"] in B.WET_PHASES else 0.0
+    c["warm"] = min(v["w"][1] / 12, 1) if v["w"] and B.favourable(v["w"][0]) else 0.0
+    c["pw"] = min(max((v["pw"][0] - 100) / 100, 0), 1) if v["pw"] else 0.0
+    c["trough"] = min(max(-v["tr"][0] / 60, 0), 1) if v["tr"] else 0.0
+    ref = (st.get("mjof") or {}).get("z_ref") or 10
+    c["mjof"] = min(max(-v["mf"][0] / (2 * ref), 0), 1) if v["mf"] else 0.0
+    c["total"] = round(sum(c.values()), 2)
+    return c
+
+
+def grade(x):
+    return "قوية جدًا" if x >= 3.5 else "قوية" if x >= 2.6 else "متوسطة" if x >= 1.8 else "ضعيفة"
+
+
+def n1(x):
+    """one decimal, with a true minus sign so the number reads right in Arabic text"""
+    return ("−" if x < 0 else "") + num(abs(x), 1)
+
+
+def _component_effect(st):
+    """what the MJO component has meant for rain over the Kingdom in the past months: mean share of the Kingdom
+    with 5 mm or more on days with the component strongly negative, near zero, and strongly positive"""
+    m = st.get("mjof")
+    if not m:
+        return None
+    ref = m.get("z_ref") or 10
+    rows = [(z, c) for z, c in zip(m["z_ksa"], m["cover"]) if c is not None]
+    if len(rows) < 40:
+        return None
+    neg = [c for z, c in rows if z <= -ref]
+    mid = [c for z, c in rows if -ref < z < ref]
+    pos = [c for z, c in rows if z >= ref]
+    pct = lambda xs: round(100 * sum(xs) / len(xs)) if xs else None
+    return {"neg": pct(neg), "mid": pct(mid), "pos": pct(pos), "n": len(rows), "ref": ref,
+            "nneg": len(neg), "npos": len(pos)}
+
+
+def _past_cases(st, day0, v):
+    """the past rain episodes over the Kingdom most like the coming wave, by the MJO component over the Kingdom"""
+    m = st.get("mjof")
+    if not m or not m.get("episodes") or not v.get("mf"):
+        return []
+    eps = m["episodes"]
+    z = v["mf"][0]
+    out = []
+    cur = [e for e in eps if date.fromisoformat(e["b"]) >= day0 - timedelta(days=2)]
+    old = [e for e in eps if e not in cur]
+    def words(e):
+        a, b = date.fromisoformat(e["a"]), date.fromisoformat(e["b"])
+        return (f"موجة {ar_span(a, b)} (المكوّن فوق المملكة {n1(e['z'])} م)، وأصابت أمطارها في ذروتها يوم "
+                f"{ar_date(date.fromisoformat(e['peak']))} نحو {ar(round(100 * e['cover']))}٪ من مساحة المملكة")
+    if cur:
+        out.append("الموجة الحالية للمقارنة: " + words(cur[-1]) + ".")
+    if old:
+        best = sorted(old, key=lambda e: abs(e["z"] - z))[:2]
+        out.append("أشبه الحالات السابقة بها في الأشهر الأربعة الماضية: " + "؛ و".join(words(e) for e in best) + ".")
+    if out:
+        out.append("(مساحة الأمطار في الحالات السابقة من أول يوم في توقع جي إف إس لكل يوم: أكثر من ٥ ملم.)")
+    return out
 
 
 def _cold_days(st, days):
@@ -196,7 +300,60 @@ def next_wave(st, day0, days, fac, cur_end):
         title = {"mixed": "موجة مدارية مع أخاديد (مركّبة)",
                  "tropical": "موجة مدارية معزولة، دون أخاديد متعمقة",
                  "troughs": "موجة أخاديد، دون دعم مداري"}[kind]
-        lines.append(f"أقرب موجة قادمة {ar_span(start, end)}: {title}.")
+        wave_days = days[days.index(start):days.index(end) + 1]
+        sc = {d: strength(st, d) for d in days}
+        peak = max(wave_days, key=lambda d: sc[d]["total"])
+        top = sc[peak]["total"]
+        i = j = wave_days.index(peak)
+        while i > 0 and sc[wave_days[i - 1]]["total"] >= 0.85 * top:
+            i -= 1
+        while j + 1 < len(wave_days) and sc[wave_days[j + 1]]["total"] >= 0.85 * top:
+            j += 1
+        a, b = wave_days[i], wave_days[j]
+        lines.append(f"أقرب موجة قادمة {ar_span(start, end)}، وتشتد {ar_span(a, b) if a != b else 'يوم ' + ar_date(a)}"
+                     + (f" وذروتها {ar_date(peak)}" if a != b else "") + f": {title}.")
+        # strength, against the current wave
+        cur_days = [d for d in days if d <= max(cur_end, day0)]
+        cpeak = max(cur_days, key=lambda d: sc[d]["total"])
+        ctop = sc[cpeak]["total"]
+        names = {"mjo": "التذبذب المداري", "warm": "الحدث الدافئ", "pw": "الرطوبة", "trough": "أخاديد الطبقة الوسطى",
+                 "mjof": "مكوّن التذبذب المعزول"}
+        diff = sorted(((sc[peak][k] - sc[cpeak][k], k) for k in names), key=lambda x: x[0])
+        weaker = [names[k] for x, k in diff if x <= -0.2]
+        stronger = [names[k] for x, k in diff[::-1] if x >= 0.2]
+        cmp = ("أقوى من" if top >= ctop + 0.3 else "أضعف من" if top <= ctop - 0.3 else "قريبة من")
+        why = []
+        if weaker:
+            why.append(f"تتراجع فيها عوامل: {join(weaker)}")
+        if stronger:
+            why.append(f"وتتقدم عوامل: {join(stronger)}" if weaker else f"تتقدم فيها عوامل: {join(stronger)}")
+        lines.append(f"قوتها المتوقعة: {grade(top)} (مؤشر القوة {n1(top)} من ٥ في الذروة)، {cmp} الموجة الحالية "
+                     f"(مؤشرها {n1(ctop)} في ذروتها {ar_date(cpeak)})" + (f"؛ إذ {' '.join(why)}" if why else "") + ".")
+        lines.append("مؤشر القوة يجمع خمسة عوامل لكل منها درجة من صفر إلى واحد: شدة التذبذب في أطواره المحفزة، "
+                     "والحدث الدافئ في القطاع المحفز، والماء القابل للهطول فوق المعدل، وعمق أخدود الطبقة الوسطى قرب المملكة، "
+                     "ومكوّن التذبذب المعزول فوق المملكة.")
+        # the values of each driver at the peak, against today
+        v, v0 = _vals(st, peak), _vals(st, day0)
+        vals = []
+        if v["m"]:
+            vals.append(f"التذبذب: الطور {ar(v['m']['phase'])} بشدة {n1(v['m']['amp'])} في الذروة"
+                        + (f" (اليوم الطور {ar(v0['m']['phase'])} بشدة {n1(v0['m']['amp'])})" if v0["m"] else "")
+                        + ("، طور محفز للجزيرة العربية" if v['m']['phase'] in B.WET_PHASES and v['m']['amp'] >= 1 else "، غير محفز"))
+        if v["w"]:
+            vals.append(f"الحدث الدافئ: فوق {B.region_name(v['w'][0])} بشدة {n1(v['w'][1])}"
+                        + ("، في القطاع المحفز للجزيرة العربية" if B.favourable(v["w"][0]) else "، خارج القطاع المحفز")
+                        + (f" (اليوم بشدة {n1(v0['w'][1])})" if v0["w"] else ""))
+        if v["pw"]:
+            vals.append(f"الرطوبة: الماء القابل للهطول {ar(v['pw'][0])}٪ من المعدل فوق {BOX_NAME[v['pw'][1]]}"
+                        + (f" (اليوم {ar(v0['pw'][0])}٪ فوق {BOX_NAME[v0['pw'][1]]})" if v0["pw"] else ""))
+        if v["tr"]:
+            vals.append(f"موجات روسبي: أخدود فوق {v['tr'][1]} بعمق {n1(-v['tr'][0] / 10)} ديكامتر")
+        if v["mf"]:
+            vals.append(f"مكوّن التذبذب المعزول: {n1(v['mf'][0])} م فوق المملكة والأمطار المرتبطة به {n1(v['mf'][1])} ملم في اليوم"
+                        + (f" (اليوم {n1(v0['mf'][0])} م و{n1(v0['mf'][1])} ملم)" if v0["mf"] else ""))
+        if vals:
+            lines.append(f"قيم العوامل في ذروتها ({ar_date(peak)}):")
+            lines += [f"• {x}." for x in vals]
         drivers = []
         if span("mjo"):
             ph = []
@@ -241,12 +398,15 @@ def next_wave(st, day0, days, fac, cur_end):
             hit = {"southwest", "west"} if kind == "tropical" else {"north"}
         regs = [BOX_NAME[k] for k in ("west", "southwest", "north", "central", "east") if k in hit]
         lines.append(f"المناطق المتأثرة من الجزيرة العربية: {join(regs)}.")
-        lines.append({"mixed": "التأثير المتوقع: الأقوى بين أنواع الموجات؛ الدعم المداري يرفع الرطوبة والحمل العميق، "
-                               "والأخاديد تنظمه، فتتسع رقعة الأمطار الرعدية وتغزر أحيانًا مع احتمال البرد.",
-                      "tropical": "التأثير المتوقع: أمطار رعدية يغذيها الحمل المداري على المرتفعات وتهامة والمناطق الرطبة، "
-                                  "تتركز بعد الظهر والمساء، وانتشارها أضيق ما لم يصلها أخدود.",
-                      "troughs": "التأثير المتوقع: يحكمه الأخدود؛ رياح وانخفاض في الحرارة وسحب رعدية على مقدمته، "
-                                 "وتبقى الأمطار متفرقة ما لم تتوفر رطوبة كافية."}[kind])
+        lines += _past_cases(st, day0, v)
+        g = grade(top)
+        how = ("أمطار رعدية واسعة تغزر على عدة مناطق، مع احتمال البرد وجريان السيول" if top >= 2.6 else
+               "أمطار رعدية متفرقة تغزر أحيانًا، أكثرها على المرتفعات وحيث تلتقي الرطوبة بالأخدود" if top >= 1.8 else
+               "أمطار محدودة متفرقة، أغلبها على المرتفعات")
+        why_kind = {"mixed": "الدعم المداري يرفع الرطوبة ويغذي الحمل العميق، والأخاديد تنظمه وتوسع رقعته",
+                    "tropical": "يغذيها الحمل المداري وحده، فتتركز بعد الظهر والمساء على المرتفعات وتهامة",
+                    "troughs": "يحكمها الأخدود وحده، فترافقها رياح وانخفاض في الحرارة وسحب رعدية على مقدمته"}[kind]
+        lines.append(f"التأثير المتوقع لموجة {g}: {how}؛ {why_kind}.")
         lines.append("تتضح المناطق والكميات بالتفصيل في تقرير الأمطار حين تدخل الموجة في مدى نموذجنا.")
         watch.update(start=start.isoformat(), end=end.isoformat(), kind=kind, src="gfs")
     else:
