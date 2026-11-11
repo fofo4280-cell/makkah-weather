@@ -1,0 +1,34 @@
+# A probe for developing the climate reports: the GFS 500 hPa height and temperature of the latest run for 16 days
+# (1 degree), saved as a workflow artifact. By hand only.
+name: Climate probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
+      - name: Fetch
+        run: |
+          cd code/server/climate
+          python3 - <<'PY'
+          import numpy as np, daily
+          cyc = daily.latest_cycle()
+          z, t = [], []
+          for d in range(16):
+              f = daily.gfs_fields(cyc, d * 24, fields=(daily.Z500, daily.T500))
+              z.append(f["z500"]); t.append(f["t500"])
+          np.savez_compressed("/tmp/z500.npz", z=np.array(z), t=np.array(t), cycle=cyc, lat=daily.LAT1, lon=daily.LON1)
+          print("saved", cyc)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: z500
+          path: /tmp/z500.npz
