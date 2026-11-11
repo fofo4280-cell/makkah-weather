@@ -1,0 +1,48 @@
+{
+ "phase": "cycle",
+ "steps": [
+  {
+   "id": "gfs",
+   "label": "تنزيل بيانات جي إف إس",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-11T21:33:13Z",
+   "ended": "2026-11-11T21:37:15Z"
+  },
+  {
+   "id": "wps",
+   "label": "المعالجة المسبقة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-11T21:37:15Z",
+   "ended": "2026-11-11T21:37:27Z"
+  },
+  {
+   "id": "real",
+   "label": "التهيئة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-11T21:37:27Z",
+   "ended": "2026-11-11T21:37:34Z"
+  },
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج",
+   "state": "running",
+   "state_prev": "running",
+   "started": "2026-11-11T21:37:35Z",
+   "note": "الساعة 18 من 33"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "pending"
+  }
+ ],
+ "history": [],
+ "cycle": "2026111112",
+ "message": "الدورة قيد التشغيل",
+ "started": "2026-11-11T21:33:12Z",
+ "updated": "2026-11-11T22:55:44Z",
+ "finished": "2026-11-11T21:25:14Z"
+}
