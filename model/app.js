@@ -1027,6 +1027,9 @@
     mjoShow();
   }
 
+  // "after 3 days" with the Arabic number agreement
+  function after(k) { return k === 1 ? "بعد يوم" : k === 2 ? "بعد يومين" : k <= 10 ? `بعد ${num(k)} أيام` : `بعد ${num(k)} يومًا`; }
+
   function mjoShow() {
     const st = M.st, k = M.day, lay = M.layer, kk = String(k).padStart(2, "0");
     const figs = st.figs || {};
@@ -1034,7 +1037,7 @@
     $("mjoFig").src = url; $("mjoFigLink").href = url;
     $("mjoFigWrap").classList.toggle("fit", lay === "pw");
     const d = st.days[k];
-    $("mjoDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `+${num(k)} · ${fmtDayD.format(dOf(d))}`) : "";
+    $("mjoDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
     const lg = figs[lay];
     if (!lg) { $("mjoLegend").innerHTML = ""; return; }
     const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
@@ -1082,7 +1085,7 @@
       const url = `${CL}fig/wave_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
       $("waveFig").src = url; $("waveLink").href = url;
       const d = rows[k] && rows[k].d;
-      $("waveDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `+${num(k)} · ${fmtDayD.format(dOf(d))}`) : "";
+      $("waveDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
     };
     $("waveDay").max = rows.length - 1;
     $("waveDay").oninput = (e) => show(+e.target.value);
@@ -1127,8 +1130,37 @@
   }
 
   // ------------------------------------------------------------------ tabs
+  // previous / play / next under every day slider of the oscillation tab; they drive the slider, so each card's own oninput draws the frame
+  const PL = { timer: null, btn: null };
+  function plStop() { if (PL.timer) { clearInterval(PL.timer); PL.timer = null; PL.btn.textContent = "▶"; PL.btn.setAttribute("aria-label", "تشغيل"); } }
+  function plStep(r, d) {
+    const n = +r.max + 1; if (n < 2) return;
+    r.value = (+r.value + d + n) % n; r.dispatchEvent(new Event("input"));
+  }
+  function addPlayers() {
+    document.querySelectorAll(".mjo-time").forEach((row) => {
+      if (row.querySelector(".pl-btns")) return;
+      const r = row.querySelector("input[type=range]");
+      const box = document.createElement("div"); box.className = "pl-btns"; box.dir = "ltr";
+      box.innerHTML = `<button class="icon-btn" aria-label="السابق">‹</button><button class="icon-btn play" aria-label="تشغيل">▶</button><button class="icon-btn" aria-label="التالي">›</button>`;
+      const [bp, bl, bn] = box.querySelectorAll("button");
+      bp.onclick = () => { plStop(); if (+r.value > 0) plStep(r, -1); };
+      bn.onclick = () => { plStop(); if (+r.value < +r.max) plStep(r, 1); };
+      bl.onclick = () => {
+        const mine = PL.timer && PL.btn === bl; plStop(); if (mine) return;
+        PL.btn = bl; bl.textContent = "❚❚"; bl.setAttribute("aria-label", "إيقاف");
+        if (+r.value >= +r.max) { r.value = -1; }
+        plStep(r, 1); PL.timer = setInterval(() => plStep(r, 1), 1100);
+      };
+      r.addEventListener("pointerdown", plStop);
+      row.prepend(box);
+    });
+  }
+  addPlayers();
+
   document.querySelectorAll(".tab").forEach((b) => b.onclick = () => {
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
+    plStop();
     for (const p of ["map", "mjo", "status"]) $("p-" + p).hidden = p !== b.dataset.tab;
     $("p-cities").hidden = true;
     if (b.dataset.tab === "mjo") mjoOpen();
