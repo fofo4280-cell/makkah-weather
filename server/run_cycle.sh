@@ -114,7 +114,17 @@ get_gfs() {
     sleep 2
   done
 }
-step gfs get_gfs || fail "تعذر تنزيل بيانات جي إف إس"
+# SWRF_IC=ecmwf: initial and boundary conditions from ECMWF IFS open data, written straight to WPS
+# intermediate files (server/ecmwf_ic.py), instead of GFS through ungrib
+get_ecmwf() {
+  "$PY" -m pip install -q ecmwf-opendata eccodes || return 1
+  "$PY" "$HERE/ecmwf_ic.py" "$CYC" "$MAXH" "$RUN/ecmwf"
+}
+if [ "${SWRF_IC:-gfs}" = ecmwf ]; then
+  step gfs get_ecmwf || fail "تعذر تنزيل بيانات المركز الأوروبي"
+else
+  step gfs get_gfs || fail "تعذر تنزيل بيانات جي إف إس"
+fi
 publish
 
 # ---------------------------------------------------------------- 2. WPS
@@ -127,9 +137,13 @@ run_wps() {
   ln -sf "$WPS_DIR/metgrid" metgrid
   ln -sf "$WPS_DIR/ungrib/Variable_Tables/Vtable.GFS" Vtable
   "$PY" "$HERE/render_namelists.py" wps "$CYC" "$GEOG/WPS_GEOG" namelist.wps
-  "$WPS_DIR/link_grib.csh" "$RUN"/gfs/gfs.t* >/dev/null
-  "$WPS_DIR/ungrib.exe" > ungrib.out 2>&1
-  grep -q "Successful completion of program ungrib" ungrib.log || { tail -n 40 ungrib.log; return 1; }
+  if [ "${SWRF_IC:-gfs}" = ecmwf ]; then
+    ln -sf "$RUN"/ecmwf/FILE:* .
+  else
+    "$WPS_DIR/link_grib.csh" "$RUN"/gfs/gfs.t* >/dev/null
+    "$WPS_DIR/ungrib.exe" > ungrib.out 2>&1
+    grep -q "Successful completion of program ungrib" ungrib.log || { tail -n 40 ungrib.log; return 1; }
+  fi
   "$WPS_DIR/metgrid.exe" > metgrid.out 2>&1
   grep -q "Successful completion of program metgrid" metgrid.log || { tail -n 40 metgrid.log; return 1; }
   rm -f FILE:*
