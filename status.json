@@ -1,0 +1,38 @@
+{
+ "phase": "cycle",
+ "steps": [
+  {
+   "id": "gfs",
+   "label": "تنزيل بيانات جي إف إس",
+   "state": "running",
+   "state_prev": "pending",
+   "started": "2026-11-11T10:45:52Z"
+  },
+  {
+   "id": "wps",
+   "label": "المعالجة المسبقة",
+   "state": "pending"
+  },
+  {
+   "id": "real",
+   "label": "التهيئة",
+   "state": "pending"
+  },
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج",
+   "state": "pending"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "pending"
+  }
+ ],
+ "history": [],
+ "cycle": "2026111000",
+ "message": "الدورة قيد التشغيل",
+ "started": "2026-11-11T10:45:51Z",
+ "updated": "2026-11-11T10:45:52Z",
+ "finished": "2026-11-11T10:45:50Z"
+}
