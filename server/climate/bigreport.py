@@ -228,7 +228,8 @@ def next_wave(st, day0, days, fac, cur_end):
                 continue
             seen.add(arr)
             drivers.append(f"أخدود بارد من الشمال يبلغ محوره {area} يوم {ar_date(arr)} بعمق {num(depth, 1)} ديكامتر")
-        lines.append("عواملها وتواريخ كل منها: " + "؛ ".join(drivers) + ".")
+        lines.append("عواملها وتواريخ كل منها:")
+        lines += [f"• {x}." for x in drivers]
 
         hit = set(boxes)
         for d in span("cold"):
