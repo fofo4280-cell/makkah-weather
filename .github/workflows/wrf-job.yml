@@ -17,6 +17,7 @@ on:
       publish: {type: boolean, default: true}
       hours: {type: string, default: ''}
       window: {type: string, default: ''}
+      ic: {type: string, default: 'gfs'}
     outputs:
       handoff:
         description: "'yes' when the first part left restart files for a second runner"
@@ -43,6 +44,7 @@ jobs:
       SWRF_HOURS: ${{ inputs.hours }}
       SWRF_WINDOW: ${{ inputs.window }}
       SWRF_STOP_H: ${{ inputs.stop_h }}
+      SWRF_IC: ${{ inputs.ic }}
     steps:
       - name: Model code
         uses: actions/checkout@v4

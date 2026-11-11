@@ -26,6 +26,18 @@ on:
         description: 'grid design to test (domains_west.json, domains_nw.json, domains_n.json, ...)'
         required: false
         default: 'domains_west.json'
+      ic:
+        description: 'initial and boundary conditions: gfs or ecmwf (IFS open data)'
+        required: false
+        default: 'gfs'
+      cycle:
+        description: 'cycle YYYYMMDDHH (empty: the newest)'
+        required: false
+        default: ''
+      publish_to:
+        description: 'publish the run to this data branch (empty: not published)'
+        required: false
+        default: ''
       ref2:
         description: 'a second code branch run side by side on its own runner (same cycle), to compare speed'
         required: false
@@ -44,11 +56,13 @@ jobs:
     with:
       name: west
       domains: ${{ inputs.domains }}
-      branch: model-data
+      branch: ${{ inputs.publish_to != '' && inputs.publish_to || 'model-data' }}
       code_ref: ${{ inputs.ref }}
-      publish: false
+      publish: ${{ inputs.publish_to != '' }}
+      ic: ${{ inputs.ic }}
       hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
       stop_h: ${{ inputs.stop_h != 'none' && inputs.stop_h || '' }}
+      cycle: ${{ inputs.cycle }}
 
   west2:
     needs: west
@@ -57,9 +71,10 @@ jobs:
     with:
       name: west
       domains: ${{ inputs.domains }}
-      branch: model-data
+      branch: ${{ inputs.publish_to != '' && inputs.publish_to || 'model-data' }}
       code_ref: ${{ inputs.ref }}
-      publish: false
+      publish: ${{ inputs.publish_to != '' }}
+      ic: ${{ inputs.ic }}
       hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
       resume: true
 
