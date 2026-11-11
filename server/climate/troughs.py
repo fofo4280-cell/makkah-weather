@@ -35,7 +35,7 @@ def place(lat, lon):
                 else "بلاد الشام والأردن" if lon < 39 else "العراق وشمال المملكة" if lon < 48 else "إيران والخليج العربي" if lon < 60
                 else "باكستان")
     if lat >= 20:
-        return ("الصحراء الكبرى" if lon < 25 else "مصر والبحر الأحمر" if lon < 36 else "غرب المملكة" if lon < 41
+        return ("الصحراء الكبرى" if lon < 25 else "مصر والسودان" if lon < 33 else "البحر الأحمر" if lon < 37.5 else "غرب المملكة" if lon < 41
                 else "وسط المملكة" if lon < 47 else "شرق المملكة والخليج" if lon < 56 else "عُمان وبحر العرب")
     return "جنوب الجزيرة العربية" if 36 <= lon < 56 else "أفريقيا" if lon < 36 else "بحر العرب"
 
@@ -45,21 +45,36 @@ def kingdom_area(lon):
     return ("شمال غرب المملكة وغربها" if lon < 40 else "شمال المملكة ووسطها" if lon < 47 else "شرق المملكة")
 
 
-def trace_axis(zp, lat, lon, j0, i0):
-    """From the low at (j0, i0) south: [(lat, lon, value)] while the wave height stays below TIP."""
+def trace_axis(zp, lat, lon, j0, i0, step=2, drift=20):
+    """From the low at (j0, i0) south: [(lat, lon, value)] while the wave height stays below TIP. Each degree south
+    the axis may move 2 degrees of longitude to the lowest height, and 20 degrees in all, so that it follows one
+    trough line and does not jump to a neighbouring trough."""
     pts = [(float(lat[j0]), float(lon[i0]), float(zp[j0, i0]))]
     i = i0
     n = len(lon)
+    moved = 0
     for j in range(j0 + 1, len(lat)):          # lat runs north to south
         if lat[j] < 14:
             break
-        cand = [(i + o) % n for o in range(-8, 9)]
+        cand = [(i + o) % n for o in range(-step, step + 1) if abs(moved + o) <= drift]
         k = min(cand, key=lambda c: zp[j, c])
         if zp[j, k] > TIP:
             break
+        o = ((k - i + n // 2) % n) - n // 2
+        moved += o
         i = k
         pts.append((float(lat[j]), float(lon[k]), float(zp[j, k])))
     return pts
+
+
+def dedupe(trs):
+    """Two lows on one trough line end at the same tip: keep the low nearer the tip (the trough's own centre)."""
+    out = []
+    for t in sorted(trs, key=lambda t: t["lat"] - t["tip"][0]):
+        if any(abs(t["tip"][0] - o["tip"][0]) <= 3 and abs(lon180(t["tip"][1] - o["tip"][1])) <= 4 for o in out):
+            continue
+        out.append(t)
+    return out
 
 
 def day_troughs(z, t, lat, lon):
@@ -74,7 +89,7 @@ def day_troughs(z, t, lat, lon):
                     "cold": round(float(tp[j0, i0]), 1) if tp is not None else None,
                     "axis": [(a, round(lon180(b), 1), round(c, 0)) for a, b, c in ax[::3]] + [(ax[-1][0], round(lon180(ax[-1][1]), 1), round(ax[-1][2], 0))],
                     "tip": (ax[-1][0], round(lon180(ax[-1][1]), 1))})
-    return out
+    return dedupe(out)
 
 
 def reaches(tr):

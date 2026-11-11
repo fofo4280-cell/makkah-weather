@@ -123,7 +123,8 @@ def report(st, day0):
         cold = [t for t in (st.get("troughs") or []) if t.get("arrive") and start - timedelta(days=1) <= date.fromisoformat(t["arrive"]) <= end + timedelta(days=1)]
         if cold:
             c = cold[0]
-            nxt.append(f"ويرافقها أخدود بارد من الشمال يبلغ {TR.kingdom_area(c['days'][-1]['lon'])} يوم {ar_date(date.fromisoformat(c['arrive']))}، "
+            tip_lon = next(t for t in c["days"] if t["d"] == c["arrive"])["tip"][1]
+            nxt.append(f"ويرافقها أخدود بارد من الشمال يبلغ {TR.kingdom_area(tip_lon)} يوم {ar_date(date.fromisoformat(c['arrive']))}، "
                        "فيزيد عدم الاستقرار ويهيئ لعواصف رعدية مع انخفاض في درجات الحرارة.")
         nxt.append("التأثيرات المتوقعة: أمطار رعدية متفرقة إلى غزيرة أحيانًا حيث تجتمع الرطوبة مع صعود الهواء، "
                    "وتتضح المناطق والكميات في تقرير الأمطار حين تدخل في مدى نموذجنا.")
@@ -133,12 +134,24 @@ def report(st, day0):
 
     # ---------------------------------------------------------------- 3. northern cold troughs, day by day
     tl = []
-    for c in (st.get("troughs") or [])[:3]:
-        arrive = date.fromisoformat(c["arrive"]) if c.get("arrive") else None
+    trs = st.get("troughs") or []
+    arr = lambda c: date.fromisoformat(c["arrive"]) if c.get("arrive") else None
+    now_tr = [c for c in trs if arr(c) and arr(c) <= day0]
+    coming = [c for c in trs if arr(c) and arr(c) > day0]
+    passing = [c for c in trs if not arr(c) and date.fromisoformat(c["days"][0]["d"]) >= day0]
+    if now_tr:
+        c = now_tr[0]
+        t = next(x for x in c["days"] if x["d"] == c["arrive"])
+        last = next((x for x in c["days"] if date.fromisoformat(x["d"]) > day0 and not TR.reaches(x)), None)
+        tl.append(f"الأخدود المؤثر الآن: محوره يمتد من {TR.place(t['lat'], t['lon'])} جنوبًا حتى {TR.place(t['tip'][0], t['tip'][1])} "
+                  f"(قرابة {num(t['tip'][0])}° شمالًا) بعمق {num(-t['depth'], 1)} ديكامتر"
+                  + (f"، ويغادر المملكة شرقًا قرابة {ar_date(date.fromisoformat(last['d']))}" if last else "") + ".")
+    for c in coming[:3] + passing[:max(0, 2 - len(coming))]:
+        arrive = arr(c)
         first = c["days"][0]
-        head = (f"أخدود بارد يبدأ {ar_date(date.fromisoformat(first['d']))} فوق {TR.place(first['lat'], first['lon'])} "
+        head = (f"أخدود بارد يظهر {ar_date(date.fromisoformat(first['d']))} فوق {TR.place(first['lat'], first['lon'])} "
                 f"(عمق موجته {num(-first['depth'], 1)} ديكامتر"
-                + (f"، وهواؤه أبرد من محيطه بنحو {num(-first['cold'], 1)} درجة عند ٥٠٠" if first.get("cold") is not None and first["cold"] <= -1 else "")
+                + (f"، وهواؤه أبرد من محيطه بنحو {num(-first['cold'], 1)} درجة عند ٥٠٠ هكتوباسكال" if first.get("cold") is not None and first["cold"] <= -1 else "")
                 + ")")
         head += (f"، ويصل محوره إلى {TR.kingdom_area(next(t for t in c['days'] if t['d'] == c['arrive'])['tip'][1])} يوم {ar_date(arrive)}."
                  if arrive else "، ولا يبلغ المملكة في مدى التوقع بل يمر شمالها.")
@@ -152,7 +165,7 @@ def report(st, day0):
                          f"(قرابة {num(tip[0])}° شمالًا)، وعمقه {num(-t['depth'], 1)} ديكامتر")
         tl.append(head + " مساره يومًا بيوم: " + "؛ ".join(steps) + ".")
         if arrive:
-            deep = min(t["depth"] for t in c["days"])
+            deep = min(t["depth"] for t in c["days"] if date.fromisoformat(t["d"]) <= arrive)
             tip_lon = next(t for t in c["days"] if t["d"] == c["arrive"])["tip"][1]
             tl.append(f"أثره المتوقع: {'تعمق قوي' if deep <= -10 else 'تعمق متوسط'} يدفع هواءً باردًا نحو {TR.kingdom_area(tip_lon)}، "
                       "فتنخفض درجات الحرارة وتنشط الرياح، وإن صادف رطوبة كافية تكونت سحب رعدية على مقدمته.")
