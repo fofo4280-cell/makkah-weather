@@ -221,11 +221,13 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
             wj = int(np.argmax(rain[idx].sum(0)))
             win = {"a": tk(a) - timedelta(hours=1), "b": tk(b), "heavy": heavy, "moderate": mod, "light": light,
                    "type": type_word(ty), "hail": hail, "sc": sc, "scv": scv, "max": wmax, "z": ty["zmax"],
-                   "at": G.describe(float(cells["lat"][m][wj]), float(cells["lon"][m][wj]), r),
+                   "loc": G.locate(float(cells["lat"][m][wj]), float(cells["lon"][m][wj]), r),
                    "peak": tk(a + int(np.argmax((rain[idx] * w).sum(1))))}
-            if not (heavy or mod or light):      # rain away from the towns: name the nearest place
-                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).append(
-                    re.sub(r"^(في|قرب|عند|على بعد) ", "", win["at"]))
+            win["at"] = win["loc"]["text"]
+            # the place of the most rain goes first in its class (a known place, not only the towns of the list)
+            sh = win["loc"]["short"]
+            if sh and sh not in heavy + mod + light:
+                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).insert(0, sh)
             reg["wins"].append(win)
             table.append({"region": r["name"], "day": day_word(win["a"], win["b"]),
                           "window": span_words(win["a"], win["b"]),
