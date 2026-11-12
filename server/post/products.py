@@ -40,7 +40,7 @@ CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "
 
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
-    "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt"},
+    "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt", "bands": True},
     "conv925": {"label": "التقاء الرياح عند ٩٢٥ هكتوباسكال", "unit": "×١٠⁻⁵ /ث", "stops": CONV, "tf": "lin", "computed": True},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
@@ -50,7 +50,8 @@ DAILY = {
 
 # One map per run: rain over the 24 hours after the first 3 (the model's spin-up), or as far as the run got.
 SINGLE = {
-    "rain24": {"label": "المطر التراكمي +٢٤", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24},
+    "rain24": {"label": "المطر التراكمي +٢٤", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24,
+               "bands": True},
     "tsprob": {"label": "احتمال العواصف الرعدية +٢٤", "unit": "٪", "stops": TSPROB, "tf": "lin", "from_h": 3,
                "len": 24, "dbz": 40, "radius_km": 25},
 }
@@ -82,6 +83,9 @@ def _hex(h):
     return [int(h[i:i + 2], 16) for i in (1, 3, 5)]
 
 
+BAND_ALPHA_MIN = 160
+
+
 def palette(spec):
     """256-entry palette (index 0 transparent) interpolated through the stops."""
     stops, tf = spec["stops"], spec["tf"]
@@ -89,6 +93,13 @@ def palette(spec):
     t = np.linspace(pos[0], pos[-1], 255)
     cols = np.array([_hex(s[1]) for s in stops], dtype=np.float64)
     al = np.array([s[2] for s in stops], dtype=np.float64)
+    if spec.get("bands"):
+        # solid colour bands, one per step of the scale (like a weather-service radar), the weakest band visible too
+        b = np.clip(np.searchsorted(pos, t + 1e-9, side="right") - 1, 0, len(stops) - 1)
+        rgb = cols[b]
+        alpha = np.maximum(al[b], BAND_ALPHA_MIN)
+        pal = [0, 0, 0] + [int(round(x)) for x in rgb.reshape(-1)]
+        return pal, [0] + [int(round(x)) for x in alpha]
     rgb = np.stack([np.interp(t, pos, cols[:, k]) for k in range(3)], axis=1)
     alpha = np.interp(t, pos, al)
     pal = [0, 0, 0] + [int(round(x)) for x in rgb.reshape(-1)]
@@ -103,6 +114,13 @@ def classify(field, spec):
     f = np.asarray(field, dtype=np.float64)
     tv = _t(f, tf)
     idx = 1 + np.rint((tv - lo) / (hi - lo) * 254)
+    if spec.get("bands"):
+        # the exact band of each value (a value on a step gets the band above it), drawn with that band's middle entry
+        pos = _t([x[0] for x in stops], tf)
+        b = np.clip(np.searchsorted(pos, np.nan_to_num(tv, nan=lo), side="right") - 1, 0, len(stops) - 1)
+        mid = np.array([1 + np.rint(((pos[i] + pos[min(i + 1, len(pos) - 1)]) / 2 - lo) / (hi - lo) * 254)
+                        for i in range(len(pos))])
+        idx = mid[b]
     idx = np.clip(idx, 1, 255)
     below = f < stops[0][0]
     if spec.get("opaque"):
@@ -115,8 +133,13 @@ def legend(spec):
     stops, tf = spec["stops"], spec["tf"]
     pos = _t([s[0] for s in stops], tf)
     p = (pos - pos[0]) / (pos[-1] - pos[0])
-    return {"tf": tf, "vmin": stops[0][0], "vmax": stops[-1][0],
-            "stops": [{"p": round(float(pp), 4), "v": s[0], "c": s[1], "a": s[2]} for pp, s in zip(p, stops)]}
+    out = {"tf": tf, "vmin": stops[0][0], "vmax": stops[-1][0],
+           "stops": [{"p": round(float(pp), 4), "v": s[0], "c": s[1], "a": s[2]} for pp, s in zip(p, stops)]}
+    if spec.get("bands"):
+        out["bands"] = True
+        for x in out["stops"]:
+            x["a"] = max(x["a"], BAND_ALPHA_MIN)
+    return out
 
 
 def ivt_from_frame(nc):
