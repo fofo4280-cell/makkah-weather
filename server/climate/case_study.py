@@ -16,7 +16,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 F = [("z500", r":HGT:500 mb:"), ("t500", r":TMP:500 mb:"), ("u500", r":UGRD:500 mb:"), ("v500", r":VGRD:500 mb:"),
      ("u250", r":UGRD:250 mb:"), ("v250", r":VGRD:250 mb:"), ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
-     ("u700", r":UGRD:700 mb:"), ("v700", r":VGRD:700 mb:"), ("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("mslp", r":PRMSL:mean sea level:")]
+     ("z700", r":HGT:700 mb:"), ("u700", r":UGRD:700 mb:"), ("v700", r":VGRD:700 mb:"), ("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("mslp", r":PRMSL:mean sea level:")]
 S, N, W, E = 5, 55, 15, 75
 LAT = np.arange(90, -90.5, -1.0)
 LON = np.arange(0, 360, 1.0)
@@ -100,6 +100,12 @@ def summarise(t, f):
         # the steering of the storms: the mean wind of 700 and 500 hPa (u east-west, v north-south, m/s)
         "steer_hijaz": [round((box(cut(f["u700"]), 20, 23, 39, 42) + box(cut(f["u500"]), 20, 23, 39, 42)) / 2, 1),
                         round((box(cut(f["v700"]), 20, 23, 39, 42) + box(cut(f["v500"]), 20, 23, 39, 42)) / 2, 1)],
+        "w700_hijaz": [round(box(cut(f["u700"]), 20, 23, 39, 42), 1), round(box(cut(f["v700"]), 20, 23, 39, 42), 1)],
+        "w500_hijaz": [round(box(cut(f["u500"]), 20, 23, 39, 42), 1), round(box(cut(f["v500"]), 20, 23, 39, 42), 1)],
+        # north minus south across the Hijaz (25-28 N against 17-20 N, 38-44 E): positive = high to the north
+        "dz500_ns": round(box(z, 25, 28, 38, 44) - box(z, 17, 20, 38, 44)),
+        "dz700_ns": round(box(cut(f["z700"]), 25, 28, 38, 44) - box(cut(f["z700"]), 17, 20, 38, 44)) if "z700" in f else None,
+        "dp_ns": round((box(cut(f["mslp"]), 25, 28, 38, 44) - box(cut(f["mslp"]), 17, 20, 38, 44)) / 100, 1),
         "steer_asir": [round((box(cut(f["u700"]), 17, 20, 41, 44) + box(cut(f["u500"]), 17, 20, 41, 44)) / 2, 1),
                        round((box(cut(f["v700"]), 17, 20, 41, 44) + box(cut(f["v500"]), 17, 20, 41, 44)) / 2, 1)],
     }
