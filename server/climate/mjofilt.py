@@ -96,10 +96,12 @@ def run(hist, fc, t0, log=print):
     dates = sorted(hist) + [d for d, _, _ in fc if d not in hist]
     zd = {d: v["z800"] for d, v in hist.items()}
     rd = {d: v["rain"] for d, v in hist.items()}
+    fc_rain = {}
     for d, z, r in fc:
         zd[d] = z
         if r is not None:
             rd[d] = r
+            fc_rain[d] = r
     # a continuous daily series: missing days by linear interpolation in time
     full = [dates[0] + timedelta(days=k) for k in range((dates[-1] - dates[0]).days + 1)]
 
@@ -135,6 +137,9 @@ def run(hist, fc, t0, log=print):
         else:
             info["cover"].append(None)
             info["rain_ksa"].append(None)
+    # the coming days: the share of the Kingdom the GFS forecast wets with 5 mm or more in the day (UTC day), to
+    # tell which day of a wave brings the widest rain (not only which day its drivers are strongest)
+    info["fc_cover"] = [round(float((fc_rain[d][mask] >= 5).mean()), 3) if d in fc_rain and d >= t0 else None for d in full]
     past = [v for v, d in zip(info["z_ksa"], full) if d < t0]
     info["z_ref"] = round(float(np.std(past)) or 1.0, 1)
     info["t0"] = t0.isoformat()
