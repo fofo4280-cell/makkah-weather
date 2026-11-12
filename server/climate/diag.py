@@ -140,17 +140,40 @@ def text(rows, now):
         upslope = ("تصعد السفوح الشرقية للحجاز والسروات بالرطوبة من الداخل" if u < -1.5
                    else "تصعد السفوح الغربية من البحر الأحمر وتهامة" if u > 1.5 else "تسري على امتداد الجبال")
         out.append(f"والرياح القريبة من السطح (٨٥٠ هكتوباسكال) فوق الطائف {d} بسرعة {n1(sp)} م/ث، {upslope}.")
-    # 5) how the storms will move
+    # 5) the winds by level over the Hijaz, today and in two days: a turn from the bottom up shows here
+    if fut and "w700_hijaz" in cur:
+        later_r = fut[min(3, len(fut) - 1)]
+        def lv(r, key):
+            u, v = r[key]
+            sp = math.hypot(u, v)
+            return "شبه ساكنة" if sp < 2.5 else f"{from_dir(u, v)} {n1(sp)} م/ث"
+        lv_now = f"عند ٨٥٠ {lv(cur, 'wind850_hijaz')}، وعند ٧٠٠ {lv(cur, 'w700_hijaz')}، وعند ٥٠٠ {lv(cur, 'w500_hijaz')}"
+        lv_then = f"عند ٨٥٠ {lv(later_r, 'wind850_hijaz')}، وعند ٧٠٠ {lv(later_r, 'w700_hijaz')}، وعند ٥٠٠ {lv(later_r, 'w500_hijaz')}"
+        s = f"والرياح فوق الحجاز طبقةً طبقة اليوم: {lv_now}؛ و{ar_date(mk_day(later_r['time']))}: {lv_then}."
+        u8, _ = cur["wind850_hijaz"]
+        u5 = cur["w500_hijaz"][0]
+        if u8 < -1.5 and u5 > 1.5:
+            s += (" أي أن الرياح تنقلب من الأسفل: القريبة من السطح صارت شرقية يدفعها الضغط المرتفع في الشمال والشرق، "
+                  "والعليا ما زالت غربية لكنها تضعف مع رحيل الأخدود؛ فكلما ضعفت العليا قادت الشرقية السفلى نشوء السحب، "
+                  "فينشأ الخيال الجديد غرب السابق وجنوبه الغربي على السفوح.")
+        if cur.get("dz500_ns") is not None and later_r.get("dz500_ns") is not None:
+            a, b = cur["dz500_ns"], later_r["dz500_ns"]
+            if a < 0 and b > a + 20:
+                s += (f" وفرق ارتفاع سطح ٥٠٠ بين شمال الحجاز وجنوبه {n1(a)} م اليوم (المنخفض شمالًا والمرتفع جنوبًا)، "
+                      f"ويضعف إلى {n1(b)} م" + ("، فينقلب التيار العلوي" if b > 0 else "، فيضعف التيار الغربي العلوي") + ".")
+        out.append(s)
+    # 6) how the storms will move
     lines = []
     for r in [cur] + fut[:5:2]:
         u, v = r["steer_hijaz"]
         lines.append((r, math.hypot(u, v), to_dir(u, v)))
     r0, s0, d0 = lines[0]
-    s = f"وحركة الخيال (رياح ٧٠٠ إلى ٥٠٠ هكتوباسكال فوق الحجاز): نحو {d0} بسرعة {n1(s0)} م/ث اليوم"
+    mv = lambda sp, d: "شبه ساكنة" if sp < 2.5 else f"نحو {d} بسرعة {n1(sp)} م/ث"
+    s = f"وحركة الخيال (رياح ٧٠٠ إلى ٥٠٠ هكتوباسكال فوق الحجاز): {mv(s0, d0)} اليوم"
     weak = [x for x in lines if x[1] < 5]
     later = [x for x in lines[1:] if x[2] != d0 or abs(x[1] - s0) >= 4]
     if later:
-        s += "، ثم " + "، ثم ".join(f"نحو {x[2]} بسرعة {n1(x[1])} م/ث {ar_date(mk_day(x[0]['time']))}" for x in later[:2])
+        s += "، ثم " + "، ثم ".join(f"{mv(x[1], x[2])} {ar_date(mk_day(x[0]['time']))}" for x in later[:2])
     out.append(s + ".")
     if weak:
         out.append(f"ومع ضعف رياح القيادة (أقل من ٥ م/ث {ar_date(mk_day(weak[0][0]['time']))}) تتولد الخلايا الجديدة حيث تلتقي "
