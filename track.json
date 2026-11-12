@@ -1,0 +1,673 @@
+[
+ {
+  "t": "2026-11-09 00Z analysis",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 38.0,
+    "lon": 44.0,
+    "vort": 9.9
+   },
+   {
+    "lat": 37.0,
+    "lon": 39.0,
+    "vort": 4.2
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 25.4,
+   "asir_jazan": 28.5,
+   "madinah": 14.3,
+   "central": 24.4
+  },
+  "wind850_redsea": [
+   0.2,
+   1.4
+  ],
+  "wind850_hijaz": [
+   2.0,
+   0.3
+  ],
+  "t500_makkah": -5.5,
+  "steer_hijaz": [
+   11.0,
+   7.6
+  ],
+  "w700_hijaz": [
+   8.5,
+   7.1
+  ],
+  "w500_hijaz": [
+   13.5,
+   8.1
+  ],
+  "dz500_ns": -73,
+  "dz700_ns": -37,
+  "dp_ns": 4.6,
+  "steer_asir": [
+   3.0,
+   2.8
+  ]
+ },
+ {
+  "t": "2026-11-09 12Z analysis",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 38.0,
+    "lon": 47.0,
+    "vort": 9.7
+   },
+   {
+    "lat": 36.0,
+    "lon": 42.0,
+    "vort": 4.7
+   },
+   {
+    "lat": 36.0,
+    "lon": 54.0,
+    "vort": 4.6
+   },
+   {
+    "lat": 24.0,
+    "lon": 30.0,
+    "vort": 4.5
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 27.4,
+   "asir_jazan": 31.6,
+   "madinah": 18.7,
+   "central": 25.8
+  },
+  "wind850_redsea": [
+   1.2,
+   2.7
+  ],
+  "wind850_hijaz": [
+   2.2,
+   3.0
+  ],
+  "t500_makkah": -5.1,
+  "steer_hijaz": [
+   10.3,
+   6.3
+  ],
+  "w700_hijaz": [
+   6.4,
+   7.2
+  ],
+  "w500_hijaz": [
+   14.2,
+   5.4
+  ],
+  "dz500_ns": -75,
+  "dz700_ns": -29,
+  "dp_ns": 4.4,
+  "steer_asir": [
+   2.5,
+   2.6
+  ]
+ },
+ {
+  "t": "2026-11-10 00Z analysis",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 22.0,
+    "lon": 30.0,
+    "vort": 7.8
+   },
+   {
+    "lat": 27.0,
+    "lon": 34.0,
+    "vort": 4.1
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 29.2,
+   "asir_jazan": 34.4,
+   "madinah": 22.9,
+   "central": 27.5
+  },
+  "wind850_redsea": [
+   0.2,
+   1.9
+  ],
+  "wind850_hijaz": [
+   0.0,
+   1.0
+  ],
+  "t500_makkah": -6.8,
+  "steer_hijaz": [
+   7.7,
+   9.6
+  ],
+  "w700_hijaz": [
+   2.0,
+   9.3
+  ],
+  "w500_hijaz": [
+   13.3,
+   9.8
+  ],
+  "dz500_ns": -66,
+  "dz700_ns": -28,
+  "dp_ns": 5.4,
+  "steer_asir": [
+   2.3,
+   3.9
+  ]
+ },
+ {
+  "t": "2026-11-10 12Z analysis",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 38.0,
+    "lon": 33.0,
+    "vort": 7.2
+   },
+   {
+    "lat": 25.0,
+    "lon": 36.0,
+    "vort": 7.2
+   },
+   {
+    "lat": 21.0,
+    "lon": 30.0,
+    "vort": 7.0
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 34.5,
+   "asir_jazan": 36.6,
+   "madinah": 28.6,
+   "central": 29.2
+  },
+  "wind850_redsea": [
+   2.0,
+   3.0
+  ],
+  "wind850_hijaz": [
+   1.7,
+   5.5
+  ],
+  "t500_makkah": -8.1,
+  "steer_hijaz": [
+   9.6,
+   11.4
+  ],
+  "w700_hijaz": [
+   4.8,
+   10.5
+  ],
+  "w500_hijaz": [
+   14.3,
+   12.4
+  ],
+  "dz500_ns": -86,
+  "dz700_ns": -34,
+  "dp_ns": 5.2,
+  "steer_asir": [
+   2.6,
+   5.3
+  ]
+ },
+ {
+  "t": "2026-11-11 00Z analysis",
+  "lows": [
+   {
+    "lat": 38.0,
+    "lon": 38.0,
+    "z": 5572,
+    "depth_m": 80,
+    "closed": true,
+    "t_core": -27.3
+   }
+  ],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 37.0,
+    "lon": 38.0,
+    "vort": 11.4
+   },
+   {
+    "lat": 27.0,
+    "lon": 41.0,
+    "vort": 6.3
+   },
+   {
+    "lat": 22.0,
+    "lon": 36.0,
+    "vort": 5.5
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 34.3,
+   "asir_jazan": 37.4,
+   "madinah": 18.6,
+   "central": 32.9
+  },
+  "wind850_redsea": [
+   1.3,
+   -2.8
+  ],
+  "wind850_hijaz": [
+   0.1,
+   1.4
+  ],
+  "t500_makkah": -9.6,
+  "steer_hijaz": [
+   12.7,
+   9.6
+  ],
+  "w700_hijaz": [
+   6.3,
+   8.7
+  ],
+  "w500_hijaz": [
+   19.1,
+   10.5
+  ],
+  "dz500_ns": -83,
+  "dz700_ns": -33,
+  "dp_ns": 5.9,
+  "steer_asir": [
+   6.1,
+   6.5
+  ]
+ },
+ {
+  "t": "2026-11-11 12Z analysis",
+  "lows": [
+   {
+    "lat": 38.0,
+    "lon": 45.0,
+    "z": 5582,
+    "depth_m": 61,
+    "closed": false,
+    "t_core": -24.4
+   }
+  ],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 36.0,
+    "lon": 45.0,
+    "vort": 13.6
+   },
+   {
+    "lat": 31.0,
+    "lon": 54.0,
+    "vort": 6.1
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 28.1,
+   "asir_jazan": 38.6,
+   "madinah": 14.9,
+   "central": 25.5
+  },
+  "wind850_redsea": [
+   0.8,
+   -1.8
+  ],
+  "wind850_hijaz": [
+   2.1,
+   0.2
+  ],
+  "t500_makkah": -8.5,
+  "steer_hijaz": [
+   10.5,
+   5.0
+  ],
+  "w700_hijaz": [
+   6.2,
+   4.1
+  ],
+  "w500_hijaz": [
+   14.9,
+   5.9
+  ],
+  "dz500_ns": -72,
+  "dz700_ns": -25,
+  "dp_ns": 6.1,
+  "steer_asir": [
+   6.8,
+   3.5
+  ]
+ },
+ {
+  "t": "2026-11-12 00Z analysis",
+  "lows": [
+   {
+    "lat": 36.0,
+    "lon": 51.0,
+    "z": 5597,
+    "depth_m": 70,
+    "closed": false,
+    "t_core": -26.2
+   }
+  ],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 35.0,
+    "lon": 51.0,
+    "vort": 11.7
+   },
+   {
+    "lat": 37.0,
+    "lon": 56.0,
+    "vort": 5.3
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 24.6,
+   "asir_jazan": 34.7,
+   "madinah": 17.3,
+   "central": 21.9
+  },
+  "wind850_redsea": [
+   -1.6,
+   -0.1
+  ],
+  "wind850_hijaz": [
+   -3.8,
+   4.4
+  ],
+  "t500_makkah": -7.1,
+  "steer_hijaz": [
+   7.7,
+   4.2
+  ],
+  "w700_hijaz": [
+   3.4,
+   5.3
+  ],
+  "w500_hijaz": [
+   12.0,
+   3.2
+  ],
+  "dz500_ns": -65,
+  "dz700_ns": -21,
+  "dp_ns": 6.7,
+  "steer_asir": [
+   6.1,
+   3.7
+  ]
+ },
+ {
+  "t": "2026-11-12 18Z forecast +12h",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 38.0,
+    "lon": 60.0,
+    "vort": 4.6
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 26.4,
+   "asir_jazan": 33.2,
+   "madinah": 20.2,
+   "central": 23.0
+  },
+  "wind850_redsea": [
+   -1.6,
+   0.8
+  ],
+  "wind850_hijaz": [
+   -6.4,
+   4.5
+  ],
+  "t500_makkah": -8.3,
+  "steer_hijaz": [
+   6.0,
+   3.5
+  ],
+  "w700_hijaz": [
+   2.1,
+   4.9
+  ],
+  "w500_hijaz": [
+   10.0,
+   2.0
+  ],
+  "dz500_ns": -62,
+  "dz700_ns": -19,
+  "dp_ns": 5.0,
+  "steer_asir": [
+   5.1,
+   3.5
+  ]
+ },
+ {
+  "t": "2026-11-13 06Z forecast +24h",
+  "lows": [],
+  "highs": [],
+  "lobes": [],
+  "pw": {
+   "hijaz_makkah": 26.9,
+   "asir_jazan": 33.4,
+   "madinah": 21.5,
+   "central": 22.9
+  },
+  "wind850_redsea": [
+   -3.1,
+   3.5
+  ],
+  "wind850_hijaz": [
+   -5.4,
+   6.9
+  ],
+  "t500_makkah": -8.7,
+  "steer_hijaz": [
+   6.1,
+   3.5
+  ],
+  "w700_hijaz": [
+   2.7,
+   6.6
+  ],
+  "w500_hijaz": [
+   9.5,
+   0.4
+  ],
+  "dz500_ns": -54,
+  "dz700_ns": -13,
+  "dp_ns": 5.0,
+  "steer_asir": [
+   3.6,
+   2.9
+  ]
+ },
+ {
+  "t": "2026-11-13 18Z forecast +36h",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 37.0,
+    "lon": 56.0,
+    "vort": 4.2
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 29.9,
+   "asir_jazan": 34.6,
+   "madinah": 23.7,
+   "central": 21.9
+  },
+  "wind850_redsea": [
+   -2.2,
+   2.3
+  ],
+  "wind850_hijaz": [
+   -6.1,
+   3.7
+  ],
+  "t500_makkah": -9.2,
+  "steer_hijaz": [
+   4.6,
+   3.9
+  ],
+  "w700_hijaz": [
+   0.4,
+   4.2
+  ],
+  "w500_hijaz": [
+   8.7,
+   3.7
+  ],
+  "dz500_ns": -48,
+  "dz700_ns": -10,
+  "dp_ns": 4.2,
+  "steer_asir": [
+   3.2,
+   3.9
+  ]
+ },
+ {
+  "t": "2026-11-14 06Z forecast +48h",
+  "lows": [],
+  "highs": [],
+  "lobes": [
+   {
+    "lat": 34.0,
+    "lon": 59.0,
+    "vort": 6.5
+   }
+  ],
+  "pw": {
+   "hijaz_makkah": 27.4,
+   "asir_jazan": 34.0,
+   "madinah": 22.3,
+   "central": 22.2
+  },
+  "wind850_redsea": [
+   -3.3,
+   3.2
+  ],
+  "wind850_hijaz": [
+   -4.8,
+   5.9
+  ],
+  "t500_makkah": -9.9,
+  "steer_hijaz": [
+   4.9,
+   1.7
+  ],
+  "w700_hijaz": [
+   1.0,
+   4.7
+  ],
+  "w500_hijaz": [
+   8.7,
+   -1.3
+  ],
+  "dz500_ns": -41,
+  "dz700_ns": -8,
+  "dp_ns": 4.2,
+  "steer_asir": [
+   4.5,
+   2.0
+  ]
+ },
+ {
+  "t": "2026-11-14 18Z forecast +60h",
+  "lows": [],
+  "highs": [],
+  "lobes": [],
+  "pw": {
+   "hijaz_makkah": 28.6,
+   "asir_jazan": 32.4,
+   "madinah": 22.6,
+   "central": 19.7
+  },
+  "wind850_redsea": [
+   -3.3,
+   2.2
+  ],
+  "wind850_hijaz": [
+   -5.3,
+   2.8
+  ],
+  "t500_makkah": -8.4,
+  "steer_hijaz": [
+   1.1,
+   -0.9
+  ],
+  "w700_hijaz": [
+   -1.1,
+   1.6
+  ],
+  "w500_hijaz": [
+   3.3,
+   -3.4
+  ],
+  "dz500_ns": -25,
+  "dz700_ns": -4,
+  "dp_ns": 3.4,
+  "steer_asir": [
+   3.8,
+   1.6
+  ]
+ },
+ {
+  "t": "2026-11-15 06Z forecast +72h",
+  "lows": [
+   {
+    "lat": 40.0,
+    "lon": 61.0,
+    "z": 5684,
+    "depth_m": 34,
+    "closed": false,
+    "t_core": -20.7
+   }
+  ],
+  "highs": [],
+  "lobes": [],
+  "pw": {
+   "hijaz_makkah": 25.6,
+   "asir_jazan": 30.3,
+   "madinah": 21.6,
+   "central": 17.6
+  },
+  "wind850_redsea": [
+   -3.9,
+   3.1
+  ],
+  "wind850_hijaz": [
+   -3.8,
+   5.6
+  ],
+  "t500_makkah": -5.9,
+  "steer_hijaz": [
+   -0.2,
+   -1.3
+  ],
+  "w700_hijaz": [
+   -1.3,
+   3.0
+  ],
+  "w500_hijaz": [
+   1.0,
+   -5.7
+  ],
+  "dz500_ns": -24,
+  "dz700_ns": -7,
+  "dp_ns": 2.9,
+  "steer_asir": [
+   1.6,
+   -1.2
+  ]
+ }
+]
