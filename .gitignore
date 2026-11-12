@@ -1,0 +1,4 @@
+*.npy
+*.tmp
+*.tmp.png
+state.json
