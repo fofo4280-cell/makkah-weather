@@ -52,7 +52,7 @@ def load(dirs, day=None, log=print, t_a=None, t_b=None):
         t_b = t_a + timedelta(hours=24)
     out = []
     for root in [d for d in dirs if d and os.path.exists(os.path.join(d, "runs.json"))]:
-        best = {}
+        cands = {}
         for r in json.load(open(os.path.join(root, "runs.json"))).get("runs", []):
             p = os.path.join(root, "runs", r["run"], "manifest.json")
             if not os.path.exists(p):
@@ -65,11 +65,17 @@ def load(dirs, day=None, log=print, t_a=None, t_b=None):
                     continue
                 ks = [(k, int((init + timedelta(hours=h) - t_a).total_seconds() // 3600))
                       for k, h in enumerate(P["hours"]) if k > 0 and t_a < init + timedelta(hours=h) <= t_b]
-                if dom not in best or len(ks) > len(best[dom]["ks"]):
-                    best[dom] = {"root": root, "run": r["run"], "init": init, "P": P, "ks": ks, "dom": dom,
-                                 "proj": d.get("proj") or man["proj"], "name": d.get("name", dom),
-                                 "res": d.get("res", ""), "dx": P["dx"]}
-        out += [c for c in best.values() if len(c["ks"]) >= 3]
+                cands.setdefault(dom, []).append(
+                    {"root": root, "run": r["run"], "init": init, "P": P, "ks": ks, "dom": dom,
+                     "proj": d.get("proj") or man["proj"], "name": d.get("name", dom),
+                     "res": d.get("res", ""), "dx": P["dx"]})
+        # for each domain: the newest run that covers the window (nearly) as fully as any run does; an older run
+        # only when the newer one is not complete over it (noon: the morning run, not the evening one)
+        for dom, cs in cands.items():
+            top = max(len(c["ks"]) for c in cs)
+            ok = [c for c in cs if len(c["ks"]) >= max(3, 0.9 * top)]
+            if ok:
+                out.append(max(ok, key=lambda c: c["init"]))
     for c in out:
         P = c["P"]
         raw = np.fromfile(os.path.join(c["root"], "runs", c["run"], P["file"]), np.uint8)
