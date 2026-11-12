@@ -352,7 +352,8 @@ def locate(lat, lon, region=None):
         if td > (radius or 3.0):
             where = f"{_num(td)} كم {direction(tl, to, lat, lon)} {town}"
             txt = f"{txt}، {where}" if txt else f"على بعد {where}"
-            short = short or where
+            # in the tables the direction from the known town reads better than a distance (Fahad, 12 Nov)
+            short = short or f"{direction(tl, to, lat, lon)} {town}"
     return {"text": txt, "short": short or ""}
 
 
