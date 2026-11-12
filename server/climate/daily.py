@@ -33,6 +33,7 @@ import rainreport  # noqa: E402
 import bigreport  # noqa: E402
 import mjofilt  # noqa: E402
 import ingredients as ING  # noqa: E402
+import diag  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
@@ -625,6 +626,17 @@ def main():
     }
     status["troughs"] = trough_tracks
     status["mjof"] = mjof
+    # the diagnosis of the current spell: the last 3.5 days of analyses and the next 3 days of this run
+    try:
+        ana = [(t0 - timedelta(hours=12 * k)).strftime("%Y%m%d%H") for k in range(7, -1, -1)]
+        rows_ = diag.snapshots(lambda c, h, fields: gfs_fields(c, h, fields=fields), ana, cycle, range(12, 73, 12),
+                               log=lambda *a: print(*a, flush=True))
+        status["diag"] = {"lines": diag.text(rows_, t0.replace(tzinfo=None)), "cycle": cycle}
+        print("diagnosis:", len(status["diag"]["lines"]), "lines", flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("diagnosis failed:", repr(e), flush=True)
     # the rain-spread potential from the large-scale ingredients, day by day over the Kingdom and its regions
     try:
         if ING.coef():

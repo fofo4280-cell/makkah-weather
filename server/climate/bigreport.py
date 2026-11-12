@@ -47,6 +47,10 @@ def _supported(f):
 
 def report(st, day0):
     sections = []
+    # ---------------------------------------------------------------- 0. the diagnosis of the current spell
+    dg = (st.get("diag") or {}).get("lines")
+    if dg:
+        sections.append({"heading": "تشخيص الحالة الحالية", "kind": "diag", "lines": dg})
     days = [day0 + timedelta(days=k) for k in range(16)]
     fac = {d: _day_factors(st, d) for d in days}
 

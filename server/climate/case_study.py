@@ -13,7 +13,6 @@ from datetime import datetime, timedelta
 import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-import daily  # noqa: E402
 
 F = [("z500", r":HGT:500 mb:"), ("t500", r":TMP:500 mb:"), ("u500", r":UGRD:500 mb:"), ("v500", r":VGRD:500 mb:"),
      ("u250", r":UGRD:250 mb:"), ("v250", r":VGRD:250 mb:"), ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
@@ -134,6 +133,7 @@ def plot(t, f, path):
 
 
 def main():
+    import daily
     out, a0, a1, fc, maxh = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], int(sys.argv[5])
     os.makedirs(out, exist_ok=True)
     rows = []
