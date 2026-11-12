@@ -1,0 +1,20 @@
+days 399 leads [0, 2, 5, 8]
+test days (not used in the fit); truth = share of the Kingdom with 5 mm+ in the GFS first day
+lead 0 days:
+  ingredients index            n=134 corr  0.15  mean abs err  4.1 pts  wide days caught   6%  false alarms  75%
+  GFS rain of that lead        n=134 corr  1.00  mean abs err  0.0 pts  wide days caught 100%  false alarms   0%
+  both averaged                n=134 corr  1.00  mean abs err  2.0 pts  wide days caught  89%  false alarms   0%
+lead 2 days:
+  ingredients index            n=134 corr  0.08  mean abs err  4.2 pts  wide days caught  11%  false alarms  67%
+  GFS rain of that lead        n=134 corr  0.16  mean abs err  3.2 pts  wide days caught  78%  false alarms  18%
+  both averaged                n=134 corr  0.17  mean abs err  3.5 pts  wide days caught  50%  false alarms  31%
+lead 5 days:
+  ingredients index            n=134 corr  0.00  mean abs err  4.5 pts  wide days caught  11%  false alarms  50%
+  GFS rain of that lead        n=134 corr  0.39  mean abs err  3.5 pts  wide days caught  67%  false alarms  25%
+  both averaged                n=134 corr  0.37  mean abs err  3.9 pts  wide days caught  39%  false alarms  36%
+lead 8 days:
+  ingredients index            n=134 corr  0.15  mean abs err  4.1 pts  wide days caught   6%  false alarms  50%
+  GFS rain of that lead        n=134 corr  0.06  mean abs err  4.5 pts  wide days caught  28%  false alarms  38%
+  both averaged                n=134 corr  0.08  mean abs err  4.1 pts  wide days caught  28%  false alarms  44%
+coefficients: {'b0': -4.188, 'pwpct': -0.005, 'pw': -0.027, 'lapse': 0.0, 't500': 0.001, 'vort500': 0.003, 'conv925': -0.0, 'div200': -0.0, 'rh700': -0.0, 'cape': 0.136, 'high': 0.042, 'pwpct^2': 0.0, 'lapse^2': -0.0}
+written /home/runner/ingr/ingr_coef.json
