@@ -20,6 +20,8 @@ jobs:
         run: python3 server/climate/build_places.py server/climate/sa_osm.json && ls -la server/climate/sa_osm.json
       - name: Commit
         run: |
-          git -c user.name="gazetteer bot" -c user.email="actions@users.noreply.github.com" add server/climate/sa_osm.json
-          git -c user.name="gazetteer bot" -c user.email="actions@users.noreply.github.com" commit -q -m "Gazetteer from OpenStreetMap (ODbL)"
-          for b in saudi-wrf saudi-wrf-next; do git push -q origin HEAD:$b || { git pull -q --rebase origin $b && git push -q origin HEAD:$b; }; done
+          git config user.name "gazetteer bot"; git config user.email "actions@users.noreply.github.com"
+          git add server/climate/sa_osm.json
+          git commit -q -m "Gazetteer from OpenStreetMap (ODbL)"
+          git pull -q --rebase origin saudi-wrf && git push -q origin HEAD:saudi-wrf
+          git push -q -f origin HEAD:saudi-wrf-next
