@@ -55,7 +55,7 @@ PLACES = [
     ("المهد", 23.50, 40.86), ("وادي الفرع", 23.93, 39.73), ("الحسو", 24.18, 40.62), ("الصويدرة", 24.70, 40.07),
     ("البريكة", 22.10, 40.97), ("ثقيف", 21.30, 40.68), ("السيل الكبير", 21.62, 40.43), ("مدركة", 22.08, 39.83),
     ("عسفان", 21.89, 39.35), ("ثول", 22.28, 39.10), ("الخبت", 21.50, 39.40), ("الشرائع", 21.48, 39.98),
-    ("بني مالك", 20.62, 40.92), ("حداء", 21.29, 39.62), ("الحوية", 21.44, 40.50), ("عشيرة", 21.76, 40.65),
+    ("بني مالك", 20.62, 40.92), ("حداء", 21.29, 39.62), ("الحوية", 21.44, 40.50), ("عشيرة", 21.76, 40.65), ("العرفاء", 21.53, 40.62),
     ("البرك", 18.21, 41.54), ("بارق", 18.93, 41.92), ("طريب", 19.59, 44.57), ("الأمواه", 19.43, 42.93),
     ("السودة", 18.27, 42.37), ("الفرعاء", 18.42, 42.89), ("خميس البحر", 17.96, 42.06),
     ("ضمد", 17.11, 42.77), ("الريث", 17.58, 42.98), ("هروب", 17.47, 43.13), ("العيدابي", 17.24, 42.96),
@@ -306,7 +306,7 @@ def locate(lat, lon, region=None):
         return {"text": f"قرب {town}" if town else "", "short": town or ""}
     dp = _km(lat, lon, o["plat"], o["plon"])
     kinds = o["pk"]
-    head, short = None, None
+    head, short, known_head = None, None, False
     radius = BIG_R.get(town, 0.0)
     if town and radius and td <= radius:            # in a big city: the city and its district
         nb = np.where(np.isin(kinds, ["suburb", "quarter", "neighbourhood"]) & (dp <= 1.5))[0]
@@ -316,9 +316,12 @@ def locate(lat, lon, region=None):
     else:
         kn = np.where(o["pknown"] & ~np.isin(kinds, ["suburb", "quarter", "neighbourhood"]) & (dp <= 10.0))[0]
         if kn.size:
-            k = kn[np.argmin(dp[kn])]
+            # a town, village or site before a wadi or a mountain at a similar distance
+            nat = np.array([bool(re.match(r"^(وادي|جبل|جبال|شعيب|حرة|حرّة|خشم|ريع)", o["pn"][i])) for i in kn])
+            k = kn[np.argmin(dp[kn] + 3.0 * nat)]
             short = o["pn"][k]
             head = ("في " if dp[k] <= 2.0 else "قرب ") + short
+            known_head = True
         else:
             vil = np.where(np.isin(kinds, ["town", "village"]) & (dp <= 4.0))[0]
             if vil.size:
@@ -343,7 +346,7 @@ def locate(lat, lon, region=None):
         parts.append(("ب" if head and head.startswith("في") else "في ") + wadi)
         short = short or wadi
     txt = " ".join(parts)
-    if town and (not short or (head and head.startswith("قرب") and short not in PLACE and td <= 60)):
+    if town and (not short or (head and not known_head and not (radius and td <= radius))):
         # orientation from the governorate town when the place alone may not be enough
         tl, to = PLACE[town]
         if td > (radius or 3.0):
