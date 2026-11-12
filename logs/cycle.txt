@@ -1,0 +1,13 @@
+[2026-11-11T21:37:07Z] cycle 2026111112 on 4 cores
+[2026-11-11T21:37:08Z] === step gfs: start
+[2026-11-11T21:41:09Z] === step gfs: done
+[2026-11-11T21:41:09Z] === step wps: start
+[2026-11-11T21:41:30Z] === step wps: done
+[2026-11-11T21:41:30Z] === step real: start
+[2026-11-11T21:41:30Z] metgrid levels: 34, soil levels: 4
+[2026-11-11T21:41:43Z] === step real: done
+[2026-11-11T21:41:44Z] === step wrf: start
+[2026-11-12T01:36:36Z] === step wrf: done
+[2026-11-12T01:36:36Z] === step post: start
+[2026-11-12T01:36:36Z] === step post: done
+[2026-11-12T01:36:37Z] cycle 2026111112 finished in 239 min
