@@ -208,7 +208,7 @@ def _component_effect(st):
     return out
 
 
-def _past_cases(st, day0, v):
+def _past_cases(st, day0, v, cpeak=None):
     """the past rain episodes over the Kingdom most like the coming wave, by the MJO component over the Kingdom"""
     m = st.get("mjof")
     if not m or not m.get("episodes") or not v.get("mf"):
@@ -224,8 +224,11 @@ def _past_cases(st, day0, v):
                 f"{ar(round(100 * e['cover']))}٪ من مساحة المملكة، وكان المكوّن فوق المملكة {n1(e['z'])} م")
     if cur:
         e = cur[-1]
-        out.append(f"للمقارنة، الموجة الحالية: أوسع أيامها حتى الآن {ar_date(date.fromisoformat(e['peak']))}، حين أصابت أمطارها "
-                   f"نحو {ar(round(100 * e['cover']))}٪ من مساحة المملكة، وكان المكوّن فوق المملكة {n1(e['z'])} م.")
+        pk = date.fromisoformat(e["peak"])
+        out.append(f"للمقارنة، الموجة الحالية: أوسع أمطارها حتى الآن كانت {ar_date(pk)}، حين أصابت نحو "
+                   f"{ar(round(100 * e['cover']))}٪ من مساحة المملكة وكان المكوّن فوق المملكة {n1(e['z'])} م"
+                   + (f"؛ وأقوى أيام عواملها لم يأت بعد، وهو {ar_date(cpeak)}، فقد تتسع أمطارها أكثر حتى ذلك اليوم."
+                      if cpeak and cpeak > day0 else "."))
     if old:
         best = sorted(old, key=lambda e: abs(e["z"] - z))[:2]
         out.append("وأشبه موجات السنة الماضية بها في قيمة المكوّن فوق المملكة: " + "؛ و".join(words(e) for e in best) + ".")
@@ -334,7 +337,7 @@ def next_wave(st, day0, days, fac, cur_end):
             j += 1
         a, b = wave_days[i], wave_days[j]
         lines.append(f"أقرب موجة قادمة {ar_span(start, end)}، وتشتد {ar_span(a, b) if a != b else 'يوم ' + ar_date(a)}"
-                     + (f" وذروتها {ar_date(peak)}" if a != b else "") + f": {title}.")
+                     + (f" وأقوى أيامها {ar_date(peak)}" if a != b else "") + f": {title}.")
         # strength, against the current wave
         cur_days = [d for d in days if d <= max(cur_end, day0)]
         cpeak = max(cur_days, key=lambda d: sc[d]["total"])
@@ -350,15 +353,17 @@ def next_wave(st, day0, days, fac, cur_end):
             why.append(f"أقوى فيها {join(stronger)}")
         if weaker:
             why.append(f"{'وأضعف' if stronger else 'أضعف'} فيها {join(weaker)}")
-        lines.append(f"قوتها المتوقعة: {grade(top)}، بدرجة {n1(top)} من ٥ في ذروتها، {cmp} الموجة الحالية "
-                     f"(درجتها {n1(ctop)} في ذروتها {ar_date(cpeak)})."
+        # "the strongest day" is always the day the drivers together are strongest (the strength index), for both
+        # waves; the rain already seen is spoken of separately as "the widest rain so far", never as a peak
+        lines.append(f"قوتها المتوقعة: {grade(top)}، بدرجة {n1(top)} من ٥ في أقوى أيامها {ar_date(peak)}، {cmp} الموجة "
+                     f"الحالية التي يأتي أقوى أيامها {ar_date(cpeak)} بدرجة {n1(ctop)}."
                      + (f" الفرق بينهما: {'، '.join(why)}." if why else ""))
         lines.append("وتُحسب الدرجة من خمسة عوامل، لكل منها درجة واحدة كحد أعلى: قوة التذبذب في أطواره الداعمة، "
                      "ووجود الحدث الدافئ في القطاع الداعم، والماء القابل للهطول فوق المعدل، وعمق أخدود الطبقة الوسطى قرب المملكة، "
                      "ومكوّن التذبذب المعزول فوق المملكة. والقوية من ٢٫٦ فأكثر، والقوية جدًا من ٣٫٥.")
         # each driver at the peak, against the peak of the current wave (the same yardstick as the strength line)
         v, v0 = _vals(st, peak), _vals(st, cpeak)
-        at0 = f"في ذروة الموجة الحالية {ar_date(cpeak)}"
+        at0 = ar_date(cpeak)
         ref = (st.get("mjof") or {}).get("z_ref") or 10
         vals = []
         if v["m"]:
@@ -381,7 +386,7 @@ def next_wave(st, day0, days, fac, cur_end):
                         + (f" ({at0}: {n1(v0['mf'][0])} م، {mf_word(v0['mf'][0], ref)})" if v0["mf"] else "")
                         + ("؛ وثقته بعد أسبوع أقل، لأنه يُحسب من آخر أيام توقع جي إف إس" if far else ""))
         if vals:
-            lines.append(f"العوامل في ذروتها ({ar_date(peak)}) مقارنة بذروة الموجة الحالية:")
+            lines.append(f"العوامل في أقوى أيام الموجة القادمة ({ar_date(peak)})، وبين القوسين في أقوى أيام الموجة الحالية ({ar_date(cpeak)}):")
             lines += [f"• {x}." for x in vals]
         drivers = []
         if span("mjo"):
@@ -427,7 +432,7 @@ def next_wave(st, day0, days, fac, cur_end):
             hit = {"southwest", "west"} if kind == "tropical" else {"north"}
         regs = [BOX_NAME[k] for k in ("west", "southwest", "north", "central", "east") if k in hit]
         lines.append(f"المناطق المتأثرة من الجزيرة العربية: {join(regs)}.")
-        lines += _past_cases(st, day0, v)
+        lines += _past_cases(st, day0, v, cpeak)
         g = grade(top)
         how = ("أمطار رعدية واسعة تغزر على عدة مناطق، مع احتمال البرد وجريان السيول" if top >= 2.6 else
                "أمطار رعدية متفرقة تغزر أحيانًا، أكثرها على المرتفعات وحيث تلتقي الرطوبة بالأخدود" if top >= 1.8 else
