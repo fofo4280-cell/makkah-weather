@@ -2,7 +2,7 @@
 
 Region outlines: Natural Earth 10 m admin-1 (public domain), simplified to 0.01 degree (sa_regions.json).
 """
-import json, os, time, urllib.parse, urllib.request
+import json, math, os, re, time, urllib.parse, urllib.request
 
 import numpy as np
 
@@ -228,3 +228,97 @@ def deg(x):
     """'درجة' / 'درجتين' / '٣ درجات' / '١٢ درجة' for a rounded amount of degrees."""
     n = int(round(abs(float(x))))
     return "درجة" if n == 1 else "درجتين" if n == 2 else f"{ar(n)} درجات" if 3 <= n <= 10 else f"{ar(n)} درجة"
+
+
+# ------------------------------------------------------------------ exact places (OpenStreetMap gazetteer)
+# sa_osm.json (built by build_places.py): villages, named roads, bridges, junctions, wadis and peaks with Arabic
+# names, so the report can say where the heaviest rain is as a forecaster would: "عند كبري عشيرة على طريق حضن".
+_OSM = None
+SETTLE = {"city", "town", "village", "hamlet", "suburb", "quarter", "neighbourhood", "locality", "isolated_dwelling"}
+DIRS = ["شمال", "شمال شرق", "شرق", "جنوب شرق", "جنوب", "جنوب غرب", "غرب", "شمال غرب"]
+
+
+def _osm():
+    global _OSM
+    if _OSM is None:
+        p = os.path.join(HERE, "sa_osm.json")
+        if not os.path.exists(p):
+            _OSM = {}
+            return _OSM
+        d = json.load(open(p))
+        pl = d["places"]
+        o = {"pn": [x[0] for x in pl], "plat": np.array([x[1] for x in pl]), "plon": np.array([x[2] for x in pl]),
+             "pk": np.array([x[3] for x in pl])}
+        ln, lk, la, lo = [], [], [], []
+        for name, kind, pts in d["lines"]:
+            for a, b in pts:
+                ln.append(name); lk.append(kind); la.append(a); lo.append(b)
+        o.update({"ln": ln, "lk": np.array(lk), "llat": np.array(la), "llon": np.array(lo)})
+        _OSM = o
+    return _OSM
+
+
+def _km(lat, lon, la, lo):
+    return 111.2 * np.hypot(la - lat, (lo - lon) * math.cos(math.radians(lat)))
+
+
+def direction(lat0, lon0, lat, lon):
+    """Arabic compass word for the bearing from (lat0, lon0) to (lat, lon)."""
+    b = math.degrees(math.atan2((lon - lon0) * math.cos(math.radians(lat0)), lat - lat0)) % 360
+    return DIRS[int((b + 22.5) // 45) % 8]
+
+
+def _num(x):
+    return str(int(round(x))).translate(str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩"))
+
+
+def _road(name):
+    return name if re.match(r"^(طريق|شارع|الطريق|دائري|الدائري|كوبري|جسر)", name) else "طريق " + name
+
+
+def describe(lat, lon, region=None):
+    """Where a point is, as precisely as the map allows, e.g.
+    'عند كبري عشيرة على طريق حضن، ٣٢ كم شمال شرق الطائف' or 'قرب قرية الفيصلية في وادي قنونا، ١٤ كم شرق المظيلف'.
+    Falls back to the nearest town of the coarse list when the fine gazetteer is missing."""
+    town, td = nearest_place(lat, lon, region)
+    o = _osm()
+    if not o:
+        return f"قرب {town}" if town else ""
+    parts = []
+    # a bridge or a junction within 2 km is the most exact landmark
+    dp = _km(lat, lon, o["plat"], o["plon"])
+    lm = np.where(np.isin(o["pk"], ["bridge", "junction"]) & (dp <= 2.0))[0]
+    if lm.size:
+        k = lm[np.argmin(dp[lm])]
+        parts.append(f"عند {o['pn'][k]}")
+    # the nearest settlement (village, hamlet or district)
+    st = np.where(np.isin(o["pk"], list(SETTLE)) & (dp <= 8.0))[0]
+    settle = None
+    if st.size:
+        k = st[np.argmin(dp[st])]
+        settle = o["pn"][k]
+        if not parts:
+            parts.append(("في " if dp[k] <= 1.5 else "قرب ") + settle)
+    # the road or the wadi it is on
+    if o["llat"].size:
+        dl = _km(lat, lon, o["llat"], o["llon"])
+        rd = np.where((o["lk"] != "wadi") & (o["lk"] != "line") & (dl <= 2.0))[0]
+        wd = np.where((o["lk"] == "wadi") & (dl <= 1.5))[0]
+        if rd.size:
+            k = rd[np.argmin(dl[rd])]
+            parts.append(f"على {_road(o['ln'][k])}")
+        elif wd.size:
+            k = wd[np.argmin(dl[wd])]
+            w = o["ln"][k]
+            parts.append(("في " if w.startswith("وادي") else "في وادي ") + w)
+    if not parts:   # open country: the nearest peak, or just the town
+        pk = np.where((o["pk"] == "peak") & (dp <= 4.0))[0]
+        if pk.size:
+            parts.append(f"قرب {o['pn'][pk[np.argmin(dp[pk])]]}")
+    txt = " ".join(parts)
+    # the governorate town for orientation, unless the point is in it
+    if town and (td > 4 or not txt):
+        tl, to = PLACE[town]
+        where = f"{_num(td)} كم {direction(tl, to, lat, lon)} {town}" if td > 4 else town
+        txt = f"{txt}، {where}" if txt and town not in txt else (txt or f"قرب {where}")
+    return txt.strip("، ")

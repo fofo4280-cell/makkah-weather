@@ -257,8 +257,7 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
             d.update(k=k, name=r["name"])
             if d["wet"]:
                 j = np.flatnonzero(m_k)[d["jmax"]]
-                pl, dist = G.nearest_place(float(king["lat"][j]), float(king["lon"][j]), r)
-                d["place"] = pl if dist <= 45 else ""
+                d["place"] = G.describe(float(king["lat"][j]), float(king["lon"][j]), r)
                 pts = ri == k
                 d["hail"] = O.hail_level(d, O.fzl_at(env, pts, d["conv_hours"]))
                 d["sc"], d["sc_vals"] = O.supercell_level(env, pts, d["conv_hours"])
@@ -583,10 +582,10 @@ def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print, b
     d = O.describe(mk, inr)
     if d["wet"]:
         j = np.flatnonzero(inr)[d["jmax"]]
-        pl, dist = G.nearest_place(float(mk["lat"][j]), float(mk["lon"][j]), reg)
+        pl = G.describe(float(mk["lat"][j]), float(mk["lon"][j]), reg)
         d["hail"] = O.hail_level(d, O.fzl_at(env, gpts, d["conv_hours"]))
         sc, scv = O.supercell_level(env, gpts, d["conv_hours"])
-        lines.append(f"المنطقة كلها ({span}): " + O.area_text("", d, pl if dist <= 30 else "", d["hail"], sc, scv)[2:] + ".")
+        lines.append(f"المنطقة كلها ({span}): " + O.area_text("", d, pl, d["hail"], sc, scv)[2:] + ".")
     else:
         lines.append(f"المنطقة كلها ({span}): لا يُظهر نموذجنا بدقة ٣ كم أمطارًا تُذكر على أي جزء منها.")
     # the five parts: each 3 km cell goes to the nearest of their towns
@@ -620,7 +619,7 @@ def makkah_section(day, doms, env, regs, glat, glon, gri, our_dirs, log=print, b
                     alerts.append((name.split(" (")[0], r9, a_ >= 1))
             continue
         j = np.flatnonzero(m)[dd["jmax"]]
-        pl, _ = G.nearest_place(float(mk["lat"][j]), float(mk["lon"][j]), reg)
+        pl = G.describe(float(mk["lat"][j]), float(mk["lon"][j]), reg)
         p = np.zeros(gpts.shape, bool); p[np.flatnonzero(gpts)[garea == name]] = True
         hl = O.hail_level(dd, O.fzl_at(env, p, dd["conv_hours"]))
         sc, scv = O.supercell_level(env, p, dd["conv_hours"])

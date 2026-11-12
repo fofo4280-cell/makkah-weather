@@ -249,10 +249,11 @@ def fzl_at(env, pts, hours):
 
 # ------------------------------------------------------------------ text
 def area_text(name, d, place, hail, sc, sc_vals):
-    """One description: '(amount, timing, type, hail, supercell)'."""
+    """One description: '(amount, timing, type, hail, supercell)'. place: where the most falls, with its
+    preposition (sa_geo.describe: 'عند كبري عشيرة على طريق حضن، ...')."""
     if not d["wet"]:
         return f"{name}: لا أمطار تُذكر"
-    t = (f"{name}: {num(d['mean'], 1)} ملم في المتوسط وتصل إلى {num(d['max'])} ملم{(' قرب ' + place) if place else ''}، "
+    t = (f"{name}: {num(d['mean'], 1)} ملم في المتوسط وتصل إلى {num(d['max'])} ملم{(' ' + place) if place else ''}، "
          f"تغطي نحو {num(100 * d['cov'])}٪؛ {timing_word(d)} (ذروته الساعة {ar(d['peak_h'])})، طابعه {type_word(d)}")
     if hail == 2:
         t += f"، وفرص البَرَد جيدة (صدى رادار {num(d['zmax'])} ديسيبل الساعة {ar(d['zh'])})"

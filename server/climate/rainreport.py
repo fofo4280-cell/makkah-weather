@@ -207,7 +207,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
         towns = sorted(r["_towns"])
         reg = {"k": k, "name": r["name"], "mean": area, "max": float(tot.max()), "wins": []}
         j = int(np.argmax(tot))
-        reg["at"] = G.nearest_place(float(cells["lat"][m][j]), float(cells["lon"][m][j]), r)
+        reg["at"] = G.describe(float(cells["lat"][m][j]), float(cells["lon"][m][j]), r)   # where the most falls, exactly
         for a, b in wins:
             idx = np.arange(a, b + 1)
             tr = town_rain(cells, m, idx, towns)
@@ -221,10 +221,10 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
             wj = int(np.argmax(rain[idx].sum(0)))
             win = {"a": tk(a) - timedelta(hours=1), "b": tk(b), "heavy": heavy, "moderate": mod, "light": light,
                    "type": type_word(ty), "hail": hail, "sc": sc, "scv": scv, "max": wmax, "z": ty["zmax"],
-                   "at": G.nearest_place(float(cells["lat"][m][wj]), float(cells["lon"][m][wj]), r)[0],
+                   "at": G.describe(float(cells["lat"][m][wj]), float(cells["lon"][m][wj]), r),
                    "peak": tk(a + int(np.argmax((rain[idx] * w).sum(1))))}
             if not (heavy or mod or light):      # rain away from the towns: name the nearest place
-                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).append(f"قرب {win['at']}")
+                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).append(win["at"])
             reg["wins"].append(win)
             table.append({"region": r["name"], "day": day_word(win["a"], win["b"]),
                           "window": span_words(win["a"], win["b"]),
@@ -256,8 +256,8 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     tops = []
     for x in top:
         best = max(x["wins"], key=lambda w: w["max"])
-        hv = best["heavy"][:3] or [x["at"][0]]
-        tops.append(f"{x['name']} ({join(hv)}، حتى {num(x['max'])} ملم {part_of_day(best['a'], best['b'])})")
+        # the most rain is named where it falls (not at the first heavy town, which can be elsewhere in the region)
+        tops.append(f"{x['name']} (أعلاها {num(x['max'])} ملم {x['at']} {part_of_day(best['a'], best['b'])})")
     s += f"وتتركز الأمطار الأغزر على {join(tops)}. "
     mids = [x["name"] for x in rows if x not in top and x["max"] >= MODERATE]
     lows = [x["name"] for x in rows if x["max"] < MODERATE]
@@ -293,7 +293,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
                 t += f"، ومتوسطة على {join(w['moderate'][:6])}"
             if w["light"] and len(w["heavy"]) + len(w["moderate"]) < 6:
                 t += f"، وخفيفة على {join(w['light'][:5])}"
-            t += f"؛ أعلاها {num(w['max'])} ملم قرب {w['at']}"
+            t += f"؛ أعلاها {num(w['max'])} ملم {w['at']}"
             if w["hail"] == 2:
                 t += f"، وفرص جيدة للبَرَد (صدى رادار {num(w['z'])} ديسيبل)"
             elif w["hail"] == 1:
