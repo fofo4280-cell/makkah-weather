@@ -1,0 +1,31 @@
+# A case study of an upper low (its track, depth, lobes, blocks, moisture, winds) from GFS analyses and the
+# newest forecast; the maps and the track go to the case-study branch.
+name: Case study
+
+on:
+  workflow_dispatch:
+    inputs:
+      first: {description: 'first analysis YYYYMMDDHH'}
+      last: {description: 'last analysis YYYYMMDDHH'}
+      forecast: {description: 'forecast cycle YYYYMMDDHH'}
+      maxh: {default: '120'}
+
+permissions:
+  contents: write
+
+jobs:
+  case:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy scipy pygrib shapely matplotlib
+      - run: python3 code/server/climate/case_study.py /home/runner/case ${{ inputs.first }} ${{ inputs.last }} ${{ inputs.forecast }} ${{ inputs.maxh }}
+      - name: Keep
+        run: |
+          cd /home/runner/case && git init -q -b data
+          git config user.name "case bot"; git config user.email "actions@users.noreply.github.com"
+          git add -A && git commit -q -m "case study" && git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:case-study
