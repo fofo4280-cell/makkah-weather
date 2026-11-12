@@ -1,0 +1,86 @@
+# The keeper: GitHub's own schedule sometimes starts runs hours late or not at all (11 and 12 Nov 2026: the morning
+# model run and the noon update never started). This job stays awake, checks every 5 minutes whether each daily
+# piece of work is done or running, starts what is missing, and before its 6-hour limit starts the next keeper.
+# The repository is public, so the minutes cost nothing. Started by hand once; the hourly schedule revives it if
+# the chain ever breaks.
+name: Keeper
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 * * * *'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  keep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 355
+    steps:
+      - name: Keep the day's work going
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          ME: ${{ github.run_id }}
+        run: |
+          api() { curl -sf -m 30 -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1"; }
+          post() { curl -sf -m 30 -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" "https://api.github.com/repos/$REPO/$1" -d "$2"; }
+          raw() { curl -sf -m 30 "https://raw.githubusercontent.com/$REPO/$1?$(date +%s)"; }
+          busy() {  # a run of this workflow queued or running
+            for s in in_progress queued waiting pending; do
+              n=$(api "actions/workflows/$1/runs?status=$s&per_page=5" | python3 -c "import json,sys; print(json.load(sys.stdin)['total_count'])" 2>/dev/null || echo 0)
+              [ "$n" != 0 ] && return 0
+            done
+            return 1
+          }
+          # one keeper at a time: if another is running, this one leaves
+          # (a keeper that has just handed over may take a few minutes to finish: wait for it before deciding)
+          for k in 1 2 3 4 5 6; do
+            others=$(api "actions/workflows/keeper.yml/runs?status=in_progress&per_page=10" | python3 -c "
+          import json,sys; print(sum(1 for r in json.load(sys.stdin)['workflow_runs'] if str(r['id']) != '$ME'))" 2>/dev/null || echo 0)
+            [ "$others" = 0 ] && break
+            [ $k = 6 ] && { echo "another keeper is running"; exit 0; }
+            sleep 60
+          done
+          model_status() {   # the Kingdom run of cycle $1 on the page: none, running or complete
+            raw model-data-sa/runs.json | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$1']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo unknown
+          }
+          start=$(date +%s)
+          while [ $(( $(date +%s) - start )) -lt 20400 ]; do       # 5 h 40 min, then hand over
+            D=$(date -u +%Y%m%d); HM=$(date -u +%H%M)
+            # the model: 00 UTC cycle from 03:50, 12 UTC cycle from 15:50 (when the GFS is out to 36 hours)
+            for c in 00 12; do
+              from=$([ $c = 00 ] && echo 0350 || echo 1550); to=$([ $c = 00 ] && echo 1100 || echo 2300)
+              if [ "$HM" -ge "$from" ] && [ "$HM" -le "$to" ]; then
+                st=$(model_status "$D$c")
+                if [ "$st" = none ] && ! busy saudi-model.yml; then
+                  echo "$(date -u +%H:%M) model cycle $D$c missing: starting it"
+                  post actions/workflows/saudi-model.yml/dispatches "{\"ref\":\"main\",\"inputs\":{\"cycle\":\"$D$c\"}}" || echo "dispatch failed"
+                fi
+              fi
+            done
+            # the noon rain update: from 09:30, once the morning Kingdom run is complete
+            if [ "$HM" -ge 0930 ] && [ "$HM" -le 1400 ]; then
+              n=$(raw climate-data/mjo.json | python3 -c "
+          import json,sys
+          r=json.load(sys.stdin).get('report') or {}
+          print(sum(1 for s in r.get('sections',[]) if s.get('kind')=='rain_noon' and (r.get('updated') or '')[:10]=='$(date -u +%Y-%m-%d)'))" 2>/dev/null || echo 1)
+              if [ "$n" = 0 ] && [ "$(model_status ${D}00)" = complete ] && ! busy rain-noon.yml && ! busy climate.yml; then
+                echo "$(date -u +%H:%M) noon update missing: starting it"
+                post actions/workflows/rain-noon.yml/dispatches '{"ref":"main","inputs":{"mode":"noon","publish":"yes"}}' || echo "dispatch failed"
+              fi
+            fi
+            # the night climate run: from 21:00 UTC
+            if [ "$HM" -ge 2100 ] && [ "$HM" -le 2359 ]; then
+              c=$(raw climate-data/mjo.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('cycle',''))" 2>/dev/null || echo x)
+              if [ "$c" != "${D}12" ] && [ "$c" != x ] && ! busy climate.yml; then
+                echo "$(date -u +%H:%M) night climate run missing (published $c): starting it"
+                post actions/workflows/climate.yml/dispatches '{"ref":"main"}' || echo "dispatch failed"
+              fi
+            fi
+            sleep 300
+          done
+          echo "handing over to the next keeper"
+          post actions/workflows/keeper.yml/dispatches '{"ref":"main"}' || echo "hand-over failed; the hourly schedule will revive it"
