@@ -357,7 +357,8 @@ def next_wave(st, day0, days, fac, cur_end):
             j += 1
         a, b = wave_days[i], wave_days[j]
         lines.append(f"أقرب موجة قادمة {ar_span(start, end)}، وتشتد {ar_span(a, b) if a != b else 'يوم ' + ar_date(a)}"
-                     + (f" وأقوى أيامها {ar_date(peak)}" if a != b else "") + f": {title}.")
+                     + (f" وأقوى أيامها {ar_date(peak)}" if a != b and any(v is not None for v in rc.values()) else "")
+                     + f": {title}.")
         # against the current wave: its strongest day among the days left
         cur_days = [d for d in days if day0 <= d <= max(cur_end, day0)]
         cpeak = max(cur_days, key=lambda d: ws[d]["score"])
@@ -382,8 +383,10 @@ def next_wave(st, day0, days, fac, cur_end):
             w = ws[d]
             return (f"درجة العوامل {n1(sc[d]['total'])} من ٥"
                     + (f"، وانتشار الأمطار نحو {ar(round(100 * rc[d]))}٪ من مساحة المملكة" if rc.get(d) is not None else ""))
-        lines.append(f"قوتها المتوقعة: {grade(top)}، بدرجة {n1(top)} من ٥ في أقوى أيامها {ar_date(peak)} ({day_words(peak)})؛ "
-                     f"{cmp} الموجة الحالية، وأقوى أيامها المتبقية {ar_date(cpeak)} بدرجة {n1(ctop)} ({day_words(cpeak)})."
+        # without the rain spread, the drivers alone do not tell a wave's strongest day: say only what they tell
+        best = "أقوى أيامها" if any(v is not None for v in rc.values()) else "أعلى أيامها في درجة العوامل"
+        lines.append(f"قوتها المتوقعة: {grade(top)}، بدرجة {n1(top)} من ٥ في {best} {ar_date(peak)} ({day_words(peak)})؛ "
+                     f"{cmp} الموجة الحالية، و{best} المتبقية {ar_date(cpeak)} بدرجة {n1(ctop)} ({day_words(cpeak)})."
                      + (f" الفرق بينهما: {'، '.join(why)}." if why else ""))
         if any(v is not None for v in rc.values()):
             lines.append("وتجمع درجة الموجة بين أمرين: عوامل التذبذب الخمسة في صفحتنا، وانتشار الأمطار المتوقع في توقع جي إف إس "
