@@ -199,12 +199,29 @@ run_wrf() {
   local POSTPID=$!
   timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
   local WPID=$!
-  local n=0
+  local n=0 tries=0 t0; t0=$(date -u +%s)
   while kill -0 $WPID 2>/dev/null; do
     sleep 120
     if [ "$DEADLINE" -gt 0 ] && [ "$(date -u +%s)" -gt "$DEADLINE" ]; then
       log "time budget used up: stopping the model and publishing the hours that are done"
       pkill -f wrf.exe; sleep 20; break
+    fi
+    # a stuck model (12 Nov 2026: the west second part hung reading its restart files and wrote nothing for
+    # 5 h 40 min): no new line in its log for 25 minutes -> stop it and start it again, once
+    local m quiet; m=$(stat -c %Y rsl.error.0000 rsl.out.0000 2>/dev/null | sort -n | tail -1); quiet=$(( $(date -u +%s) - ${m:-$t0} ))
+    if [ "$quiet" -gt 1500 ] && [ $(( $(date -u +%s) - t0 )) -gt 1500 ]; then
+      if [ $tries -ge 1 ]; then
+        log "the model is stuck again ($quiet s without output): stopping it"
+        pkill -f wrf.exe; sleep 20; break
+      fi
+      tries=$((tries + 1))
+      log "the model is stuck ($quiet s without output): starting it again"
+      tail -n 5 rsl.error.0000 2>/dev/null
+      pkill -f wrf.exe; sleep 20; wait $WPID 2>/dev/null
+      mkdir -p stuck && mv -f rsl.* stuck/ 2>/dev/null
+      timeout 20h mpirun --bind-to none -np "$NP_WRF" ./wrf.exe > wrf.out 2>&1 &
+      WPID=$!; t0=$(date -u +%s)
+      continue
     fi
     n=$((n + 1)); [ $((n % 10)) -eq 0 ] && hook
     local last hrs
