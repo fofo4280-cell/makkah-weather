@@ -1,0 +1,46 @@
+# Past GFS fields over Saudi Arabia (analysis-like and 2, 5, 8 days ahead) and the rain of each day, to fit and
+# test the rain-spread potential index (server/climate/ingredients.py). The result is an artifact.
+name: Ingredients backfill
+
+on:
+  workflow_dispatch:
+    inputs:
+      days: {default: '400'}
+      step: {default: '3'}
+      leads: {default: '0,2,5,8'}
+
+jobs:
+  backfill:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - name: Python packages
+        run: pip install -q numpy scipy pygrib shapely
+      - name: Restore climatology
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/clim
+          key: clim-r1-1991-2020-v2
+      - name: Normal precipitable water over the box
+        run: |
+          cd code/server/climate
+          python3 - <<'P'
+          import numpy as np, ingredients as I
+          c = dict(np.load("/home/runner/clim/clim.npz"))
+          np.savez_compressed("/home/runner/pwclim.npz", pw=np.stack([I.pw_normal(c, d) for d in range(365)]).astype(np.float32))
+          P
+      - name: Past fields
+        run: python3 code/server/climate/ingr_backfill.py /home/runner/ingr ${{ inputs.days }} ${{ inputs.step }} ${{ inputs.leads }}
+      - name: Pack
+        if: always()
+        run: cd /home/runner && cp pwclim.npz ingr/ 2>/dev/null; tar cf ingr.tar ingr && ls -la ingr.tar
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ingr
+          path: /home/runner/ingr.tar
+          retention-days: 30
