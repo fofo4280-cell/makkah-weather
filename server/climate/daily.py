@@ -351,11 +351,19 @@ def main():
         base = ((Z500, T500) if d <= WAVE_DAYS else ()) + (mjofilt.Z800,) + ((mjofilt.APCP,) if d else ())
         have = {"u", "v", "pw"} | {n for n, _ in base}
         ing = tuple(x for x in ING.FIELDS if x[0] not in have) if ING.coef() else ()
-        f = gfs_fields(cycle, d * 24, base + ing)
+        f = gfs_fields(cycle, d * 24, base)
+        if ing:   # the ingredients apart, so a failed download never stops the night's run
+            for t_ in range(2):
+                try:
+                    f.update(gfs_fields(cycle, d * 24, fields=list(ing)))
+                    break
+                except Exception as e:  # noqa: BLE001
+                    print("ingredients download failed", d, repr(e)[:120], flush=True)
         fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"],
                                       "z500": f.get("z500"), "t500": f.get("t500"),
                                       "z800": f.get("z800"), "apcp": f.get("apcp"),
-                                      "ingr": {n: ING.cut(f[n]) for n, _ in ING.FIELDS if n in f} if ing else None}
+                                      "ingr": {n: ING.cut(f[n]) for n, _ in ING.FIELDS if n in f}
+                                      if ing and all(n in f for n, _ in ING.FIELDS) else None}
     print("forecast days", len(fc), flush=True)
 
     # 3. anomalies: minus climatology, minus the mean anomaly of the previous MEAN_DAYS days
