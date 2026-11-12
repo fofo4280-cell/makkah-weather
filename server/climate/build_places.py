@@ -4,7 +4,9 @@ villages and towns, named roads, bridges and junctions, wadis and mountain peaks
 
     build_places.py OUT.json
 
-Writes {"places": [[name, lat, lon, kind], ...], "lines": [[name, kind, [[lat, lon], ...]], ...]}.
+Writes {"places": [[name, lat, lon, kind, known], ...], "lines": [[name, kind, [[lat, lon], ...], known], ...]};
+known = 1 for what people outside the area know too: towns and cities, places with an encyclopaedia entry or
+over 2000 people, landmarks, the main roads, long wadis.
 Lines are resampled every ~700 m so the nearest one can be found with a simple point search.
 Run once (by the gazetteer workflow, which has full internet); the result is committed next to this file.
 Data (c) OpenStreetMap contributors, ODbL.
@@ -22,6 +24,9 @@ QUERIES = {
                      'node["natural"="saddle"]["name"](area.sa);node["mountain_pass"="yes"]["name"](area.sa););out body;',
     "bridges": AREA + 'way["bridge"]["name"](area.sa);out center;',
     "roads": AREA + 'way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]["name"](area.sa);out geom;',
+    "landmarks": AREA + '(nwr["tourism"~"^(attraction|museum|viewpoint|theme_park)$"]["name"]["wikidata"](area.sa);'
+                        'nwr["historic"]["name"]["wikidata"](area.sa);nwr["natural"~"^(peak|valley|spring|cliff)$"]["name"]["wikidata"](area.sa);'
+                        'nwr["place"="locality"]["name"]["wikidata"](area.sa););out center;',
     "routes": AREA + 'relation["route"="road"](area.sa);out geom;',
     "refroads": AREA + 'way["highway"~"^(motorway|trunk|primary)$"][!"name"]["ref"](area.sa);out geom;',
     "wadis": AREA + '(way["waterway"~"^(wadi|river|stream)$"]["name"](area.sa);way["natural"="valley"]["name"](area.sa););out geom;',
@@ -83,31 +88,50 @@ def main():
                 n = "الطريق رقم " + t["ref"].split(";")[0].strip()
                 g = e.get("geometry")
                 if g and len(g) >= 2:
-                    out["lines"].append([n, "ref", resample(g, 1.0)])
+                    out["lines"].append([n, "ref", resample(g, 1.0), 1])
                 continue
             if not n:
                 continue
+            known = int(bool(t.get("wikidata") or t.get("wikipedia") or t.get("wikipedia:ar")))
             if key == "places":
-                out["places"].append([n, round(e["lat"], 5), round(e["lon"], 5), t["place"]])
+                pop = re.sub(r"[^0-9]", "", t.get("population", "") or "")
+                known = int(known or t["place"] in ("city", "town") or (pop != "" and int(pop) >= 2000))
+                out["places"].append([n, round(e["lat"], 5), round(e["lon"], 5), t["place"], known])
+            elif key == "landmarks":
+                c = e.get("center") or ({"lat": e["lat"], "lon": e["lon"]} if "lat" in e else None)
+                if c:
+                    out["places"].append([n, round(c["lat"], 5), round(c["lon"], 5), "landmark", 1])
             elif key == "points":
                 kind = "peak" if t.get("natural") == "peak" else "junction" if t.get("highway") == "motorway_junction" else "pass"
-                out["places"].append([n, round(e["lat"], 5), round(e["lon"], 5), kind])
+                out["places"].append([n, round(e["lat"], 5), round(e["lon"], 5), kind, known])
             elif key == "bridges":
                 c = e.get("center")
                 if c:
-                    out["places"].append([n, round(c["lat"], 5), round(c["lon"], 5), "bridge"])
+                    out["places"].append([n, round(c["lat"], 5), round(c["lon"], 5), "bridge", known])
             elif key == "routes":
                 # a numbered highway as a whole, e.g. "طريق الطائف - الرياض": its member ways
                 for mb in e.get("members", []):
                     g = mb.get("geometry")
                     if mb.get("type") == "way" and g and len(g) >= 2:
-                        out["lines"].append([n, "route", resample(g, 1.0)])
+                        out["lines"].append([n, "route", resample(g, 1.0), 1])
             else:
                 g = e.get("geometry")
                 if g and len(g) >= 2:
                     kind = t.get("highway") or ("wadi" if key == "wadis" else "line")
-                    out["lines"].append([n, kind, resample(g)])
+                    pts = resample(g)
+                    # well known: the main roads, and wadis with an encyclopaedia entry or over 30 km long
+                    k2 = int(known or kind in ("motorway", "trunk", "primary") or (kind == "wadi" and len(pts) * 0.7 >= 30))
+                    out["lines"].append([n, kind, pts, k2])
         time.sleep(5)
+    # a wadi drawn as many short pieces: well known when all its pieces of the same name nearby reach 30 km
+    tot = {}
+    for x in out["lines"]:
+        if x[1] == "wadi":
+            k = (x[0], round(x[2][0][0]), round(x[2][0][1]))
+            tot[k] = tot.get(k, 0) + len(x[2]) * 0.7
+    for x in out["lines"]:
+        if x[1] == "wadi" and tot.get((x[0], round(x[2][0][0]), round(x[2][0][1])), 0) >= 30:
+            x[3] = 1
     # one entry per bridge name and place (OSM often splits a bridge into several ways)
     seen, places = set(), []
     for p in out["places"]:
