@@ -63,6 +63,8 @@ def load(dirs, day=None, log=print, t_a=None, t_b=None):
                 P = d.get("points")
                 if not P or not os.path.exists(os.path.join(root, "runs", r["run"], P["file"])):
                     continue
+                if P["dx"] > 5000:      # only the 3 km grids feed the reports (Fahad, 13 Nov 2026), not the 9 km ones
+                    continue
                 ks = [(k, int((init + timedelta(hours=h) - t_a).total_seconds() // 3600))
                       for k, h in enumerate(P["hours"]) if k > 0 and t_a < init + timedelta(hours=h) <= t_b]
                 cands.setdefault(dom, []).append(
