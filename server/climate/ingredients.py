@@ -89,12 +89,16 @@ def chance(feat, c=None):
     """chance of 5 mm or more in the day at each point (logistic model of ingr_coef.json)"""
     c = c or coef()
     z = np.full(feat["pw"].shape, c["b0"], float)
+    zs = {}
     for k, (mu, sd, b) in c["terms"].items():
         x = (np.asarray(feat[k], float) - mu) / sd
+        zs[k] = x
         z += b * x
         if k in c.get("sq", {}):
             z += c["sq"][k] * x * x
-    return 1 / (1 + np.exp(-z))
+    for a, b2, w in c.get("inter", []):
+        z += w * zs[a] * zs[b2]
+    return 1 / (1 + np.exp(-np.clip(z, -40, 40)))
 
 
 def potential(feat, c=None):
