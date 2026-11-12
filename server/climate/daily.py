@@ -622,13 +622,22 @@ def main():
         if ING.coef():
             regs_ = sa_geo.regions()
             rows = []
-            for dt in sorted(fc):
+            ds_ = sorted(fc)
+            for k_, dt in enumerate(ds_):
                 g = fc[dt].get("ingr")
                 if not g or len(g) < len(ING.FIELDS):
                     continue
                 pot = ING.potential(ING.features(g, ING.pw_normal(clim, doy(dt))))
-                rows.append({"d": dt.strftime("%Y-%m-%d"), "ksa": round(pot["ksa"], 3),
-                             "regions": {regs_[k]["name"]: round(v, 3) for k, v in pot["regions"].items()}})
+                row = {"d": dt.strftime("%Y-%m-%d"), "ksa": round(pot["ksa"], 3), "raw": round(pot["raw"], 4),
+                       "regions": {regs_[k]["name"]: round(v, 3) for k, v in pot["regions"].items()},
+                       "regions_raw": {regs_[k]["name"]: round(v, 4) for k, v in pot["regions_raw"].items()}}
+                # the GFS rain over the 24 hours from this time, for the same regions
+                if k_ + 1 < len(ds_) and fc[ds_[k_ + 1]].get("apcp") is not None:
+                    a0 = fc[dt]["apcp"] if fc[dt].get("apcp") is not None else 0.0
+                    sp = ING.spread(ING.cut(np.maximum(fc[ds_[k_ + 1]]["apcp"] - a0, 0)))
+                    row["gfs"] = round(sp["ksa"], 3)
+                    row["gfs_regions"] = {regs_[k]["name"]: round(v, 3) for k, v in sp["regions"].items()}
+                rows.append(row)
             status["ingr"] = rows
             print("rain-spread potential:", [(r["d"][5:], r["ksa"]) for r in rows], flush=True)
     except Exception as e:  # noqa: BLE001

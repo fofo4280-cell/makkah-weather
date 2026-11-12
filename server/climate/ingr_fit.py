@@ -142,8 +142,16 @@ def main():
     Xd = np.vstack([design(f, mask, stats)[0] for f in allX])
     b = fit_logit(Xd, np.concatenate([(truth[D] >= THR).astype(float) for D in days]), np.concatenate([wpt for _ in days]))
     print("coefficients:", {t: round(float(x), 3) for t, x in zip(["b0"] + TERMS + [s + "^2" for s in SQ] + [a + "*" + c for a, c in INTER], b)})
+    # the index is too smooth (it spreads chances thinly): map its Kingdom share onto the reference shares by
+    # quantiles, so it speaks in the same units as the GFS rain spread
+    pr = np.array([float((1 / (1 + np.exp(-np.clip(design(f, mask, stats)[0] @ b, -40, 40))) * wpt).sum() / wpt.sum())
+                   for f in allX])
+    tr = np.array([tcov[D] for D in days])
+    lv = np.linspace(0, 1, 101)
+    qp, qt = np.quantile(pr, lv), np.quantile(tr, lv)
+    qp = np.maximum.accumulate(qp + np.arange(len(qp)) * 1e-9)
     if len(sys.argv) > 2:
-        c = {"b0": float(b[0]), "terms": {t: [float(stats[0][i]), float(stats[1][i]), float(b[1 + i])] for i, t in enumerate(TERMS)},
+        c = {"qmap": [[float(x) for x in qp], [float(x) for x in qt]],"b0": float(b[0]), "terms": {t: [float(stats[0][i]), float(stats[1][i]), float(b[1 + i])] for i, t in enumerate(TERMS)},
              "sq": {t: float(b[1 + len(TERMS) + j]) for j, t in enumerate(SQ)},
              "inter": [[a, c, float(b[1 + len(TERMS) + len(SQ) + j])] for j, (a, c) in enumerate(INTER)],
              "thr_mm": THR, "days": len(days),

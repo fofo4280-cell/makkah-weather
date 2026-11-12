@@ -180,6 +180,96 @@ def mf_word(z, ref):
             "قريب من الصفر، لا يدعم ولا يكبح" if z < ref / 3 else "كابح للأمطار" if z < ref else "كابح بقوة للأمطار")
 
 
+def lead_weight(lead):
+    """the weight of the GFS rain spread against our ingredients index, from their test on the past year: the GFS
+    rain is better up to 5 days ahead, they are even up to 8, the index is better beyond"""
+    return 0.7 if lead <= 5 else 0.5 if lead <= 8 else 0.3
+
+
+def confidence(lead):
+    return "عالية" if lead <= 5 else "متوسطة" if lead <= 10 else "منخفضة"
+
+
+def combined(st, d, day0):
+    """{'ksa': share of the Kingdom likely to get 5 mm or more on day d, 'regions': {name: share}} from the GFS
+    rain spread and our ingredients index weighted by lead; None when neither is known"""
+    row = next((r for r in st.get("ingr", []) if r["d"] == d.isoformat()), None)
+    if row is None:
+        c = fc_cover(st, d)
+        return None if c is None else {"ksa": c, "regions": {}}
+    w = lead_weight((d - day0).days) if "gfs" in row else 0.0
+    regs = {}
+    for name, v in row["regions"].items():
+        g = (row.get("gfs_regions") or {}).get(name, 0.0)
+        regs[name] = w * g + (1 - w) * v
+    return {"ksa": w * row.get("gfs", 0.0) + (1 - w) * row["ksa"], "regions": regs}
+
+
+SHORT = {"مكة المكرمة": "منطقة مكة المكرمة", "المدينة المنورة": "منطقة المدينة المنورة"}
+
+
+def scenario(st, day0, start, end, peak):
+    """the wave day by day: where its rain begins, spreads, is widest and ends, with the confidence of each day"""
+    ACT, STRONG = 0.05, 0.15
+    days = [start + timedelta(days=k) for k in range(-2, (end - start).days + 2)]
+    rows = {d: combined(st, d, day0) for d in days}
+    near = [d for d in days if (d - day0).days <= 10 and rows[d] is not None]
+    if not near:
+        return ["سير الموجة يومًا بيوم: النافذة بعيدة بعد أكثر من عشرة أيام، فلا تُفصَّل مناطقها الآن؛ "
+                "وتُكتب مناطقها وأيامها حين تقترب."]
+    out = ["سير الموجة يومًا بيوم (يجمع انتشار الأمطار في توقع جي إف إس ومؤشر إمكانية الانتشار من مكونات الجو، "
+           "ويزيد وزن المؤشر كلما بعد اليوم):"]
+    prev = set()
+    seen_any = False
+    last_active = ended = None
+    for d in near:
+        r = rows[d]
+        act = {n for n, v in r["regions"].items() if v >= ACT}
+        strong = sorted([n for n, v in r["regions"].items() if v >= STRONG], key=lambda n: -r["regions"][n])
+        if not act and not seen_any:
+            continue
+        lead = (d - day0).days
+        name = lambda xs: join([SHORT.get(x, x) for x in xs])
+        parts = []
+        if not seen_any:
+            parts.append(f"تبدأ الأمطار على {name(sorted(act, key=lambda n: -r['regions'][n]))}")
+            seen_any = True
+        else:
+            new = sorted(act - prev, key=lambda n: -r["regions"][n])
+            gone = sorted(prev - act)
+            stay = sorted(act & prev, key=lambda n: -r["regions"][n])
+            if new:
+                parts.append(f"تمتد إلى {name(new)}")
+            if stay:
+                parts.append(f"{'وتستمر' if new else 'تستمر'} على {name(stay)}")
+            if gone:
+                parts.append(f"{'وتنحسر' if parts else 'تنحسر'} عن {name(gone)}")
+            if not act:
+                parts = [f"تنحسر الأمطار عن {name(sorted(prev))}" if prev else "لا أمطار تُذكر"]
+        if strong:
+            parts.append(f"وأغزرها على {name(strong[:3])}")
+        tag = f" ({'أوسع انتشار لها، ' if d == peak else ''}نحو {ar(round(100 * r['ksa']))}٪ من مساحة المملكة، والثقة {confidence(lead)})"
+        out.append(f"• {ar_date(d)}: {'، '.join(parts)}{tag}.")
+        if act:
+            last_active = d
+        prev = act
+        if not act and seen_any:
+            ended = d
+            break
+    if not seen_any:
+        return ["سير الموجة يومًا بيوم: لا تُظهر المعطيات حتى الآن أمطارًا واسعة على أي منطقة في أيامها القريبة؛ "
+                "وتُراجع كل ليلة."]
+    far = [d for d in days if (d - day0).days > 10 and d <= end]
+    if ended:
+        out.append(f"• وتنتهي أمطار الموجة بانقضاء {ar_date(last_active)} في هذه المعطيات"
+                   + ("، وقد تمتد بعدها لأن عواملها مستمرة حتى " + ar_date(end) if ended < end else "") + ".")
+    elif far:
+        out.append(f"• بعد {ar_date(near[-1])}: يتعذر تفصيل المناطق لبعد المدة (الثقة منخفضة)، وتُكتب حين تقترب.")
+    elif last_active and last_active < days[-1]:
+        out.append(f"• وتنتهي الموجة بعد {ar_date(last_active)}.")
+    return out
+
+
 def wave_score(st, d, day0, drv, cover):
     """the strength of a day on 0..5: the drivers (strength index) and the forecast rain spread together; the
     spread weighs 70 % up to 3 days ahead, 50 % up to a week and 30 % beyond, as the rain forecast loses skill"""
@@ -344,7 +434,7 @@ def next_wave(st, day0, days, fac, cur_end):
                  "troughs": "موجة أخاديد، دون دعم مداري"}[kind]
         wave_days = days[days.index(start):days.index(end) + 1]
         sc = {d: strength(st, d) for d in days}
-        rc = {d: fc_cover(st, d) for d in days}
+        rc = {d: (lambda c: None if c is None else c["ksa"])(combined(st, d, day0)) for d in days}
         ws = {d: wave_score(st, d, day0, sc[d], rc[d]) for d in days}
         # the strongest day of a wave: the drivers of our oscillation page and the forecast spread of the rain
         # together (the spread weighs more on the near days, the drivers on the far ones)
@@ -389,10 +479,10 @@ def next_wave(st, day0, days, fac, cur_end):
                      f"{cmp} الموجة الحالية، و{best} المتبقية {ar_date(cpeak)} بدرجة {n1(ctop)} ({day_words(cpeak)})."
                      + (f" الفرق بينهما: {'، '.join(why)}." if why else ""))
         if any(v is not None for v in rc.values()):
-            lines.append("وتجمع درجة الموجة بين أمرين: عوامل التذبذب الخمسة في صفحتنا، وانتشار الأمطار المتوقع في توقع جي إف إس "
-                         "(نسبة مساحة المملكة التي تنال ٥ ملم فأكثر في اليوم، و١٥٪ فأكثر انتشار كامل). ويزيد وزن الانتشار في الأيام "
-                         "القريبة لأن توقع المطر فيها أدق (٧٠٪ حتى ثلاثة أيام، و٥٠٪ حتى أسبوع)، ويزيد وزن العوامل فيما بعد الأسبوع "
-                         "(٧٠٪) لأن توقع المطر يضعف كلما بعد، وتبقى العوامل أثبت. والقوية من ٢٫٦ فأكثر، والقوية جدًا من ٣٫٥.")
+            lines.append("وتجمع درجة الموجة بين عوامل التذبذب الخمسة في صفحتنا وانتشار الأمطار المتوقع، والانتشار نفسه "
+                         "يجمع توقع جي إف إس للمطر ومؤشر إمكانية الانتشار من مكونات الجو (الرطوبة والرفع وعدم الاستقرار "
+                         "والتضاريس) بأوزان اختُبرت على سنة ماضية: جي إف إس أدق حتى خمسة أيام، ويتعادلان حتى ثمانية، "
+                         "والمؤشر أدق بعدها. والقوية من ٢٫٦ فأكثر، والقوية جدًا من ٣٫٥.")
         else:
             lines.append("ودرجة الموجة هنا من عوامل التذبذب الخمسة في صفحتنا وحدها، لأن انتشار الأمطار المتوقع لم يُحسب بعد؛ "
                          "والقوية من ٢٫٦ فأكثر، والقوية جدًا من ٣٫٥.")
@@ -472,6 +562,10 @@ def next_wave(st, day0, days, fac, cur_end):
         regs = [BOX_NAME[k] for k in ("west", "southwest", "north", "central", "east") if k in hit]
         lines.append(f"المناطق المتأثرة من الجزيرة العربية: {join(regs)}.")
         lines += _past_cases(st, day0, v, cpeak)
+        try:
+            lines += scenario(st, day0, start, end, peak)
+        except Exception as e:  # noqa: BLE001
+            print("wave scenario failed:", repr(e), flush=True)
         g = grade(top)
         how = ("أمطار رعدية واسعة تغزر على عدة مناطق، مع احتمال البرد وجريان السيول" if top >= 2.6 else
                "أمطار رعدية متفرقة تغزر أحيانًا، أكثرها على المرتفعات وحيث تلتقي الرطوبة بالأخدود" if top >= 1.8 else

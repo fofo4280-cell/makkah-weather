@@ -107,10 +107,32 @@ def potential(feat, c=None):
     m = kingdom_mask()
     w = np.cos(np.radians(LAT))[:, None] * np.ones_like(p)
     ksa = m >= 0
-    out = {"ksa": float((p * w)[ksa].sum() / w[ksa].sum()), "regions": {}, "p": p}
+    c = c or coef()
+    raw = float((p * w)[ksa].sum() / w[ksa].sum())
+    f = 1.0
+    if c.get("qmap"):          # in the units of the reference rain spread (quantile mapping of the fit)
+        qp, qt = c["qmap"]
+        f = float(np.interp(raw, qp, qt)) / max(raw, 1e-6)
+    out = {"ksa": min(raw * f, 1.0), "raw": raw, "regions": {}, "regions_raw": {}, "p": p}
     for k in sorted(set(m[ksa].tolist())):
         r = m == k
-        out["regions"][int(k)] = float((p * w)[r].sum() / w[r].sum())
+        v = float((p * w)[r].sum() / w[r].sum())
+        out["regions_raw"][int(k)] = v
+        out["regions"][int(k)] = min(v * f, 1.0)
+    return out
+
+
+def spread(rain, thr=5.0):
+    """{'ksa': share of the Kingdom with thr mm or more, 'regions': {region index: share}} of a daily rain field
+    (cut to BOX)"""
+    m = kingdom_mask()
+    w = np.cos(np.radians(LAT))[:, None] * np.ones(rain.shape)
+    wet = (rain >= thr).astype(float)
+    ksa = m >= 0
+    out = {"ksa": float((wet * w)[ksa].sum() / w[ksa].sum()), "regions": {}}
+    for k in sorted(set(m[ksa].tolist())):
+        r = m == k
+        out["regions"][int(k)] = float((wet * w)[r].sum() / w[r].sum())
     return out
 
 
