@@ -348,9 +348,19 @@ def next_wave(st, day0, days, fac, cur_end):
         rc = {d: fc_cover(st, d) for d in days}
         has_rain = [d for d in wave_days if rc.get(d) is not None]
         rpeak = max(has_rain, key=lambda d: rc[d]) if has_rain and max(rc[d] for d in has_rain) >= 0.01 else None
+        # the strongest day of a wave is its most widespread rain (Fahad's rule); with the GFS rain known, the
+        # wave intensifies over the days within 60 % of that widest area
+        if rpeak:
+            top_c = rc[rpeak]
+            i = j = wave_days.index(rpeak)
+            while i > 0 and (rc.get(wave_days[i - 1]) or 0) >= 0.6 * top_c:
+                i -= 1
+            while j + 1 < len(wave_days) and (rc.get(wave_days[j + 1]) or 0) >= 0.6 * top_c:
+                j += 1
+            a, b = wave_days[i], wave_days[j]
         lines.append(f"أقرب موجة قادمة {ar_span(start, end)}، وتشتد {ar_span(a, b) if a != b else 'يوم ' + ar_date(a)}"
-                     + (f"، وأوسع أمطارها المتوقعة {ar_date(rpeak)} (نحو {ar(round(100 * rc[rpeak]))}٪ من مساحة المملكة "
-                        f"بخمسة ملم فأكثر في توقع جي إف إس)" if rpeak else "") + f": {title}.")
+                     + (f"، وأقوى أيامها {ar_date(rpeak)} بأوسع انتشار للأمطار (نحو {ar(round(100 * rc[rpeak]))}٪ من مساحة "
+                        f"المملكة بخمسة ملم فأكثر في توقع جي إف إس)" if rpeak else "") + f": {title}.")
         # strength, against the current wave
         cur_days = [d for d in days if day0 <= d <= max(cur_end, day0)]
         cpeak = max(cur_days, key=lambda d: sc[d]["total"])
@@ -373,9 +383,10 @@ def next_wave(st, day0, days, fac, cur_end):
         lines.append(f"قوتها المتوقعة: {grade(top)}، فدرجة عواملها {n1(top)} من ٥ في أقوى أيام العوامل {ar_date(peak)}، {cmp} "
                      f"الموجة الحالية التي تبلغ درجة عواملها {n1(ctop)} {ar_date(cpeak)}."
                      + (f" الفرق بينهما: {'، '.join(why)}." if why else "")
-                     + (f" ودرجة العوامل تقيس ما يهيئ للأمطار لا مساحتها؛ وأوسع أمطار الموجة الحالية في بقية أيامها "
-                        f"متوقع {ar_date(crpeak)} بنحو {ar(round(100 * rc[crpeak]))}٪ من مساحة المملكة في توقع جي إف إس."
-                        if crpeak else ""))
+                     + (f" ودرجة العوامل تقيس ما يهيئ للأمطار لا انتشارها؛ أما بالانتشار، فأوسع أمطار الموجة القادمة "
+                        f"نحو {ar(round(100 * rc[rpeak]))}٪ من مساحة المملكة، مقابل نحو {ar(round(100 * rc[crpeak]))}٪ "
+                        f"في أقوى أيام الموجة الحالية المتبقية ({ar_date(crpeak)}) في توقع جي إف إس."
+                        if crpeak and rpeak else ""))
         lines.append("وتُحسب الدرجة من خمسة عوامل، لكل منها درجة واحدة كحد أعلى: قوة التذبذب في أطواره الداعمة، "
                      "ووجود الحدث الدافئ في القطاع الداعم، والماء القابل للهطول فوق المعدل، وعمق أخدود الطبقة الوسطى قرب المملكة، "
                      "ومكوّن التذبذب المعزول فوق المملكة. والقوية من ٢٫٦ فأكثر، والقوية جدًا من ٣٫٥.")
