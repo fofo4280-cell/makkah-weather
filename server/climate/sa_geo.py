@@ -55,7 +55,7 @@ PLACES = [
     ("المهد", 23.50, 40.86), ("وادي الفرع", 23.93, 39.73), ("الحسو", 24.18, 40.62), ("الصويدرة", 24.70, 40.07),
     ("البريكة", 22.10, 40.97), ("ثقيف", 21.30, 40.68), ("السيل الكبير", 21.62, 40.43), ("مدركة", 22.08, 39.83),
     ("عسفان", 21.89, 39.35), ("ثول", 22.28, 39.10), ("الخبت", 21.50, 39.40), ("الشرائع", 21.48, 39.98),
-    ("بني مالك", 20.62, 40.92), ("حداء", 21.29, 39.62), ("الحوية", 21.44, 40.50),
+    ("بني مالك", 20.62, 40.92), ("حداء", 21.29, 39.62), ("الحوية", 21.44, 40.50), ("عشيرة", 21.76, 40.65),
     ("البرك", 18.21, 41.54), ("بارق", 18.93, 41.92), ("طريب", 19.59, 44.57), ("الأمواه", 19.43, 42.93),
     ("السودة", 18.27, 42.37), ("الفرعاء", 18.42, 42.89), ("خميس البحر", 17.96, 42.06),
     ("ضمد", 17.11, 42.77), ("الريث", 17.58, 42.98), ("هروب", 17.47, 43.13), ("العيدابي", 17.24, 42.96),
@@ -246,7 +246,11 @@ def _osm():
             _OSM = {}
             return _OSM
         d = json.load(open(p))
-        pl = d["places"]
+        lat_ok = re.compile(r"[A-Za-z]")
+        fix = lambda n: re.sub(r"^طريق [٠-٩]+\s*[-–]\s*", "", re.sub(r"\s+", " ", n.translate(
+            str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")))).strip(" -–")
+        pl = [[fix(x[0])] + x[1:] for x in d["places"] if not lat_ok.search(x[0])]
+        d["lines"] = [[fix(x[0])] + x[1:] for x in d["lines"] if not lat_ok.search(x[0])]
         o = {"pn": [x[0] for x in pl], "plat": np.array([x[1] for x in pl]), "plon": np.array([x[2] for x in pl]),
              "pk": np.array([x[3] for x in pl])}
         ln, lk, la, lo = [], [], [], []
@@ -276,49 +280,70 @@ def _road(name):
     return name if re.match(r"^(طريق|شارع|الطريق|دائري|الدائري|كوبري|جسر)", name) else "طريق " + name
 
 
+# how far the big cities spread from their point in the town list (km)
+BIG_R = {"الرياض": 25, "جدة": 18, "مكة المكرمة": 12, "المدينة المنورة": 12, "الدمام": 12, "الأحساء": 14,
+         "الطائف": 10, "بريدة": 10, "تبوك": 10, "خميس مشيط": 8, "أبها": 8, "حائل": 8, "نجران": 8, "الخبر": 8,
+         "الجبيل": 8, "ينبع": 8, "حفر الباطن": 8, "عنيزة": 7, "سكاكا": 7, "عرعر": 7, "جازان": 6, "القطيف": 6,
+         "الظهران": 6, "الخرج": 7}
+SETTLE_PEN = {"city": 0.0, "town": 0.0, "village": 0.3, "hamlet": 0.6, "suburb": 0.5, "quarter": 0.5,
+              "neighbourhood": 0.5, "locality": 1.0, "isolated_dwelling": 1.5}
+ROAD_PEN = {"motorway": 0.0, "trunk": 0.0, "primary": 0.3, "secondary": 0.6, "tertiary": 1.0}
+GENERIC = re.compile(r"^(ال)?(طريق|شارع)?\s*(ال)?(عام|رئيسي|فرعي|عام الرئيسي|العام|الرئيسي)$")
+BRIDGE = re.compile(r"(جسر|كوبري|كبري|نفق)")
+
+
 def describe(lat, lon, region=None):
     """Where a point is, as precisely as the map allows, e.g.
-    'عند كبري عشيرة على طريق حضن، ٣٢ كم شمال شرق الطائف' or 'قرب قرية الفيصلية في وادي قنونا، ١٤ كم شرق المظيلف'.
+    'قرب عشيرة على طريق ...، ٣٥ كم شمال شرق الطائف' or 'في الحوية (حي ...) على طريق المطار'.
     Falls back to the nearest town of the coarse list when the fine gazetteer is missing."""
     town, td = nearest_place(lat, lon, region)
     o = _osm()
     if not o:
         return f"قرب {town}" if town else ""
     parts = []
-    # a bridge or a junction within 2 km is the most exact landmark
     dp = _km(lat, lon, o["plat"], o["plon"])
-    lm = np.where(np.isin(o["pk"], ["bridge", "junction"]) & (dp <= 2.0))[0]
-    if lm.size:
-        k = lm[np.argmin(dp[lm])]
-        parts.append(f"عند {o['pn'][k]}")
-    # the nearest settlement (village, hamlet or district)
-    st = np.where(np.isin(o["pk"], list(SETTLE)) & (dp <= 8.0))[0]
-    settle = None
-    if st.size:
-        k = st[np.argmin(dp[st])]
-        settle = o["pn"][k]
-        if not parts:
-            parts.append(("في " if dp[k] <= 1.5 else "قرب ") + settle)
+    kinds = o["pk"]
+    # inside a town of the main list (a city spreads further): say so, with the district
+    radius = BIG_R.get(town, 3.0)
+    if town and td <= radius:
+        nb = np.where(np.isin(kinds, ["suburb", "quarter", "neighbourhood"]) & (dp <= 1.5))[0]
+        parts.append(f"في {town}" + (f" (حي {o['pn'][nb[np.argmin(dp[nb])]].removeprefix('حي ')})" if nb.size else ""))
+    else:
+        # a named bridge or a junction within 2 km is the most exact landmark
+        lm = np.where(((kinds == "junction") | ((kinds == "bridge") & np.array([bool(BRIDGE.search(n)) for n in o["pn"]])
+                       if "bmask" not in o else (kinds == "junction") | o["bmask"])) & (dp <= 2.0))[0]
+        if lm.size:
+            parts.append(f"عند {o['pn'][lm[np.argmin(dp[lm])]]}")
+        st = np.where(np.isin(kinds, list(SETTLE_PEN)) & (dp <= 8.0))[0]
+        if st.size:
+            sc = dp[st] + np.array([SETTLE_PEN[k] for k in kinds[st]])
+            k = st[np.argmin(sc)]
+            if not parts:
+                parts.append(("في " if dp[k] <= 1.5 else "قرب ") + o["pn"][k])
+            elif dp[k] <= 3:
+                parts[-1] += f" قرب {o['pn'][k]}"
     # the road or the wadi it is on
     if o["llat"].size:
         dl = _km(lat, lon, o["llat"], o["llon"])
-        rd = np.where((o["lk"] != "wadi") & (o["lk"] != "line") & (dl <= 2.0))[0]
+        road = np.isin(o["lk"], list(ROAD_PEN)) & (dl <= 2.0)
+        rd = np.where(road)[0]
+        in_town = bool(((kinds == "city") & (dp <= 12)).any())   # street names only in the cities; elsewhere, the roads
+        rd = rd[[not GENERIC.match(o["ln"][i]) and (in_town or not o["ln"][i].startswith("شارع")) for i in rd]] if rd.size else rd
         wd = np.where((o["lk"] == "wadi") & (dl <= 1.5))[0]
         if rd.size:
-            k = rd[np.argmin(dl[rd])]
-            parts.append(f"على {_road(o['ln'][k])}")
+            sc = dl[rd] + np.array([ROAD_PEN[k] for k in o["lk"][rd]])
+            parts.append(f"على {_road(o['ln'][rd[np.argmin(sc)]])}")
         elif wd.size:
-            k = wd[np.argmin(dl[wd])]
-            w = o["ln"][k]
-            parts.append(("في " if w.startswith("وادي") else "في وادي ") + w)
-    if not parts:   # open country: the nearest peak, or just the town
-        pk = np.where((o["pk"] == "peak") & (dp <= 4.0))[0]
+            w = o["ln"][wd[np.argmin(dl[wd])]]
+            pre = "ب" if parts and parts[0].startswith("في") else "في "
+            parts.append(pre + (w if re.match(r"^(وادي|شعيب|سيل|خبت)", w) else "وادي " + w))
+    if not parts:   # open country: the nearest peak
+        pk = np.where((kinds == "peak") & (dp <= 4.0))[0]
         if pk.size:
             parts.append(f"قرب {o['pn'][pk[np.argmin(dp[pk])]]}")
     txt = " ".join(parts)
-    # the governorate town for orientation, unless the point is in it
-    if town and (td > 4 or not txt):
+    if town and td > radius:   # the town of the main list, for orientation
         tl, to = PLACE[town]
-        where = f"{_num(td)} كم {direction(tl, to, lat, lon)} {town}" if td > 4 else town
-        txt = f"{txt}، {where}" if txt and town not in txt else (txt or f"قرب {where}")
-    return txt.strip("، ")
+        where = f"{_num(td)} كم {direction(tl, to, lat, lon)} {town}"
+        txt = f"{txt}، {where}" if txt else f"على بعد {where}"
+    return txt

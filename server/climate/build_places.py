@@ -22,6 +22,8 @@ QUERIES = {
                      'node["natural"="saddle"]["name"](area.sa);node["mountain_pass"="yes"]["name"](area.sa););out body;',
     "bridges": AREA + 'way["bridge"]["name"](area.sa);out center;',
     "roads": AREA + 'way["highway"~"^(motorway|trunk|primary|secondary|tertiary)$"]["name"](area.sa);out geom;',
+    "routes": AREA + 'relation["route"="road"](area.sa);out geom;',
+    "refroads": AREA + 'way["highway"~"^(motorway|trunk|primary)$"][!"name"]["ref"](area.sa);out geom;',
     "wadis": AREA + '(way["waterway"~"^(wadi|river|stream)$"]["name"](area.sa);way["natural"="valley"]["name"](area.sa););out geom;',
 }
 
@@ -74,6 +76,12 @@ def main():
         for e in els:
             t = e.get("tags", {})
             n = arname(t)
+            if key == "refroads" and t.get("ref"):
+                n = "الطريق رقم " + t["ref"].split(";")[0].strip()
+                g = e.get("geometry")
+                if g and len(g) >= 2:
+                    out["lines"].append([n, "ref", resample(g, 1.0)])
+                continue
             if not n:
                 continue
             if key == "places":
@@ -85,6 +93,12 @@ def main():
                 c = e.get("center")
                 if c:
                     out["places"].append([n, round(c["lat"], 5), round(c["lon"], 5), "bridge"])
+            elif key == "routes":
+                # a numbered highway as a whole, e.g. "طريق الطائف - الرياض": its member ways
+                for mb in e.get("members", []):
+                    g = mb.get("geometry")
+                    if mb.get("type") == "way" and g and len(g) >= 2:
+                        out["lines"].append([n, "route", resample(g, 1.0)])
             else:
                 g = e.get("geometry")
                 if g and len(g) >= 2:
