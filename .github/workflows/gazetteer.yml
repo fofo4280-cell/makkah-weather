@@ -1,0 +1,25 @@
+# One-off build of the fine gazetteer (villages, roads, bridges, wadis, peaks with Arabic names) from OpenStreetMap,
+# used by the rain report to say exactly where the rain is. Writes server/climate/sa_osm.json on the saudi-wrf branch.
+name: Gazetteer
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+      - name: Build from OpenStreetMap
+        run: python3 server/climate/build_places.py server/climate/sa_osm.json && ls -la server/climate/sa_osm.json
+      - name: Commit
+        run: |
+          git -c user.name="gazetteer bot" -c user.email="actions@users.noreply.github.com" add server/climate/sa_osm.json
+          git -c user.name="gazetteer bot" -c user.email="actions@users.noreply.github.com" commit -q -m "Gazetteer from OpenStreetMap (ODbL)"
+          for b in saudi-wrf saudi-wrf-next; do git push -q origin HEAD:$b || { git pull -q --rebase origin $b && git push -q origin HEAD:$b; }; done
