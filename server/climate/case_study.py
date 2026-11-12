@@ -17,7 +17,7 @@ import daily  # noqa: E402
 
 F = [("z500", r":HGT:500 mb:"), ("t500", r":TMP:500 mb:"), ("u500", r":UGRD:500 mb:"), ("v500", r":VGRD:500 mb:"),
      ("u250", r":UGRD:250 mb:"), ("v250", r":VGRD:250 mb:"), ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
-     ("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("mslp", r":PRMSL:mean sea level:")]
+     ("u700", r":UGRD:700 mb:"), ("v700", r":VGRD:700 mb:"), ("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("mslp", r":PRMSL:mean sea level:")]
 S, N, W, E = 5, 55, 15, 75
 LAT = np.arange(90, -90.5, -1.0)
 LON = np.arange(0, 360, 1.0)
@@ -98,6 +98,11 @@ def summarise(t, f):
         "wind850_redsea": [round(box(u8, 18, 23, 37, 41), 1), round(box(v8, 18, 23, 37, 41), 1)],
         "wind850_hijaz": [round(box(u8, 20, 23, 40, 43), 1), round(box(v8, 20, 23, 40, 43), 1)],
         "t500_makkah": round(box(tt, 20, 23, 39, 42) - 273.15, 1),
+        # the steering of the storms: the mean wind of 700 and 500 hPa (u east-west, v north-south, m/s)
+        "steer_hijaz": [round((box(cut(f["u700"]), 20, 23, 39, 42) + box(cut(f["u500"]), 20, 23, 39, 42)) / 2, 1),
+                        round((box(cut(f["v700"]), 20, 23, 39, 42) + box(cut(f["v500"]), 20, 23, 39, 42)) / 2, 1)],
+        "steer_asir": [round((box(cut(f["u700"]), 17, 20, 41, 44) + box(cut(f["u500"]), 17, 20, 41, 44)) / 2, 1),
+                       round((box(cut(f["v700"]), 17, 20, 41, 44) + box(cut(f["v500"]), 17, 20, 41, 44)) / 2, 1)],
     }
 
 
