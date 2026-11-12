@@ -32,6 +32,7 @@ import coldwave  # noqa: E402
 import rainreport  # noqa: E402
 import bigreport  # noqa: E402
 import mjofilt  # noqa: E402
+import ingredients as ING  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
@@ -347,10 +348,14 @@ def main():
     # 2. the forecast: day 0 (analysis) to FC_DAYS
     fc = {}
     for d in range(0, FC_DAYS + 1):
-        f = gfs_fields(cycle, d * 24, ((Z500, T500) if d <= WAVE_DAYS else ()) + (mjofilt.Z800,) + ((mjofilt.APCP,) if d else ()))
+        base = ((Z500, T500) if d <= WAVE_DAYS else ()) + (mjofilt.Z800,) + ((mjofilt.APCP,) if d else ())
+        have = {"u", "v", "pw"} | {n for n, _ in base}
+        ing = tuple(x for x in ING.FIELDS if x[0] not in have) if ING.coef() else ()
+        f = gfs_fields(cycle, d * 24, base + ing)
         fc[t0 + timedelta(days=d)] = {"chi": sphere.velocity_potential(f["u"], f["v"], LAT1, LON1), "pw": f["pw"],
                                       "z500": f.get("z500"), "t500": f.get("t500"),
-                                      "z800": f.get("z800"), "apcp": f.get("apcp")}
+                                      "z800": f.get("z800"), "apcp": f.get("apcp"),
+                                      "ingr": {n: ING.cut(f[n]) for n, _ in ING.FIELDS if n in f} if ing else None}
     print("forecast days", len(fc), flush=True)
 
     # 3. anomalies: minus climatology, minus the mean anomaly of the previous MEAN_DAYS days
@@ -612,6 +617,24 @@ def main():
     }
     status["troughs"] = trough_tracks
     status["mjof"] = mjof
+    # the rain-spread potential from the large-scale ingredients, day by day over the Kingdom and its regions
+    try:
+        if ING.coef():
+            regs_ = sa_geo.regions()
+            rows = []
+            for dt in sorted(fc):
+                g = fc[dt].get("ingr")
+                if not g or len(g) < len(ING.FIELDS):
+                    continue
+                pot = ING.potential(ING.features(g, ING.pw_normal(clim, doy(dt))))
+                rows.append({"d": dt.strftime("%Y-%m-%d"), "ksa": round(pot["ksa"], 3),
+                             "regions": {regs_[k]["name"]: round(v, 3) for k, v in pot["regions"].items()}})
+            status["ingr"] = rows
+            print("rain-spread potential:", [(r["d"][5:], r["ksa"]) for r in rows], flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("rain-spread potential failed:", repr(e), flush=True)
     # the reports: rain over the Kingdom from our own model (the Makkah day that starts at midnight), and the
     # big picture (now, the next wave, northern cold troughs day by day, cold waves, beyond 15 days)
     om = sa_geo.OpenMeteo()
