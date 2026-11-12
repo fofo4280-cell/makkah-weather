@@ -35,7 +35,10 @@ def fetch(q):
         try:
             req = urllib.request.Request(url, data=data, headers={"User-Agent": "saudi-wrf-gazetteer/1.0"})
             with urllib.request.urlopen(req, timeout=1000) as r:
-                return json.load(r)["elements"]
+                j = json.load(r)
+            if "runtime error" in j.get("remark", "") or "timed out" in j.get("remark", ""):
+                raise RuntimeError(j["remark"][:200])      # a partial answer: try again
+            return j["elements"]
         except Exception as e:  # noqa: BLE001
             print(f"  {url}: {e!r}", flush=True)
             time.sleep(30)
