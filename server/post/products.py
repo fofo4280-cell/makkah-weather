@@ -9,9 +9,11 @@ import math
 import numpy as np
 
 # Stops: (value, colour, alpha 0-255). tf: how values are spread along the scale.
-REFL = [(5, "#7fdcff", 0), (10, "#5cc8f2", 120), (15, "#3aa6e8", 190), (20, "#2bc275", 225),
-        (28, "#16994a", 235), (35, "#f7e348", 240), (42, "#f6a52c", 245), (50, "#ea4a2c", 250),
-        (57, "#b8102f", 250), (63, "#e046e6", 250), (70, "#9a2bd1", 250), (75, "#ffffff", 255)]
+# Radar echo in 5 dBZ bands, in the same colour family as the rain maps (light blue for weak echo, greens,
+# yellow and orange for showers, reds and purples for strong storms, almost white for hail cores)
+REFL = [(5, "#7cc6ee", 110), (10, "#4aa8e6", 160), (15, "#3184dc", 205), (20, "#2a5fcf", 228), (25, "#2fc06a", 238),
+        (30, "#1f9a4f", 240), (35, "#f4d53a", 245), (40, "#f5b02f", 248), (45, "#f58a28", 250), (50, "#e2322b", 250),
+        (55, "#b8102f", 252), (60, "#b0198f", 255), (65, "#6a1b9a", 255), (70, "#efe3ff", 255), (75, "#ffffff", 255)]
 RAIN = [(0.1, "#a8e2ff", 0), (0.5, "#79cbf6", 170), (1.5, "#3d9ce6", 215), (4, "#2a63d0", 235),
         (8, "#2fc06a", 240), (15, "#f4d53a", 245), (25, "#f58a28", 250), (40, "#e2322b", 250),
         (60, "#b0198f", 255), (100, "#6a1b9a", 255)]
@@ -39,13 +41,14 @@ CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "
         (9, "#8f1030", 250), (13, "#4d0a3a", 255)]
 
 PRODUCTS = {
-    "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin"},
+    "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "bands": True, "band_alpha_min": 0},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt", "bands": True},
     "conv925": {"label": "التقاء الرياح عند ٩٢٥ هكتوباسكال", "unit": "×١٠⁻⁵ /ث", "stops": CONV, "tf": "lin", "computed": True},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
 DAILY = {
-    "refl_day": {"label": "أقصى انعكاسية لكل يوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl"},
+    "refl_day": {"label": "أقصى انعكاسية لكل يوم", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "from": "refl", "bands": True,
+                 "band_alpha_min": 0},
 }
 
 # One map per run: rain over the 24 hours after the first 3 (the model's spin-up), or as far as the run got.
@@ -97,7 +100,7 @@ def palette(spec):
         # solid colour bands, one per step of the scale (like a weather-service radar), the weakest band visible too
         b = np.clip(np.searchsorted(pos, t + 1e-9, side="right") - 1, 0, len(stops) - 1)
         rgb = cols[b]
-        alpha = np.maximum(al[b], BAND_ALPHA_MIN)
+        alpha = np.maximum(al[b], spec.get("band_alpha_min", BAND_ALPHA_MIN))
         pal = [0, 0, 0] + [int(round(x)) for x in rgb.reshape(-1)]
         return pal, [0] + [int(round(x)) for x in alpha]
     rgb = np.stack([np.interp(t, pos, cols[:, k]) for k in range(3)], axis=1)
@@ -138,7 +141,7 @@ def legend(spec):
     if spec.get("bands"):
         out["bands"] = True
         for x in out["stops"]:
-            x["a"] = max(x["a"], BAND_ALPHA_MIN)
+            x["a"] = max(x["a"], spec.get("band_alpha_min", BAND_ALPHA_MIN))
     return out
 
 
