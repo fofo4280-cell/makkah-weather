@@ -9,6 +9,9 @@ on:
       step: {default: '3'}
       leads: {default: '0,2,5,8'}
 
+permissions:
+  contents: write
+
 jobs:
   backfill:
     runs-on: ubuntu-24.04
@@ -35,12 +38,16 @@ jobs:
           P
       - name: Past fields
         run: python3 code/server/climate/ingr_backfill.py /home/runner/ingr ${{ inputs.days }} ${{ inputs.step }} ${{ inputs.leads }}
-      - name: Pack
+      - name: Fit and test (scores in the log)
         if: always()
-        run: cd /home/runner && cp pwclim.npz ingr/ 2>/dev/null; tar cf ingr.tar ingr && ls -la ingr.tar
-      - uses: actions/upload-artifact@v4
+        run: |
+          cp /home/runner/pwclim.npz /home/runner/ingr/
+          cd code/server/climate && python3 ingr_fit.py /home/runner/ingr /home/runner/ingr/ingr_coef.json | tee /home/runner/ingr/scores.txt
+      - name: Keep the data on the ingr-data branch
         if: always()
-        with:
-          name: ingr
-          path: /home/runner/ingr.tar
-          retention-days: 30
+        run: |
+          cd /home/runner/ingr
+          git init -q -b data
+          git config user.name "ingredients bot"; git config user.email "actions@users.noreply.github.com"
+          git add -A && git commit -q -m "past GFS fields over Saudi Arabia for the rain-spread potential"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:ingr-data
