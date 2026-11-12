@@ -9,7 +9,10 @@ name: Climate MJO
 
 on:
   schedule:
+    # GitHub may start a scheduled run late or skip it: two more tries, each does nothing if the night is done
     - cron: '33 20 * * *'
+    - cron: '7 21 * * *'
+    - cron: '43 21 * * *'
   push:
     branches: [main]
     paths: ['.github/workflows/climate.yml', 'model/climate-now.txt']
@@ -30,7 +33,25 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      go: ${{ steps.c.outputs.go }}
+    steps:
+      - id: c
+        run: |
+          go=yes
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            c=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/climate-data/mjo.json?$(date +%s)" \
+              | python3 -c "import json,sys; print(json.load(sys.stdin).get('cycle',''))" 2>/dev/null || echo "")
+            echo "published cycle: $c"
+            [ "$c" = "$(date -u +%Y%m%d)12" ] && go=no
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+
   daily:
+    needs: check
+    if: needs.check.outputs.go == 'yes'
     runs-on: ubuntu-24.04
     timeout-minutes: 420
     steps:

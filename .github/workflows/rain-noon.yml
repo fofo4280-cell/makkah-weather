@@ -5,7 +5,10 @@ name: Rain report noon update
 
 on:
   schedule:
+    # two more tries in case GitHub starts the first late or not at all; each does nothing if noon is done
     - cron: '41 8 * * *'
+    - cron: '11 9 * * *'
+    - cron: '41 9 * * *'
   workflow_dispatch:
     inputs:
       publish:
@@ -23,7 +26,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  check:
+    runs-on: ubuntu-24.04
+    outputs:
+      go: ${{ steps.c.outputs.go }}
+    steps:
+      - id: c
+        run: |
+          go=yes
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            n=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/climate-data/mjo.json?$(date +%s)" \
+              | python3 -c "
+          import json,sys
+          r=json.load(sys.stdin).get('report') or {}
+          print(sum(1 for s in r.get('sections',[]) if s.get('kind')=='rain_noon' and (r.get('updated') or '')[:10]=='$(date -u +%Y-%m-%d)'))" 2>/dev/null || echo 0)
+            echo "noon sections today: $n"
+            [ "$n" != 0 ] && go=no
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+
   noon:
+    needs: check
+    if: needs.check.outputs.go == 'yes'
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
