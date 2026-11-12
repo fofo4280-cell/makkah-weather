@@ -287,7 +287,7 @@ BIG_R = {"الرياض": 25, "جدة": 18, "مكة المكرمة": 12, "الم�
          "الظهران": 6, "الخرج": 7}
 SETTLE_PEN = {"city": 0.0, "town": 0.0, "village": 0.3, "hamlet": 0.6, "suburb": 0.5, "quarter": 0.5,
               "neighbourhood": 0.5, "locality": 1.0, "isolated_dwelling": 1.5}
-ROAD_PEN = {"motorway": 0.0, "trunk": 0.0, "primary": 0.3, "secondary": 0.6, "tertiary": 1.0}
+ROAD_PEN = {"motorway": 0.0, "trunk": 0.0, "route": 0.1, "primary": 0.3, "ref": 0.5, "secondary": 0.6, "tertiary": 1.0}
 GENERIC = re.compile(r"^(ال)?(طريق|شارع)?\s*(ال)?(عام|رئيسي|فرعي|عام الرئيسي|العام|الرئيسي)$")
 BRIDGE = re.compile(r"(جسر|كوبري|كبري|نفق)")
 

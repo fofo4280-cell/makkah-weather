@@ -8,7 +8,7 @@ what kind of rain (thunderstorms or steady rain), hail and supercell chances. Th
 Rain, its timing and its type come from our runs only (the 3 km grids, the 9 km Kingdom grid where they do
 not reach); the storm environment for hail and supercells (CAPE, deep shear, freezing level) from GFS and ECMWF.
 """
-import math
+import math, re
 from datetime import timedelta
 
 import numpy as np
@@ -224,7 +224,8 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
                    "at": G.describe(float(cells["lat"][m][wj]), float(cells["lon"][m][wj]), r),
                    "peak": tk(a + int(np.argmax((rain[idx] * w).sum(1))))}
             if not (heavy or mod or light):      # rain away from the towns: name the nearest place
-                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).append(win["at"])
+                (heavy if wmax >= HEAVY else mod if wmax >= MODERATE else light).append(
+                    re.sub(r"^(في|قرب|عند|على بعد) ", "", win["at"]))
             reg["wins"].append(win)
             table.append({"region": r["name"], "day": day_word(win["a"], win["b"]),
                           "window": span_words(win["a"], win["b"]),
