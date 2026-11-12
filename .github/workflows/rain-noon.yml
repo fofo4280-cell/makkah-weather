@@ -11,6 +11,9 @@ on:
       publish:
         description: 'publish to the page (no: print the report only)'
         default: 'yes'
+      mode:
+        description: 'noon (the update from the morning runs) or midnight (rewrite the night report from the evening runs)'
+        default: 'noon'
 
 permissions:
   contents: write
@@ -34,6 +37,7 @@ jobs:
         run: pip install -q numpy shapely
 
       - name: Wait for our 00 UTC runs
+        if: github.event_name == 'schedule' || inputs.mode != 'midnight'
         run: |
           # the Kingdom run is needed; the 3 km runs are used if they are complete by 10:00 UTC (1 pm Makkah)
           R="$(date -u +%Y%m%d)00"
@@ -64,7 +68,7 @@ jobs:
           SA_DATA: /home/runner/sa
           WEST_DATA: /home/runner/west
           REGION_DATA: /home/runner/r_nw /home/runner/r_n /home/runner/r_c /home/runner/r_e /home/runner/r_se
-        run: python3 code/server/climate/refresh_report.py /tmp /home/runner/out noon
+        run: python3 code/server/climate/refresh_report.py /tmp /home/runner/out ${{ github.event_name == 'schedule' && 'noon' || inputs.mode }}
 
       - name: Publish
         if: github.event_name == 'schedule' || inputs.publish == 'yes'
@@ -72,5 +76,5 @@ jobs:
           cd /home/runner/out
           git init -q -b data
           git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
-          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report noon update $(date -u +%Y-%m-%dT%H:%MZ)"
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report ${{ github.event_name == 'schedule' && 'noon' || inputs.mode }} update $(date -u +%Y-%m-%dT%H:%MZ)"
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data
