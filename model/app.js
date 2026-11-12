@@ -787,12 +787,7 @@
     S.run = run;
     try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
     try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
-    try {  // add the Kingdom-wide 9 km domain from its own branch when that run exists
-      const sa = await getJSON(`${DATA_SA}runs/${run}/manifest.json`);
-      if (!S.man) S.man = { ...sa, domains: {} };
-      for (const [k, d] of Object.entries(sa.domains || {})) S.man.domains[k] = { ...d, base: DATA_SA, proj: sa.proj };
-      S.man.products = { ...(sa.products || {}), ...(S.man.products || {}) };
-    } catch (e) { /* not made for this run */ }
+    // the 9 km grids (the Kingdom-wide run and the western 9 km parent) are not shown: only 3 km (Fahad, 13 Nov 2026)
     S.k1wait = false;
     try {  // the 1 km nest (only its own grid; the 9 and 3 km grids there just feed it)
       const k1 = await getJSON(`${DATA_1K}runs/${run}/manifest.json`);
@@ -814,6 +809,7 @@
     }));
     if (S.man) {   // the Kingdom at 3 km: the western highlands and the regional grids drawn together
       const dxOf = (d) => d.dx || (d.points && d.points.dx) || 0;
+      for (const [k, d] of Object.entries(S.man.domains)) if (dxOf(d) > 5000 || k === "d01" || k === "sa") delete S.man.domains[k];
       const mem = ["d02", ...REGIONS.map((r) => r[0])].filter((k) => S.man.domains[k] && dxOf(S.man.domains[k]) === 3000);
       delete S.man.domains.k3;
       if (mem.length >= 2) {
