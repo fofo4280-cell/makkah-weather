@@ -75,10 +75,10 @@ a { color: var(--sea); }
   border: 1px solid var(--glass-line); font-size: .7rem; }
 /* the colour key folded: a very small strip above the "next" button */
 #legend { cursor: pointer; }
-.legend.mini { align-self: auto; width: max-content; margin-left: var(--mini-x, 100px); margin-right: auto; padding: 3px; border-radius: 7px; }
-.legend.mini > :not(.legend-mini) { display: none; }
-.legend:not(.mini) .legend-mini { display: none; }
-.legend-mini { direction: ltr; width: 46px; height: 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.12); }
+.legend.mini { display: none; }
+.lg-mini-ctl { clear: both; }
+.lg-mini { display: block; width: 44px; height: 10px; padding: 0; border-radius: 4px; cursor: pointer;
+  border: 1px solid var(--glass-line); box-shadow: 0 1px 4px rgba(0,0,0,.35); }
 .legend-title { display: flex; justify-content: space-between; color: var(--glass-muted); margin-bottom: 3px; }
 .legend-bar { direction: ltr; height: 10px; border-radius: 5px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.08); }
 .legend-ticks { position: relative; direction: ltr; height: 14px; margin: 1px 6px 0; }

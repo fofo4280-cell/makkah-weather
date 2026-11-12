@@ -92,6 +92,16 @@
     if (e.layer === labelsDark) store.set("labels", on);
     if (e.layer === regions) store.set("regions", on);
   });
+  // the folded colour key: a very small strip under the layers box; a tap opens the full key at the bottom
+  const MiniLg = L.Control.extend({
+    onAdd() {
+      const d = L.DomUtil.create("div", "leaflet-control lg-mini-ctl");
+      d.innerHTML = `<button type="button" id="lgMini" class="lg-mini" aria-label="مفتاح الألوان"></button>`;
+      L.DomEvent.disableClickPropagation(d);
+      return d;
+    },
+  });
+  new MiniLg({ position: "topleft" }).addTo(map);
   L.control.zoom({ position: "topleft" }).addTo(map);
   map.attributionControl.setPrefix(false);
   map.on("zoomend", () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7));
@@ -285,14 +295,15 @@
     const p = S.man && S.man.products[S.prod];
     if (!p) { $("legend").innerHTML = ""; return; }
     const lg = p.legend;
-    const grad = lg.stops.map((x) => `${rgba(x.c, x.a)} ${(x.p * 100).toFixed(1)}%`).join(", ");
+    const grad = lg.bands
+      ? lg.stops.slice(0, -1).map((x, i) => `${rgba(x.c, x.a)} ${(x.p * 100).toFixed(1)}% ${(lg.stops[i + 1].p * 100).toFixed(1)}%`).join(", ")
+      : lg.stops.map((x) => `${rgba(x.c, x.a)} ${(x.p * 100).toFixed(1)}%`).join(", ");
     const step = lg.stops.length > 7 ? 2 : 1;
     const ticks = lg.stops.map((x, i) => (i % step === 0 || i === lg.stops.length - 1)
       ? `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v, x.v < 1 ? 1 : 0)}</span>` : "").join("");
-    $("legend").innerHTML = `<div class="legend-mini" style="background:linear-gradient(to right, ${grad})"></div>
-      <div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
+    setMini(`linear-gradient(to right, ${grad})`);
+    $("legend").innerHTML = `<div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
-    placeMini();
   }
 
   // colour of a value on a product's scale (for the small charts)
@@ -335,24 +346,18 @@
   setInterval(syncPills, 400);
   document.addEventListener("change", (e) => { if (e.target && (e.target.id === "domSelect" || e.target.id === "prodSelect")) syncPills(); });
 
-  // the colour key: a very small strip above the "next" button; a tap opens the full key, another closes it
+  // the colour key: folded by default (only the small strip under the layers box); a tap on the strip opens the
+  // full key at the bottom, a tap on either closes it again
   const LG = $("legend");
   try { if (localStorage.getItem("lgOpen") === "1") LG.classList.remove("mini"); } catch (e) { /* no storage */ }
   function lgToggle() {
     LG.classList.toggle("mini");
     try { localStorage.setItem("lgOpen", LG.classList.contains("mini") ? "0" : "1"); } catch (e) { /* no storage */ }
-    placeMini();
   }
+  function setMini(bg) { const m = $("lgMini"); if (m) m.style.background = bg; }
+  $("lgMini").addEventListener("click", lgToggle);
   LG.addEventListener("click", lgToggle);
   LG.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); lgToggle(); } });
-  function placeMini() {
-    const b = $("btnNext"), box = LG.parentElement;
-    if (!b || !box || !b.offsetWidth) return;
-    const rb = b.getBoundingClientRect(), rx = box.getBoundingClientRect();
-    box.style.setProperty("--mini-x", Math.max(0, Math.round(rb.left + rb.width / 2 - rx.left - 27)) + "px");
-  }
-  window.addEventListener("resize", placeMini);
-  setTimeout(placeMini, 300);
 
   function drawProducts() {
     const sel = $("prodSelect");
@@ -597,7 +602,8 @@
   function liLegend() {
     const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
     const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
-    $("legend").innerHTML = `<div class="legend-mini" style="background:linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})"></div><div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
+    setMini(`linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})`);
+    $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
       <div class="bolt-key">${keys}</div>`;
   }
 
