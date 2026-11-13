@@ -142,14 +142,25 @@ def gefs_step(arg):
 def ecmwf(first, last):
     from ecmwf.opendata import Client
     import pygrib
-    cl = Client(source="aws")
     out = {}
     tgt = "/tmp/ec.grib2"
-    try:
-        d = cl.latest(type="ep", stream="enfo")
-        print("ECMWF ENS cycle", d, flush=True)
-    except Exception as e:  # noqa: BLE001
-        print("ECMWF latest failed", repr(e)[:120]); return out
+    cl = d = None
+    # the AWS mirror throttled on 13 Nov 2026 (503 for 50 minutes): try the mirrors in turn, with few retries
+    for src in ("ecmwf", "azure", "aws"):
+        try:
+            c_ = Client(source=src, preserve_request_order=True)
+            try:
+                c_.retries = 2; c_.delay = 10
+            except Exception:  # noqa: BLE001
+                pass
+            d = c_.latest(type="ep", stream="enfo")
+            cl = c_
+            print("ECMWF source", src, "ENS cycle", d, flush=True)
+            break
+        except Exception as e:  # noqa: BLE001
+            print("ECMWF", src, "failed", repr(e)[:120], flush=True)
+    if cl is None:
+        return out
     c = d.replace(tzinfo=timezone.utc) if d.tzinfo is None else d
     # probabilities of 24 h rain and of 2 m temperature anomalies, per day
     days = []
