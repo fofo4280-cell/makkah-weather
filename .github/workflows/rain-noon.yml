@@ -17,6 +17,9 @@ on:
       mode:
         description: 'noon (the update from the morning runs) or midnight (rewrite the night report from the evening runs)'
         default: 'noon'
+      wait:
+        description: 'wait for the morning runs to complete (no: use what is published now)'
+        default: 'yes'
 
 permissions:
   contents: write
@@ -61,7 +64,7 @@ jobs:
         run: pip install -q numpy shapely
 
       - name: Wait for our 00 UTC runs
-        if: github.event_name == 'schedule' || inputs.mode != 'midnight'
+        if: github.event_name == 'schedule' || (inputs.mode != 'midnight' && inputs.wait != 'no')
         run: |
           # the Kingdom run is needed; the 3 km runs are used if they are complete by 10:00 UTC (1 pm Makkah)
           R="$(date -u +%Y%m%d)00"
