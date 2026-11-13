@@ -40,7 +40,7 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-24.04
-    timeout-minutes: 100
+    timeout-minutes: 300
     outputs:
       go: ${{ steps.done.outputs.go }}
     steps:
@@ -61,12 +61,15 @@ jobs:
         run: |
           [ "${{ github.event_name }}" = "schedule" ] || exit 0
           H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); D=$(date -u +%Y%m%d)
-          U="https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f033.idx"
-          for i in $(seq 1 90); do
+          # the same store the model reads (AWS lags NOMADS by some minutes). A schedule GitHub fires hours early
+          # (13 Nov 2026: the 02:47 try started at 12:06) waits here, not in the model jobs, whose clock starts
+          # when they start (they waited 2 hours, gave up 5 minutes before the files came, and the cycle was lost)
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f033.idx"
+          for i in $(seq 1 280); do
             if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $D $C ready"; exit 0; fi
             sleep 60
           done
-          echo "still waiting after 90 minutes; the model job will wait or fall back"
+          echo "still waiting after 280 minutes; the model job will wait or fall back"
 
   west:
     needs: gate
