@@ -8,7 +8,7 @@ most-unstable parcels (CAPE, CIN, LCL, LFC, EL, source level), lapse rates, mean
 GFS's own CAPE/CIN fields. Nothing is published; it is read from the log.
 """
 import os, re, sys
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor
 
 import numpy as np
 
@@ -33,18 +33,23 @@ def fields(cyc, fh):
         for v in ("TMP", "RH", "UGRD", "VGRD", "HGT"):
             want.append((f"{v}{p}", rf":{v}:{p} mb:"))
     out = {}
-
-    def one(item):
-        try:
-            return item[0], daily.gfs_fields(cyc, fh, res="0p25", fields=[item])[item[0]]
-        except Exception as e:  # noqa: BLE001
-            return item[0], None
-
-    with ThreadPoolExecutor(12) as ex:
-        for k, a in ex.map(one, want):
+    # separate processes: daily.gfs_fields writes its temporary file under the process id
+    with ProcessPoolExecutor(8) as ex:
+        for k, a in ex.map(_one, [(cyc, fh, w) for w in want]):
             if a is not None:
                 out[k] = a
     return out
+
+
+def _one(arg):
+    cyc, fh, item = arg
+    import daily
+    for _ in range(3):
+        try:
+            return item[0], daily.gfs_fields(cyc, fh, res="0p25", fields=[item])[item[0]]
+        except Exception:  # noqa: BLE001
+            continue
+    return item[0], None
 
 
 def pick(a, lat, lon):
