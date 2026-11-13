@@ -45,7 +45,8 @@ jobs:
             c=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/climate-data/mjo.json?$(date +%s)" \
               | python3 -c "import json,sys; print(json.load(sys.stdin).get('cycle',''))" 2>/dev/null || echo "")
             echo "published cycle: $c"
-            [ "$c" = "$(date -u +%Y%m%d)12" ] && go=no
+            # the night's cycle: a late schedule firing after midnight UTC still belongs to the evening before
+            [ "$c" = "$(date -u -d '12 hours ago' +%Y%m%d)12" ] && go=no
           fi
           echo "go=$go" >> "$GITHUB_OUTPUT"
 
