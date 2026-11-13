@@ -1,0 +1,26 @@
+# Hand study of a day's convective chance: GFS 0.25 degree soundings at points of the western sector, printed to
+# the log (nothing published).
+name: Soundings
+
+on:
+  workflow_dispatch:
+    inputs:
+      cycle: {description: 'GFS cycle YYYYMMDDHH'}
+      first: {default: '6'}
+      last: {default: '24'}
+      step: {default: '3'}
+
+permissions:
+  contents: read
+
+jobs:
+  sound:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy scipy pygrib metpy shapely
+      - run: python3 code/server/climate/soundings.py ${{ inputs.cycle }} ${{ inputs.first }} ${{ inputs.last }} ${{ inputs.step }}
