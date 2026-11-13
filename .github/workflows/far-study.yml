@@ -1,0 +1,26 @@
+# Hand study of the weather at a far point (Istanbul by default) for some days ahead, from GFS, GEFS and ECMWF
+# open data; printed to the log (nothing published).
+name: Far study
+
+on:
+  workflow_dispatch:
+    inputs:
+      first: {description: 'first day YYYYMMDD'}
+      last: {description: 'last day YYYYMMDD'}
+      lat: {default: '41.01'}
+      lon: {default: '28.98'}
+
+permissions:
+  contents: read
+
+jobs:
+  study:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy scipy pygrib requests ecmwf-opendata
+      - run: python3 code/server/climate/europe_study.py ${{ inputs.first }} ${{ inputs.last }} ${{ inputs.lat }} ${{ inputs.lon }}
