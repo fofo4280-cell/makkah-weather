@@ -1182,7 +1182,8 @@
   }
   function beltCard() {
     const st = M.st, days = st.days || [];
-    const have = !!(st.figs && st.figs.kel && st.marks);
+    // hidden on 14 Nov 2026 at Fahad's request: the maps are rebuilt one by one with him
+    const have = false && !!(st.figs && st.figs.kel && st.marks);
     $("beltCard").hidden = !have;
     if (!have) return;
     // one chart of the four maps stacked, with their colour bars and the marker key inside (since 15 Nov 2026);
