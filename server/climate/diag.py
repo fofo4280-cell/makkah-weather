@@ -114,7 +114,7 @@ def text(rows, now):
     t_min = min(r["t500_makkah"] for r in past + fut)
     warm = next((r for r in fut if r["t500_makkah"] >= t_pre - 0.5), None)
     if t_now <= t_pre - 1.5 or t_min <= t_pre - 2:
-        s = f"البرد العلوي فوق مكة والطائف: {n1(t_now)}° عند ٥٠٠ اليوم، وكان {n1(t_pre)}° قبل الموجة"
+        s = f"البرد العلوي فوق مكة والطائف: {n1(t_now)}° عند ٥٠٠ في آخر تحليل، وكان {n1(t_pre)}° قبل الموجة"
         cold_f = [r for r in fut if r["t500_makkah"] <= t_pre - 1.5]
         if cold_f:
             s += f"، ويبقى حول {n1(min(r['t500_makkah'] for r in cold_f))}° حتى {ar_date(mk_day(cold_f[-1]['time']))}"
