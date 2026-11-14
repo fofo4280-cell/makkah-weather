@@ -736,7 +736,7 @@ def main():
         if os.environ.get("RAIN_PENDING"):
             rain = {"heading": "الأمطار على المملكة", "table": [], "data": {},
                     "lines": ["يُكتب تقرير الأمطار حين يكتمل تشغيل نموذجنا الليلي (دورة ١٢ غرينتش) على المملكة، "
-                              "عادة بعد منتصف الليل بقليل."]}
+                              "قرابة الثانية فجرًا."]}
         else:
             rain = rainreport.rain_report(t_a, t_a + timedelta(hours=24), ours, status, om, issue="midnight")
     except Exception as e:

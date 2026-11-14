@@ -72,8 +72,9 @@ def _today(st, day0):
         parts = []
         for kd in ("upper", "mixed", "thermal"):
             if kd in groups:
-                vals = "، ".join(f"{bx[k]['name']} {n1(bx[k]['t'])}° ({'أبرد' if bx[k]['anom'] < 0 else 'أدفأ'} من المعدل "
-                                 f"بـ{num(abs(bx[k]['anom']), 1)}°)" for k in groups[kd])
+                dev = lambda a: ("قريبة من المعدل" if abs(a) < 0.3 else
+                                 f"{'أبرد' if a < 0 else 'أدفأ'} من المعدل بـ{num(abs(a), 1)}°")
+                vals = "، و".join(f"{bx[k]['name']} {n1(bx[k]['t'])}° ({dev(bx[k]['anom'])})" for k in groups[kd])
                 parts.append(f"{P.WORDS[kd][0]} فوق {vals}: {P.WORDS[kd][1]}")
         out.append("نمط الحالة (حرارة ٥٠٠ هكتوباسكال عصر اليوم مقابل معدلها): " + "؛ و".join(parts) + ".")
     if zs:
