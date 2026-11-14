@@ -1,0 +1,26 @@
+# Hand study: how much of the wet-season rain over each part of the Kingdom the tropical system explains alone,
+# against troughs and moisture surges. Printed to the log (nothing published).
+name: Tropics study
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  study:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - uses: actions/checkout@v4
+        with:
+          ref: ingr-data
+          path: ingr
+      - run: pip install -q numpy scipy shapely requests pygrib
+      - run: curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/climate-data/mjo.json" -o mjo.json
+      - run: python3 code/server/climate/tropics_share.py ingr mjo.json
