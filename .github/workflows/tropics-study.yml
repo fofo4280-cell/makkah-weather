@@ -4,6 +4,8 @@ name: Tropics study
 
 on:
   workflow_dispatch:
+    inputs:
+      long: {description: 'yes: the 25-season test (CHIRPS, RMM, ENSO, IOD, NCEP troughs and moisture)', default: 'no'}
 
 permissions:
   contents: read
@@ -11,7 +13,7 @@ permissions:
 jobs:
   study:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 170
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,6 +23,14 @@ jobs:
         with:
           ref: ingr-data
           path: ingr
-      - run: pip install -q numpy scipy shapely requests pygrib
+      - run: pip install -q numpy scipy shapely requests pygrib netCDF4
       - run: curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/climate-data/mjo.json" -o mjo.json
-      - run: python3 code/server/climate/tropics_share.py ingr mjo.json
+      - if: inputs.long != 'yes'
+        run: python3 code/server/climate/tropics_share.py ingr mjo.json
+      - if: inputs.long == 'yes'
+        run: python3 code/server/climate/tropics_long.py 2001 2026 long.json
+      - if: inputs.long == 'yes'
+        uses: actions/upload-artifact@v4
+        with:
+          name: tropics-long
+          path: long.json
