@@ -1,0 +1,116 @@
+{
+ "phase": "cycle",
+ "steps": [
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج الجزء الثاني",
+   "state": "running",
+   "state_prev": "running",
+   "started": "2026-11-14T18:51:53Z",
+   "note": "الساعة 21 من 33"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "pending"
+  }
+ ],
+ "history": [
+  {
+   "cycle": "2026111412",
+   "ok": 1,
+   "minutes": 178,
+   "cores": 4,
+   "finished": "2026-11-14T18:50Z"
+  },
+  {
+   "cycle": "2026111400",
+   "ok": 1,
+   "minutes": 205,
+   "cores": 4,
+   "finished": "2026-11-14T10:49Z"
+  },
+  {
+   "cycle": "2026111400",
+   "ok": 1,
+   "minutes": 210,
+   "cores": 4,
+   "finished": "2026-11-14T07:22Z"
+  },
+  {
+   "cycle": "2026111312",
+   "ok": 1,
+   "minutes": 223,
+   "cores": 4,
+   "finished": "2026-11-13T22:03Z"
+  },
+  {
+   "cycle": "2026111312",
+   "ok": 1,
+   "minutes": 150,
+   "cores": 4,
+   "finished": "2026-11-13T18:18Z"
+  },
+  {
+   "cycle": "2026111300",
+   "ok": 1,
+   "minutes": 185,
+   "cores": 4,
+   "finished": "2026-11-13T09:48Z"
+  },
+  {
+   "cycle": "2026111300",
+   "ok": 1,
+   "minutes": 165,
+   "cores": 4,
+   "finished": "2026-11-13T06:41Z"
+  },
+  {
+   "cycle": "2026111212",
+   "ok": 1,
+   "minutes": 187,
+   "cores": 4,
+   "finished": "2026-11-12T23:06Z"
+  },
+  {
+   "cycle": "2026111212",
+   "ok": 1,
+   "minutes": 171,
+   "cores": 4,
+   "finished": "2026-11-12T19:57Z"
+  },
+  {
+   "cycle": "2026111200",
+   "ok": 1,
+   "minutes": 219,
+   "cores": 4,
+   "finished": "2026-11-12T15:01Z"
+  },
+  {
+   "cycle": "2026111200",
+   "ok": 1,
+   "minutes": 187,
+   "cores": 4,
+   "finished": "2026-11-12T11:21Z"
+  },
+  {
+   "cycle": "2026111112",
+   "ok": 1,
+   "minutes": 180,
+   "cores": 4,
+   "finished": "2026-11-11T22:31Z"
+  },
+  {
+   "cycle": "2026111112",
+   "ok": 1,
+   "minutes": 178,
+   "cores": 4,
+   "finished": "2026-11-11T19:29Z"
+  }
+ ],
+ "cycle": "2026111412",
+ "message": "الدورة قيد التشغيل",
+ "started": "2026-11-14T18:51:49Z",
+ "updated": "2026-11-14T20:10:19Z",
+ "finished": "2026-11-14T18:51:49Z"
+}
