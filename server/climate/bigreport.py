@@ -210,7 +210,10 @@ def _vals(st, d):
 
 
 def strength(st, d):
-    """{'mjo','warm','pw','trough','mjof'} each 0..1, and 'total' (0..5)"""
+    """{'mjo','warm','pw','trough','mjof','ros'} each 0..1, and 'total' (0..5).
+    'ros': the Rossby family of the 200 hPa velocity potential over the Kingdom (Fahad, 14 Nov 2026), negative in
+    22 of the 24 wide rain days of the past season; it adds to the five others, and the total is held at 5, so a
+    day without it keeps the score it had."""
     v = _vals(st, d)
     c = {}
     m = v["m"]
@@ -220,7 +223,9 @@ def strength(st, d):
     c["trough"] = min(max(-v["tr"][0] / 60, 0), 1) if v["tr"] else 0.0
     ref = (st.get("mjof") or {}).get("z_ref") or 10
     c["mjof"] = min(max(-v["mf"][0] / (2 * ref), 0), 1) if v["mf"] else 0.0
-    c["total"] = round(sum(c.values()), 2)
+    r = _tw(st, d, "ros")
+    c["ros"] = min(max(-r[0] / (2 * r[1]), 0), 1) if r else 0.0
+    c["total"] = round(min(sum(c.values()), 5.0), 2)
     return c
 
 
@@ -696,7 +701,7 @@ def next_wave(st, day0, days, fac, cur_end):
         cpeak = max(cur_days, key=lambda d: ws[d]["score"])
         ctop = ws[cpeak]["score"]
         names = {"mjo": "التذبذب المداري", "warm": "الحدث الدافئ", "pw": "الرطوبة", "trough": "عمق الأخاديد",
-                 "mjof": "دعم المكوّن المعزول"}
+                 "mjof": "دعم المكوّن المعزول", "ros": "دعم عائلة روسبي"}
         diff = sorted(((sc[peak][k] - sc[cpeak][k], k) for k in names), key=lambda x: x[0])
         weaker = [names[k] for x, k in diff if x <= -0.2]
         stronger = [names[k] for x, k in diff[::-1] if x >= 0.2]
