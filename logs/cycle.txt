@@ -1,0 +1,3 @@
+[2026-11-14T18:01:49Z] cycle 2026111412 on 4 cores
+[2026-11-14T18:01:54Z] === step wrf: start
+[2026-11-14T18:01:54Z] going on from the restart files of hour 15
