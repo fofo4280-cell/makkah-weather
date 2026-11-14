@@ -25,7 +25,18 @@ jobs:
           path: ingr
       - run: pip install -q numpy scipy shapely requests pygrib netCDF4
       - run: curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/climate-data/mjo.json" -o mjo.json
-      - if: inputs.long != 'yes'
+      - if: inputs.long == 'probe'
+        run: |
+          for u in "https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p25/chirps-v2.0.2001.days_p25.nc" \
+                   "https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p25/" \
+                   "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily/final/rnl/netcdf/" \
+                   "https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p25/.prcp/X/34/56/RANGEEDGES/Y/15/33/RANGEEDGES/T/(1%20Jan%202001)/(31%20Jan%202001)/RANGEEDGES/data.nc" \
+                   "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Dailies/surface/pr_wtr.eatm.2001.nc" \
+                   "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Dailies/pressure/hgt.2001.nc"; do
+            echo "== $u"; curl -sSL -m 120 -r 0-2000000 -o /tmp/x -w "code %{http_code} size %{size_download} time %{time_total}\n" "$u" || true
+            head -c 300 /tmp/x | strings | head -5
+          done
+      - if: inputs.long == 'no'
         run: python3 code/server/climate/tropics_share.py ingr mjo.json
       - if: inputs.long == 'yes'
         run: python3 code/server/climate/tropics_long.py 2001 2026 long.json
