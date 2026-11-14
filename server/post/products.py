@@ -43,7 +43,6 @@ CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "bands": True, "band_alpha_min": 0},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt", "bands": True},
-    "conv925": {"label": "التقاء الرياح عند ٩٢٥ هكتوباسكال", "unit": "×١٠⁻⁵ /ث", "stops": CONV, "tf": "lin", "computed": True},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
 DAILY = {
