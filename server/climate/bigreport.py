@@ -128,7 +128,7 @@ def report(st, day0):
     # ---------------------------------------------------------------- 2. the nearest wave to come, tracked day by day
     lines, watch = next_wave(st, day0, days, fac, cur_end)
     st["wave_watch"] = watch
-    sections.append({"heading": "أقرب موجة قادمة", "lines": lines})
+    sections.append({"heading": "الموجات القادمة", "lines": lines})
     return sections
 
 
@@ -396,6 +396,166 @@ def _plural_days(n):
     return "يوم واحد" if n == 1 else "يومان" if n == 2 else f"{ar(n)} أيام" if n <= 10 else f"{ar(n)} يومًا"
 
 
+def _runs(days, has):
+    """[(first, last)] of the unbroken runs of days where has(d)"""
+    out, a = [], None
+    for d in days:
+        if has(d):
+            a = a or d
+        elif a:
+            out.append((a, days[days.index(d) - 1])); a = None
+    if a:
+        out.append((a, days[-1]))
+    return out
+
+
+def _span_list(rs, day0):
+    return "، و".join(("من اليوم حتى " + ar_date(b)) if a <= day0 else (ar_span(a, b) if a != b else ar_date(a)) for a, b in rs)
+
+
+def drivers_timeline(st, day0, days):
+    """How the drivers move over the whole range of the data (Fahad, 14 Nov 2026: read the waves from the movement
+    of the isolated MJO component and of the warm event and when they come back over the places that favour the
+    Peninsula, with the other drivers): one sentence for each driver."""
+    out = []
+    last = days[-1]
+    ref = (st.get("mjof") or {}).get("z_ref") or 10
+    # the isolated MJO component over the Kingdom
+    mz = [(d, _mf(st, d)) for d in days]
+    mz = [(d, x[0], x[2]) for d, x in mz if x]
+    if mz:
+        last = min(last, mz[-1][0])
+        sup = _runs([d for d, _, _ in mz], lambda d: next(z for e, z, _ in mz if e == d) <= -ref / 3)
+        sup_s = _runs([d for d, _, _ in mz], lambda d: next(z for e, z, _ in mz if e == d) <= -ref)
+        brk = _runs([d for d, _, _ in mz], lambda d: next(z for e, z, _ in mz if e == d) >= ref / 3)
+        hi = max(mz, key=lambda x: x[1]); lo = min(mz, key=lambda x: x[1])
+        t = (f"مكوّن التذبذب المعزول فوق المملكة في مدى البيانات (حتى {ar_date(mz[-1][0])}): يبدأ {n1(mz[0][1])} م "
+             f"وينتهي {n1(mz[-1][1])} م؛ ")
+        parts = []
+        if brk:
+            parts.append(f"كابح {_span_list(brk, day0)} (أقصاه {n1(hi[1])} م {ar_date(hi[0])})")
+        if sup:
+            parts.append(f"داعم {_span_list(sup, day0)}" + (f"، وبقوة {_span_list(sup_s, day0)}" if sup_s else "")
+                         + (f" (أعمقه {n1(lo[1])} م {ar_date(lo[0])})" if lo[1] <= -ref / 3 else ""))
+        if not parts:
+            parts.append("قريب من الصفر طوال المدة، لا يدعم ولا يكبح")
+        t += "، و".join(parts)
+        # where the envelope of the MJO goes: its centre's longitude
+        c0, c1 = mz[0][2], mz[-1][2]
+        if B.region_name(c0) != B.region_name(c1):
+            jump = next((d for (d, _, c), (_, _, cp) in zip(mz[1:], mz) if abs(((c - cp + 180) % 360) - 180) > 60), None)
+            gen = lambda x: x.replace("الأمريكتان", "الأمريكتين")
+            t += (f"؛ ومركز غلاف التذبذب ينتقل من فوق {gen(B.region_name(c0))} إلى فوق {gen(B.region_name(c1))}"
+                  + (f" ابتداءً من {ar_date(jump)}، أي بداية دورة جديدة تقترب من الغرب" if jump else ""))
+        out.append(t + ".")
+    # the warm event
+    if st.get("hov"):
+        w1 = {date.fromisoformat(d): (lo, a) for d, lo, a in B.wave1(st["hov"])}
+        wd = [d for d in days if d in w1]
+        if wd:
+            last = min(last, wd[-1])
+            fav = _runs(wd, lambda d: w1[d][1] >= 4 and B.favourable(w1[d][0]))
+            t = f"الحدث الدافئ في مدى البيانات (حتى {ar_date(wd[-1])}): "
+            if fav:
+                where = []
+                for a, b in fav:
+                    lo = w1[max([d for d in wd if a <= d <= b], key=lambda d: w1[d][1])][0]
+                    where.append(f"{(('من اليوم حتى ' + ar_date(b)) if a <= day0 else (ar_span(a, b) if a != b else ar_date(a)))} فوق {B.region_name(lo).replace('الأمريكتان', 'الأمريكتين')}")
+                t += "في القطاع الداعم للجزيرة العربية " + "، و".join(where)
+                outside = [d for d in wd if not (w1[d][1] >= 4 and B.favourable(w1[d][0]))]
+                if outside:
+                    t += f"؛ وخارجه {_span_list(_runs(wd, lambda d: d in outside), day0)}"
+            else:
+                t += f"خارج القطاع الداعم طوال المدة، فوق {B.region_name(w1[wd[0]][0])} ثم {B.region_name(w1[wd[-1]][0])}"
+            out.append(t + ".")
+    # the MJO itself
+    ms = [(d, B.rmm_on(st, d)) for d in days]
+    ms = [(d, m) for d, m in ms if m]
+    if ms:
+        wet = _runs([d for d, _ in ms], lambda d: (lambda m: m and m["amp"] >= 1 and m["phase"] in B.WET_PHASES)(B.rmm_on(st, d)))
+        pk = max(ms, key=lambda x: x[1]["amp"])
+        out.append(f"التذبذب المداري: " + (f"في الأطوار الداعمة {_span_list(wet, day0)}" if wet else "خارج الأطوار الداعمة")
+                   + f"، وأشد ما يكون {ar_date(pk[0])} (الطور {ar(pk[1]['phase'])} بشدة {n1(pk[1]['amp'])})، "
+                   f"وينتهي المدى {ar_date(ms[-1][0])} بالطور {ar(ms[-1][1]['phase'])} بشدة {n1(ms[-1][1]['amp'])}.")
+    return out, last
+
+
+def wave_list(st, day0, days, f, cur_end):
+    """Every wave in the range of the data: [{start, end, peak, top, kind, regions, for, against}]"""
+    keys = lambda d: {k for k, _ in f[d]}
+    ok = lambda d: (len(keys(d)) >= 2 and keys(d) & {"surge", "trough", "cold"}) or "cold" in keys(d)
+    cand = [d for d in days if d > cur_end + timedelta(days=1)]
+    sc = {d: strength(st, d) for d in days}
+    rc = {d: (lambda c: None if c is None else c["ksa"])(combined(st, d, day0)) for d in days}
+    ws = {d: wave_score(st, d, day0, sc[d], rc[d]) for d in days}
+    ref = (st.get("mjof") or {}).get("z_ref") or 10
+    names = {"mjo": "التذبذب المداري في طور داعم", "warm": "الحدث الدافئ في القطاع الداعم",
+             "pw": "رطوبة فوق المعدل", "trough": "أخدود عميق قريب", "mjof": "المكوّن المعزول الداعم"}
+    out = []
+    for a, b in _runs(cand, ok):
+        wd = [d for d in days if a <= d <= b]
+        allk = set().union(*(keys(d) for d in wd))
+        T, R = allk & {"mjo", "warm"}, allk & {"trough", "cold"}
+        kind = "mixed" if T and R else "tropical" if T else "troughs"
+        peak = max(wd, key=lambda d: ws[d]["score"])
+        c = sc[peak]
+        pro = [names[k] for k in names if c.get(k, 0) >= 0.3]
+        con = []
+        mf = _mf(st, peak)
+        if mf and mf[0] >= ref / 3:
+            con.append(f"المكوّن المعزول كابح ({n1(mf[0])} م)")
+        if not c.get("warm"):
+            con.append("الحدث الدافئ خارج القطاع الداعم")
+        if c.get("pw", 0) < 0.1:
+            con.append("الرطوبة قريبة من المعدل")
+        # the parts reached: the moist boxes and the trough areas over the wave's days
+        hit = set()
+        for d in wd:
+            row = next((r for r in st.get("pw", []) if r["d"] == d.isoformat()), None)
+            if row:
+                hit |= {k for k in BOX_NAME if k in row and row[k]["pct"] >= 130}
+            for k, w in f[d]:
+                if k in ("trough", "cold"):
+                    hit |= _parts(w)
+        if not hit:
+            hit = {"southwest", "west"} if kind == "tropical" else {"north"}
+        regs = [BOX_NAME[k] for k in ("west", "southwest", "north", "central", "east") if k in hit]
+        out.append({"start": a, "end": b, "peak": peak, "top": ws[peak]["score"], "drivers": c["total"],
+                    "cover": rc.get(peak), "kind": kind, "regions": regs, "pro": pro, "con": con})
+    return out
+
+
+def waves_overview(st, day0, days, f, cur_end):
+    """the lines that open the waves section: the drivers' movement, then every wave in the data's range"""
+    lines, last = drivers_timeline(st, day0, days)
+    days = [d for d in days if d <= last]
+    wl = wave_list(st, day0, days, f, cur_end)
+    kinds = {"mixed": "مدارية مع أخاديد (مركّبة)", "tropical": "مدارية معزولة", "troughs": "أخاديد دون دعم مداري"}
+    if not wl:
+        return lines, wl
+    lines.append(f"الموجات التي تجتمع لها العوامل في مدى البيانات (حتى {ar_date(days[-1])})، من أقربها:")
+    for k, w in enumerate(wl):
+        span_w = ar_span(w["start"], w["end"]) if w["start"] != w["end"] else ar_date(w["start"])
+        t = (f"• {span_w}: موجة {kinds[w['kind']]}، قوتها {grade(w['top'])} ({n1(w['top'])} من ٥، ودرجة العوامل {n1(w['drivers'])})"
+             + (f"، وأقوى أيامها {ar_date(w['peak'])}" if w["start"] != w["end"] else "")
+             + (f" بانتشار نحو {ar(round(100 * w['cover']))}٪ من مساحة المملكة" if (w.get("cover") or 0) >= 0.01 else
+                "، ولم يظهر لها انتشار يُذكر في توقع المطر بعد" if w.get("cover") is not None else "")
+             + f"؛ تجتمع فيها: {join(w['pro']) if w['pro'] else 'عوامل ضعيفة'}")
+        if w["con"]:
+            t += f"؛ ويضعفها: {join(w['con'])}"
+        t += f"؛ وتشمل: {join(w['regions'])}."
+        lines.append(t)
+    if len(wl) > 1:
+        best = max(wl, key=lambda w: w["top"])
+        if best is not wl[0] and best["top"] >= wl[0]["top"] + 0.3:
+            lines.append(f"وأقوى هذه الموجات ليست أقربها: موجة {ar_span(best['start'], best['end']) if best['start'] != best['end'] else ar_date(best['start'])} "
+                         f"أقوى من الأقرب، فهي التي تستحق المتابعة الأولى. والثقة فيما بعد عشرة أيام منخفضة، وتُراجع كل ليلة.")
+        else:
+            lines.append("والثقة فيما بعد عشرة أيام منخفضة، وتُراجع الموجات كل ليلة.")
+    lines.append("وفيما يلي تفصيل أقرب موجة:")
+    return lines, wl
+
+
 def next_wave(st, day0, days, fac, cur_end):
     """The nearest rain wave after the current one, from the GFS forecast (16 days, the longest it gives), and
     beyond it from the eastward speed of the MJO and the warm event (up to 45 days). The wave is named by what
@@ -408,6 +568,13 @@ def next_wave(st, day0, days, fac, cur_end):
     ok = lambda d: (len(keys(d)) >= 2 and keys(d) & {"surge", "trough", "cold"}) or "cold" in keys(d)
     lines, watch = [], {"day": day0.isoformat()}
     prev = st.get("prev_watch") or {}
+    try:
+        ov, wl = waves_overview(st, day0, days, f, cur_end)
+        lines += ov
+        watch["waves"] = [{"start": w["start"].isoformat(), "end": w["end"].isoformat(), "peak": w["peak"].isoformat(),
+                           "score": w["top"], "kind": w["kind"]} for w in wl]
+    except Exception as e:  # noqa: BLE001
+        print("waves overview failed:", repr(e), flush=True)
     start = next((d for d in days if d > cur_end + timedelta(days=1) and ok(d)), None)
 
     if start:
