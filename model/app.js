@@ -934,7 +934,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); waveCard(); mjofCard();
+    mjoMap(); waveCard(); mjofCard(); beltCard();
   }
 
   function mjoText() {
@@ -1172,6 +1172,75 @@
     [zr, 0, -zr].forEach((v) => { g += `<text x="${L - 4}" y="${yz(v) + 3}" font-size="9" text-anchor="end" fill="currentColor" opacity=".7">${v < 0 ? "−" + num(Math.round(-v)) : num(Math.round(v))}</text>`; });
     D.forEach((d, i) => { if (+d.slice(8) === 1 || i === today) g += `<text x="${x(i)}" y="${H - 6}" font-size="9" text-anchor="middle" fill="currentColor" opacity=".7">${num(+d.slice(8))}/${num(+d.slice(5, 7))}</text>`; });
     $("mjofChart").innerHTML = g + "</svg>";
+  }
+
+  // the tropical belt, as the reference engine draws it: four maps on one frame (warm/cold event, the MJO component,
+  // the Kelvin and the Rossby families of the 200 hPa velocity potential) with the same marker lines through them
+  function lonTxt(x) {
+    x = ((Math.round(x) % 360) + 360) % 360;
+    return x === 0 || x === 180 ? `${num(x)}°` : x < 180 ? `${num(x)}° شرقًا` : `${num(360 - x)}° غربًا`;
+  }
+  function beltCard() {
+    const st = M.st, days = st.days || [];
+    const have = !!(st.figs && st.figs.kel && st.marks);
+    $("beltCard").hidden = !have;
+    if (!have) return;
+    const panels = [["wc", "مؤشر الحدث الدافئ والبارد (جهد السرعة عند ٢٠٠ هكتوباسكال)"],
+      ["mjoz", "مكوّن التذبذب عند ٨٠٠ هكتوباسكال"],
+      ["kel", "موجات كلفن المتجهة شرقًا: جهد السرعة عند ٢٠٠ هكتوباسكال"],
+      ["ros", "عائلة روسبي المتجهة غربًا: جهد السرعة عند ٢٠٠ هكتوباسكال"]];
+    // the four maps scroll together, so the longitudes stay under each other; a button fits them to the width
+    $("beltPanels").innerHTML = `<div class="seg" id="beltZoom"><button data-z="wide" class="${M.beltFit ? "" : "on"}">مكبّرة (اسحب يمينًا ويسارًا)</button><button data-z="fit" class="${M.beltFit ? "on" : ""}">العالم كله</button></div>
+      <div class="figwrap belt-scroll${M.beltFit ? " fit" : ""}" dir="ltr">` +
+      panels.map(([k, t], i) => `<div class="belt-panel"><h4 dir="rtl">${num(i + 1)}. ${t}</h4><a id="belt_${k}_a" target="_blank" rel="noopener"><img id="belt_${k}" alt="${t}"></a></div>`).join("") +
+      `</div>` + panels.map(([k, t], i) => st.figs[k] ? `<div class="legend mjo-legend"><b>${num(i + 1)}.</b> ${legendHTML(st.figs[k])}</div>` : "").join("");
+    document.querySelectorAll("#beltZoom button").forEach((b) => b.onclick = () => {
+      M.beltFit = b.dataset.z === "fit";
+      document.querySelectorAll("#beltZoom button").forEach((x) => x.classList.toggle("on", x === b));
+      document.querySelector(".belt-scroll").classList.toggle("fit", M.beltFit);
+    });
+    const show = () => {
+      const k = +$("beltDay").value || 0, kk = String(k).padStart(2, "0");
+      panels.forEach(([p]) => {
+        const url = `${CL}fig/${p}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+        $(`belt_${p}`).src = url; $(`belt_${p}_a`).href = url;
+      });
+      const d = days[k];
+      $("beltDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+      const m = st.marks[k] || {};
+      const chip = (c, t, x) => x == null ? "" : `<span><i style="background:${c}"></i>${t} ${lonTxt(x)}</span>`;
+      $("beltMarks").innerHTML = chip("#d9775a", "مركز التذبذب", m.core) + chip("#a3202a", "الحدث الدافئ", m.warm) + chip("#2b4a7f", "الحدث البارد", m.cold);
+    };
+    $("beltDay").max = Math.max(0, days.length - 1);
+    $("beltDay").oninput = show;
+    show();
+    twChart();
+  }
+
+  // the Kelvin and Rossby families over the Kingdom: the last 60 days and the forecast; bars: the rain spread
+  function twChart() {
+    const st = M.st, t = st.tw, m = st.mjof;
+    if (!t) { $("twChart").innerHTML = ""; return; }
+    const days = st.days || [], n = t.days.length, from = Math.max(0, n - 76);
+    const D = t.days.slice(from), K = t.kel_ksa.slice(from), R = t.ros_ksa.slice(from);
+    const cov = {}; if (m) m.days.forEach((d, i) => { if (m.cover[i] != null) cov[d] = m.cover[i]; });
+    const W = 340, H = 160, L = 26, Rm = 6, T = 22, B = 22, iw = W - L - Rm, ih = H - T - B;
+    const vr = Math.max(3, ...K.map(Math.abs), ...R.map(Math.abs)), x = (i) => L + (i + 0.5) * iw / D.length;
+    const y = (v) => T + ih / 2 - (v / vr) * ih / 2;
+    const cs = D.map((d) => cov[d]), cmax = Math.max(0.2, ...cs.filter((v) => v != null));
+    const today = D.indexOf(days[0]);
+    let g = `<svg viewBox="0 0 ${W} ${H}" style="direction:ltr" role="img" aria-label="موجات كلفن وروسبي فوق المملكة">`;
+    cs.forEach((c, i) => { if (c != null && c > 0) { const h = (c / cmax) * ih; g += `<rect x="${x(i) - 1.6}" y="${T + ih - h}" width="3.2" height="${h}" fill="var(--sea)" opacity=".3"/>`; } });
+    g += `<line x1="${L}" x2="${W - Rm}" y1="${y(0)}" y2="${y(0)}" stroke="currentColor" opacity=".3"/>`;
+    if (today >= 0) g += `<line x1="${x(today)}" x2="${x(today)}" y1="${T}" y2="${T + ih}" stroke="currentColor" stroke-dasharray="3 3" opacity=".5"/>`;
+    const line = (A, c) => `<polyline fill="none" stroke="${c}" stroke-width="1.8" points="${A.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}"/>`;
+    g += line(K, "#e0795a") + line(R, "#1f5fa8");
+    [vr, 0, -vr].forEach((v) => { g += `<text x="${L - 4}" y="${y(v) + 3}" font-size="9" text-anchor="end" fill="currentColor" opacity=".7">${v < 0 ? "−" + num(Math.round(-v)) : num(Math.round(v))}</text>`; });
+    D.forEach((d, i) => { if (+d.slice(8) === 1 || i === today) g += `<text x="${x(i)}" y="${H - 6}" font-size="9" text-anchor="middle" fill="currentColor" opacity=".7">${num(+d.slice(8))}/${num(+d.slice(5, 7))}</text>`; });
+    g += `<rect x="${W - 18}" y="5" width="12" height="3" fill="#1f5fa8"/><text x="${W - 22}" y="10" font-size="9" text-anchor="end" fill="currentColor">روسبي</text>`;
+    g += `<rect x="${W - 70}" y="5" width="12" height="3" fill="#e0795a"/><text x="${W - 74}" y="10" font-size="9" text-anchor="end" fill="currentColor">كلفن</text>`;
+    g += `<text x="${L}" y="10" font-size="9" text-anchor="start" fill="currentColor" opacity=".7">فوق المملكة، السالب داعم</text>`;
+    $("twChart").innerHTML = g + "</svg>";
   }
 
   // where air meets at 925 hPa, one map a day at 3 pm Makkah time

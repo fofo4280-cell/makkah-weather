@@ -202,6 +202,16 @@ a { color: var(--sea); }
 .ao-now b { color: var(--sea); }
 #aoChart svg { width: 100%; display: block; }
 .figwrap.fit .wavefig { width: 100%; height: auto; display: block; }
+.belt-marks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .78rem; margin-bottom: 4px; }
+.belt-marks span { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.belt-marks i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; }
+.belt-scroll { padding-bottom: 4px; }
+.belt-panel { width: 1150px; }
+.belt-panel h4 { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 70px); margin: 6px 0 2px; padding: 0 8px; font-size: .8rem; font-weight: 600; color: #1b1b1b; }
+.belt-panel img { width: 100%; height: auto; display: block; }
+.belt-scroll.fit .belt-panel { width: 100%; }
+.belt-scroll.fit .belt-panel h4 { position: static; width: auto; max-width: none; }
+#twChart svg { width: 100%; display: block; margin-top: 10px; }
 .wave-row { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--line); font-size: .82rem; }
 .wave-row b { color: var(--sea); font-weight: 600; }
 .ar-list p { margin: 6px 0; font-size: 14px; line-height: 1.75; }

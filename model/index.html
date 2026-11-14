@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261113a">
+<link rel="stylesheet" href="style.css?v=20261114b">
 </head>
 <body>
 <div class="app">
@@ -67,6 +67,17 @@
           <h3>مخطط أطوار التذبذب</h3>
           <div id="mjoPhase"></div>
           <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مكتب الأرصاد الأسترالي، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
+        </div>
+        <div class="card" id="beltCard" hidden>
+          <h3>اللوحة الاستوائية الشاملة</h3>
+          <div id="beltMarks" class="belt-marks"></div>
+          <div class="mjo-time">
+            <input type="range" id="beltDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="beltDayLabel"></span>
+          </div>
+          <div id="beltPanels"></div>
+          <div id="twChart"></div>
+          <p class="hint">أربع خرائط بإطار واحد (من ٣٥ جنوبًا إلى ٣٥ شمالًا حول الأرض)، فتقع الأطوال تحت بعضها، وتمر بها الخطوط الثلاثة نفسها: مركز غلاف التذبذب (أدنى مكوّنه على خط الاستواء)، والحدث الدافئ والبارد. موجات كلفن وعائلة روسبي من جهد السرعة عند ٢٠٠ هكتوباسكال في تحاليل جي إف إس لأكثر من سنة مع توقعه، بعد التصفية في الرقم الموجي والدورة والسرعة: كلفن متجهة شرقًا (٢ إلى ٣٠ يومًا، ٨ إلى ٦٠ م/ث)، وروسبي متجهة غربًا (٥ إلى ٩٠ يومًا، ٠٫٥ إلى ٢٥ م/ث)، والأرقام الموجية ١ إلى ٩. الأزرق تباعد في الأعلى يرفع الهواء ويدعم الحمل، والأحمر تقارب يكبته، والأسهم البيضاء الرياح المتباعدة تخرج من مراكز الأزرق. المخطط: العائلتان فوق المملكة في آخر ستين يومًا والتوقع، والأعمدة مساحة الأمطار. المس أي خريطة لفتحها بحجم كامل.</p>
         </div>
         <div class="card">
           <h3>خريطة الحدث الدافئ والبارد</h3>
@@ -150,6 +161,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261113a"></script>
+<script src="app.js?v=20261114b"></script>
 </body>
 </html>
