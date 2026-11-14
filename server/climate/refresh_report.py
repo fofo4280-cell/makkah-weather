@@ -46,7 +46,8 @@ def main():
         rain = [new] + ([night] if night and rep.get("day") == day.isoformat() else [])
     else:
         rain = [new]
-    rep["sections"] = rain + keep
+    # the summary first, then the rain table, then the rest (Fahad, 14 Nov 2026)
+    rep["sections"] = [x for x in keep if x.get("kind") == "sum"] + rain + [x for x in keep if x.get("kind") != "sum"]
     rep["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     st["report"] = rep
     json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
