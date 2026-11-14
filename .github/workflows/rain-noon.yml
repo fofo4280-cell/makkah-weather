@@ -4,11 +4,8 @@
 name: Rain report noon update
 
 on:
-  schedule:
-    # two more tries in case GitHub starts the first late or not at all; each does nothing if noon is done
-    - cron: '41 8 * * *'
-    - cron: '11 9 * * *'
-    - cron: '41 9 * * *'
+  # the daily noon update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only one. Kept for a run
+  # by hand (mode=midnight rewrites the night report from the evening runs).
   workflow_dispatch:
     inputs:
       publish:

@@ -61,17 +61,7 @@ jobs:
                 fi
               fi
             done
-            # the noon rain update: from 09:30, once the morning Kingdom run is complete
-            if [ "$HM" -ge 0930 ] && [ "$HM" -le 1400 ]; then
-              n=$(raw climate-data/mjo.json | python3 -c "
-          import json,sys
-          r=json.load(sys.stdin).get('report') or {}
-          print(sum(1 for s in r.get('sections',[]) if s.get('kind')=='rain_noon' and (r.get('updated') or '')[:10]=='$(date -u +%Y-%m-%d)'))" 2>/dev/null || echo 1)
-              if [ "$n" = 0 ] && [ "$(model_status ${D}00)" = complete ] && ! busy rain-noon.yml && ! busy climate.yml; then
-                echo "$(date -u +%H:%M) noon update missing: starting it"
-                post actions/workflows/rain-noon.yml/dispatches '{"ref":"main","inputs":{"mode":"noon","publish":"yes"}}' || echo "dispatch failed"
-              fi
-            fi
+            # the noon rain update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only one
             # the night climate run: from 21:00 UTC
             if [ "$HM" -ge 2100 ] && [ "$HM" -le 2359 ]; then
               c=$(raw climate-data/mjo.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('cycle',''))" 2>/dev/null || echo x)

@@ -49,7 +49,6 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 - **Schedules:** GitHub crons are unreliable (often missed or hours late). The crons are 47 2, 13 3, 41 3, 7 4 and 47 14, 13 15, 41 15, 7 16 (UTC).
 - **Keeper** (`keeper.yml`): runs continuously and checks every 5 min. It re-dispatches itself every 5 h 40 min, with an hourly cron revival. It starts whatever is missing:
   - model cycle 00 between 03:50 and 11:00 UTC, and 12 between 15:50 and 23:00;
-  - the noon update between 09:30 and 14:00 UTC, once the 00Z Kingdom run is complete;
   - the night climate run between 21:00 and 23:59 UTC.
 - **Maps:** PNG with banded palettes. The REFL palette is 5 dBZ bands, blue → green → yellow → red → purple. Model page assets are versioned `v=2026111xx`.
 
@@ -63,6 +62,7 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
   - The Rossby family is the sixth driver in `bigreport.strength` (0..1 = -ros/(2 ref)), total capped at 5 (Fahad, 14 Nov). Kelvin is only named in the text (for/against), not scored: over the Kingdom box it showed no relation to rain.
   - Compute takes about 15 min (was 8).
   - Its last step waits for the 12Z 3 km runs (until about 02:45 UTC) and rebuilds the report from them.
+- **The noon update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only daily report.** The keeper no longer starts it and `rain-noon.yml` has no schedule; it stays for a run by hand.
 - `rain-noon.yml` (`refresh_report.py`) has inputs `mode=noon|midnight`, `publish`, and `wait=yes|no`.
   - Noon: waits for the 00Z 3 km runs, unless `wait=no`, which publishes at once from what is out.
   - Midnight: rewrites the night rain table from the evening runs.

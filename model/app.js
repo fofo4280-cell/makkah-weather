@@ -968,7 +968,7 @@
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
       ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" ${s.kind === "rain" && r.sections.some((x) => x.kind === "rain_noon") ? "" : "open"}><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
       : (r.lines || []).map((l) => `<p>${l}</p>`).join("")) +
-      `<p class="hint">يصدر تقرير الأمطار مرتين كل يوم: عند منتصف الليل بتوقيت مكة من تشغيل المساء، ثم يُحدَّث ظهرًا من تشغيل الصباح للتأكد مما كُتب ليلًا. ويتحدث تقرير الصورة الكبيرة وخرائط هذه الصفحة كل ليلة عند منتصف الليل${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
+      `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، ومعه خرائط هذه الصفحة${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
