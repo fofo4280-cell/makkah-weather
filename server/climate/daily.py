@@ -32,6 +32,7 @@ import coldwave  # noqa: E402
 import rainreport  # noqa: E402
 import bigreport  # noqa: E402
 import mjofilt  # noqa: E402
+import wkfilt  # noqa: E402
 import ingredients as ING  # noqa: E402
 import diag  # noqa: E402
 
@@ -39,7 +40,7 @@ AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
 RMM_URL = "https://www.bom.gov.au/clim_data/IDCKGEM000/rmm.74toRealtime.txt"
 UA = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130 Safari/537.36"
-HIST_DAYS = 125
+HIST_DAYS = 400       # more than a year: the Rossby family (periods to 90 days) needs a long series (wkfilt)
 MEAN_DAYS = 120
 FC_DAYS = 15
 LAT1 = np.linspace(90, -90, 181)
@@ -380,6 +381,7 @@ def main():
 
     # 4. maps for the forecast days (and the day before for the change)
     vec_all = {}
+    wc_stream = {}
     days = sorted(fc)
     for k, dt in enumerate(days):
         W = series[dt]
@@ -389,15 +391,7 @@ def main():
             mercator_png(os.path.join(out, "wcd", f"{k:02d}.png"), W - prev, LAT1, LON1, CHANGE)
         u, v = sphere.divergent_wind(-W * 1e6, LAT1)   # anomalous outflow at 200 hPa
         vec_all[k] = arrows(u, v, LAT1, LON1)
-        sl = (LAT1 >= -46) & (LAT1 <= 46)
-        try:
-            figures.draw(os.path.join(out, "fig", f"wc_{k:02d}.png"), W[sl], LAT1[sl], LON1, "wc", (0, 360, -45, 45),
-                         stream=(u[sl], v[sl]))
-            if prev is not None:
-                figures.draw(os.path.join(out, "fig", f"wcd_{k:02d}.png"), (W - prev)[sl], LAT1[sl], LON1, "wcd",
-                             (0, 360, -45, 45))
-        except Exception as e:
-            print("figure failed", k, e, flush=True)
+        wc_stream[k] = (u, v)          # the belt maps are drawn after the MJO component (their marker lines)
     json.dump(vec_all, open(os.path.join(out, "wc_vec.json"), "w"), separators=(",", ":"))
 
     # 5. Hovmoller: 15S-15N mean, 2.5 degree steps, last 60 days + forecast
@@ -458,6 +452,14 @@ def main():
     prof = series[t0][band].mean(0)
     warm_lon, cold_lon = float(LON1[int(np.argmax(prof))]), float(LON1[int(np.argmin(prof))])
 
+    # the marker lines of the belt maps: the MJO core (the component's equatorial minimum), the warm and cold events
+    def marks_for(dt):
+        p = series[dt][band].mean(0)
+        m = {"core": None, "warm": float(LON1[int(np.argmax(p))]), "cold": float(LON1[int(np.argmin(p))])}
+        if mjof and dt.date().isoformat() in mjof["days"]:
+            m["core"] = mjof["core"][mjof["days"].index(dt.date().isoformat())]
+        return m
+
     # 7b. the MJO component of the 800 hPa height and of the rain (Wheeler-Kiladis filter, as in Dr Khalid's maps)
     mjof = None
     try:
@@ -477,16 +479,69 @@ def main():
         zmax = float(np.percentile(np.abs(zf[idx][:, trop]), 99.5))
         rmax = float(np.percentile(np.abs(rf[idx][:, trop]), 99.5))
         figures.mjo_scales(zmax, rmax)
-        lon_c = np.arange(-180, 180, 1.0)          # centred on Africa and Arabia, like Dr Khalid's maps
         for k, i in enumerate(idx):
+            mk = marks_for(ds[k])
             for kind, arr in (("mjoz", zf[i]), ("mjop", rf[i])):
-                figures.draw(os.path.join(out, "fig", f"{kind}_{k:02d}.png"), np.roll(arr, 180, axis=1)[trop],
-                             mjofilt.LAT[trop], lon_c, kind, (-180, 180, -35, 35))
+                try:
+                    figures.draw_belt(os.path.join(out, "fig", f"{kind}_{k:02d}.png"), arr, mjofilt.LAT, mjofilt.LON,
+                                      kind, marks=mk)
+                except Exception as e:  # noqa: BLE001
+                    print("figure failed", kind, k, repr(e), flush=True)
         print("mjo component episodes:", mjof["episodes"], flush=True)
     except Exception as e:
         import traceback
         traceback.print_exc()
         print("mjo component failed:", repr(e), flush=True)
+
+    # 7c. the tropical waves in the 200 hPa velocity potential (Kelvin and Rossby families) and the belt maps of
+    # the warm/cold event, all on one frame with the same marker lines
+    tw = None
+    marks = []
+    try:
+        seq = sorted(series)
+        byd = {dt.date(): -series[dt] * 1e6 for dt in seq}            # the chi anomaly, m^2/s
+        d0, d1 = seq[0].date(), seq[-1].date()
+        full_d = [d0 + timedelta(days=k) for k in range((d1 - d0).days + 1)]
+        have = sorted(byd)
+        ser = []
+        for d in full_d:                                             # a gap: linear between the neighbours
+            if d in byd:
+                ser.append((d, byd[d]))
+                continue
+            a = max(x for x in have if x < d)
+            b = min(x for x in have if x > d)
+            f_ = (d - a).days / (b - a).days
+            ser.append((d, (1 - f_) * byd[a] + f_ * byd[b]))
+        wk, wla, tw = wkfilt.run(ser, LAT1)
+        past = [k for k, d in enumerate(full_d) if d < t0.date()]
+        for fam in ("kel", "ros"):
+            tw[fam + "_ref"] = round(float(np.std([tw[fam + "_ksa"][k] for k in past])) or 1.0, 2)
+        tw["t0"] = t0.date().isoformat()
+        print("tropical waves: days", len(full_d), "kel/ros over the Kingdom today",
+              tw["kel_ksa"][full_d.index(t0.date())], tw["ros_ksa"][full_d.index(t0.date())], flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("tropical waves failed:", repr(e), flush=True)
+        wk = None
+    for k, dt in enumerate(days):
+        mk = marks_for(dt)
+        marks.append({"d": dt.strftime("%Y-%m-%d"), **mk})
+        W = series[dt]
+        prev = series.get(dt - timedelta(days=1))
+        try:
+            figures.draw_belt(os.path.join(out, "fig", f"wc_{k:02d}.png"), W, LAT1, LON1, "wc", marks=mk,
+                              stream=wc_stream.get(k))
+            if prev is not None:
+                figures.draw_belt(os.path.join(out, "fig", f"wcd_{k:02d}.png"), W - prev, LAT1, LON1, "wcd", marks=mk)
+            if wk is not None:
+                i = tw["days"].index(dt.date().isoformat())
+                for fam in ("kel", "ros"):
+                    a = wk[fam][i]
+                    figures.draw_belt(os.path.join(out, "fig", f"{fam}_{k:02d}.png"), a / 1e6, wla, LON1, fam, marks=mk,
+                                      vectors=sphere.divergent_wind(a, wla), contours=True)
+        except Exception as e:  # noqa: BLE001
+            print("figure failed", k, repr(e), flush=True)
 
     # 8. moisture over Saudi Arabia: precipitable water against the climatology
     plat, plon = clim["pw_lat"], clim["pw_lon"]
@@ -622,7 +677,9 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop") if k in figures.SCALES},
+        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros")
+                 if k in figures.SCALES},
+        "marks": marks, "tw": tw,
     }
     status["troughs"] = trough_tracks
     status["mjof"] = mjof

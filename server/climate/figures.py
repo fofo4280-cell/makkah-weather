@@ -467,3 +467,120 @@ def mjo_scales(zmax, rmax):
                                                       (.6, "#9bd18a"), (.8, "#2e8b3c"), (1, "#08451a")],
                       "label": "الأمطار المرتبطة بالتذبذب", "unit": "ملم في اليوم",
                       "ticks": [round(v, 1) for v in np.linspace(-r, r, 5)]}
+
+
+# ------------------------------------------------------------------ the tropical belt panels (0-360, 35S-35N)
+# All the belt maps share one frame, so they line up when stacked: the same longitudes under each other and the
+# same marker lines (the MJO core, the warm event, the cold event) through all of them.
+BELT = (0, 360, -35, 35)
+MARKS = {"core": "#d9775a", "warm": "#a3202a", "cold": "#2b4a7f"}
+_RDBU = [(0, "#08306b"), (.12, "#1f5fa8"), (.27, "#5e9fd0"), (.42, "#c8dff0"), (.5, "#f7f7f7"), (.58, "#f6d2c0"),
+         (.73, "#e0795a"), (.88, "#b3202a"), (1, "#5c0010")]
+SCALES["kel"] = {"vmin": -6, "vmax": 6, "cols": _RDBU, "step": 1.5,
+                 "label": "موجات كلفن (الأزرق داعم للحمل)", "unit": "مليون م²/ث",
+                 "ticks": [-6, -4, -2, 0, 2, 4, 6]}
+SCALES["ros"] = {"vmin": -4, "vmax": 4, "cols": _RDBU, "step": 1.0,
+                 "label": "عائلة روسبي (الأزرق داعم للحمل)", "unit": "مليون م²/ث",
+                 "ticks": [-4, -3, -2, -1, 0, 1, 2, 3, 4]}
+
+
+def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None, contours=False, width_px=3000):
+    """A high-resolution map of the tropical belt (0-360, 35S-35N): the field shaded from a finely interpolated
+    copy, coastlines and borders at 1:50 million, optional thin contours, divergent-wind arrows (vectors=(u, v))
+    or streamlines (stream=(u, v)), and vertical marker lines: marks = {'core'|'warm'|'cold': longitude}.
+    field: on lat (descending) x lon (0..359)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    from scipy.ndimage import zoom
+    sc = SCALES[kind]
+    w, e, s, n = BELT
+    j = (lat >= s - 2) & (lat <= n + 2)
+    la = lat[j]
+    f = np.hstack([field[j], field[j][:, :1]])            # continuous across the 0/360 seam
+    lo = np.append(lon, lon[0] + 360)
+    fig_w = width_px / 200
+    lm, rm, bm, tm = 70 / width_px, 12 / width_px, 0.30, 0.08     # margins (inches for bottom/top)
+    map_w = fig_w * (1 - lm - rm)
+    map_h = map_w * (n - s) / (e - w)
+    fig_h = map_h + bm + tm
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=200)
+    fig.patch.set_facecolor("#f7f5f0")
+    pc = ccrs.PlateCarree()
+    ax = fig.add_axes([lm, bm / fig_h, 1 - lm - rm, map_h / fig_h], projection=ccrs.PlateCarree(central_longitude=180))
+    ax.set_extent([w, e - 0.001, s, n], crs=pc)
+    up = max(1, int(np.ceil(width_px * 1.1 / f.shape[1])))
+    fine = zoom(np.nan_to_num(f), up, order=3)
+    # drawn straight in the map's own coordinates (x = longitude - 180), so nothing is regridded
+    ax.imshow(fine, extent=[lo[0] - 180, lo[-1] - 180, la[-1], la[0]], origin="upper", cmap=_cmap(sc["cols"]),
+              vmin=sc["vmin"], vmax=sc["vmax"], interpolation="bilinear", transform=ax.projection)
+    if contours and sc.get("step"):
+        st = sc["step"]
+        lv = np.arange(-20 * st, 20 * st + st / 2, st)
+        lv = lv[np.abs(lv) > st / 2]
+        ax.contour(lo, la, f, levels=lv, colors="white", linewidths=0.45, alpha=0.75, transform=pc,
+                   linestyles=["dashed" if x < 0 else "solid" for x in lv])
+    try:
+        import cartopy.io.shapereader as shp
+        shp.natural_earth(resolution="50m", category="physical", name="coastline")
+        ax.coastlines(resolution="50m", linewidth=0.5, color="#111111", zorder=4)
+        shp.natural_earth(resolution="50m", category="cultural", name="admin_0_boundary_lines_land")
+        ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.25, edgecolor="#444444", zorder=4)
+    except Exception as ex:
+        print("coastlines unavailable:", str(ex)[:80])
+    if vectors is not None:
+        u, v = vectors
+        u = np.hstack([u[j], u[j][:, :1]])
+        v = np.hstack([v[j], v[j][:, :1]])
+        st = 4
+        U, V = u[::st, ::st], v[::st, ::st]
+        LO, LA = np.meshgrid(lo[::st], la[::st])
+        M = np.hypot(U, V)
+        inside = (LA >= s) & (LA <= n) & (LO < e)
+        thr = float(np.nanpercentile(M[inside], 45))
+        keep = inside & (M >= thr)
+        if keep.any():
+            ref = max(float(np.nanpercentile(M[keep], 98)), 1e-6)
+            ax.quiver(LO[keep], LA[keep], U[keep] / ref, V[keep] / ref, transform=pc, color="white", alpha=0.9,
+                      scale=95, width=0.0010, headwidth=4.0, headlength=4.2, headaxislength=3.8, zorder=5)
+    if stream is not None:
+        u, v = stream
+        u = np.hstack([u[j], u[j][:, :1]])[::-1]
+        v = np.hstack([v[j], v[j][:, :1]])[::-1]
+        spd = np.hypot(u, v)
+        lw = 0.3 + 1.2 * spd / max(float(np.nanpercentile(spd, 98)), 1e-6)
+        ax.streamplot(lo, la[::-1], u, v, color=(1, 1, 1, 0.85), linewidth=np.clip(lw, 0.3, 1.5), density=(4.2, 0.9),
+                      arrowsize=0.55, minlength=0.15, transform=pc, zorder=5)
+    for name, x in (marks or {}).items():
+        if x is None:
+            continue
+        c = MARKS[name]
+        x = float(x) % 360
+        ax.plot([x, x], [s, n], color="white", linewidth=2.6, transform=pc, zorder=6)
+        ax.plot([x, x], [s, n], color=c, linewidth=1.5, transform=pc, zorder=7)
+        ax.plot([x], [n - 0.6], marker="v", markersize=5.5, color=c, markeredgecolor="white", markeredgewidth=0.5,
+                transform=pc, zorder=8, clip_on=False)
+    ax.spines["geo"].set_edgecolor("#999999")
+    xt = np.arange(0, 361, 30)
+    yt = np.arange(-30, 31, 15)
+    ax.set_xticks(xt, crs=pc)
+    ax.set_yticks(yt, crs=pc)
+    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=6.5, color="#555555")
+    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=6.5, color="#555555")
+    ax.tick_params(length=2.5, color="#999999")
+    for x in xt[1:-1]:
+        ax.plot([x, x], [s, n], color="#000000", alpha=0.07, linewidth=0.4, transform=pc, zorder=3)
+    for y in yt:
+        ax.plot([w, e], [y, y], color="#000000", alpha=0.07 if y else 0.3, linewidth=0.45 if y else 0.6, transform=pc,
+                zorder=3)
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
+    plt.close(fig)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=240, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:
+        pass

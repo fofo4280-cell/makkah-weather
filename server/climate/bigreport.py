@@ -123,6 +123,18 @@ def report(st, day0):
                     f"سالبًا بقوة (أقل من {n1(-ref)} م) أصابت الأمطار في المتوسط {n1(eff['neg'])}٪ من مساحة المملكة يوميًا، "
                     f"مقابل {n1(eff['mid'])}٪ حين كان قريبًا من الصفر و{n1(eff['pos'])}٪ حين كان موجبًا بقوة.")
         now.append(txt)
+    tk, tr_ = _tw(st, day0, "kel"), _tw(st, day0, "ros")
+    if tk and tr_:
+        txt = (f"والموجات الاستوائية في جهد السرعة عند ٢٠٠ هكتوباسكال فوق المملكة اليوم: {TW_NAME['ros']} {n1(tr_[0])} "
+               f"مليون م²/ث ({tw_word(*tr_)})، و{TW_NAME['kel']} {n1(tk[0])} ({tw_word(*tk)}). والسالب تباعد علوي يسحب "
+               f"الهواء إلى أعلى فيعين الأمطار، والموجب تقارب علوي يكبحها.")
+        eff = _tw_effect(st, "ros")
+        if eff and eff["rain_n"] >= 5:
+            txt += (f" وفي مواسم الأمطار الماضية كانت {TW_NAME['ros']} سالبة في {ar(eff['rain_neg'])} من "
+                    f"{ar(eff['rain_n'])} يومًا مطيرًا واسعًا" + (f"، وأصابت الأمطار {n1(eff['neg'])}٪ من المملكة يوميًا "
+                    f"حين كانت سالبة بقوة مقابل {n1(eff['pos'])}٪ حين كانت موجبة بقوة" if None not in (eff["neg"], eff["pos"]) else "")
+                    + ".")
+        now.append(txt)
     sections.append({"heading": f"الوضع الحالي ({ar_date(day0)})", "lines": now})
 
     # ---------------------------------------------------------------- 2. the nearest wave to come, tracked day by day
@@ -140,6 +152,40 @@ def _mf(st, d):
         return None
     i = m["days"].index(d.isoformat())
     return m["z_ksa"][i], m["r_ksa"][i], m["core"][i]
+
+
+TW_NAME = {"ros": "عائلة روسبي الاستوائية", "kel": "موجات كلفن"}
+
+
+def _tw(st, d, fam):
+    """the Kelvin ('kel') or Rossby ('ros') family of the 200 hPa velocity potential over the Kingdom on day d
+    (million m2/s; negative = divergence aloft, it helps the rain), and its yardstick (the past spread); or None"""
+    t = st.get("tw")
+    if not t or d.isoformat() not in t["days"]:
+        return None
+    return t[fam + "_ksa"][t["days"].index(d.isoformat())], t.get(fam + "_ref") or 1.0
+
+
+def tw_word(x, ref):
+    return ("داعمة بقوة" if x <= -ref else "داعمة" if x <= -ref / 3 else "محايدة" if x < ref / 3 else
+            "كابحة" if x < ref else "كابحة بقوة")
+
+
+def _tw_effect(st, fam):
+    """the share of the Kingdom wet (5 mm or more) on past rain-season days with the family strongly negative,
+    near zero and strongly positive, from the same past days as the MJO component"""
+    t, m = st.get("tw"), st.get("mjof")
+    if not t or not m:
+        return None
+    cov = {d: c for d, c in zip(m["days"], m["cover"]) if c is not None and int(d[5:7]) in (11, 12, 1, 2, 3, 4)}
+    ref = t.get(fam + "_ref") or 1.0
+    rows = [(x, cov[d]) for d, x in zip(t["days"], t[fam + "_ksa"]) if d in cov]
+    if len(rows) < 30:
+        return None
+    pct = lambda xs: round(100 * sum(xs) / len(xs), 1) if len(xs) >= 5 else None
+    rain = [x for x, c in rows if c >= 0.08]
+    return {"neg": pct([c for x, c in rows if x <= -ref]), "mid": pct([c for x, c in rows if -ref < x < ref]),
+            "pos": pct([c for x, c in rows if x >= ref]), "rain_n": len(rain), "rain_neg": sum(1 for x in rain if x < 0)}
 
 
 def fc_cover(st, d):
@@ -448,6 +494,25 @@ def drivers_timeline(st, day0, days):
             t += (f"؛ ومركز غلاف التذبذب ينتقل من فوق {gen(B.region_name(c0))} إلى فوق {gen(B.region_name(c1))}"
                   + (f" ابتداءً من {ar_date(jump)}، أي بداية دورة جديدة تقترب من الغرب" if jump else ""))
         out.append(t + ".")
+    # the Kelvin and Rossby families over the Kingdom
+    for fam in ("ros", "kel"):
+        xs = [(d, _tw(st, d, fam)) for d in days]
+        xs = [(d, x[0], x[1]) for d, x in xs if x]
+        if not xs:
+            continue
+        ref_ = xs[0][2]
+        val = {d: x for d, x, _ in xs}
+        sup = _runs([d for d, _, _ in xs], lambda d: val[d] <= -ref_ / 3)
+        brk = _runs([d for d, _, _ in xs], lambda d: val[d] >= ref_ / 3)
+        parts = []
+        if sup:
+            lo = min(xs, key=lambda x: x[1])
+            parts.append(f"داعمة {_span_list(sup, day0)} (أعمقها {n1(lo[1])} {ar_date(lo[0])})")
+        if brk:
+            hi = max(xs, key=lambda x: x[1])
+            parts.append(f"كابحة {_span_list(brk, day0)} (أقصاها {n1(hi[1])} {ar_date(hi[0])})")
+        out.append(f"{TW_NAME[fam]} فوق المملكة (جهد السرعة عند ٢٠٠ هكتوباسكال، مليون م²/ث): "
+                   + ("، و".join(parts) if parts else "محايدة طوال المدة") + ".")
     # the warm event
     if st.get("hov"):
         w1 = {date.fromisoformat(d): (lo, a) for d, lo, a in B.wave1(st["hov"])}
@@ -508,6 +573,12 @@ def wave_list(st, day0, days, f, cur_end):
             con.append("الحدث الدافئ خارج القطاع الداعم")
         if c.get("pw", 0) < 0.1:
             con.append("الرطوبة قريبة من المعدل")
+        for fam in ("ros", "kel"):
+            x = _tw(st, peak, fam)
+            if x and x[0] <= -x[1] / 3:
+                pro.append(f"{TW_NAME[fam]} داعمة ({n1(x[0])})")
+            elif x and x[0] >= x[1] / 3:
+                con.append(f"{TW_NAME[fam]} كابحة ({n1(x[0])})")
         # the parts reached: the moist boxes and the trough areas over the wave's days
         hit = set()
         for d in wd:
@@ -685,6 +756,11 @@ def next_wave(st, day0, days, fac, cur_end):
             vals.append(f"مكوّن التذبذب المعزول فوق المملكة: {n1(v['mf'][0])} م، أي {mf_word(v['mf'][0], ref)}"
                         + (f" ({at0}: {n1(v0['mf'][0])} م، {mf_word(v0['mf'][0], ref)})" if v0["mf"] else "")
                         + ("؛ وثقته بعد أسبوع أقل، لأنه يُحسب من آخر أيام توقع جي إف إس" if far else ""))
+        for fam in ("ros", "kel"):
+            x, x0 = _tw(st, peak, fam), _tw(st, cpeak, fam)
+            if x:
+                vals.append(f"{TW_NAME[fam]} فوق المملكة: {n1(x[0])} مليون م²/ث، أي {tw_word(*x)}"
+                            + (f" ({at0}: {n1(x0[0])}، {tw_word(*x0)})" if x0 else ""))
         if vals:
             lines.append(f"العوامل في أقوى أيام الموجة القادمة ({ar_date(peak)})، وبين القوسين في أقوى أيام الموجة الحالية المتبقية ({ar_date(cpeak)}):")
             lines += [f"• {x}." for x in vals]
