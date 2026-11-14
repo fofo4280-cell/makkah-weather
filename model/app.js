@@ -1184,15 +1184,18 @@
     const have = !!(st.figs && st.figs.kel && st.marks);
     $("beltCard").hidden = !have;
     if (!have) return;
-    const panels = [["wc", "مؤشر الحدث الدافئ والبارد (جهد السرعة عند ٢٠٠ هكتوباسكال)"],
+    // one chart of the four maps stacked, with their colour bars and the marker key inside (since 15 Nov 2026);
+    // the separate maps for older data
+    const stack = !!st.belt_stack;
+    const panels = stack ? [["belt", "اللوحة الاستوائية الشاملة: أربع خرائط بإطار واحد"]] : [["wc", "مؤشر الحدث الدافئ والبارد (جهد السرعة عند ٢٠٠ هكتوباسكال)"],
       ["mjoz", "مكوّن التذبذب عند ٨٠٠ هكتوباسكال"],
       ["kel", "موجات كلفن المتجهة شرقًا: جهد السرعة عند ٢٠٠ هكتوباسكال"],
       ["ros", "عائلة روسبي المتجهة غربًا: جهد السرعة عند ٢٠٠ هكتوباسكال"]];
     // the four maps scroll together, so the longitudes stay under each other; a button fits them to the width
     $("beltPanels").innerHTML = `<div class="seg" id="beltZoom"><button data-z="wide" class="${M.beltFit ? "" : "on"}">مكبّرة (اسحب يمينًا ويسارًا)</button><button data-z="fit" class="${M.beltFit ? "on" : ""}">العالم كله</button></div>
       <div class="figwrap belt-scroll${M.beltFit ? " fit" : ""}" dir="ltr">` +
-      panels.map(([k, t], i) => `<div class="belt-panel"><h4 dir="rtl">${num(i + 1)}. ${t}</h4><a id="belt_${k}_a" target="_blank" rel="noopener"><img id="belt_${k}" alt="${t}"></a></div>`).join("") +
-      `</div>` + panels.map(([k, t], i) => st.figs[k] ? `<div class="legend mjo-legend"><b>${num(i + 1)}.</b> ${legendHTML(st.figs[k])}</div>` : "").join("");
+      panels.map(([k, t], i) => `<div class="belt-panel${stack ? " stack" : ""}">${stack ? "" : `<h4 dir="rtl">${num(i + 1)}. ${t}</h4>`}<a id="belt_${k}_a" target="_blank" rel="noopener"><img id="belt_${k}" alt="${t}"></a></div>`).join("") +
+      `</div>` + (stack ? "" : panels.map(([k, t], i) => st.figs[k] ? `<div class="legend mjo-legend"><b>${num(i + 1)}.</b> ${legendHTML(st.figs[k])}</div>` : "").join(""));
     document.querySelectorAll("#beltZoom button").forEach((b) => b.onclick = () => {
       M.beltFit = b.dataset.z === "fit";
       document.querySelectorAll("#beltZoom button").forEach((x) => x.classList.toggle("on", x === b));
