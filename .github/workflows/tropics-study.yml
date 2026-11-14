@@ -27,15 +27,16 @@ jobs:
       - run: curl -sfL "https://raw.githubusercontent.com/${{ github.repository }}/climate-data/mjo.json" -o mjo.json
       - if: inputs.long == 'probe'
         run: |
-          for u in "https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p25/chirps-v2.0.2001.days_p25.nc" \
-                   "https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p25/" \
-                   "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily/final/rnl/netcdf/" \
-                   "https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p25/.prcp/X/34/56/RANGEEDGES/Y/15/33/RANGEEDGES/T/(1%20Jan%202001)/(31%20Jan%202001)/RANGEEDGES/data.nc" \
-                   "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Dailies/surface/pr_wtr.eatm.2001.nc" \
-                   "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Dailies/pressure/hgt.2001.nc"; do
-            echo "== $u"; curl -sSL -m 120 -r 0-2000000 -o /tmp/x -w "code %{http_code} size %{size_download} time %{time_total}\n" "$u" || true
-            head -c 300 /tmp/x | strings | head -5
+          curl -sSL -m 60 "https://data.chc.ucsb.edu/products/CHIRPS/v3.0/daily/final/rnl/netcdf/" | grep -o 'href="[^"]*"' | head -20
+          I="https://iridl.ldeo.columbia.edu/SOURCES/.NOAA/.NCEP-NCAR/.CDAS-1/.DAILY"
+          for u in "$I/.Intrinsic/.PressureLevel/.phi/P/500/VALUE/X/30/60/RANGEEDGES/Y/10/38/RANGEEDGES/T/(1%20Jan%202001)/(31%20Dec%202001)/RANGEEDGES/data.nc" \
+                   "$I/.Intrinsic/.PressureLevel/" "$I/.Intrinsic/" "$I/.Diagnostic/" "$I/.Diagnostic/.above_ground/" \
+                   "https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p25/.prcp/X/34/56/RANGEEDGES/Y/15/33/RANGEEDGES/T/(1%20Jan%202025)/(31%20Dec%202026)/RANGEEDGES/T/last/VALUE/data.nc"; do
+            echo "== $u"; curl -sSL -m 300 -o /tmp/x -w "code %{http_code} size %{size_download} time %{time_total}\n" "$u" || true
+            case "$u" in */) grep -o '<a href="[^"]*"[^<]*' /tmp/x | grep -v "http\|SOURCES/\.\.\|#" | head -40;; *) strings /tmp/x | grep -i -A2 "units\|since" | head -8;; esac
           done
+          echo "== psl with agent"; curl -sSL -A "Mozilla/5.0" -m 60 -r 0-1000 -o /tmp/x -w "code %{http_code}\n" "https://downloads.psl.noaa.gov/Datasets/ncep.reanalysis/Dailies/surface/pr_wtr.eatm.2001.nc"
+          echo "== thredds"; curl -sSL -m 60 -o /tmp/x -w "code %{http_code}\n" "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Dailies/surface/pr_wtr.eatm.2001.nc.dds"; head -c 400 /tmp/x
       - if: inputs.long == 'no'
         run: python3 code/server/climate/tropics_share.py ingr mjo.json
       - if: inputs.long == 'yes'
