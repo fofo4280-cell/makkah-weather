@@ -209,6 +209,7 @@ a { color: var(--sea); }
 .belt-panel { width: 1150px; }
 .belt-panel h4 { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 70px); margin: 6px 0 2px; padding: 0 8px; font-size: .8rem; font-weight: 600; color: #1b1b1b; }
 .belt-panel img { width: 100%; height: auto; display: block; }
+.belt-panel.stack { width: 1500px; }
 .belt-scroll.fit .belt-panel { width: 100%; }
 .belt-scroll.fit .belt-panel h4 { position: static; width: auto; max-width: none; }
 #twChart svg { width: 100%; display: block; margin-top: 10px; }
