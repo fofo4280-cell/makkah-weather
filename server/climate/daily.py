@@ -496,7 +496,7 @@ def main():
     # 7c. the tropical waves in the 200 hPa velocity potential (Kelvin and Rossby families) and the belt maps of
     # the warm/cold event, all on one frame with the same marker lines
     tw = None
-    marks = []
+    belt_marks = []
     try:
         seq = sorted(series)
         byd = {dt.date(): -series[dt] * 1e6 for dt in seq}            # the chi anomaly, m^2/s
@@ -526,7 +526,7 @@ def main():
         wk = None
     for k, dt in enumerate(days):
         mk = marks_for(dt)
-        marks.append({"d": dt.strftime("%Y-%m-%d"), **mk})
+        belt_marks.append({"d": dt.strftime("%Y-%m-%d"), **mk})
         W = series[dt]
         prev = series.get(dt - timedelta(days=1))
         try:
@@ -679,7 +679,7 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros")
                  if k in figures.SCALES},
-        "marks": marks, "tw": tw,
+        "marks": belt_marks, "tw": tw,
     }
     status["troughs"] = trough_tracks
     status["mjof"] = mjof
