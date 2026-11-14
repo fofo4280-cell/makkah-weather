@@ -46,7 +46,17 @@ def chirps_year(y, tmp="/tmp/ch.nc"):
         with netCDF4.Dataset(tmp) as nc:
             la, lo = np.asarray(nc["Y"][:], float), np.asarray(nc["X"][:], float)
             t = nc["T"]
-            dd = netCDF4.num2date(t[:], t.units, getattr(t, "calendar", "standard"))
+            tv, un = np.asarray(t[:], float), str(getattr(t, "units", ""))
+            if y == 2001 and a.startswith("1 Jan"):
+                print("chirps time units:", un, tv[:2], flush=True)
+            if "julian" in un.lower():          # the IRI library counts julian days
+                dd = [date.fromordinal(int(round(v - 1721424.5))) for v in tv]
+            else:
+                try:
+                    dd = netCDF4.num2date(tv, un, getattr(t, "calendar", "standard"))
+                except ValueError:              # an odd unit: the days run on from the first day asked for
+                    t0 = date(y, 1 if a.startswith("1 Jan") else 11, 1)
+                    dd = [t0 + timedelta(days=i) for i in range(len(tv))]
             p = np.ma.filled(nc["prcp"][:].astype(float), np.nan)
         if la[0] > la[-1]:
             la, p = la[::-1], p[:, ::-1]
