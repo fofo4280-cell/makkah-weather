@@ -442,6 +442,7 @@ def main():
 
     # 7b. the MJO component of the 800 hPa height and of the rain (Wheeler-Kiladis filter, as in Dr Khalid's maps)
     mjof = None
+    mjoz_by_d = {}   # the MJO component of each day, for the stacked belt chart
     try:
         mh = mjofilt.history(state, t0, mjofilt.HIST_DAYS, gfs_fields)
         ds = sorted(fc)
@@ -461,6 +462,7 @@ def main():
         figures.mjo_scales(zmax, rmax)
         for k, i in enumerate(idx):
             mk = marks_for(ds[k])
+            mjoz_by_d[ds[k].date()] = zf[i]
             for kind, arr in (("mjoz", zf[i]), ("mjop", rf[i])):
                 try:
                     figures.draw_belt(os.path.join(out, "fig", f"{kind}_{k:02d}.png"), arr, mjofilt.LAT, mjofilt.LON,
@@ -522,6 +524,32 @@ def main():
                                       vectors=sphere.divergent_wind(a, wla), contours=True)
         except Exception as e:  # noqa: BLE001
             print("figure failed", k, repr(e), flush=True)
+        # the four maps stacked in one chart, with their colour bars and the same marker lines (Fahad, 14 Nov 2026)
+        try:
+            if wk is not None and dt.date() in mjoz_by_d:
+                i = tw["days"].index(dt.date().isoformat())
+                stamp = f"GFS  •  35°S–35°N  •  {dt:%Y-%m-%d} 12:00 UTC" + ("" if dt <= t0 else "  •  forecast")
+                pans = [{"field": W, "lat": LAT1, "lon": LON1, "kind": "wc", "stream": wc_stream.get(k),
+                         "title": "١. الحدث الدافئ والبارد (الأحمر دافئ)",
+                         "sub": "warm/cold event index  •  χ200 anomaly  •  200 hPa streamlines"},
+                        {"field": mjoz_by_d[dt.date()], "lat": mjofilt.LAT, "lon": mjofilt.LON, "kind": "mjoz",
+                         "title": "٢. مكوّن التذبذب عند ٨٠٠ (الأزرق داعم)",
+                         "sub": "MJO component  •  z800, eastward k 1–3, 20–100 d"}]
+                for fam, t_ in (("kel", "٣. عائلة كلفن، شرقًا (الأزرق داعم)"),
+                                ("ros", "٤. عائلة روسبي، غربًا (الأزرق داعم)")):
+                    p_ = wkfilt.FAMILIES[fam]
+                    a = wk[fam][i]
+                    pans.append({"field": a / 1e6, "lat": wla, "lon": LON1, "kind": fam, "contours": True,
+                                 "vectors": sphere.divergent_wind(a, wla), "title": t_,
+                                 "sub": f"{'eastward' if p_['east'] else 'westward'} χ200  •  "
+                                        f"{p_['pmin']:g}–{p_['pmax']:g} d, {p_['cmin']:g}–{p_['cmax']:g} m/s, k {p_['kmin']}–{p_['kmax']}"
+                                        "  •  divergent wind vectors"})
+                figures.draw_belt_stack(os.path.join(out, "fig", f"belt_{k:02d}.png"), pans, marks=mk,
+                                        title="اللوحة الاستوائية الشاملة", stamp=stamp)
+        except Exception as e:  # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            print("belt stack failed", k, repr(e), flush=True)
 
     # 8. moisture over Saudi Arabia: precipitable water against the climatology
     plat, plon = clim["pw_lat"], clim["pw_lon"]
@@ -678,7 +706,7 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros")
                  if k in figures.SCALES},
-        "marks": belt_marks, "tw": tw,
+        "marks": belt_marks, "tw": tw, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     status["troughs"] = trough_tracks
     status["mjof"] = mjof

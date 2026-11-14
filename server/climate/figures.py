@@ -484,14 +484,9 @@ SCALES["ros"] = {"vmin": -4, "vmax": 4, "cols": _RDBU, "step": 1.0,
                  "ticks": [-4, -3, -2, -1, 0, 1, 2, 3, 4]}
 
 
-def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None, contours=False, width_px=3000):
-    """A high-resolution map of the tropical belt (0-360, 35S-35N): the field shaded from a finely interpolated
-    copy, coastlines and borders at 1:50 million, optional thin contours, divergent-wind arrows (vectors=(u, v))
-    or streamlines (stream=(u, v)), and vertical marker lines: marks = {'core'|'warm'|'cold': longitude}.
-    field: on lat (descending) x lon (0..359)."""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+def _belt_panel(ax, field, lat, lon, kind, marks=None, vectors=None, stream=None, contours=False, width_px=3000,
+                tick_labels=True, mark_labels=False):
+    """one belt map drawn on ax (PlateCarree centred on 180)"""
     import cartopy.crs as ccrs
     import cartopy.feature as cfeature
     from scipy.ndimage import zoom
@@ -501,15 +496,7 @@ def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None
     la = lat[j]
     f = np.hstack([field[j], field[j][:, :1]])            # continuous across the 0/360 seam
     lo = np.append(lon, lon[0] + 360)
-    fig_w = width_px / 200
-    lm, rm, bm, tm = 70 / width_px, 12 / width_px, 0.30, 0.08     # margins (inches for bottom/top)
-    map_w = fig_w * (1 - lm - rm)
-    map_h = map_w * (n - s) / (e - w)
-    fig_h = map_h + bm + tm
-    fig = plt.figure(figsize=(fig_w, fig_h), dpi=200)
-    fig.patch.set_facecolor("#f7f5f0")
     pc = ccrs.PlateCarree()
-    ax = fig.add_axes([lm, bm / fig_h, 1 - lm - rm, map_h / fig_h], projection=ccrs.PlateCarree(central_longitude=180))
     ax.set_extent([w, e - 0.001, s, n], crs=pc)
     up = max(1, int(np.ceil(width_px * 1.1 / f.shape[1])))
     fine = zoom(np.nan_to_num(f), up, order=3)
@@ -567,7 +554,7 @@ def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None
     yt = np.arange(-30, 31, 15)
     ax.set_xticks(xt, crs=pc)
     ax.set_yticks(yt, crs=pc)
-    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=6.5, color="#555555")
+    ax.set_xticklabels([lon_label(x) for x in xt] if tick_labels else [""] * len(xt), fontsize=6.5, color="#555555")
     ax.set_yticklabels([lat_label(y) for y in yt], fontsize=6.5, color="#555555")
     ax.tick_params(length=2.5, color="#999999")
     for x in xt[1:-1]:
@@ -575,6 +562,34 @@ def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None
     for y in yt:
         ax.plot([w, e], [y, y], color="#000000", alpha=0.07 if y else 0.3, linewidth=0.45 if y else 0.6, transform=pc,
                 zorder=3)
+    im = ax.images[0] if ax.images else None
+    return im
+
+
+def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None, contours=False, width_px=3000):
+    """A high-resolution map of the tropical belt (0-360, 35S-35N): the field shaded from a finely interpolated
+    copy, coastlines and borders at 1:50 million, optional thin contours, divergent-wind arrows (vectors=(u, v))
+    or streamlines (stream=(u, v)), and vertical marker lines: marks = {'core'|'warm'|'cold': longitude}.
+    field: on lat (descending) x lon (0..359)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    w, e, s, n = BELT
+    fig_w = width_px / 200
+    lm, rm, bm, tm = 70 / width_px, 12 / width_px, 0.30, 0.08     # margins (inches for bottom/top)
+    map_w = fig_w * (1 - lm - rm)
+    map_h = map_w * (n - s) / (e - w)
+    fig_h = map_h + bm + tm
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=200)
+    fig.patch.set_facecolor("#f7f5f0")
+    ax = fig.add_axes([lm, bm / fig_h, 1 - lm - rm, map_h / fig_h], projection=ccrs.PlateCarree(central_longitude=180))
+    _belt_panel(ax, field, lat, lon, kind, marks, vectors, stream, contours, width_px)
+    _save_png(fig, path)
+
+
+def _save_png(fig, path):
+    import matplotlib.pyplot as plt
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
     plt.close(fig)
@@ -584,3 +599,67 @@ def draw_belt(path, field, lat, lon, kind, marks=None, vectors=None, stream=None
         im.quantize(colors=240, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:
         pass
+
+
+MARK_NAMES = {"core": "مركز التذبذب", "warm": "الحدث الدافئ", "cold": "الحدث البارد"}
+
+
+def draw_belt_stack(path, panels, marks=None, title="", stamp="", width_px=3000):
+    """The tropical belt maps stacked one under the other, as in the four-panel charts of the MJO literature:
+    a title, the key of the marker lines (each with its longitude), then for every panel its title on the left,
+    its level and time on the right, the map, and its colour bar at the right edge. The same marker lines run
+    through all the maps. panels: [{field, lat, lon, kind, title, sub, vectors?, stream?, contours?}]"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    from matplotlib.colors import Normalize
+    from matplotlib.cm import ScalarMappable
+    w, e, s, n = BELT
+    fig_w = width_px / 200
+    lm, rm = 70 / width_px, 150 / width_px
+    map_w = fig_w * (1 - lm - rm)
+    map_h = map_w * (n - s) / (e - w)
+    head, gap_t, gap_b = 0.62, 0.30, 0.16           # inches: the title block, a panel's title, below a panel
+    fig_h = head + len(panels) * (gap_t + map_h + gap_b) + 0.14
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=200)
+    fig.patch.set_facecolor("#f7f5f0")
+    if title:
+        fig.text(lm, 1 - 0.10 / fig_h, _ar(title), ha="left", va="top", fontsize=11, fontweight="bold", color="#111111")
+    if stamp:
+        fig.text(1 - rm, 1 - 0.12 / fig_h, stamp, ha="right", va="top", fontsize=7.5, color="#555555", style="italic")
+    # the key of the marker lines
+    x0 = lm
+    for name in ("core", "warm", "cold"):
+        x = (marks or {}).get(name)
+        if x is None:
+            continue
+        y = 1 - 0.43 / fig_h
+        fig.lines.append(matplotlib.lines.Line2D([x0, x0 + 0.018], [y, y], color=MARKS[name], linewidth=2.2,
+                                                 transform=fig.transFigure))
+        t = fig.text(x0 + 0.024, y, f"{lon_label(float(x) % 360)}  " + _ar(MARK_NAMES[name]), ha="left", va="center",
+                     fontsize=7.5, fontweight="bold", color="#222222")
+        x0 += 0.20
+    y_top = 1 - head / fig_h
+    for k, pn in enumerate(panels):
+        y_map = y_top - (gap_t + map_h) / fig_h
+        ax = fig.add_axes([lm, y_map, 1 - lm - rm, map_h / fig_h], projection=ccrs.PlateCarree(central_longitude=180))
+        fig.text(lm, y_top - 0.04 / fig_h, _ar(pn.get("title", "")), ha="left", va="top", fontsize=9, fontweight="bold",
+                 color="#111111")
+        if pn.get("sub"):
+            fig.text(1 - rm, y_top - 0.07 / fig_h, pn["sub"], ha="right", va="top", fontsize=6.5, color="#666666",
+                     style="italic")
+        _belt_panel(ax, pn["field"], pn["lat"], pn["lon"], pn["kind"], marks, pn.get("vectors"), pn.get("stream"),
+                    pn.get("contours", False), width_px, tick_labels=(k == len(panels) - 1))
+        sc = SCALES[pn["kind"]]
+        cax = fig.add_axes([1 - rm + 12 / width_px, y_map, 14 / width_px, map_h / fig_h])
+        cb = fig.colorbar(ScalarMappable(Normalize(sc["vmin"], sc["vmax"]), _cmap(sc["cols"])), cax=cax)
+        cb.ax.tick_params(labelsize=5.5, length=2, color="#999999", labelcolor="#444444")
+        cb.outline.set_edgecolor("#999999")
+        cb.outline.set_linewidth(0.4)
+        if sc.get("unit"):
+            cb.set_label(_ar(sc["unit"]), fontsize=6, color="#444444")
+        y_top = y_map - gap_b / fig_h
+    _save_png(fig, path)
+
+
