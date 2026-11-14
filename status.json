@@ -1,0 +1,165 @@
+{
+ "phase": "cycle",
+ "steps": [
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج الجزء الثاني",
+   "state": "running",
+   "state_prev": "running",
+   "started": "2026-11-14T17:44:59Z",
+   "note": "الساعة 31 من 33"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "pending"
+  }
+ ],
+ "history": [
+  {
+   "cycle": "2026111412",
+   "ok": 1,
+   "minutes": 111,
+   "cores": 4,
+   "finished": "2026-11-14T17:43Z"
+  },
+  {
+   "cycle": "2026111400",
+   "ok": 1,
+   "minutes": 195,
+   "cores": 4,
+   "finished": "2026-11-14T09:35Z"
+  },
+  {
+   "cycle": "2026111400",
+   "ok": 1,
+   "minutes": 146,
+   "cores": 4,
+   "finished": "2026-11-14T06:18Z"
+  },
+  {
+   "cycle": "2026111312",
+   "ok": 1,
+   "minutes": 219,
+   "cores": 4,
+   "finished": "2026-11-13T22:26Z"
+  },
+  {
+   "cycle": "2026111312",
+   "ok": 1,
+   "minutes": 178,
+   "cores": 4,
+   "finished": "2026-11-13T18:46Z"
+  },
+  {
+   "cycle": "2026111300",
+   "ok": 1,
+   "minutes": 131,
+   "cores": 4,
+   "finished": "2026-11-13T08:44Z"
+  },
+  {
+   "cycle": "2026111300",
+   "ok": 1,
+   "minutes": 156,
+   "cores": 4,
+   "finished": "2026-11-13T06:31Z"
+  },
+  {
+   "cycle": "2026111212",
+   "ok": 1,
+   "minutes": 199,
+   "cores": 4,
+   "finished": "2026-11-12T22:49Z"
+  },
+  {
+   "cycle": "2026111212",
+   "ok": 1,
+   "minutes": 143,
+   "cores": 4,
+   "finished": "2026-11-12T19:28Z"
+  },
+  {
+   "cycle": "2026111200",
+   "ok": 0,
+   "minutes": 342,
+   "cores": 4,
+   "finished": "2026-11-12T17:04Z"
+  },
+  {
+   "cycle": "2026111200",
+   "ok": 1,
+   "minutes": 186,
+   "cores": 4,
+   "finished": "2026-11-12T11:20Z"
+  },
+  {
+   "cycle": "2026111112",
+   "ok": 1,
+   "minutes": 222,
+   "cores": 4,
+   "finished": "2026-11-11T22:45Z"
+  },
+  {
+   "cycle": "2026111112",
+   "ok": 1,
+   "minutes": 150,
+   "cores": 4,
+   "finished": "2026-11-11T19:01Z"
+  },
+  {
+   "cycle": "2026111100",
+   "ok": 1,
+   "minutes": 132,
+   "cores": 4,
+   "finished": "2026-11-11T09:48Z"
+  },
+  {
+   "cycle": "2026111100",
+   "ok": 1,
+   "minutes": 211,
+   "cores": 4,
+   "finished": "2026-11-11T07:34Z"
+  },
+  {
+   "cycle": "2026111012",
+   "ok": 1,
+   "minutes": 229,
+   "cores": 4,
+   "finished": "2026-11-10T23:11Z"
+  },
+  {
+   "cycle": "2026111012",
+   "ok": 1,
+   "minutes": 216,
+   "cores": 4,
+   "finished": "2026-11-10T19:20Z"
+  },
+  {
+   "cycle": "2026111000",
+   "ok": 1,
+   "minutes": 315,
+   "cores": 4,
+   "finished": "2026-11-10T08:58Z"
+  },
+  {
+   "cycle": "2026110912",
+   "ok": 1,
+   "minutes": 228,
+   "cores": 4,
+   "finished": "2026-11-09T19:29Z"
+  },
+  {
+   "cycle": "2026110900",
+   "ok": 1,
+   "minutes": 210,
+   "cores": 4,
+   "finished": "2026-11-09T08:12Z"
+  }
+ ],
+ "cycle": "2026111412",
+ "message": "الدورة قيد التشغيل",
+ "started": "2026-11-14T17:44:55Z",
+ "updated": "2026-11-14T20:24:01Z",
+ "finished": "2026-11-14T17:44:55Z"
+}
