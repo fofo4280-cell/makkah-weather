@@ -86,15 +86,15 @@ def text(rows, now):
     first = min(with_lobe, key=lambda r: (lambda x: abs(x["lat"] - 24) + abs(x["lon"] - 42))(_lobe(r))) if with_lobe else None
     l0, l1 = (_lobe(first) if first else None), _lobe(cur)
     if l0:
-        what = "منخفض مقطوع مغلق" if l0["closed"] else "قاع الأخدود العلوي وذراع دوامته"
-        s = f"في الطبقة الوسطى (٥٠٠ هكتوباسكال) كان {what} فوق {TR.place(l0['lat'], l0['lon'])} {ar_date(mk_day(first['time']))}"
+        what = "منخفض مقطوع مغلق" if l0["closed"] else "قاع الأخدود وذراع دوامته"
+        s = f"الاضطراب العلوي (٥٠٠ هكتوباسكال): {what} فوق {TR.place(l0['lat'], l0['lon'])} {ar_date(mk_day(first['time']))}"
         if l1 and (abs(l1["lat"] - l0["lat"]) + abs(l1["lon"] - l0["lon"])) >= 3:
             b = bearing(l0["lat"], l0["lon"], l1["lat"], l1["lon"])
             moved = DIRS_TO[int((b + 22.5) // 45) % 8]
             kind = ("فهو يرحل" if 0 <= b < 135 else "فهو يرتد غربًا" if 180 <= b < 315 else "")
-            s += f"، وانتقل اليوم إلى فوق {TR.place(l1['lat'], l1['lon'])} متجهًا نحو {moved}" + (f"، {kind}" if kind else "")
+            s += f"، واليوم فوق {TR.place(l1['lat'], l1['lon'])} متجهًا نحو {moved}" + (f"، {kind}" if kind else "")
         elif l1:
-            s += "، وما زال قريبًا من موضعه شبه ثابت"
+            s += "، وما زال شبه ثابت"
         else:
             s += "، ثم ضعف وخرج من المنطقة"
         out.append(s + ".")
@@ -106,22 +106,20 @@ def text(rows, now):
             nxt = (r, lb)
             break
     if nxt:
-        out.append(f"وتقترب ذراع دوامة جديدة فوق {TR.place(nxt[1]['lat'], nxt[1]['lon'])} {ar_date(mk_day(nxt[0]['time']))}، "
-                   "وهي مقدمة الأخدود التالي.")
+        out.append(f"وتقترب ذراع دوامة جديدة (مقدمة الأخدود التالي) فوق {TR.place(nxt[1]['lat'], nxt[1]['lon'])} "
+                   f"{ar_date(mk_day(nxt[0]['time']))}.")
     # 2) the cold air aloft over Makkah and Taif
     t_pre = max(r["t500_makkah"] for r in past[:3])      # before the spell: the mildest of the first analyses
     t_now = cur["t500_makkah"]
     t_min = min(r["t500_makkah"] for r in past + fut)
     warm = next((r for r in fut if r["t500_makkah"] >= t_pre - 0.5), None)
     if t_now <= t_pre - 1.5 or t_min <= t_pre - 2:
-        s = (f"وبقي هواء بارد في الأعلى: حرارة ٥٠٠ هكتوباسكال فوق مكة والطائف {n1(t_now)}° اليوم، وكانت {n1(t_pre)}° "
-             f"قبل الموجة")
+        s = f"البرد العلوي فوق مكة والطائف: {n1(t_now)}° عند ٥٠٠ اليوم، وكان {n1(t_pre)}° قبل الموجة"
         cold_f = [r for r in fut if r["t500_makkah"] <= t_pre - 1.5]
         if cold_f:
-            s += f"، وتبقى في التوقع حول {n1(min(r['t500_makkah'] for r in cold_f))}° حتى {ar_date(mk_day(cold_f[-1]['time']))}"
-        s += "؛ وهذا البرد يُبقي الجو غير مستقر فيكفي تسخين النهار والتضاريس لإطلاق الحمل"
+            s += f"، ويبقى حول {n1(min(r['t500_makkah'] for r in cold_f))}° حتى {ar_date(mk_day(cold_f[-1]['time']))}"
         if warm:
-            s += f"، ويزول بارتفاع الحرارة {ar_date(mk_day(warm['time']))}"
+            s += f"، ويزول {ar_date(mk_day(warm['time']))}"
         out.append(s + ".")
     # 3) the moisture, by area, now and in three days, and the plume from the east
     def pw_line(key, name):
@@ -129,9 +127,9 @@ def text(rows, now):
         end_v = fut[-1]["pw"][key] if fut else now_v
         trend = "ترتفع" if end_v >= now_v + 3 else "تنخفض" if end_v <= now_v - 3 else "تبقى"
         return f"{name} {n1(now_v)} ملم {trend}{' إلى ' + n1(end_v) if trend != 'تبقى' else ' قريبة منه'}"
-    out.append("والرطوبة (الماء القابل للهطول) اليوم: " + "؛ و".join(
-        [pw_line("hijaz_makkah", "فوق مكة والطائف"), pw_line("asir_jazan", "فوق عسير وجازان"),
-         pw_line("central", "فوق وسط المملكة")]) + " في الأيام الثلاثة القادمة.")
+    out.append("الماء القابل للهطول اليوم وبعد ثلاثة أيام: " + "؛ و".join(
+        [pw_line("hijaz_makkah", "مكة والطائف"), pw_line("asir_jazan", "عسير وجازان"),
+         pw_line("central", "الوسط")]) + ".")
     # 4) the low-level winds against the mountains
     u, v = cur["wind850_hijaz"]
     sp = math.hypot(u, v)
@@ -139,7 +137,7 @@ def text(rows, now):
         d = from_dir(u, v)
         upslope = ("تصعد السفوح الشرقية للحجاز والسروات بالرطوبة من الداخل" if u < -1.5
                    else "تصعد السفوح الغربية من البحر الأحمر وتهامة" if u > 1.5 else "تسري على امتداد الجبال")
-        out.append(f"والرياح القريبة من السطح (٨٥٠ هكتوباسكال) فوق الطائف {d} بسرعة {n1(sp)} م/ث، {upslope}.")
+        out.append(f"رياح ٨٥٠ فوق الطائف {d} {n1(sp)} م/ث، {upslope}.")
     # 5) the winds by level over the Hijaz, today and in two days: a turn from the bottom up shows here
     if fut and "w700_hijaz" in cur:
         later_r = fut[min(3, len(fut) - 1)]
@@ -149,18 +147,17 @@ def text(rows, now):
             return "شبه ساكنة" if sp < 2.5 else f"{from_dir(u, v)} {n1(sp)} م/ث"
         lv_now = f"عند ٨٥٠ {lv(cur, 'wind850_hijaz')}، وعند ٧٠٠ {lv(cur, 'w700_hijaz')}، وعند ٥٠٠ {lv(cur, 'w500_hijaz')}"
         lv_then = f"عند ٨٥٠ {lv(later_r, 'wind850_hijaz')}، وعند ٧٠٠ {lv(later_r, 'w700_hijaz')}، وعند ٥٠٠ {lv(later_r, 'w500_hijaz')}"
-        s = f"والرياح فوق الحجاز طبقةً طبقة اليوم: {lv_now}؛ و{ar_date(mk_day(later_r['time']))}: {lv_then}."
+        s = f"الرياح فوق الحجاز اليوم: {lv_now}؛ و{ar_date(mk_day(later_r['time']))}: {lv_then}."
         u8, _ = cur["wind850_hijaz"]
         u5 = cur["w500_hijaz"][0]
         if u8 < -1.5 and u5 > 1.5:
-            s += (" أي أن الرياح تنقلب من الأسفل: القريبة من السطح صارت شرقية يدفعها الضغط المرتفع في الشمال والشرق، "
-                  "والعليا ما زالت غربية لكنها تضعف مع رحيل الأخدود؛ فكلما ضعفت العليا قادت الشرقية السفلى نشوء السحب، "
-                  "فينشأ الخيال الجديد غرب السابق وجنوبه الغربي على السفوح.")
+            s += (" فالرياح تنقلب من الأسفل: السفلى شرقية والعليا غربية تضعف مع رحيل الأخدود، فتقود الشرقية النشوء "
+                  "وينشأ الخيال الجديد غرب السابق وجنوبه الغربي على السفوح.")
         if cur.get("dz500_ns") is not None and later_r.get("dz500_ns") is not None:
             a, b = cur["dz500_ns"], later_r["dz500_ns"]
             if a < 0 and b > a + 20:
-                s += (f" وفرق ارتفاع سطح ٥٠٠ بين شمال الحجاز وجنوبه {n1(a)} م اليوم (المنخفض شمالًا والمرتفع جنوبًا)، "
-                      f"ويضعف إلى {n1(b)} م" + ("، فينقلب التيار العلوي" if b > 0 else "، فيضعف التيار الغربي العلوي") + ".")
+                s += (f" وفرق ارتفاع ٥٠٠ بين شمال الحجاز وجنوبه {n1(a)} م اليوم، ويصير {n1(b)} م"
+                      + ("، فينقلب التيار العلوي" if b > 0 else "، فيضعف التيار الغربي العلوي") + ".")
         out.append(s)
     # 6) how the storms will move
     lines = []
@@ -169,15 +166,14 @@ def text(rows, now):
         lines.append((r, math.hypot(u, v), to_dir(u, v)))
     r0, s0, d0 = lines[0]
     mv = lambda sp, d: "شبه ساكنة" if sp < 2.5 else f"نحو {d} بسرعة {n1(sp)} م/ث"
-    s = f"وحركة الخيال (رياح ٧٠٠ إلى ٥٠٠ هكتوباسكال فوق الحجاز): {mv(s0, d0)} اليوم"
+    s = f"حركة الخلايا (رياح ٧٠٠ إلى ٥٠٠ فوق الحجاز): {mv(s0, d0)} اليوم"
     weak = [x for x in lines if x[1] < 5]
     later = [x for x in lines[1:] if x[2] != d0 or abs(x[1] - s0) >= 4]
     if later:
         s += "، ثم " + "، ثم ".join(f"{mv(x[1], x[2])} {ar_date(mk_day(x[0]['time']))}" for x in later[:2])
     out.append(s + ".")
     if weak:
-        out.append(f"ومع ضعف رياح القيادة (أقل من ٥ م/ث {ar_date(mk_day(weak[0][0]['time']))}) تتولد الخلايا الجديدة حيث تلتقي "
-                   "الرياح الباردة الخارجة من السحب بالهواء الرطب الداخل، فقد يبدو الخيال متقدمًا عكس اتجاه الرياح أو ثابتًا فوق "
-                   "الديار نفسها، وتنحدر السحب ليلًا من القمم نحو تهامة والأودية؛ فيطول المطر ويتكرر على المواضع نفسها "
-                   "ويرتفع خطر السيول.")
+        out.append(f"ومع ضعف رياح القيادة (دون ٥ م/ث {ar_date(mk_day(weak[0][0]['time']))}) تتولد الخلايا حيث يلتقي هواء "
+                   "السحب البارد بالهواء الرطب، فتثبت فوق المواضع نفسها أو تتقدم عكس الرياح، وتنحدر ليلًا نحو تهامة والأودية؛ "
+                   "فيتكرر المطر ويرتفع خطر السيول.")
     return out

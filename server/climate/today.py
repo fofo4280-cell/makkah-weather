@@ -510,9 +510,10 @@ def big_picture(st, day, rainy):
     wv = next((x for x in st.get("waves", []) if x["d"] == day.isoformat()), None)
     if wv and "trough" in wv and wv["trough"]["v"] <= -25:
         pro.append(f"أخدود في الطبقة الوسطى فوق {wv['trough']['area']}")
-    cv = [c for c in st.get("conv", []) if c.get("hejaz_max") is not None and c["hejaz_max"] >= 2]
-    if cv:
-        pro.append("التقاء رياح عند ٩٢٥ هكتوباسكال فوق الحجاز وتهامة")
+    zs = (st.get("collide") or {}).get("zones") or []
+    if zs and (st.get("collide") or {}).get("day") == day.isoformat():
+        rs = list(dict.fromkeys(r for z in zs for r in (z.get("regions") or [z["region"]])))
+        pro.append("تصادم رياح رطبة بعد الظهر فوق " + join(rs[:4]))
     ar_ = st.get("ar") or {}
     mk = [r for r in ar_.get("sa", []) if (datetime.strptime(r["t"], "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).date() == day]
     if mk and max(r["v"] for r in mk) >= 250:

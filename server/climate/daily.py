@@ -35,6 +35,8 @@ import mjofilt  # noqa: E402
 import wkfilt  # noqa: E402
 import ingredients as ING  # noqa: E402
 import diag  # noqa: E402
+import collide  # noqa: E402
+import pattern  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
 CPC = "https://ftp.cpc.ncep.noaa.gov/cwlinks/"
@@ -92,28 +94,6 @@ FIELDS = [("u", r":UGRD:200 mb:"), ("v", r":VGRD:200 mb:"), ("pw", r":PWAT:entir
 
 Z500 = ("z500", r":HGT:500 mb:")
 T500 = ("t500", r":TMP:500 mb:")
-CONV_HOURS = 24
-CONV_FIELDS = [("u", r":UGRD:925 mb:"), ("v", r":VGRD:925 mb:"), ("t", r":TMP:925 mb:"), ("rh", r":RH:925 mb:"),
-               ("psfc", r":PRES:surface:")]
-
-
-def conv925(f, lat, lon):
-    """Convergence (10^-5 /s, positive where air meets) and equivalent potential temperature (K) at 925 hPa."""
-    from scipy.ndimage import gaussian_filter
-    a = 6.371e6
-    phi = np.radians(lat)[:, None]
-    dl = np.radians(lon[1] - lon[0])
-    dp = np.radians(lat[1] - lat[0])
-    u, v = gaussian_filter(f["u"], 1.5), gaussian_filter(f["v"], 1.5)
-    dudx = np.gradient(u, dl, axis=1) / (a * np.cos(phi))
-    dvdy = np.gradient(v * np.cos(phi), dp, axis=0) / (a * np.cos(phi))
-    conv = -(dudx + dvdy) * 1e5
-    t = f["t"]
-    es = 6.112 * np.exp(17.67 * (t - 273.15) / (t - 29.65))
-    e = np.clip(f["rh"], 1, 100) / 100 * es
-    r = 0.622 * e / (925 - e)
-    the = (t + 2.5e6 * r / 1004.0) * (1000 / 925) ** 0.2854
-    return conv, gaussian_filter(the, 1.0)
 WAVE_DAYS = 15
 
 
@@ -608,33 +588,52 @@ def main():
     except Exception as e:
         print("trough tracking failed:", repr(e), flush=True)
 
-    # 8c. where the air meets at 925 hPa, every hour of the next Makkah day (midnight to midnight), 0.25 degree
+    # 8c. where the winds meet in the afternoon of the report day (11:00 to 17:00 Makkah), 0.25 degree: the zones
+    #     where storms start (collide.py), and the kind of the storms from the 500 hPa temperature (pattern.py)
     conv_rows = []
+    collide_out = None
     first = t0.replace(hour=21, minute=0)          # 00:00 Makkah time = 21 UTC
     if first < t0:
         first += timedelta(days=1)
-    fh0 = int((first - t0).total_seconds() // 3600)
-    for k in range(0, CONV_HOURS + 1):
-        fh = fh0 + k
-        vt = t0 + timedelta(hours=fh)
-        try:
-            f = gfs_fields(cycle, fh, res="0p25", fields=CONV_FIELDS)
-        except Exception as e:
-            print("925 hPa fields unavailable", fh, e, flush=True)
-            continue
-        la = np.linspace(90, -90, f["u"].shape[0])
-        lo = np.linspace(0, 360, f["u"].shape[1], endpoint=False)
-        j = (la >= 5) & (la <= 40)
-        i = (lo >= 25) & (lo <= 65)
-        sub = {n: a[np.ix_(j, i)] for n, a in f.items()}
-        cv, te = conv925(sub, la[j], lo[i])
-        # (the map itself now comes from our own model runs, as an option on the main map; here only the numbers
-        #  for the report are kept)
-        hj = (la[j] >= 19) & (la[j] <= 24)
-        hi = (lo[i] >= 38.5) & (lo[i] <= 42)
-        box = np.where(sub["psfc"] >= 92500, cv, np.nan)[np.ix_(hj, hi)]
-        conv_rows.append({"t": vt.strftime("%Y-%m-%dT%H:%MZ"), "k": k,
-                          "hejaz_max": round(float(np.nanmax(box)), 1) if np.isfinite(box).any() else None})
+    try:
+        hrs, hg = [], None
+        for uh in collide.UTC_HOURS:
+            vt = first + timedelta(hours=3 + uh)    # the Makkah day starts at 21 UTC; 08 UTC is 11 hours later
+            fh = int((vt - t0).total_seconds() // 3600)
+            try:
+                f = gfs_fields(cycle, fh, res="0p25", fields=collide.FIELDS + ([] if hg is not None else collide.HGT))
+            except Exception as e:  # noqa: BLE001
+                print("collision fields unavailable", fh, repr(e)[:120], flush=True)
+                continue
+            if hg is None:
+                hg = f.pop("hgt")
+            la = np.linspace(90, -90, f["u10"].shape[0])
+            lo = np.linspace(0, 360, f["u10"].shape[1], endpoint=False)
+            sub = {}
+            for n_, a_ in f.items():
+                sub[n_], cla, clo = collide.cut(a_, la, lo)
+            sub["hgt"] = collide.cut(hg, la, lo)[0]
+            hrs.append((vt, sub))
+        if hrs:
+            zs = collide.zones(hrs, cla, clo, sa_geo.regions())
+            collide_out = {"day": (first + timedelta(hours=3)).date().isoformat(), "hours": len(hrs), "zones": zs,
+                           "lines": [collide.zone_text(z) for z in zs]}
+            print("collision zones:", collide_out["lines"], flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("collision zones failed:", repr(e), flush=True)
+    pattern_out = None
+    try:
+        dd = (first + timedelta(hours=3)).date()
+        vt = datetime(dd.year, dd.month, dd.day, 12, tzinfo=t0.tzinfo)     # 15:00 Makkah, the storms' hour
+        near = min(fc, key=lambda k: abs((k - vt).total_seconds()))
+        if abs((near - vt).total_seconds()) <= 6 * 3600 and fc[near].get("t500") is not None:
+            pattern_out = {"day": dd.isoformat(), "t": near.strftime("%Y-%m-%dT%H:%MZ"),
+                           "boxes": pattern.boxes(fc[near]["t500"], LAT1, LON1, dd)}
+            print("pattern:", {k: (v["anom"], v["kind"]) for k, v in pattern_out["boxes"].items()}, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("pattern failed:", repr(e), flush=True)
 
     # (the atmospheric rivers and the Arctic Oscillation are no longer shown on the page)
     ar_data = None
@@ -668,7 +667,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "waves": wave_rows, "conv": conv_rows, "ar": ar_data,
+        "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "pattern": pattern_out, "ar": ar_data,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
@@ -753,7 +752,8 @@ def main():
         print("big-picture report failed:", repr(e), flush=True)
     status["report"] = {"title": f"تقرير {ar_date(day0.strftime('%Y-%m-%d'))}",
                         "issued": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "day": day0.isoformat(),
-                        "sections": ([dict(rain, kind="rain")] if rain else []) + big}
+                        "sections": [x for x in big if x.get("kind") == "sum"] + ([dict(rain, kind="rain")] if rain else [])
+                        + [x for x in big if x.get("kind") != "sum"]}
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
