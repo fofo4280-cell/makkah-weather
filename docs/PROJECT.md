@@ -135,5 +135,6 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 |---|---|---|
 | 13 Nov 2026 | evening run (12Z of the 12th) | both missed the start over the Tihama plains |
 | 14 Nov 2026 | evening run (12Z of the 13th) | second day running, by Fahad's reading |
+| week of 8–14 Nov 2026 | evening run | Fahad: about 90 % of the cases since the start of the week matched the evening run |
 
 Keep adding a row each day he reports. If the pattern holds for about two weeks, act on it: either a single 12Z cycle, or keep 00Z only as a merged (lagged-ensemble) update instead of replacing the night table.
