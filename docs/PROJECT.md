@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 14 Nov 2026. Written for Claude, to continue the work without the long history.
+Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -58,6 +58,10 @@ Last updated: 14 Nov 2026. Written for Claude, to continue the work without the 
 - `climate.yml` runs nightly. Crons 33 20, 7 21, 43 21 UTC, plus the keeper.
   - Its `check` job skips if `mjo.json` cycle == `date -u -d '12 hours ago'` + `12`. This was fixed on 13 Nov, after late firings after midnight re-ran it.
   - It runs `daily.py`: MJO/RMM, filtered MJO component (`mjofilt.py`), warm/cold event, Rossby waves, PW, troughs, ingredients index, the `diag.py` diagnosis, and the report (`bigreport.py`).
+  - Since 14 Nov: **tropical waves in chi200** (`wkfilt.py`, Wheeler-Kiladis by wavenumber, period and phase speed): Kelvin family (eastward, 2-30 d, 8-60 m/s, k 1-9) and Rossby family (westward, 5-90 d, 0.5-25 m/s, k 1-9). It needs the long chi history, so `HIST_DAYS` = 400. Output in `mjo.json`: `tw` (`kel_ksa`, `ros_ksa` over the Kingdom box, cores, `*_ref` = past std) and `marks` (MJO core, warm and cold event longitude per forecast day).
+  - Belt maps (`figures.draw_belt`): one frame 0-360, 35S-35N, 3000 px, coastlines/borders 1:50m, marker lines, for `wc`, `wcd`, `mjoz`, `mjop`, `kel`, `ros` (with divergent-wind arrows). The page's «اللوحة الاستوائية الشاملة» card stacks wc, mjoz, kel, ros, scrolling together.
+  - The Rossby family is the sixth driver in `bigreport.strength` (0..1 = -ros/(2 ref)), total capped at 5 (Fahad, 14 Nov). Kelvin is only named in the text (for/against), not scored: over the Kingdom box it showed no relation to rain.
+  - Compute takes about 15 min (was 8).
   - Its last step waits for the 12Z 3 km runs (until about 02:45 UTC) and rebuilds the report from them.
 - `rain-noon.yml` (`refresh_report.py`) has inputs `mode=noon|midnight`, `publish`, and `wait=yes|no`.
   - Noon: waits for the 00Z 3 km runs, unless `wait=no`, which publishes at once from what is out.
@@ -100,6 +104,12 @@ Last updated: 14 Nov 2026. Written for Claude, to continue the work without the 
 - Fahad observes the **evening (12Z) run places rain better than the morning (00Z) run**. Likely cause: 6–12 h spin-up, since the 00Z run's afternoon falls at hours 6–15. Log it for verification before acting.
 - «العارض الشرقي» for Makkah: in the evening, 750–700 hPa winds turn E/SE, the sea breeze arrives from the west, and outflows descend from Hada/Sharaie. Convergence forms east of Makkah and propagates west. The window closes when T500 warms after about 21:00.
 - Sea by day: the descending branch of the sea breeze, a shallow marine layer, and a lid from the land-air return flow. Sea and Jeddah convection come at night or dawn.
+
+## 7b. Oscillation methodology checks (14 Nov 2026)
+
+- Fahad's reference maps ("SCORPION ENGINE", Dr Khalid's method) put the MJO core at 38E on 13 Nov; ours 93E. Checked: our numbers reproduce exactly; no filter end delay (82 past days, perfect 15-day forecast: corr 0.90, amplitude 1.05, best at lag 0); no wavenumber/period/core definition gives 38E (82-118E). 38E is the Ethiopian highlands and his field (+-250 m, terrain detail) is not a pure MJO-filtered field. **Core and component left unchanged.**
+- 24 wide rain days (>= 8 % of the Kingdom), Dec 2025-Nov 2026: component supportive 71 % (alternatives 58-75 %); **Rossby family over the Kingdom supportive 92 %** (base 52 %; rain 4.4 % vs 0.2 % of the Kingdom on strongly negative vs strongly positive days); Kelvin over the Kingdom 38 %.
+- Our Kelvin panel reproduces his (13 Nov: equatorial minimum 43E, -5.9).
 
 ## 8. Open items and decisions (state on 14 Nov)
 
