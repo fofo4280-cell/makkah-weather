@@ -2,7 +2,7 @@
 """The long test (Fahad, 15 Nov 2026): over 25 wet seasons (November to April, 2001-2026), how much of the rain over
 each part of the Kingdom the tropical system explains, against troughs and moisture surges.
 
-Rain: CHIRPS v2 daily, 0.25 degree (satellite and gauges), share of each part with 5 mm or more, and mean rain.
+Rain: CHIRPS v2 daily, 0.25 degree (satellite and gauges, through the IRI data library), share of each part with 5 mm or more, and mean rain.
 Tropics: the RMM (Wheeler-Hendon, BoM) phase and amplitude; ENSO (Nino 3.4) and the Indian Ocean Dipole (monthly).
 Troughs and moisture: NCEP/NCAR reanalysis 1 daily 500 hPa height and precipitable water over each part, as
 departures from their 31-day running mean (the passing troughs and surges).
@@ -28,31 +28,41 @@ def sh(cmd):
 
 
 def chirps_year(y, tmp="/tmp/ch.nc"):
+    """the wet months of year y (January to April, November and December) of CHIRPS v2 over the Kingdom, cut on the
+    server of the IRI data library (the CHC moved its version 2 files away, 15 Nov 2026)"""
     import netCDF4
-    url = f"https://data.chc.ucsb.edu/products/CHIRPS-2.0/global_daily/netcdf/p25/chirps-v2.0.{y}.days_p25.nc"
-    for k in range(4):
-        r = sh(f"curl -sfL --retry 3 -m 900 -o {tmp} '{url}'")
-        if r.returncode == 0 and os.path.getsize(tmp) > 1e7:
-            break
-        time.sleep(20)
-    else:
-        print("chirps failed", y, flush=True)
+    days, parts = [], []
+    for a, b in ((f"1 Jan {y}", f"30 Apr {y}"), (f"1 Nov {y}", f"31 Dec {y}")):
+        url = ("https://iridl.ldeo.columbia.edu/SOURCES/.UCSB/.CHIRPS/.v2p0/.daily-improved/.global/.0p25/.prcp/"
+               f"X/{W}/{E}/RANGEEDGES/Y/{S}/{N}/RANGEEDGES/T/({a})/({b})/RANGEEDGES/data.nc").replace(" ", "%20")
+        for k in range(4):
+            r = sh(f"curl -sfL -m 1200 -o {tmp} '{url}'")
+            if r.returncode == 0 and os.path.getsize(tmp) > 1e4:
+                break
+            time.sleep(30 * (k + 1))
+        else:
+            print("chirps failed", y, a, flush=True)
+            continue
+        with netCDF4.Dataset(tmp) as nc:
+            la, lo = np.asarray(nc["Y"][:], float), np.asarray(nc["X"][:], float)
+            t = nc["T"]
+            dd = netCDF4.num2date(t[:], t.units, getattr(t, "calendar", "standard"))
+            p = np.ma.filled(nc["prcp"][:].astype(float), np.nan)
+        if la[0] > la[-1]:
+            la, p = la[::-1], p[:, ::-1]
+        days += [date(x.year, x.month, x.day) for x in dd]; parts.append(p)
+        os.remove(tmp)
+    if not parts:
         return None
-    with netCDF4.Dataset(tmp) as nc:
-        la, lo = nc["latitude"][:], nc["longitude"][:]
-        jj = np.where((la >= S) & (la <= N))[0]; ii = np.where((lo >= W) & (lo <= E))[0]
-        p = np.ma.filled(nc["precip"][:, jj[0]:jj[-1] + 1, ii[0]:ii[-1] + 1].astype(float), np.nan)
-        t0 = date(y, 1, 1)
-        days = [t0 + timedelta(days=int(k)) for k in range(p.shape[0])]
-    os.remove(tmp)
-    return days, la[jj], lo[ii], p
+    return days, la, lo, np.concatenate(parts)
 
 
 def ncep(var, y, path):
     import netCDF4
     for base in ("https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis/Dailies",
                  "https://psl.noaa.gov/thredds/dodsC/Datasets/ncep.reanalysis.dailyavgs"):
-        for k in range(3):
+        for k in range(4):
+            time.sleep(15)        # the PSL server answers too many requests with 429
             try:
                 with netCDF4.Dataset(f"{base}/{path}") as nc:
                     la, lo = nc["lat"][:], nc["lon"][:]
@@ -65,7 +75,7 @@ def ncep(var, y, path):
                     return la[jj], lo[ii], np.ma.filled(a.astype(float), np.nan)
             except Exception as e:  # noqa: BLE001
                 err = e
-                time.sleep(10)
+                time.sleep(60 * (k + 1))
     print("ncep failed", var, y, repr(err)[:120], flush=True)
     return None
 
@@ -138,6 +148,7 @@ def main():
         for k, d in enumerate(days):
             if d.month not in WET:
                 continue
+            kd = (d - date(y, 1, 1)).days       # the day's place in the reanalysis files of the year
             r = {"d": d.isoformat()}
             pk = p[k]
             for g, ids in GROUPS.items():
@@ -145,8 +156,8 @@ def main():
                 if m.sum() == 0:
                     continue
                 r[g] = [round(float((wc * (pk >= 5))[m].sum() / wc[m].sum()), 4), round(float((wc * pk)[m].sum() / wc[m].sum()), 3)]
-                if hg is not None and pw is not None and k < hg[2].shape[0] and k < pw[2].shape[0]:
-                    r[g] += [round(float(np.nanmean(hg[2][k][mask_n[g]])), 1), round(float(np.nanmean(pw[2][k][mask_n[g]])), 2)]
+                if hg is not None and pw is not None and kd < hg[2].shape[0] and kd < pw[2].shape[0]:
+                    r[g] += [round(float(np.nanmean(hg[2][kd][mask_n[g]])), 1), round(float(np.nanmean(pw[2][kd][mask_n[g]])), 2)]
             if d in rmm:
                 r["rmm"] = list(rmm[d])
             r["nino"] = nino.get((d.year, d.month)); r["dmi"] = dmi.get((d.year, d.month))
