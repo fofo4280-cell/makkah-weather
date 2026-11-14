@@ -288,6 +288,14 @@ def arrows(u, v, lat, lon, every=6, south=-40, north=40, scale=1.0, vmin=0.8):
 # ------------------------------------------------------------------ main
 def main():
     clim_dir, state, out = sys.argv[1:4]
+    # every map is drawn afresh each night: last night's maps are removed first, so a map that fails is missing
+    # (and named in the log and in status["fig_count"]) instead of showing a stale day (Fahad, 14 Nov 2026)
+    fig_dir = os.path.join(out, "fig")
+    if os.path.isdir(fig_dir):
+        old = [f for f in os.listdir(fig_dir) if f.endswith(".png")]
+        for f in old:
+            os.remove(os.path.join(fig_dir, f))
+        print("old maps removed:", len(old), flush=True)
     os.makedirs(state, exist_ok=True)
     os.makedirs(out, exist_ok=True)
     clim = dict(np.load(os.path.join(clim_dir, "clim.npz")))
@@ -708,6 +716,16 @@ def main():
                  if k in figures.SCALES},
         "marks": belt_marks, "tw": tw, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
+    try:
+        cnt = {}
+        for f in os.listdir(fig_dir):
+            if f.endswith(".png"):
+                k_ = re.sub(r"_?\d+\.png$", "", f)
+                cnt[k_] = cnt.get(k_, 0) + 1
+        status["fig_count"] = cnt
+        print("maps drawn tonight:", cnt, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("map count failed:", repr(e), flush=True)
     status["troughs"] = trough_tracks
     status["mjof"] = mjof
     # the diagnosis of the current spell: the last 3.5 days of analyses and the next 3 days of this run
