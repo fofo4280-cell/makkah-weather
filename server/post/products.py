@@ -51,9 +51,10 @@ DAILY = {
                  "band_alpha_min": 0},
 }
 
-# One map per run: rain over the 24 hours after the first 3 (the model's spin-up), or as far as the run got.
+# One map per run. rain24: hours 9-33, i.e. 12 to 12 Makkah time (midnight to midnight in the 12Z run, noon to noon
+# in the 00Z run; the first 9 hours also cover the model's spin-up), or as far as the run got.
 SINGLE = {
-    "rain24": {"label": "المطر التراكمي +٢٤", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 3, "len": 24,
+    "rain24": {"label": "المطر التراكمي من ١٢ إلى ١٢", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 9, "len": 24,
                "bands": True},
     "tsprob": {"label": "احتمال العواصف الرعدية +٢٤", "unit": "٪", "stops": TSPROB, "tf": "lin", "from_h": 3,
                "len": 24, "dbz": 40, "radius_km": 25},

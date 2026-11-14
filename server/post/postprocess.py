@@ -309,7 +309,8 @@ class Processor:
             out[did] = {"from": spec["from_h"], "to": last}
 
     def single_products(self):
-        """rain24: accumulated rain from hour 3 to hour 27, or to the last hour done so far (never past hour 27)."""
+        """rain24: accumulated rain from hour from_h to from_h+24 (9 to 33: 12 to 12 Makkah time), or to the last hour
+        done so far. The .acc3_/.acc27_ files keep their old names: they hold the accumulation at the start and end hours."""
         spec = SINGLE["rain24"]
         out = self.st.s.setdefault("single", {})
         for d in PUB:
