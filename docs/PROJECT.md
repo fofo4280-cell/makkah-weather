@@ -50,6 +50,7 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 - **Keeper** (`keeper.yml`): runs continuously and checks every 5 min. It re-dispatches itself every 5 h 40 min, with an hourly cron revival. It starts whatever is missing:
   - model cycle 00 between 03:50 and 11:00 UTC, and 12 between 15:50 and 23:00;
   - the night climate run between 21:00 and 23:59 UTC.
+- **Rain map `rain24`:** hours 9-33, i.e. 12 to 12 Makkah time (midnight to midnight in the 12Z run, noon to noon in the 00Z run); label «المطر التراكمي من ١٢ إلى ١٢» (Fahad, 14 Nov 2026).
 - **Maps:** PNG with banded palettes. The REFL palette is 5 dBZ bands, blue → green → yellow → red → purple. Model page assets are versioned `v=2026111xx`.
 
 ## 4. Reports pipeline (`server/climate`)
@@ -71,7 +72,9 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
   - **3 km grids only** (dx > 5 km skipped).
   - For each grid, takes the newest run that covers ≥90 % of the hours of the best one.
 - `rainreport.py` + `sa_geo.locate()` give rain places from the OSM gazetteer (`sa_osm.json`, built by `gazetteer.yml`). A known place within 10 km wins, then a village within 4 km, then a road or wadi within 1.5 km. Otherwise the text gives distance and direction («٢٧ كم غرب بيش»), and the table gives direction only («غرب بيش»).
-- **Report sections:** rain table (noon and/or night) → «تشخيص الحالة الحالية» (`diag.py`: trough path, cold pool aloft, PW, winds layer by layer, steering, back-building) → «الوضع الحالي» → **«الموجات القادمة»** (since 14 Nov). That last section contains:
+- **Report sections (rewritten 14-15 Nov 2026, Fahad: concise, methodical, practical):** «الخلاصة» (today's kind and collision zones, current wave, next wave, strongest wave) → rain table (evening 12Z run alone, ~2 AM Makkah; Fahad chose this over a 06Z run, accuracy first) → «تشخيص اليوم» (storm kind from `pattern.py`, collision zones from `collide.py`, then `diag.py`: trough path, cold aloft, PW, winds by level, steering, back-building) → «قراءة العوامل» in a fixed order, slowest to fastest: MJO phase, component at 800, Rossby then Kelvin (chi200), warm event, moisture, troughs; then the current wave → «الموجات القادمة», ending with one «المصادر والمنهج» line.
+  - `collide.py`: afternoon (08-14 UTC) convergence of the 850 hPa wind (10 m where the ground is above 870 hPa), GFS 0.25, smoothed ~40 km, ≥ 2e-5 /s with PW ≥ 20 mm, wide areas split into cores; up to 4 zones named with the winds that meet. Test on 24 wide-rain days: 62 % of named zones had GFS rain ≥2 mm within 50 km vs 26 % base (925 hPa and 10 m alone were worse). It replaced the 925 hPa map on the model page (removed 14 Nov) and the old 925 numbers.
+  - `pattern.py` + `t500_clim.npz`: 500 hPa temperature at 12Z against a GFS normal (902 analyses 2021-2026, 3 harmonics; spread ~2 °C). ≤ -2 °C upper cooling, -1 to -2 mixed, else thermal convection.
   1. the drivers' movement over the whole data range: isolated MJO component (brake/support spans, extremes, envelope centre moving to a new cycle), warm event in or out of the favourable sector (250–55°E), MJO phases;
   2. every wave in range (`wave_list`): kind mixed/tropical/troughs, grade, peak, drivers for and against, regions reached; it says so when the strongest wave is not the nearest;
   3. the nearest wave in detail, with day-by-day scenario and nightly tracking (`wave_watch`).

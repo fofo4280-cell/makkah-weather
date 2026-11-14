@@ -25,13 +25,12 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "conv925"];
+  const HOURLY = ["refl", "rain1h"];
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
-  // (the 925 hPa convergence shows, in place of arrows, which winds meet in each coloured area: "W - E", "SW - Orographic")
-  const VEC = { ivt: { dir: "ivt_vec", ref: 700 }, conv925: { dir: "conv_lab", ref: 0, labels: true } };
+  const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
   const DAILY = ["refl_day"];
   // current names, also for runs made before an option was renamed
-  const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي +٢٤", ivt: "تدفق الأنهار الجوية" };
+  const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي من ١٢ إلى ١٢", ivt: "تدفق الأنهار الجوية" };
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
@@ -1243,21 +1242,7 @@
     $("twChart").innerHTML = g + "</svg>";
   }
 
-  // where air meets at 925 hPa, one map a day at 3 pm Makkah time
-  function convCard() {
-    const st = M.st, rows = st.conv || [];
-    if (!rows.length) { $("convDayLabel").textContent = "غير متاح اليوم"; return; }
-    const show = (k) => {
-      const url = `${CL}fig/conv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
-      $("convFig").src = url; $("convLink").href = url;
-      const r = rows[k];
-      $("convDayLabel").textContent = r ? (r.t ? fmtWhen.format(new Date(r.t.replace("Z", ":00Z"))) : fmtDayD.format(dOf(r.d))) : "";
-    };
-    $("convDay").max = rows.length - 1;
-    $("convDay").oninput = (e) => show(+e.target.value);
-    show(+$("convDay").value || 0);
-    if (st.figs && st.figs.conv) $("convLegend").innerHTML = legendHTML(st.figs.conv);
-  }
+
 
 
   function mjoPwTable() {
