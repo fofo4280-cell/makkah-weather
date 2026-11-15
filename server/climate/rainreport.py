@@ -168,6 +168,36 @@ def amount_word(x):
 
 
 # ------------------------------------------------------------------ the report
+def plains_words(st, cells, t_a, log=print):
+    """{region name: [sentence]} for the plains where the evening storms have their enhancers (plains.py), with our
+    model's own afternoon mountain rain (09-15 UTC) and evening plain rain (14-21 UTC) of the report day"""
+    import plains as P
+    pl = (st or {}).get("plains") or {}
+    if pl.get("day") != local(t_a).date().isoformat():
+        return {}
+    out = {}
+    for row in pl.get("rows") or []:
+        try:
+            mr = pr = None
+            if cells is not None:
+                keys = np.array(cells["keys"])
+                def box_max(b, h0, h1):
+                    m = ((cells["lat"] >= b[0]) & (cells["lat"] <= b[1]) & (cells["lon"] >= b[2]) & (cells["lon"] <= b[3]))
+                    k = (keys > h0) & (keys <= h1)            # key k = the hour ending k hours after t_a (21 UTC)
+                    if not m.any() or not k.any():
+                        return None
+                    return float(cells["rain"][k][:, m].sum(0).max())
+                mr = box_max(row["mbox"], 12, 18)
+                pr = box_max(row["box"], 17, 24)
+            s = P.sentence(row, mr, pr)
+            log(f"rain report: plains {row['key']}: model mountain {mr}, plain {pr} -> {'named' if s else 'nothing'}")
+            if s:
+                out.setdefault(row["region"], []).append(s)
+        except Exception as e:  # noqa: BLE001
+            log(f"rain report: plains {row.get('key')} failed: {e!r}")
+    return out
+
+
 def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     om = om or G.OpenMeteo()
     regs = G.tag_towns(G.regions())
@@ -239,8 +269,11 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
 
     # ---- summary
     lines = []
+    pw_ = plains_words(st, cells, t_a, log) if local(t_a).hour == 0 else {}
     if not rows:
         lines.append(f"لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة {span_words(t_a, t_b)}.")
+        for name, ss in pw_.items():
+            lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر، " + " ".join(ss))
         return {"heading": head, "lines": lines, "table": [], "data": {}}
     n = len(rows)
     extent = "واسعة" if n >= 8 else "متوسطة الانتشار" if n >= 4 else "محدودة"
@@ -306,8 +339,12 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
             elif w["sc"] == 1:
                 t += "، واحتمال ضعيف لخلايا عملاقة (سوبر سل)"
             parts.append(t)
-        lines.append(f"منطقة {x['name']} ({amount_word(x['max'])}): " + "؛ ثم ".join(parts) + ".")
-    dry = [r["name"] for r in regs if r["name"] not in order]
+        lines.append(f"منطقة {x['name']} ({amount_word(x['max'])}): " + "؛ ثم ".join(parts) + "."
+                     + "".join(" " + s_ for s_ in pw_.get(x["name"], [])))
+    for r in regs:     # a dry region with plains enhancers: the model shows nothing there, the sentence says why to watch
+        if r["name"] not in order and pw_.get(r["name"]):
+            lines.append(f"منطقة {r['name']}: لا يُظهر نموذجنا أمطارًا تُذكر، " + " ".join(pw_[r["name"]]))
+    dry = [r["name"] for r in regs if r["name"] not in order and not pw_.get(r["name"])]
     if dry:
         lines.append(f"ولا أمطار تُذكر على {join(dry)}.")
     lines.append("المصدر: نموذجنا وحده (" + "، و".join(f"{n_} بدقة {r_}" for n_, r_, _ in cells["used"])

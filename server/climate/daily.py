@@ -36,6 +36,7 @@ import wkfilt  # noqa: E402
 import ingredients as ING  # noqa: E402
 import diag  # noqa: E402
 import collide  # noqa: E402
+import plains  # noqa: E402
 import pattern  # noqa: E402
 
 AWS = "https://noaa-gfs-bdp-pds.s3.amazonaws.com"
@@ -678,6 +679,22 @@ def main():
         import traceback
         traceback.print_exc()
         print("collision zones failed:", repr(e), flush=True)
+    # 8c2. the evening storms of the coastal plains (plains.py, Fahad 15 Nov 2026): written into the region's
+    #      line of the rain report only when the enhancers are there
+    plains_out = None
+    try:
+        dd = (first + timedelta(hours=3)).date()
+        prow = next((r for r in pw_rows if r["d"] == dd.isoformat()), None)
+        if prow:
+            pct_of = lambda la_, lo_: prow["southwest" if la_ < 20 else "west"]["pct"]
+            prs = plains.check(lambda c, h, f: gfs_fields(c, h, res="0p25", fields=f), cycle, dd, pct_of,
+                               log=lambda *a: print(*a, flush=True))
+            plains_out = {"day": dd.isoformat(), "cycle": cycle, "rows": prs}
+            print("plains named:", [r["key"] for r in prs if plains.named(r)[0]], flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("plains check failed:", repr(e), flush=True)
     pattern_out = None
     try:
         dd = (first + timedelta(hours=3)).date()
@@ -722,7 +739,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "pattern": pattern_out, "ar": ar_data,
+        "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "pattern": pattern_out, "ar": ar_data,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
