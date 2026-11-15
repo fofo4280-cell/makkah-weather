@@ -163,7 +163,8 @@ a { color: var(--sea); }
 .map-name-p.b span::before { display: block; margin: 0 auto 2px; }
 .map-name-p span { display: flex; align-items: center; }
 .z-lt6 .map-name-p, .z-lt6 .map-name-c.small, .z-ge8 .map-name-c, .z-ge8 .map-name-s { display: none; }
-.light-map:not(.sat-map) .map-name span { color: #1d232b; text-shadow: 0 0 3px #fff, 0 0 1px #fff; }
+/* the light and detailed maps name places themselves: the page's names would double them */
+.light-map:not(.sat-map) .map-name { display: none; }
 .leaflet-control-layers, .leaflet-bar a { background: var(--glass); color: var(--glass-ink); border-color: var(--glass-line); }
 .leaflet-control-layers-toggle { filter: invert(1) brightness(1.4); }
 .leaflet-control-layers-expanded { color: var(--glass-ink); padding: 8px 10px; border-radius: 12px; }
