@@ -120,6 +120,26 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
     - On spring wide-rain days, 500 hPa is below its running mean on 60-78 % of days: -10 to -20 m, or -16 to -25 m against the calendar. Troughs exist but are shallower than the winter troughs in the north.
     - Moisture dominates in spring: 51-58 % of the rain falls on PW-surge days (>= +3 mm), against 30-37 % on trough days. PW on wide days is 21-26 mm, against 16-20 mm on all days.
     - The folk saying (spring rain is the leftover of the winter cold) fits cut-off cold pools aloft over a hot ground, with no cold surge at the surface.
+- **The full-method test (15 Nov 2026, `method-study.yml`: `hist_fetch.py` in 5 parallel chunks + `method_test.py`; NCEP R1 2000-Mar 2026 rebuilt exactly like daily.py; CHIRPS rain from the long test; hist chunks of run 43679904944 can be reused with input hist_run).**
+  - Checks pass. The rebuilt warm-event centre moves with the RMM phase: 10E, 67, 75, 121, 147, 197, 308, 334E for phases 1-8. Last season's rebuilt Rossby family is negative on 92 % of wide days, the same as the daily system.
+  - Lift (spread when on against off), Kingdom Nov-Jan / Feb-Apr:
+    - PW >= 130 %: x4.7 / x3.8, on 80 % of wide days.
+    - Trough (waves 4-8) <= -25 m: x1.8 / x1.8. In the parts: southwest x3.6-4.1, Hijaz x2.6.
+    - MJO phases 8-1: x1.9 / x2.0; phases 7-8-1-2: x1.7 / x1.8.
+    - Warm event in the sector: x0.9 / x1.5.
+    - Cold event over 45E (w45 <= -4): x0.6 / x0.9.
+    - Component: x1.2 / x1.3.
+    - Kelvin: x1.1 / x1.2.
+    - Rossby: x1.1 / x1.0. **Over 26 seasons the Rossby family has no stable effect:** negative on 48 % of wide days, against a base of 48 %. By season it runs from 22 % to 92 %; it was high in 2016, 2024 and 2025 and low in 2000-2002.
+  - Day kinds, Kingdom: tropical + trough/moisture days give 58-64 % of the rain; trough/moisture alone 19-20 %; tropical alone 12-15 %; neither 5-7 %. Exception: in the Hijaz and the southwest, tropical-only days give a large share (Hijaz Nov-Jan 37 %, southwest 53 %).
+  - The report's strength score works: P(wide day) for the Kingdom is 3 % at 0-1, 9-11 % at 1-2, 16-19 % at 2-3 and 23-33 % at 3-5.
+  - A supportive component 10 days earlier means less rain later, because it moves on. Use its forecast arrival, not today's value.
+  - Daily share explained: tropics 2-8 %, troughs+moisture 10-23 %, all 12-24 %.
+  - Candidate changes, for Fahad to decide after the stability phase:
+    - Rossby weight in strength().
+    - MJO phases 8 and 1 instead of 7-8-1-2.
+    - Warm event weighted in Feb-Apr only.
+    - Cold event as a brake in Nov-Jan.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
