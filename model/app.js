@@ -8,13 +8,24 @@
 (function () {
   "use strict";
 
-  const DATA = window.SWRF_DATA || "data/";
+  const DATA0 = window.SWRF_DATA || "data/";
   // the Kingdom-wide 9 km run is made on its own server in parallel and kept on its own branch
-  const DATA_SA = window.SWRF_DATA_SA || DATA.replace("/model-data/", "/model-data-sa/");
+  const DATA_SA = window.SWRF_DATA_SA || DATA0.replace("/model-data/", "/model-data-sa/");
   // the 1 km nest over Jeddah, Makkah and Taif runs on a third server and is kept on its own branch
-  const DATA_1K = window.SWRF_DATA_1K || DATA.replace("/model-data/", "/model-data-1km/");
-  // the five regional 3 km grids that, with the western highlands, cover the Kingdom; each on its own branch
-  const REGIONS = ["nw", "n", "c", "e", "se"].map((id) => [id, DATA.replace("/model-data/", `/model-data-${id}/`)]);
+  const DATA_1K = window.SWRF_DATA_1K || DATA0.replace("/model-data/", "/model-data-1km/");
+  // two drivers of the same 3 km model (15 Nov 2026): GFS (model-data, model-data-<id>) and ECMWF open data
+  // (model-data-ec, model-data-ec-<id>); the two tabs under the product list switch every map between them
+  const MODELS = { gfs: "", ec: "ec-" };
+  let MODEL = MODELS[localStorage_get("model")] !== undefined ? localStorage_get("model") : "gfs";
+  let DATA, REGIONS;
+  function useModel(m) {
+    MODEL = m;
+    DATA = m === "gfs" ? DATA0 : DATA0.replace("/model-data/", `/model-data-${MODELS[m].slice(0, -1)}/`);
+    // the five regional 3 km grids that, with the western highlands, cover the Kingdom; each on its own branch
+    REGIONS = ["nw", "n", "c", "e", "se"].map((id) => [id, DATA0.replace("/model-data/", `/model-data-${MODELS[m]}${id}/`)]);
+  }
+  function localStorage_get(k) { try { return localStorage.getItem("swrf." + k); } catch (e) { return null; } }
+  useModel(MODEL);
   const base = (d) => (d && d.base) || DATA;
   const TZ = "Asia/Riyadh";
   const LOC = "ar-SA-u-nu-arab-ca-gregory";
@@ -788,7 +799,7 @@
     try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
     // the 9 km grids (the Kingdom-wide run and the western 9 km parent) are not shown: only 3 km (Fahad, 13 Nov 2026)
     S.k1wait = false;
-    try {  // the 1 km nest (only its own grid; the 9 and 3 km grids there just feed it)
+    if (MODEL === "gfs") try {  // the 1 km nest (GFS runs only) (only its own grid; the 9 and 3 km grids there just feed it)
       const k1 = await getJSON(`${DATA_1K}runs/${run}/manifest.json`);
       S.k1wait = !(k1.domains && k1.domains.d03) && k1.status === "running";
       if (S.man && k1.domains && k1.domains.d03) {
@@ -868,6 +879,28 @@
   }
   $("runSelect").onchange = (e) => { stop(); loadRun(e.target.value, true); };
 
+  // GFS / ECMWF: the same model and grids, driven by either; switching reloads the newest run of the chosen one
+  function drawModelTabs() {
+    document.querySelectorAll("#modelTabs button").forEach((b) => b.classList.toggle("active", b.dataset.m === MODEL));
+  }
+  document.querySelectorAll("#modelTabs button").forEach((b) => b.onclick = async () => {
+    if (b.dataset.m === MODEL) return;
+    // keep the same valid time (or day) on the map, so the two drivers compare at a glance
+    const f0 = S.frames[S.idx], t0 = f0 && f0.h != null && S.man ? Date.parse(S.man.init) + f0.h * 3600e3 : null;
+    stop(); useModel(b.dataset.m); store.set("model", MODEL); drawModelTabs(); setLogLinks();
+    S.run = null; S.man = null; S.meteo = null; S.points = {};
+    clearOverlay();
+    await refreshRuns(true);
+    if (S.man && S.frames.length && f0) {
+      let k = -1;
+      if (t0 != null) k = S.frames.findIndex((f) => f.h != null && Date.parse(S.man.init) + f.h * 3600e3 === t0);
+      else if (f0.date) k = S.frames.findIndex((f) => f.date === f0.date);
+      if (k >= 0) { S.idx = k; showFrame(); }
+    }
+    if (!$("p-status").hidden) refreshStatus();
+  });
+  drawModelTabs();
+
   // ------------------------------------------------------------------ status
   const PH = { install: ["جارٍ التثبيت", "run"], cycle: ["دورة قيد التشغيل", "run"], idle: ["جاهز", "ok"], error: ["متوقف بخطأ", "err"] };
   const STATE = { pending: ["بانتظار", "wait"], running: ["جارٍ", "run"], done: ["تم", "ok"], error: ["خطأ", "err"], skipped: ["تُخطّي", "wait"] };
@@ -909,7 +942,7 @@
 
 
   // ------------------------------------------------------------------ MJO and warm/cold events
-  const CL = window.SWRF_CLIMATE || DATA.replace("/model-data/", "/climate-data/");
+  const CL = window.SWRF_CLIMATE || DATA0.replace("/model-data/", "/climate-data/");
   const M = { st: null, map: null, layer: "wc", day: 0, img: null, vec: null, vecs: null, loaded: 0 };
   const AR_AREA = { 1: "غرب نصف الكرة الغربي وأفريقيا", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي", 4: "القارة البحرية (إندونيسيا)",
                     5: "القارة البحرية (إندونيسيا)", 6: "غرب المحيط الهادئ", 7: "غرب المحيط الهادئ", 8: "نصف الكرة الغربي وأفريقيا" };
@@ -1305,7 +1338,8 @@
     if (b.dataset.tab === "status") refreshStatus();
   });
 
-  document.querySelectorAll("[data-log]").forEach((a) => { a.href = `${DATA}logs/${a.dataset.log}.txt`; });
+  function setLogLinks() { document.querySelectorAll("[data-log]").forEach((a) => { a.href = `${DATA}logs/${a.dataset.log}.txt`; }); }
+  setLogLinks();
 
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
