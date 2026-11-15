@@ -144,6 +144,24 @@ def main():
     print(f"yardsticks: Rossby {rref:.2f}, Kelvin {kref:.2f} (10^6 m^2/s), component {mref:.1f} m", flush=True)
     rosF, kelF, mfF = ros <= -rref / 3, kel <= -kref / 3, mf <= -mref / 3
 
+    # checks of the rebuilt drivers: the warm-event centre against the RMM phase (where the convection is), and the
+    # last season against what the daily system measured (the Rossby family negative on 22 of 24 wide days)
+    print("\nchecks: warm-event centre (circular mean, degrees E) and amplitude by RMM phase (amplitude 1 or more)")
+    for p_ in range(1, 9):
+        q = (ph == p_) & (amp >= 1)
+        cm = np.degrees(np.arctan2(np.sin(np.radians(wl[q])).mean(), np.cos(np.radians(wl[q])).mean())) % 360
+        print(f"  phase {p_}: centre {cm:.0f}E, amplitude {wa[q].mean():.1f}, in the favourable sector {100*np.mean(fav[q] & (wa[q] >= 4)):.0f}% (n={q.sum()})")
+    ksa_sp = np.array([r["المملكة"][0] for r in rows])
+    for a, b in (("2025-12-01", "2026-03-17"), ("2001-01-01", "2026-03-17")):
+        q = np.array([a <= r["d"] <= b for r in rows]) & (ksa_sp >= 0.08)
+        print(f"  wide days (8 % of the Kingdom) {a}..{b}: n={q.sum()}, Rossby negative {100*np.mean(ros[q] < 0):.0f}% "
+              f"(all wet days {100*np.mean(ros < 0):.0f}%), Kelvin negative {100*np.mean(kel[q] < 0):.0f}%, "
+              f"component negative {100*np.mean(mf[q] < 0):.0f}%, warm in sector {100*np.mean(warm[q]):.0f}%, MJO 7-8-1-2 {100*np.mean(mjo[q]):.0f}%")
+    for s_ in sorted(set(season)):
+        q = (season == s_) & (ksa_sp >= 0.08)
+        if q.sum() >= 5:
+            print(f"    season {s_}: wide days {q.sum()}, Rossby negative {100*np.mean(ros[q] < 0):.0f}%, component negative {100*np.mean(mf[q] < 0):.0f}%")
+
     # per part: the trough, the moisture
     per = {}
     for g in GROUPS:
