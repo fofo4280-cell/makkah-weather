@@ -514,6 +514,25 @@ def main():
         traceback.print_exc()
         print("tropical waves failed:", repr(e), flush=True)
         wk = None
+    # 7d. the Kelvin and Rossby maps as in Dr Khalid's charts: a week of analyses and the forecast, one frame a day
+    # (fig/twr_KK.png westward Rossby family, fig/twk_KK.png eastward Kelvin), the same scale and arrows in every frame
+    twf = None
+    if wk is not None:
+        try:
+            i0 = tw["days"].index(t0.date().isoformat())
+            rng = [i for i in range(i0 - 7, len(tw["days"])) if i >= 0]
+            for fam, kd in (("ros", "twr"), ("kel", "twk")):
+                vecs = {i: sphere.divergent_wind(wk[fam][i], wla) for i in rng}
+                ref = figures.wave_vec_ref(list(vecs.values()), wla)
+                for k, i in enumerate(rng):
+                    figures.draw_wave(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), wk[fam][i] / 1e6, wla, LON1, kd,
+                                      vecs[i], ref)
+            twf = {"days": [tw["days"][i] for i in rng], "t0": rng.index(i0)}
+            print("wave frames:", len(rng), flush=True)
+        except Exception as e:  # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            print("wave frames failed:", repr(e), flush=True)
     for k, dt in enumerate(days):
         mk = marks_for(dt)
         belt_marks.append({"d": dt.strftime("%Y-%m-%d"), **mk})
@@ -712,9 +731,9 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros")
+        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr", "twk")
                  if k in figures.SCALES},
-        "marks": belt_marks, "tw": tw, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}

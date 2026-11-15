@@ -663,3 +663,107 @@ def draw_belt_stack(path, panels, marks=None, title="", stamp="", width_px=3000)
     _save_png(fig, path)
 
 
+
+
+# ------------------------------------------------------------------ the tropical wave maps (as Dr Khalid's SCORPION)
+# One map per family (Rossby westward, Kelvin eastward): the filtered 200 hPa velocity potential shaded in the
+# red-blue scale, thin white contours (solid above zero, dashed below), the divergent wind as white arrows on a
+# regular grid, and nothing else drawn in the image: the titles, the colour bar and the date are on the page, in
+# the site's own font. Every frame of a family has the same scale and the same arrow length for the same wind,
+# so the days run on smoothly when played.
+def _rdbu_stops(n=11):
+    import matplotlib
+    cm = matplotlib.colormaps["RdBu_r"]
+    from matplotlib.colors import to_hex
+    return [(round(k / (n - 1), 3), to_hex(cm(k / (n - 1)))) for k in range(n)]
+
+
+SCALES["twr"] = {"vmin": -3.5, "vmax": 3.5, "cols": _rdbu_stops(), "step": 0.5,
+                 "label": "عائلة روسبي (الأزرق داعم للحمل)", "unit": "مليون م²/ث",
+                 "ticks": [-3, -2, -1, 0, 1, 2, 3]}
+SCALES["twk"] = {"vmin": -6.5, "vmax": 6.5, "cols": _rdbu_stops(), "step": 1.0,
+                 "label": "موجات كلفن (الأزرق داعم للحمل)", "unit": "مليون م²/ث",
+                 "ticks": [-6, -4, -2, 0, 2, 4, 6]}
+WAVE_BOX = (0, 360, -35, 35)
+
+
+def wave_vec_ref(vectors_list, lat):
+    """the wind that makes a full-length arrow: the 99th percentile of the divergent wind over all the frames"""
+    s, n = WAVE_BOX[2], WAVE_BOX[3]
+    j = (lat >= s) & (lat <= n)
+    return max(float(np.nanpercentile(np.concatenate([np.hypot(u[j], v[j]).ravel() for u, v in vectors_list]), 99)),
+               1e-6)
+
+
+def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
+    """field (10^6 m2/s) and vectors (u, v m/s) on lat x lon (0..359, 1 degree); vec_ref from wave_vec_ref."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    from scipy.ndimage import zoom
+    sc = SCALES[kind]
+    w, e, s, n = WAVE_BOX
+    dpi = 200
+    fig_w = width_px / dpi
+    lm, rm, bm, tm = 0.30, 0.04, 0.24, 0.04                     # inches
+    map_w = fig_w - lm - rm
+    map_h = map_w * (n - s) / (e - w)
+    fig_h = map_h + bm + tm
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+    fig.patch.set_facecolor("#ffffff")
+    pc = ccrs.PlateCarree()
+    ax = fig.add_axes([lm / fig_w, bm / fig_h, map_w / fig_w, map_h / fig_h],
+                      projection=ccrs.PlateCarree(central_longitude=180))
+    ax.set_extent([w, e - 0.001, s, n], crs=pc)
+    order = np.argsort(lat)[::-1]                                # descending
+    lat, field = lat[order], field[order]
+    u, v = vectors[0][order], vectors[1][order]
+    j = (lat >= s - 3) & (lat <= n + 3)
+    la = lat[j]
+    f = np.hstack([field[j], field[j][:, :1]])
+    lo = np.append(lon, lon[0] + 360)
+    up = 6
+    fine = zoom(np.nan_to_num(f), up, order=3)
+    ax.imshow(fine, extent=[lo[0] - 180, lo[-1] - 180, la[-1], la[0]], origin="upper", cmap="RdBu_r",
+              vmin=sc["vmin"], vmax=sc["vmax"], interpolation="bilinear", transform=ax.projection, zorder=1)
+    st = sc["step"]
+    lv = np.arange(-30 * st, 30 * st + st / 2, st)
+    lv = lv[np.abs(lv) > st / 2]
+    fs = zoom(np.nan_to_num(f), 2, order=3)
+    los = np.linspace(lo[0], lo[-1], fs.shape[1])
+    las = np.linspace(la[0], la[-1], fs.shape[0])
+    ax.contour(los, las, fs, levels=lv, colors="white", linewidths=0.55, alpha=0.55, transform=pc, zorder=2,
+               linestyles=["dashed" if x < 0 else "solid" for x in lv])
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.25, edgecolor="#3a3a3a", alpha=0.6, zorder=3)
+    ax.coastlines(resolution="50m", linewidth=0.55, color="#111111", zorder=3)
+    # the arrows: every 5 degrees, where the divergent wind is a quarter of the full-length wind or more
+    ue = np.hstack([u[j], u[j][:, :1]])
+    ve = np.hstack([v[j], v[j][:, :1]])
+    stp = 5
+    LO, LA = np.meshgrid(lo, la)
+    sel = (np.round(LO) % stp == 2) & (np.round(LA) % stp == 2) & (LA >= s + 1) & (LA <= n - 1) & (LO < e)
+    U, V = ue[sel] / vec_ref, ve[sel] / vec_ref
+    M = np.hypot(U, V)
+    k = M >= 0.25
+    if k.any():
+        sc_ = np.minimum(M[k], 1.15) / M[k]                       # the strongest few capped, so none hides another
+        ax.quiver(LO[sel][k], LA[sel][k], U[k] * sc_, V[k] * sc_, transform=pc, color="white", alpha=0.95,
+                  angles="xy", scale_units="xy", scale=1 / 5.0, width=0.0013, headwidth=3.4, headlength=3.4,
+                  headaxislength=3.2, zorder=5)
+    ax.plot([w, e], [0, 0], color="#333333", alpha=0.55, linewidth=0.6, transform=pc, zorder=4)
+    for x in range(30, 360, 30):
+        ax.plot([x, x], [s, n], color="#000000", alpha=0.06, linewidth=0.4, transform=pc, zorder=4)
+    for y in (-30, -15, 15, 30):
+        ax.plot([w, e], [y, y], color="#000000", alpha=0.06, linewidth=0.4, transform=pc, zorder=4)
+    ax.spines["geo"].set_edgecolor("#b5b5b5")
+    ax.spines["geo"].set_linewidth(0.6)
+    xt = np.arange(0, 361, 30)
+    yt = np.array([-30, -15, 0, 15, 30])
+    ax.set_xticks(xt, crs=pc)
+    ax.set_yticks(yt, crs=pc)
+    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=6, color="#555555", fontweight="bold")
+    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=6, color="#555555", fontweight="bold")
+    ax.tick_params(length=0, pad=2.5)
+    _save_png(fig, path)
