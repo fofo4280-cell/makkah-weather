@@ -51,6 +51,7 @@ Last updated: 15 Nov 2026. Written for Claude, to continue the work without the 
   - model cycle 12 between 15:50 and 23:00 UTC (cycle 00 removed on 15 Nov: on 15 Nov it still started the 00Z run at 03:52 UTC, which is why Fahad saw a daytime run);
   - the night climate run between 21:00 and 23:59 UTC.
 - **Rain map `rain24`:** hours 9-33, i.e. 12 to 12 Makkah time (midnight to midnight in the 12Z run, noon to noon in the 00Z run); label «المطر التراكمي من ١٢ إلى ١٢» (Fahad, 14 Nov 2026).
+- **Basemap (model page, 15 Nov 2026, Fahad):** Esri World Imagery toned down by CSS (`.sat-dark`: navy sea, muted brown land) is the default (localStorage `swrf.base3`); OpenTopoMap removed. Thin dark country borders from `model/borders.json` (Natural Earth 1:50m, Saudi view) in the «الحدود» overlay with the regions; Arabic names drawn by the page (countries and seas, main cities from zoom 6). Hillshade is off by default. The container cannot reach the tile hosts: previews are screenshotted on a GitHub runner (push-triggered workflow on a preview branch).
 - **Maps:** PNG with banded palettes. The REFL palette is 5 dBZ bands, blue → green → yellow → red → purple. Model page assets are versioned `v=2026111xx`.
 
 ## 3b. The ECMWF-driven run (added 15 Nov 2026, Fahad: "accuracy first")

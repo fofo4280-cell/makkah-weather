@@ -62,44 +62,69 @@
 
   // ------------------------------------------------------------------ map
   const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 16 }).setView([23.5, 44], 5);
-  // basemaps: dark by default, place names drawn above the model colours
+  // basemaps: toned-down satellite relief by default, place names drawn above the model colours
   map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
   // Esri's grey canvas tiles need no key (CARTO started requiring one and stamps its tiles otherwise)
   const esri = (svc) => `https://server.arcgisonline.com/ArcGIS/rest/services/${svc}/MapServer/tile/{z}/{y}/{x}`;
   const esriAttr = "© Esri, HERE, Garmin, © OpenStreetMap";
   const dark = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
   const light = L.tileLayer(esri("Canvas/World_Light_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
-  // OpenTopoMap and OpenStreetMap carry the local (Arabic) names: villages, wadis, mountains and landmarks when zoomed in
-  const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { maxZoom: 16, maxNativeZoom: 17, attribution: "© OpenStreetMap, SRTM · OpenTopoMap" });
+  // modern relief (Fahad, 15 Nov 2026, replacing OpenTopoMap): Esri satellite imagery toned down to a dark
+  // navy sea and muted brown land (CSS filter on .sat-dark), thin dark country borders and Arabic names
+  const sat = L.tileLayer(esri("World_Imagery"), { maxZoom: 19, maxNativeZoom: 17, className: "sat-dark", attribution: "صور: Esri, Maxar, Earthstar Geographics" });
+  // OpenStreetMap carries the local (Arabic) names: villages, wadis, mountains and landmarks when zoomed in
   const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 16, maxNativeZoom: 19, attribution: "© OpenStreetMap" });
   const shade = L.tileLayer(esri("Elevation/World_Hillshade_Dark"), { maxZoom: 16, maxNativeZoom: 13, opacity: 0.45, attribution: "Esri" });
-  const labelsDark = L.tileLayer(esri("Canvas/World_Dark_Gray_Reference"), { pane: "labels", maxZoom: 19, maxNativeZoom: 16 });
-  const bases = { "داكنة": dark, "فاتحة": light, "تضاريس وأودية (أسماء عربية)": topo, "تفصيلية: القرى والمعالم (أسماء عربية)": osm };
-  const baseKey = store.get("base2") || "داكنة";
-  (bases[baseKey] || dark).addTo(map);
-  if (store.get("shade") !== "0") shade.addTo(map);
-  if (store.get("labels") !== "0") labelsDark.addTo(map);
+  // Arabic names above the model colours: countries and seas from zoom 4, the main cities from zoom 6
+  const NAMES = [
+    ["c", "السعودية", 24.3, 44.6], ["c", "العراق", 32.8, 43.6], ["c", "الأردن", 30.9, 36.9], ["c", "سوريا", 35.0, 38.6],
+    ["c", "الكويت", 29.35, 47.6], ["c", "الإمارات", 23.6, 54.3], ["c small", "قطر", 25.3, 51.2], ["c small", "البحرين", 26.05, 50.55],
+    ["c", "عُمان", 21.0, 57.0], ["c", "اليمن", 15.6, 47.5], ["c", "مصر", 26.5, 30.0], ["c", "السودان", 16.0, 30.5],
+    ["c", "إريتريا", 15.4, 38.6], ["c", "إثيوبيا", 9.0, 39.5], ["c", "الصومال", 8.0, 47.5], ["c small", "جيبوتي", 11.7, 42.6],
+    ["c", "إيران", 32.5, 54.0], ["c", "تركيا", 39.0, 35.0], ["c small", "لبنان", 33.9, 35.85], ["c small", "فلسطين", 31.4, 35.05],
+    ["c", "ليبيا", 27.0, 18.0], ["c", "باكستان", 28.5, 66.5], ["c", "أفغانستان", 33.5, 65.5],
+    ["s", "البحر الأحمر", 20.2, 38.6], ["s", "الخليج العربي", 27.5, 50.6], ["s", "بحر العرب", 15.0, 62.0],
+    ["s", "خليج عدن", 12.4, 47.8], ["s", "البحر المتوسط", 33.8, 26.0], ["s", "خليج عُمان", 24.6, 58.6],
+    ["p", "الرياض", 24.71, 46.68], ["p", "جدة", 21.54, 39.17], ["p b", "مكة المكرمة", 21.42, 39.83], ["p", "المدينة المنورة", 24.47, 39.61],
+    ["p r", "الطائف", 21.27, 40.42], ["p", "أبها", 18.22, 42.51], ["p", "جازان", 16.89, 42.55], ["p", "نجران", 17.49, 44.13],
+    ["p", "الباحة", 20.01, 41.47], ["p", "تبوك", 28.38, 36.57], ["p", "حائل", 27.52, 41.69], ["p", "بريدة", 26.33, 43.97],
+    ["p", "الدمام", 26.42, 50.09], ["p", "سكاكا", 29.97, 40.21], ["p", "عرعر", 30.98, 41.04], ["p", "ينبع", 24.09, 38.06],
+    ["p", "الأحساء", 25.38, 49.59], ["p", "وادي الدواسر", 20.47, 44.78], ["p", "شرورة", 17.47, 47.11], ["p", "العلا", 26.61, 37.92],
+  ];
+  const names = L.layerGroup(NAMES.map(([k, t, la, lo]) => L.marker([la, lo], { pane: "labels", interactive: false, keyboard: false,
+    icon: L.divIcon({ className: "map-name map-name-" + k.split(" ")[0] + (k.includes(" ") ? " " + k.split(" ")[1] : ""), html: `<span>${t}</span>`, iconSize: [0, 0] }) })));
+  const bases = { "تضاريس (صور فضائية)": sat, "داكنة": dark, "فاتحة": light, "تفصيلية: القرى والمعالم (أسماء عربية)": osm };
+  const DARK_BASES = new Set(["داكنة"]);
+  const baseKey = bases[store.get("base3")] ? store.get("base3") : "تضاريس (صور فضائية)";
+  bases[baseKey].addTo(map);
+  if (store.get("shade") === "1") shade.addTo(map);
+  if (store.get("labels") !== "0") names.addTo(map);
   // boundaries of the Kingdom's 13 regions (Natural Earth), above the model colours and below the lightning
   map.createPane("regions"); map.getPane("regions").style.zIndex = 630; map.getPane("regions").style.pointerEvents = "none";
   const regionStyle = (f) => {
     const darkMap = !document.body.classList.contains("light-map");
-    const col = darkMap ? "rgba(235,238,242,0.62)" : "rgba(40,44,52,0.6)";
-    return f && f.properties.k === "border" ? { color: col, weight: 1.4, opacity: 1, fill: false, interactive: false }
-      : { color: col, weight: 1, opacity: 1, dashArray: "5 4", fill: false, interactive: false };
+    const col = darkMap ? "rgba(235,238,242,0.62)" : "rgba(14,16,20,0.78)";
+    return f && (f.properties.k === "border" || f.properties.k === "country") ? { color: col, weight: 1.2, opacity: 1, fill: false, interactive: false }
+      : { color: col, weight: 0.8, opacity: 0.8, dashArray: "4 4", fill: false, interactive: false };
   };
   const regions = L.geoJSON(null, { pane: "regions", style: regionStyle, interactive: false });
   if (store.get("regions") !== "0") regions.addTo(map);
   fetch("sa_regions.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
-  L.control.layers(bases, { "حدود المناطق": regions, "ظلال التضاريس": shade, "أسماء المدن الكبرى": labelsDark }, { position: "topleft" }).addTo(map);
-  map.on("baselayerchange", (e) => {
-    store.set("base2", e.name); document.body.classList.toggle("light-map", e.name !== "داكنة");
-    regions.setStyle(regionStyle);
-  });
-  document.body.classList.toggle("light-map", baseKey !== "داكنة");
+  // the other countries' borders (Natural Earth 1:50m, the Saudi point of view)
+  fetch("borders.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
+  L.control.layers(bases, { "الحدود": regions, "ظلال التضاريس": shade, "الأسماء": names }, { position: "topleft" }).addTo(map);
+  const setMapKind = (name) => {
+    document.body.classList.toggle("light-map", !DARK_BASES.has(name));
+    document.body.classList.toggle("sat-map", name === "تضاريس (صور فضائية)");
+  };
+  map.on("baselayerchange", (e) => { store.set("base3", e.name); setMapKind(e.name); regions.setStyle(regionStyle); });
+  setMapKind(baseKey);
+  const nameZoom = () => { const z = map.getZoom(), c = map.getContainer().classList; c.toggle("z-lt6", z < 6); c.toggle("z-ge8", z >= 8); };
+  map.on("zoomend", nameZoom); nameZoom();
   map.on("overlayadd overlayremove", (e) => {
     const on = e.type === "overlayadd" ? "1" : "0";
     if (e.layer === shade) store.set("shade", on);
-    if (e.layer === labelsDark) store.set("labels", on);
+    if (e.layer === names) store.set("labels", on);
     if (e.layer === regions) store.set("regions", on);
   });
   // the folded colour key: a very small strip under the layers box; a tap opens the full key at the bottom

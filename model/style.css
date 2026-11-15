@@ -145,6 +145,25 @@ a { color: var(--sea); }
 .wx-layer { transition: opacity .45s ease; image-rendering: auto; }
 #map { background: #0d141b; }
 .light-map #map { background: #e9eef2; }
+/* the satellite relief toned down: dark navy sea, muted brown and olive land (Fahad, 15 Nov 2026) */
+.sat-map #map { background: #1b2433; }
+.sat-dark { filter: brightness(.64) contrast(1.1) saturate(.62) sepia(.14); }
+/* Arabic names drawn by the page: countries and seas always, the main cities from zoom 6; the detailed base names them past zoom 8 */
+.map-name { pointer-events: none; }
+.map-name span { position: absolute; transform: translate(-50%, -50%); white-space: nowrap; font-family: inherit; direction: rtl;
+  color: rgba(236,232,222,.86); text-shadow: 0 0 3px rgba(0,0,0,.85), 0 0 1px rgba(0,0,0,.9); }
+.map-name-c span { font-size: 13px; font-weight: 600; letter-spacing: .3px; }
+.map-name-s span { font-size: 12px; font-style: normal; color: rgba(170,192,220,.8); }
+.map-name-p span { font-size: 11px; font-weight: 500; color: rgba(255,255,255,.92); }
+.map-name-p span::before { content: ""; display: inline-block; width: 4px; height: 4px; border-radius: 2px; background: #fff; margin-inline-end: 4px; vertical-align: middle; box-shadow: 0 0 2px #000; }
+/* a city's dot sits on the city: the name to its left (default), right (r) or below (b) */
+.map-name-p span { transform: translate(calc(-100% + 4px), -50%); }
+.map-name-p.r span { transform: translate(-4px, -50%); flex-direction: row-reverse; }
+.map-name-p.b span { transform: translate(-50%, -4px); flex-direction: column; }
+.map-name-p.b span::before { display: block; margin: 0 auto 2px; }
+.map-name-p span { display: flex; align-items: center; }
+.z-lt6 .map-name-p, .z-lt6 .map-name-c.small, .z-ge8 .map-name-c, .z-ge8 .map-name-s { display: none; }
+.light-map:not(.sat-map) .map-name span { color: #1d232b; text-shadow: 0 0 3px #fff, 0 0 1px #fff; }
 .leaflet-control-layers, .leaflet-bar a { background: var(--glass); color: var(--glass-ink); border-color: var(--glass-line); }
 .leaflet-control-layers-toggle { filter: invert(1) brightness(1.4); }
 .leaflet-control-layers-expanded { color: var(--glass-ink); padding: 8px 10px; border-radius: 12px; }
