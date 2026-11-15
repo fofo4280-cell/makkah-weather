@@ -68,12 +68,14 @@
   const esri = (svc) => `https://server.arcgisonline.com/ArcGIS/rest/services/${svc}/MapServer/tile/{z}/{y}/{x}`;
   const esriAttr = "© Esri, HERE, Garmin, © OpenStreetMap";
   const dark = L.tileLayer(esri("Canvas/World_Dark_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
-  const light = L.tileLayer(esri("Canvas/World_Light_Gray_Base"), { maxZoom: 19, maxNativeZoom: 16, attribution: esriAttr });
+  // light: Esri World Topographic (soft relief, Fahad's pick on 15 Nov 2026)
+  const light = L.tileLayer(esri("World_Topo_Map"), { maxZoom: 19, maxNativeZoom: 17, attribution: "© Esri, HERE, Garmin, USGS, © OpenStreetMap" });
   // modern relief (Fahad, 15 Nov 2026, replacing OpenTopoMap): Esri satellite imagery toned down to a dark
   // navy sea and muted brown land (CSS filter on .sat-dark), thin dark country borders and Arabic names
   const sat = L.tileLayer(esri("World_Imagery"), { maxZoom: 19, maxNativeZoom: 17, className: "sat-dark", attribution: "صور: Esri, Maxar, Earthstar Geographics" });
-  // OpenStreetMap carries the local (Arabic) names: villages, wadis, mountains and landmarks when zoomed in
-  const osm = L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 16, maxNativeZoom: 19, attribution: "© OpenStreetMap" });
+  // detailed: CyclOSM (OpenStreetMap with hill shading) carries the local (Arabic) names of villages, wadis,
+  // mountains and landmarks when zoomed in (Fahad's pick on 15 Nov 2026, replacing the standard OSM style)
+  const osm = L.tileLayer("https://{s}.tile-cyclosm.openstreetmap.fr/cyclosm/{z}/{x}/{y}.png", { subdomains: "abc", maxZoom: 18, maxNativeZoom: 18, attribution: "© OpenStreetMap · CyclOSM" });
   const shade = L.tileLayer(esri("Elevation/World_Hillshade_Dark"), { maxZoom: 16, maxNativeZoom: 13, opacity: 0.45, attribution: "Esri" });
   // Arabic names above the model colours: countries and seas from zoom 4, the main cities from zoom 6
   const NAMES = [
