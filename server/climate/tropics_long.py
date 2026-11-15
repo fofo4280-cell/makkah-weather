@@ -187,18 +187,23 @@ def analyse(rows):
     nino = np.array([r["nino"] if r["nino"] is not None else np.nan for r in rows])
     dmi = np.array([r["dmi"] if r["dmi"] is not None else np.nan for r in rows])
     T = np.column_stack([[r["rmm"][0] for r in rows], [r["rmm"][1] for r in rows], fav, np.nan_to_num(nino), np.nan_to_num(dmi)])
-    has_syn = all(len(rows[0][g]) == 4 for g in GROUPS)
+    syn = np.array([all(len(r[g]) == 4 for g in GROUPS) for r in rows])    # days with the reanalysis too
+    print(f"days with the reanalysis {syn.sum()}")
 
     print("\n== 1. Daily (cross-validated, leave one season out): share of the day-to-day rain explained")
     for g in GROUPS:
         y = np.sqrt(np.array([r[g][0] for r in rows]))
         rt = cv_r2(T, y, season)
         line = f"{g}: tropics {100*rt:5.1f}%"
-        if has_syn:
-            z = np.array([r[g][2] for r in rows]); pw = np.array([r[g][3] for r in rows])
-            Es = np.column_stack([z - running(z), pw - running(pw), pw])
-            re = cv_r2(Es, y, season); rb = cv_r2(np.hstack([T, Es]), y, season)
-            line += f"  troughs+moisture {100*re:5.1f}%  both {100*rb:5.1f}%"
+        sr = [r for r, k in zip(rows, syn) if k]
+        z = np.array([r[g][2] for r in sr]); pw = np.array([r[g][3] for r in sr]); ss = season[syn]
+        za, pa = np.full_like(z, np.nan), np.full_like(pw, np.nan)
+        for q in set(ss):                      # departures from the running mean within each season
+            za[ss == q] = z[ss == q] - running(z[ss == q]); pa[ss == q] = pw[ss == q] - running(pw[ss == q])
+        Es = np.column_stack([za, pa, pw])
+        re = cv_r2(Es, y[syn], ss); rb = cv_r2(np.hstack([T[syn], Es]), y[syn], ss)
+        rt2 = cv_r2(T[syn], y[syn], ss)
+        line += f" (same days {100*rt2:5.1f}%)  troughs+moisture {100*re:5.1f}%  both {100*rb:5.1f}%"
         print(line + f"  (mean daily spread {100*np.mean(np.array([r[g][0] for r in rows])):.1f}%)")
 
     print("\n== 2. Monthly (each month of each season): correlation of the month's rain with the tropical drivers,"
@@ -237,6 +242,20 @@ def analyse(rows):
                 cells.append(f"{p_}:{100*y[s].mean():4.1f}({100*y[s].mean()/max(base,1e-6):.0%})" if s.sum() >= 20 else f"{p_}: -")
             s = sel & (amp < 1)
             print(f"   {g}: all {base:.1f} | " + " ".join(cells) + f" | weak {100*y[s].mean():.1f}")
+
+    print("\n== 4. Whole seasons (November to April): correlation of the season's mean rain with the season's drivers")
+    for g in GROUPS:
+        ss = sorted(set(season))
+        full = [q for q in ss if (season == q).sum() >= 150]
+        rain = np.array([np.mean([r[g][1] for r, k in zip(rows, season) if k == q]) for q in full])
+        fs = np.array([np.mean((fav > 0)[season == q]) for q in full])
+        ns = np.array([np.nanmean(nino[season == q]) for q in full]); ds = np.array([np.nanmean(dmi[season == q]) for q in full])
+        c = lambda x: np.corrcoef(x, rain)[0, 1]
+        wet3 = [int(full[i]) for i in np.argsort(-rain)[:4]]; dry3 = [int(full[i]) for i in np.argsort(rain)[:4]]
+        print(f"{g}: n={len(full)} seasons | corr: favourable-MJO share {c(fs):+.2f}, ENSO {c(ns):+.2f}, IOD {c(ds):+.2f} "
+              f"| wettest {wet3} dryest {dry3}")
+    print("season drivers: " + " ".join(f"{q}:{np.nanmean(nino[season == q]):+.1f}/{np.nanmean(dmi[season == q]):+.1f}/{100*np.mean((fav > 0)[season == q]):.0f}%"
+                                        for q in sorted(set(season)) if (season == q).sum() >= 150))
 
 
 if __name__ == "__main__":
