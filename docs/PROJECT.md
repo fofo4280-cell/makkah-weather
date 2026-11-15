@@ -140,6 +140,13 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
     - MJO phases 8 and 1 instead of 7-8-1-2.
     - Warm event weighted in Feb-Apr only.
     - Cold event as a brake in Nov-Jan.
+  - **Who brings the moisture (same run family, 15 Nov):** P(PW >= 130 %) by MJO phase.
+    - Kingdom Feb-Apr: phase 8 66 %, phase 1 51 %, phase 4 15 %; the base is 38 %. North Feb-Apr: phase 8 27 %, phase 4 3 %. Hijaz: phase 8 25-28 %, phases 4-5 4-8 %.
+    - Other drivers, as a multiple of the base chance: warm event x1.2-1.6 in Feb-Apr and x0.6-0.9 in Nov-Jan; cold event x0.5-0.9; Rossby, Kelvin and component x0.8-1.3; the part's own trough x0.7-1.4.
+    - Moist days have a tropical driver on 72-82 % of days, against 65-68 % of all days.
+    - Kingdom: moist days with a trough give 50 % of the rain; moist days without a trough give 16-17 %.
+    - Reading: the MJO (phases 8-1) is the main moisture pump, and the trough gives the lift. Part of the "trough/moisture without tropics" rain is tropical through the moisture.
+    - Caveat: the trough is measured over the part itself, which can miss the upstream trough that pumps the moisture.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
