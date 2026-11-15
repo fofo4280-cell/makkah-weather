@@ -1263,7 +1263,6 @@
     const n = t.days.length, kinds = ["twr", "twk"];
     const url = (kd, k) => `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
     kinds.forEach((kd) => { for (let k = 0; k < n; k++) { const im = new Image(); im.src = url(kd, k); } });
-    kinds.forEach((kd) => { if (st.figs && st.figs[kd]) $(kd + "Legend").innerHTML = legendHTML(st.figs[kd]); });
     const show = () => {
       const k = +$("twDay").value || 0, d = t.days[k];
       document.querySelectorAll("#twCard .tw-stage").forEach((sg) => {

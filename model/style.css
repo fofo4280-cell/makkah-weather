@@ -257,8 +257,8 @@ a { color: var(--sea); }
 .tw-scroll { padding-bottom: 4px; }
 .tw-panel { width: max-content; }
 .tw-panel h4 { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 70px); margin: 8px 0 3px; padding: 0 8px; font-size: .85rem; font-weight: 700; color: #1b1b1b; }
-.tw-stage { position: relative; height: 260px; aspect-ratio: 2400 / 509; background: #fff; }
-.tw-stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .55s ease-in-out; }
+.tw-stage { position: relative; height: 260px; aspect-ratio: 2400 / 466; background: #3a3f45; }
+.tw-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; opacity: 0; transition: opacity .55s ease-in-out; }
 .tw-stage img.on { opacity: 1; }
 #twkLegend { margin-top: 6px; }
 .wv-stage { position: relative; height: 380px; aspect-ratio: 2000 / 1111; background: #3a3f45; }
