@@ -160,6 +160,11 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
     - East: Nov-Jan start 150 (52 %). Feb-Apr start 130 (52 %), confident 150 (65 %).
     - Without a trough, P drops by about 10-30 points at the same PW.
     - MJO 8-1-2 on top of a trough adds little in most cells (small samples). The exception is the centre in Feb-Apr at 150-175 %: 88 %.
+  - **Highlands and Tihama strips (`highland_test.py`, method-study extra=highlands; CHIRPS 2001-2024; NCEP PW at the middle of each strip).** P(10 mm or more somewhere on the strip).
+    - Highlands, share of days by month: Nov 2 %, Dec 4 %, Jan 7 %, Feb 1 %, Mar 9 %, Apr 32 %. November is climatologically dry there, and strip PW above 150 % in November almost never occurred, so this week (150-190 %) was outside the historical range.
+    - Highlands Nov: P rises from 0 to 8 % as PW goes from below 80 % to 130-150 %. Dec-Jan with a trough: 25 % at 150-175 %. Feb-Apr with MJO 8-1-2: 32 % at 115-130 %, 41 % at 130-150 %, 50 % at 150-175 %.
+    - Tihama: low in every season (at most 19 % at 150-175 % in Dec-Jan). CHIRPS likely under-counts there.
+    - Early season in the highlands needs exceptional moisture plus lift. The 22 Nov forecast (130-134 %) is below this week's level.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
