@@ -116,6 +116,10 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
   - Monthly: correlation with the share of favourable-MJO days 0.12 (Hijaz) to 0.32 (north); tropics together explain 0-9 % cross-validated.
   - **Phase odds (amplitude >= 1), share of the mean daily spread.** Nov-Jan, Hijaz: phase 1 224 %, phase 8 169 %, phases 6-7 140 %, phases 3-5 35-49 %. Feb-Apr, centre: phase 1 200 %, phase 8 174 %, phases 3-5 20-35 %. Phase 2 is near or below normal: the wet phases are 8 and 1 (then 7); phase 6 is wet in Nov-Jan and dry in Feb-Apr except the north.
   - Whole seasons (25): correlation with IOD +0.49 (Hijaz +0.58), ENSO +0.41, favourable-MJO share +0.29. Wettest Kingdom seasons: 2025/26, 2018/19, 2022/23, 2023/24. Driest: 2007/08 (La Nina), 2014/15, 2002/03, 2011/12.
+  - **Spring check (`tropics_spring.py`, long=spring on run 43657761748).** March and April are the Kingdom's wettest months: spread 4.0/3.6 % against 1.6-2.2 % in Nov-Jan. Centre and southwest peak sharply; the Hijaz has a Nov peak and a larger Mar-Apr peak in CHIRPS.
+    - On spring wide-rain days, 500 hPa is below its running mean on 60-78 % of days: -10 to -20 m, or -16 to -25 m against the calendar. Troughs exist but are shallower than the winter troughs in the north.
+    - Moisture dominates in spring: 51-58 % of the rain falls on PW-surge days (>= +3 mm), against 30-37 % on trough days. PW on wide days is 21-26 mm, against 16-20 mm on all days.
+    - The folk saying (spring rain is the leftover of the winter cold) fits cut-off cold pools aloft over a hot ground, with no cold surge at the surface.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
