@@ -36,7 +36,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h"];
+  const HOURLY = ["refl", "rain1h", "rh700", "cape"];   // 700 hPa humidity and instability energy since 16 Nov 2026 (older runs lack them and the list skips them)
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
   const DAILY = ["refl_day"];
