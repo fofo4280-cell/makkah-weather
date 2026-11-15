@@ -3,7 +3,8 @@
 first part of the season the southwest gets heavy rain with the precipitable water at 150-190 % of normal, while the
 whole-part test, diluted by the Najran desert, said rain there is rare).
 
-    highland_test.py HIST_DIR
+    highland_test.py fetch FIRST_YEAR LAST_YEAR OUT.json HIST_DIR   (one chunk of years; run chunks in parallel)
+    highland_test.py analyse DIR_OF_JSON
 
 Rain: CHIRPS v2 daily (0.25 degree, IRI library) on two strips:
   the highlands (Sarawat of Asir and Al-Baha): within 0.45 degree of the line Abha side (17.5N 43.2E) to (20.5N 41.2E);
@@ -33,14 +34,15 @@ def seg_dist(la, lo, a, b):
     return np.linalg.norm(p - (a + t[..., None] * (b - a)), axis=-1)
 
 
-def main():
+def fetch(y0, y1, outp, hist):
+    import json
     L.S, L.N, L.W, L.E = 16.0, 21.5, 40.0, 44.5
     rmm = {d: (r1, r2, ph, amp) for d, r1, r2, ph, amp in daily.read_rmm()}
-    days, _, _, z5 = load_hist(sys.argv[1])
+    days, _, _, z5 = load_hist(hist)
     ix = {d: k for k, d in enumerate(days)}
     j5 = (LAT5 >= 15) & (LAT5 <= 25); i5 = (LON >= 37.5) & (LON <= 47.5)
     rows = []
-    for y in range(2001, 2027):
+    for y in range(y0, y1 + 1):
         c = L.chirps_year(y)
         pw = L.ncep("pr_wtr", y, f"surface/pr_wtr.eatm.{y}.nc")
         if c is None or pw is None:
@@ -67,6 +69,18 @@ def main():
                 r[n] = (float(np.mean(v >= 5)) if v.size else np.nan, float(v.max()) if v.size else np.nan, float(f(mid)))
             rows.append(r)
         print("year", y, "rows", len(rows), "cells", {n: int(m.sum()) for n, m in masks.items()}, flush=True)
+    json.dump([{**r, "d": r["d"].isoformat()} for r in rows], open(outp, "w"))
+
+
+def analyse(dirn):
+    import glob, json
+    rows = []
+    for p in sorted(glob.glob(os.path.join(dirn, "**", "*.json"), recursive=True)):
+        rows += json.load(open(p))
+    for r in rows:
+        r["d"] = date.fromisoformat(r["d"])
+    rows.sort(key=lambda r: r["d"])
+    print("rows", len(rows), rows[0]["d"], rows[-1]["d"], flush=True)
     rd = [r["d"] for r in rows]
     mon = np.array([d.month for d in rd]); doy = np.array([d.timetuple().tm_yday for d in rd])
     ph = np.array([r["rmm"][2] for r in rows]); amp = np.array([r["rmm"][3] for r in rows])
@@ -92,4 +106,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    if sys.argv[1] == "fetch":
+        fetch(int(sys.argv[2]), int(sys.argv[3]), sys.argv[4], sys.argv[5])
+    else:
+        analyse(sys.argv[2])
