@@ -47,7 +47,7 @@ a { color: var(--sea); }
 
 /* map */
 #map { position: absolute; inset: 0; background: #cfd8de; }
-.map-top { position: absolute; top: 10px; left: 56px; right: 10px; z-index: 500; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
+.map-top { position: absolute; top: 10px; left: 56px; right: 10px; z-index: 650; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; pointer-events: none; }
 .map-top > * { pointer-events: auto; }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; flex: 0 1 auto; min-width: 0; }
 .dom-select { font-weight: 600; max-width: 52vw; }

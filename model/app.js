@@ -891,6 +891,9 @@
     S.run = null; S.man = null; S.meteo = null; S.points = {};
     clearOverlay();
     await refreshRuns(true);
+    if (!S.runs.length) $("mapEmptyMsg").textContent = MODEL === "ec"
+      ? "تشغيل النموذج الأوروبي يبدأ قرابة ١٠:٤٥ مساءً بتوقيت مكة، وتظهر خرائطه هنا ساعة بساعة حتى يكتمل قرابة ٥:٣٠ فجرًا."
+      : "النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.";
     if (S.man && S.frames.length && f0) {
       let k = -1;
       if (t0 != null) k = S.frames.findIndex((f) => f.h != null && Date.parse(S.man.init) + f.h * 3600e3 === t0);
