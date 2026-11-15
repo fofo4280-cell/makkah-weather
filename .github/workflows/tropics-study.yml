@@ -41,7 +41,7 @@ jobs:
         run: python3 code/server/climate/tropics_share.py ingr mjo.json
       - if: inputs.long == 'yes'
         run: python3 code/server/climate/tropics_long.py 2001 2026 long.json
-      - if: inputs.long == 'yes'
+      - if: always() && inputs.long == 'yes'
         uses: actions/upload-artifact@v4
         with:
           name: tropics-long
