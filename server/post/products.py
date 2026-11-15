@@ -40,21 +40,20 @@ TSPROB = [(5, "#efeefe", 0), (10, "#d9d6fb", 150), (16, "#b9c7f1", 190), (20, "#
 CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "#ea6a25", 225), (6, "#cf2d22", 240),
         (9, "#8f1030", 250), (13, "#4d0a3a", 255)]
 
-# Relative humidity at 700 hPa (%), light to dark green in 10 % bands; drier than 30 % is not drawn
-RH700 = [(30, "#e5f5e0", 160), (40, "#c7e9c0", 180), (50, "#a1d99b", 195), (60, "#74c476", 210), (70, "#41ab5d", 220),
-         (80, "#238b45", 230), (90, "#006d2c", 238), (95, "#00441b", 245), (100, "#00441b", 245)]
-# Most-unstable CAPE (J/kg): pale yellow for weak instability, orange and red for strong, purple for extreme
-CAPE = [(100, "#fff3b0", 120), (250, "#ffe066", 170), (500, "#fdb53c", 200), (1000, "#f7811f", 220),
-        (1500, "#e8481e", 230), (2000, "#c8102e", 240), (2500, "#9c1060", 245), (3000, "#6a1b9a", 250),
-        (4000, "#3d0c5c", 255), (5000, "#3d0c5c", 255)]
+# Relative humidity at 700 hPa (%): a smooth green ramp, fading in from 40 % (drier air is left clear) and getting
+# deeper and more opaque towards saturation; saturated greens read well on the dark satellite map
+RH700 = [(40, "#a6e39a", 0), (50, "#7fd36f", 120), (60, "#4fc052", 170), (70, "#25a843", 205), (80, "#138c39", 225),
+         (90, "#086e2e", 238), (100, "#044a1f", 245)]
+# Most-unstable CAPE (J/kg): fades in from 100, warm yellow -> orange -> red -> magenta -> violet
+CAPE = [(100, "#ffe680", 0), (250, "#ffd75a", 110), (500, "#ffbb38", 160), (1000, "#ff8a1c", 195),
+        (1500, "#f2551c", 215), (2000, "#d62b3e", 228), (2500, "#b3187a", 236), (3000, "#7f22aa", 242),
+        (4000, "#4c1a86", 248)]
 
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "bands": True, "band_alpha_min": 0},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt", "bands": True},
-    "rh700":   {"label": "الرطوبة النسبية عند ٧٠٠ هكتوباسكال", "unit": "٪", "stops": RH700, "tf": "lin", "bands": True,
-                "band_alpha_min": 0},
-    "cape":    {"label": "طاقة عدم الاستقرار", "unit": "جول/كغ", "stops": CAPE, "tf": "sqrt", "bands": True,
-                "band_alpha_min": 0},
+    "rh700":   {"label": "الرطوبة النسبية عند ٧٠٠ هكتوباسكال", "unit": "٪", "stops": RH700, "tf": "lin"},
+    "cape":    {"label": "طاقة عدم الاستقرار", "unit": "جول/كغ", "stops": CAPE, "tf": "sqrt"},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
 DAILY = {
