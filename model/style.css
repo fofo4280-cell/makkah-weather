@@ -262,7 +262,7 @@ a { color: var(--sea); }
 .tw-stage img.on { opacity: 1; }
 #twkLegend { margin-top: 6px; }
 .wv-stage { position: relative; height: 380px; aspect-ratio: 2000 / 1111; background: #3a3f45; }
-.wv-stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .5s ease-in-out; }
+.wv-stage img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; opacity: 0; transition: opacity .5s ease-in-out; }
 .wv-stage img.on { opacity: 1; }
 .wv-key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: .78rem; margin-top: 8px; color: var(--muted); }
 .wv-key span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
