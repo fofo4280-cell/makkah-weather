@@ -193,6 +193,34 @@ def main():
                  "الحدث البارد فوق ٤٥ شرقًا": w45 <= -4, "روسبي داعمة": rosF, "كلفن داعمة": kelF,
                  "المكوّن المعزول داعم": mfF, "أخدود ٢٥ م فأعمق": trF, "رطوبة ١٣٠٪ فأكثر": moist, "مد رطوبي ١٥٠٪": surge}
         S = strength(g)
+        # who brings the moisture (Fahad, 15 Nov 2026): the chance of a moist day (130 % or more of normal) with each
+        # driver on, the same day and some days before, and by MJO phase
+        print(f"\n######## {g}: moisture drivers")
+        for h, ms in HALVES.items():
+            s = np.isin(mon, ms) & has
+            base = moist[s].mean()
+            out = [f"base {100*base:.0f}%"]
+            for name, f in (("MJO 8-1", mjo81), ("MJO 7-8-1-2", mjo), ("warm", warm), ("cold45", w45 <= -4), ("Rossby", rosF),
+                            ("Kelvin", kelF), ("component", mfF), ("trough", trF)):
+                q = s & f
+                out.append(f"{name} {100*moist[q].mean():.0f}% (x{moist[q].mean()/max(base,1e-6):.1f})")
+            print(f"  {h}: P(moist) " + " | ".join(out))
+            lagged = []
+            for lag in (3, 7):
+                kk = K - lag
+                fl = {"warm": np.array([B.favourable(x) for x in D["w_lon"][kk]]) & (D["w_amp"][kk] >= 4),
+                      "Kelvin": D["kel"][kk] <= -kref / 3, "component": D["mf"][kk] <= -mref / 3}
+                lagged.append(f"{lag} days before: " + ", ".join(f"{n} {100*moist[s & f].mean():.0f}%" for n, f in fl.items()))
+            print("    " + " | ".join(lagged))
+            print("    by MJO phase (amplitude 1+): " + " ".join(
+                f"{p_}:{100*moist[s & (ph == p_) & (amp >= 1)].mean():.0f}%" for p_ in range(1, 9))
+                + f" weak:{100*moist[s & (amp < 1)].mean():.0f}%")
+            m_ = s & moist
+            T_ = mjo | warm | kelF | mfF
+            print(f"    the moist days ({m_.sum()}): with a trough {100*np.mean(trF[m_]):.0f}% (all days {100*np.mean(trF[s]):.0f}%), "
+                  f"with a tropical driver {100*np.mean(T_[m_]):.0f}% (all days {100*np.mean(T_[s]):.0f}%), "
+                  f"both {100*np.mean((trF & T_)[m_]):.0f}%, neither {100*np.mean((~trF & ~T_)[m_]):.0f}% "
+                  f"| rain on moist days with a trough {100*rn[m_ & trF].sum()/max(rn[s].sum(),1e-9):.0f}%, without {100*rn[m_ & ~trF].sum()/max(rn[s].sum(),1e-9):.0f}%")
         print(f"\n######## {g}")
         for h, ms in HALVES.items():
             s = np.isin(mon, ms) & has
