@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261116w">
+<link rel="stylesheet" href="style.css?v=20261116x">
 </head>
 <body>
 <div class="app">
@@ -123,14 +123,14 @@
         </div>
         <div class="card">
           <h3>موجات روسبي في الطبقة الوسطى</h3>
-          <div class="figwrap fit" dir="ltr"><a id="waveLink" target="_blank" rel="noopener"><img id="waveFig" class="wavefig" alt="خريطة موجات روسبي"></a></div>
-          <div class="legend mjo-legend" id="waveLegend"></div>
+          <div class="figwrap" id="waveWrap" dir="ltr"><a id="waveLink" target="_blank" rel="noopener"><div class="wv-stage"><img id="waveFig" alt="خريطة موجات روسبي"><img alt=""></div></a></div>
           <div class="mjo-time">
             <input type="range" id="waveDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
             <span id="waveDayLabel"></span>
           </div>
+          <div class="wv-key"><span><i class="ln lo"></i>منخفض موجي (أخدود)</span><span><i class="ln hi"></i>مرتفع موجي</span><span><i class="ln zero"></i>خط الصفر</span><span><i class="ar">➜</i>اتجاه الرياح حول المراكز</span></div>
           <div id="waveList"></div>
-          <p class="hint">ارتفاعات ٥٠٠ هكتوباسكال (٥٫٥ كم) بعد إبقاء الموجات السينوبتيكية فقط (الأرقام الموجية ٤ إلى ٨) من توقع جي إف إس. الأزرق أخاديد ومنخفضات، والبرتقالي مرتفعات. الأسهم: اتجاه انتقال طاقة الموجة (تدفق بلمب)، وتشير إلى حيث يتعمق الأخدود التالي.</p>
+          <p class="hint">ارتفاعات ٥٠٠ هكتوباسكال (٥٫٥ كم) بعد إبقاء الموجات السينوبتيكية فقط (الأرقام الموجية ٤ إلى ٨) من توقع جي إف إس. الخطوط الزرقاء منخفضات وأخاديد، والذهبية مرتفعات، كل خط عشرة أمتار وعليه قيمته، والخط الأبيض المتقطع خط الصفر. وتحت كل مركز قيمته بالمتر. الأسهم المنحنية تتبع دوران الرياح حول كل مركز: عكس عقارب الساعة حول المنخفض ومعها حول المرتفع. اسحب الخريطة يمينًا ويسارًا، أو المسها لفتحها بحجم كامل.</p>
         </div>
         <div class="card">
           <h3>الرطوبة فوق المملكة</h3>
@@ -176,6 +176,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261116w"></script>
+<script src="app.js?v=20261116x"></script>
 </body>
 </html>

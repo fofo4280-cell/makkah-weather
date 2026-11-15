@@ -1181,16 +1181,27 @@
   function waveCard() {
     const st = M.st, rows = st.waves || [];
     if (!rows.length) { $("waveList").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; return; }
+    const wurl = (k) => `${CL}fig/wave_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    rows.forEach((_, k) => { const im = new Image(); im.src = wurl(k); });
     const show = (k) => {
-      const url = `${CL}fig/wave_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
-      $("waveFig").src = url; $("waveLink").href = url;
+      const url = wurl(k);
+      const [a, b] = document.querySelectorAll("#waveWrap img");
+      const front = a.classList.contains("on") ? a : b.classList.contains("on") ? b : null, back = front === a ? b : a;
+      if (!front || front.dataset.u !== url) {
+        back.onload = () => {
+          back.classList.add("on"); if (front) front.classList.remove("on");
+          const wr = $("waveWrap");
+          if (!wr.dataset.s && wr.scrollWidth > wr.clientWidth) { wr.scrollLeft = (wr.scrollWidth * 0.44) - wr.clientWidth / 2; wr.dataset.s = 1; }
+        };
+        back.dataset.u = url; back.src = url;
+      }
+      $("waveLink").href = url;
       const d = rows[k] && rows[k].d;
       $("waveDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
     };
     $("waveDay").max = rows.length - 1;
     $("waveDay").oninput = (e) => show(+e.target.value);
     show(+$("waveDay").value || 0);
-    if (st.figs && st.figs.wave) $("waveLegend").innerHTML = legendHTML(st.figs.wave);
     const items = rows.slice(0, 8).filter((r) => r.trough).map((r) =>
       `<div class="wave-row"><span>${fmtDayD.format(dOf(r.d))}</span><span>أخدود فوق ${r.trough.area} بعمق <b>${num(Math.abs(r.trough.v))}</b> م</span></div>`);
     $("waveList").innerHTML = items.length ? `<h4 class="sub">الأخاديد القريبة من المملكة</h4>` + items.join("")
