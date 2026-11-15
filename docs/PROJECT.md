@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 15 Nov 2026. Written for Claude, to continue the work without the long history.
+Last updated: 15 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -83,6 +83,12 @@ Last updated: 15 Nov 2026. Written for Claude, to continue the work without the 
   - The model page (`model/app.js`) lists only 12Z runs and hides any old `rain_noon` section.
   - The main site's «التقرير» tab (the Open-Meteo ECMWF/GFS/ICON report written about noon) was removed with `daily-report.yml`, `scripts/daily-report.mjs` and `reports/`.
   - `rain-midnight.yml` **shares the concurrency group with climate.yml**. A dispatched rewrite queues behind a climate run that is waiting for the 3 km runs. Open issue: separate them without letting both overwrite `climate-data`.
+- **Evening plains storms (`plains.py`, 15 Nov 2026, Fahad: "write it when the tools support it, even if our model misses it; no section of its own; nothing when nothing is found").** The pattern: afternoon storms on the mountains, their cold outflow runs down into the hot humid plain (with the sea breeze) and new cells start there between Maghrib and Isha; weak steering keeps them in place and the wadis bring the mountain flood down. Case: 15 Nov floods on the Al-Qunfudhah plains while our 3 km run had 0.3 mm there.
+  - Five plains, each with its mountains just east (lat band boxes in `PLAINS`): Jazan Tihama (region جازان), Asir Tihama/Muhayil (عسير), Al-Qunfudhah + Baha Tihama, Al-Lith/Adham, Makkah/Al-Jumum/Bahra (all مكة المكرمة).
+  - daily.py step 8c2 reads GFS 0.25 of the report day (09, 12, 15, 18, 21 UTC: PW, MUCAPE 180-0, RH700, winds 850/700/500/10 m, T/Td 2 m, APCP, terrain, land) into `mjo.json` `plains` {day, cycle, rows}.
+  - Six enhancers: PW >= 130 % (page box: southwest south of 20N, west north of it) or >= 40 mm; Td >= 19 C (Al-Lith 18, Makkah 17); plain CAPE >= 1000; mountain storms (GFS rain >= 1 mm 12-18 Makkah, or mountain CAPE >= 300 with RH700 >= 60 %, or **our model's mountain rain >= 5 mm**); steering < 5 m/s or westward; plain wind toward the mountains. Named only with mountain storms + plain CAPE >= 500 + some moisture, and 4+ enhancers; confidence 4 low, 5 medium, 6 high.
+  - `rainreport.plains_words` adds one sentence to that region's «منطقة …» line (a dry region gets its own line), and says «ولا يظهره نموذجنا على السهل» when our run has < 2 mm on the plain 17-24 Makkah.
+  - Tested 1-15 Nov: silent on the dry days 1, 5, 8 Nov; names the southern plains on the wet days 10-15 Nov; on 15 Nov names Al-Qunfudhah (high) and Al-Lith (medium) where our run had nothing.
 - `ourmodel.load`:
   - **3 km grids only** (dx > 5 km skipped).
   - For each grid, takes the newest run that covers ≥90 % of the hours of the best one.
