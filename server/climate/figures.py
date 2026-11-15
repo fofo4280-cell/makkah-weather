@@ -767,3 +767,184 @@ def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
     ax.set_yticklabels([lat_label(y) for y in yt], fontsize=6, color="#555555", fontweight="bold")
     ax.tick_params(length=0, pad=2.5)
     _save_png(fig, path)
+
+
+# ------------------------------------------------------------------ the mid-level wave map (as Dr Khalid's wave charts)
+# Grey shaded relief (sea dark), the wave height as thin contours (blue below zero, gold above) with their values,
+# the zero line dash-dot, each low and high marked with its value, and curved arrows that follow the wind turning
+# around every centre (the geostrophic direction of the wave field, so the arrows are the flow itself, not a symbol).
+# Arabic in the site's own font (IBM Plex Sans Arabic), Arabic-Indic digits.
+RELIEF = {"path": os.path.join(os.path.dirname(os.path.abspath(__file__)), "relief_mid.png"), "box": (5, 95, 5, 55)}
+FONT_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fonts")
+AR_DIG = str.maketrans("0123456789-", "٠١٢٣٤٥٦٧٨٩−")
+WAVE_PLACES = [  # (name, lat, lon, kind) kind: sea or land
+    ("البحر الأحمر", 17.6, 40.4, "sea"), ("الخليج العربي", 27.0, 51.3, "sea"), ("بحر العرب", 15.0, 63.0, "sea"),
+    ("البحر المتوسط", 34.0, 19.0, "sea"), ("البحر الأسود", 43.3, 34.5, "sea"), ("بحر قزوين", 42.0, 50.8, "sea"),
+    ("خليج البنغال", 15.0, 88.0, "sea"),
+    ("مصر", 26.5, 29.5, "land"), ("السودان", 15.5, 30.0, "land"), ("إثيوبيا", 9.0, 39.5, "land"),
+    ("اليمن", 15.6, 46.5, "land"), ("العراق", 33.0, 43.5, "land"), ("إيران", 32.5, 54.5, "land"),
+    ("تركيا", 39.0, 34.0, "land"), ("باكستان", 29.0, 68.5, "land"), ("الهند", 22.0, 78.5, "land"),
+    ("ليبيا", 27.0, 17.5, "land"), ("أفغانستان", 34.0, 65.5, "land"),
+]
+
+
+def _ar_font():
+    from matplotlib import font_manager as fm
+    for f in ("IBMPlexSansArabic-Bold.ttf", "IBMPlexSansArabic-SemiBold.ttf"):
+        p = os.path.join(FONT_DIR, f)
+        if os.path.exists(p) and p not in [x.fname for x in fm.fontManager.ttflist]:
+            fm.fontManager.addfont(p)
+    return "IBM Plex Sans Arabic"
+
+
+def _rtl(text):
+    """matplotlib shapes the Arabic letters but lays the words left to right: give it the words in reverse"""
+    return " ".join(reversed(text.split(" ")))
+
+
+def _flow_arcs(zp, lat, lon, marks, extent):
+    """curved paths along the flow around each centre: [(kind, [(lon, lat), ...])]"""
+    from scipy.interpolate import RegularGridInterpolator
+    w, e, s, n = extent
+    la = lat[::-1] if lat[0] > lat[-1] else lat
+    z = zp[::-1] if lat[0] > lat[-1] else zp
+    dzdy = np.gradient(z, np.radians(la), axis=0)
+    dzdx = np.gradient(z, np.radians(lon), axis=1) / np.cos(np.radians(la))[:, None]
+    # the geostrophic direction in the northern hemisphere: the gradient turned 90 degrees to the left
+    U = RegularGridInterpolator((la, lon), -dzdy, bounds_error=False, fill_value=0)
+    V = RegularGridInterpolator((la, lon), dzdx, bounds_error=False, fill_value=0)
+    cen = [(m[1], m[2]) for m in marks]
+    out = []
+    for kind, y0, x0, val in marks:
+        rings = [(3.6, 3), (6.6, 4)] + ([(9.6, 5)] if abs(val) >= 35 else [])
+        for r, nseg in rings:
+            for q in range(nseg):
+                a0 = 2 * np.pi * (q + (0.5 if r > 5 and r < 8 else 0.0)) / nseg
+                x, y = x0 + r * np.cos(a0) / np.cos(np.radians(y0)), y0 + r * np.sin(a0)
+                # a seed nearer another centre belongs to that one
+                if min(np.hypot((x - cx) * np.cos(np.radians(y)), y - cy) for cy, cx in cen) < r - 0.5:
+                    continue
+                if not (w + 1 < x < e - 1 and s + 1 < y < n - 1):
+                    continue
+                pts, L, Lmax = [(x, y)], 0.0, 0.62 * 2 * np.pi * r / nseg
+                while L < Lmax:
+                    u, v = float(U((y, x))), float(V((y, x)))
+                    m = np.hypot(u, v)
+                    if m < 1e-9:
+                        break
+                    st = 0.18
+                    x += st * u / m / np.cos(np.radians(y))
+                    y += st * v / m
+                    if not (w < x < e and s < y < n):
+                        break
+                    pts.append((x, y))
+                    L += st
+                if L >= 0.6 * Lmax:
+                    out.append((kind, pts))
+    return out
+
+
+def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=2000):
+    """The mid-level wave map (see above). fx, fy (the wave-activity flux) are kept in the signature but not drawn."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import patheffects as pe
+    import cartopy.crs as ccrs
+    import cartopy.feature as cfeature
+    from scipy.ndimage import zoom
+    fam = _ar_font()
+    w, e, s, n = extent
+    j = (lat >= s - 3) & (lat <= n + 3)
+    i = (lon >= w - 3) & (lon <= e + 3)
+    la, lo = lat[j], lon[i]
+    z = zp[np.ix_(j, i)]
+    dpi = 200
+    fig_w = width_px / dpi
+    fig_h = fig_w * (n - s) / (e - w)
+    fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
+    fig.patch.set_facecolor("#0c1118")
+    pc = ccrs.PlateCarree()
+    ax = fig.add_axes([0, 0, 1, 1], projection=pc)
+    ax.set_extent([w, e, s, n], crs=pc)
+    try:
+        from PIL import Image
+        rw, re_, rs, rn = RELIEF["box"]
+        rel = np.asarray(Image.open(RELIEF["path"]).convert("L"))
+        ax.imshow(rel, extent=[rw, re_, rs, rn], origin="upper", cmap="gray", vmin=0, vmax=255, transform=pc,
+                  interpolation="lanczos", zorder=0)
+    except Exception as ex:
+        print("relief unavailable:", str(ex)[:80])
+        ax.add_feature(cfeature.LAND.with_scale("50m"), facecolor="#c9c9c9")
+        ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#4f4f4f")
+    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.45, edgecolor="#3b3b3b", alpha=0.55, zorder=1)
+    ax.coastlines(resolution="50m", linewidth=0.5, color="#2b2b2b", alpha=0.8, zorder=1)
+    # the wave height: smooth contours every 10 gpm
+    up = 4
+    fz = zoom(z, up, order=3)
+    flo = np.linspace(lo[0], lo[-1], fz.shape[1])
+    fla = np.linspace(la[0], la[-1], fz.shape[0])
+    halo_l = [pe.withStroke(linewidth=2.4, foreground=(0.05, 0.08, 0.12, 0.55))]
+    for sign, col in ((-1, "#6fd0f6"), (1, "#f2c14e")):
+        lv = [x for x in range(10, 201, 10)]
+        lv = sorted(sign * np.array(lv))
+        cs = ax.contour(flo, fla, fz, levels=lv, colors=col, linewidths=1.25, linestyles="solid", transform=pc,
+                        zorder=3)
+        for c in cs.collections if hasattr(cs, "collections") else []:
+            c.set_path_effects(halo_l)
+        try:
+            cs.set_path_effects(halo_l)
+        except Exception:
+            pass
+        lab = ax.clabel(cs, levels=lv[::1], fmt=lambda x: f"{int(round(x))}".translate(AR_DIG), fontsize=7.5,
+                        inline=True, inline_spacing=3)
+        for t in lab:
+            t.set_fontfamily(fam)
+            t.set_fontweight("bold")
+            t.set_color(col)
+            t.set_path_effects([pe.withStroke(linewidth=2.2, foreground="#10161d")])
+    cz = ax.contour(flo, fla, fz, levels=[0], colors="#ffffff", linewidths=1.5, linestyles=[(0, (7, 3, 1.5, 3))],
+                    transform=pc, zorder=3)
+    try:
+        cz.set_path_effects([pe.withStroke(linewidth=2.8, foreground=(0, 0, 0, 0.35))])
+    except Exception:
+        pass
+    # the flow around every centre
+    for kind, pts in _flow_arcs(zp, lat, lon, marks, extent):
+        xs, ys = zip(*pts)
+        head = "#86ccef" if kind == "L" else "#f3a06c"
+        ax.plot(xs, ys, color="#e9edf1", linewidth=4.0, alpha=0.45, transform=pc, zorder=4, solid_capstyle="round")
+        ax.plot(xs, ys, color="#2c333b", linewidth=2.1, transform=pc, zorder=4.1, solid_capstyle="round")
+        k = max(1, len(pts) // 6)
+        ax.annotate("", xy=pts[-1], xytext=pts[-1 - k], xycoords=pc._as_mpl_transform(ax),
+                    arrowprops=dict(arrowstyle="-|>,head_length=0.85,head_width=0.45", color=head, lw=1.2,
+                                    mutation_scale=11, shrinkA=0, shrinkB=0,
+                                    path_effects=[pe.withStroke(linewidth=2.4, foreground="#2c333b")]), zorder=4.2)
+    # place names
+    for name, y, x, kd in WAVE_PLACES:
+        if not (w + 2 < x < e - 2 and s + 1 < y < n - 1):
+            continue
+        ax.text(x, y, _rtl(name), transform=pc, ha="center", va="center", fontsize=7 if kd == "sea" else 7.5,
+                fontfamily=fam, fontweight="bold", color="#d9dde2" if kd == "sea" else "#22272d", alpha=0.9,
+                path_effects=[pe.withStroke(linewidth=2, foreground="#3a3f45" if kd == "sea" else "#eef0f2")],
+                zorder=5)
+    ax.plot([39.83], [21.42], marker="o", markersize=3.5, color="#ffffff", markeredgecolor="#111111",
+            markeredgewidth=0.8, transform=pc, zorder=5)
+    ax.text(40.35, 21.42, "مكة", transform=pc, ha="left", va="center", fontsize=7, fontfamily=fam, fontweight="bold",
+            color="#111111", path_effects=[pe.withStroke(linewidth=2, foreground="#ffffff")], zorder=5)
+    # the centres
+    for kind, y, x, val in marks:
+        if not (w + 1 < x < e - 1 and s + 1 < y < n - 1):
+            continue
+        col = "#ff6b57" if kind == "H" else "#7cc6f2"
+        word = "مرتفع" if kind == "H" else "منخفض"
+        ax.plot([x], [y], marker="o", markersize=5, color=col, markeredgecolor="#10161d", markeredgewidth=1.2,
+                transform=pc, zorder=6)
+        ax.text(x, y + 0.45, word, transform=pc, ha="center", va="bottom", fontsize=11, fontfamily=fam,
+                fontweight="bold", color=col, path_effects=[pe.withStroke(linewidth=3.2, foreground="#10161d")],
+                zorder=6)
+        ax.text(x, y - 0.45, f"{val:+.0f}".replace("+", "+").translate(AR_DIG), transform=pc, ha="center", va="top",
+                fontsize=9.5, fontfamily=fam, fontweight="bold", color="#ffffff",
+                path_effects=[pe.withStroke(linewidth=3, foreground="#10161d")], zorder=6)
+    ax.spines["geo"].set_visible(False)
+    _save_png(fig, path)
