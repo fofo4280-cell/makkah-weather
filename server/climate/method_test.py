@@ -302,6 +302,27 @@ def main():
         q1, q2 = c & trN & np.isin(ph, (8, 1, 2)) & (amp >= 1), c & ~trN & np.isin(ph, (8, 1, 2)) & (amp >= 1)
         print(f"    MJO 8-1-2 with a trough {100*deep[q1].mean():.0f}% (n{q1.sum()}), without {100*deep[q2].mean():.0f}% (n{q2.sum()})")
 
+    # the moisture needed for rain (Fahad, 15 Nov 2026): the chance of rain by precipitable water as a share of normal,
+    # for each part, on all days, with a trough over the part, and with a trough and the MJO in phases 8, 1 or 2
+    print("\n######## moisture needed: P(rain on 2 % of the part or more) / P(wide: 10 % or more), by PW % of normal")
+    bins = ((0, 80), (80, 100), (100, 115), (115, 130), (130, 150), (150, 175), (175, 999))
+    for g in GROUPS:
+        p_ = per[g]
+        sp, has, pc_ = p_["sp"], p_["has"], np.nan_to_num(p_["pct"], nan=100)
+        trF = p_["tr"] <= -25
+        mjo812 = (amp >= 1) & np.isin(ph, (8, 1, 2))
+        print(f"  == {g}")
+        for h, ms in HALVES.items():
+            s = np.isin(mon, ms) & has
+            for nm, f in (("all days", np.ones_like(s)), ("trough", trF), ("trough + MJO 8-1-2", trF & mjo812),
+                          ("MJO 8-1-2, no trough", ~trF & mjo812)):
+                cells = []
+                for a, b in bins:
+                    q = s & f & (pc_ >= a) & (pc_ < b)
+                    cells.append(f"{a}-{b if b < 999 else ''}: {100*np.mean(sp[q] >= 0.02):.0f}/{100*np.mean(sp[q] >= 0.10):.0f} (n{q.sum()})"
+                                 if q.sum() >= 12 else f"{a}-{b if b < 999 else ''}: -")
+                print(f"    {h} | {nm}: " + "  ".join(cells))
+
 
 if __name__ == "__main__":
     main()
