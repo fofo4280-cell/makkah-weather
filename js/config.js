@@ -132,13 +132,6 @@ export const ENDPOINTS = {
   metar: (ids) => `https://aviationweather.gov/api/data/metar?ids=${ids}&format=json&hours=3`,
 };
 
-// Daily report files: raw GitHub first (updates within minutes of the noon commit),
-// then the same folder on this site.
-export const REPORT_BASES = [
-  'https://raw.githubusercontent.com/fofo4280-cell/makkah-weather/main/reports/',
-  'reports/',
-];
-
 export const METAR_STATIONS = [
   { icao: 'OEJN', name: 'مطار الملك عبدالعزيز – جدة', lat: 21.68, lon: 39.16 },
   { icao: 'OETF', name: 'مطار الطائف', lat: 21.48, lon: 40.54 },

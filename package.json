@@ -2,5 +2,5 @@
   "name": "makkah-weather",
   "private": true,
   "type": "module",
-  "description": "Static weather site; scripts/daily-report.mjs runs in GitHub Actions."
+  "description": "Static weather site."
 }

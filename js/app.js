@@ -8,7 +8,6 @@ import { timeSeries, timeHeight, skewT, crossSection } from './charts.js';
 import { buildAnalysis, ensembleProb } from './analysis.js';
 import { WxMap, FIELDS, BASES, SAT_LAYERS, QUICK_FIELDS, legendFor, arN } from './map.js';
 import { dirFromUV } from './met.js';
-import { REPORT_BASES } from './config.js';
 import { REPORT_AREA_LABEL } from './geo.js';
 import { renderEscarp, escarpBoxes } from './escarp.js';
 import { ESCARP, ESCARP_DEFAULTS } from './config.js';
@@ -130,7 +129,7 @@ function renderStatus() {
 }
 
 // ---------------------------------------------------------------- tabs
-const TABS = ['map', 'report', 'escarp', 'conv', 'models', 'analysis', 'more'];
+const TABS = ['map', 'escarp', 'conv', 'models', 'analysis', 'more'];
 function showTab(t) {
   if (!TABS.includes(t)) t = 'map';
   state.tab = t;
@@ -147,7 +146,6 @@ function renderActive() {
     else if (state.tab === 'analysis') renderAnalysis();
     else if (state.tab === 'more') renderMore();
     else if (state.tab === 'map') renderMapBars();
-    else if (state.tab === 'report') renderReport();
     else if (state.tab === 'escarp') renderEscarp($('tab-escarp'), { th: state.th, windParts, onShowMap: showEscarpBoxes });
   } catch (e) { console.error(e); }
 }
@@ -738,94 +736,6 @@ function renderMapBars() {
   box.append(bar);
 }
 
-// ---------------------------------------------------------------- daily report
-const report = { data: null, index: null, loading: false, tried: false, error: null };
-async function fetchReportFile(file) {
-  for (const base of REPORT_BASES) {
-    try {
-      const r = await fetch(`${base}${file}?t=${Math.floor(Date.now() / 120000)}`, { cache: 'no-store' });
-      if (r.ok) return await r.json();
-    } catch { /* next source */ }
-  }
-  return null;
-}
-async function loadReport(date) {
-  report.loading = true; report.error = null; if (state.tab === 'report') renderReport();
-  const [d, idx] = await Promise.all([fetchReportFile(date ? `${date}.json` : 'latest.json'), report.index ? Promise.resolve(report.index) : fetchReportFile('index.json')]);
-  report.loading = false; report.tried = true;
-  if (d) report.data = d; else if (date) report.error = 'تعذر جلب هذا التقرير';
-  if (idx) report.index = idx;
-  if (state.tab === 'report') renderReport();
-}
-const riyadhDate = (ms) => new Date(ms + 3 * 3600000).toISOString().slice(0, 10);
-function showReportOnMap(R) {
-  const items = R.top.map((t) => ({ ...t, line: `${t.agree} من ${t.nModels} نماذج · الوسيط ${t.median} مم` }));
-  showTab('map');
-  if (!wxmap) return;
-  wxmap.showReport(items, R.region);
-  const g = GRIDS[state.mapUI.grid];
-  const outside = R.top.some((t) => t.lat < g.lat0 || t.lat > g.lat1 || t.lon < g.lon0 || t.lon > g.lon1);
-  if (outside) { state.mapUI.grid = 'region'; state.mapUI.ti = null; }
-  if (state.mapUI.field !== 'precip' || outside) { state.mapUI.win = 6; setField('precip'); }
-}
-function renderReport() {
-  const host = $('tab-report'); host.innerHTML = '';
-  if (!report.tried && !report.loading) loadReport();
-  host.append(el('div', { class: 'panel-head' }, el('h2', {}, 'رأي النماذج العددية: أفضل 3 أماكن للمطر اليوم'),
-    el('p', { class: 'meta' }, `يُكتب آليًا كل يوم قرابة 12:00 ظهرًا بتوقيت مكة من ECMWF وGFS وICON. النطاق: ${REPORT_AREA_LABEL}.`)));
-  const R = report.data;
-  if (!R) {
-    host.append(el('div', { class: 'empty' }, report.loading ? el('div', { class: 'spinner', 'aria-hidden': 'true' }) : null,
-      el('p', {}, report.loading ? 'جارٍ جلب التقرير…' : 'لم يصل أي تقرير بعد. يُكتب التقرير الأول تلقائيًا، ثم كل يوم قرابة 12:00 ظهرًا.'),
-      report.loading ? null : el('button', { class: 'btn', onclick: () => loadReport() }, 'أعد المحاولة')));
-    return;
-  }
-  const now = Date.now(); const today = riyadhDate(now);
-  if (R.date !== today) host.append(el('p', { class: 'note' }, riyadhHour(now) < 12 ? `هذا تقرير ${fmtDay(R.issuedAt)}. تقرير اليوم يُكتب قرابة 12:00 ظهرًا.` : `هذا تقرير ${fmtDay(R.issuedAt)}. تقرير اليوم لم يصل بعد؛ قد يتأخر GitHub في التشغيل دقائق. اضغط زر التحديث بعد قليل.`));
-  const lvl = !R.top.length ? 'none' : R.top[0].agree >= 2 ? 'watch' : 'info';
-  host.append(el('div', { class: `verdict v-${lvl}` }, el('b', {}, R.summary), el('span', {}, `صدر ${fmtDateTime(R.issuedAt)} · ${R.window.label}`)));
-  host.append(el('div', { class: 'runs' }, ...MODEL_KEYS.map((k) => { const m = R.models[k] || {}; return el('span', { class: `run${m.ok ? '' : ' off'}`, style: `--mc:${MODELS[k].color}` }, el('b', {}, MODELS[k].label.split(' ')[0]), m.ok ? ` تشغيل ${m.init ? fmtUTC(m.init) : 'غير معروف'}` : ' تعذر الجلب'); })));
-
-  if (R.top.length) {
-    const list = el('div', { class: 'rep-list' });
-    for (const t of R.top) {
-      const tbl = el('table', { class: 'rep-tbl' }, el('thead', {}, el('tr', {}, ...['النموذج', 'المطر مم', 'الذروة', 'CAPE', 'المجموعة'].map((h) => el('th', {}, h)))),
-        el('tbody', {}, ...MODEL_KEYS.filter((k) => R.models[k] && R.models[k].ok).map((k) => {
-          const m = t.models[k] || {}; const e = t.ens && t.ens[k];
-          return el('tr', { class: t.rainyModels.includes(k) ? 'wet' : '' }, el('th', { style: `--mc:${MODELS[k].color}` }, MODELS[k].label.split(' ')[0]),
-            el('td', {}, m.sum == null ? '—' : num(m.sum, 1), m.nb != null && m.nb > (m.sum ?? 0) + 0.05 ? el('small', {}, ` (حولها ${num(m.nb, 1)})`) : null),
-            el('td', {}, m.peak ? fmtTime(m.peak) : '—'), el('td', {}, m.capeMax == null ? '—' : num(m.capeMax)),
-            el('td', {}, e ? `${num(e.p1)}٪` : '—'));
-        })));
-      list.append(el('article', { class: 'rep-card' },
-        el('div', { class: 'rep-head' }, el('span', { class: 'rep-rank' }, arN(t.rank)),
-          el('div', { class: 'rep-title' }, el('b', {}, t.where.text), el('span', { class: 'meta', dir: 'ltr' }, `${t.lat.toFixed(2)}°N ${t.lon.toFixed(2)}°E`)),
-          pill(`${t.agree} من ${t.nModels} نماذج`, t.agree >= 3 ? 'ok' : t.agree === 2 ? 'watch' : 'none')),
-        t.where.tags.length ? el('div', { class: 'rep-tags' }, ...t.where.tags.map((x) => el('span', { class: 'pill pill-none' }, x))) : null,
-        el('p', { class: 'meta' }, `الثقة: ${t.confidence} · وسيط النماذج ${num(t.median, 1)} مم من 12:00 إلى 24:00`),
-        el('div', { class: 'tbl-wrap' }, tbl),
-        el('p', { class: 'meta' }, 'المطر: مجموع 12:00–24:00 عند النقطة، وبين القوسين أعلى قيمة في الخلايا الملاصقة. المجموعة: نسبة الأعضاء التي تعطي 1 مم أو أكثر.'),
-        t.notes.length ? el('ul', { class: 'bullets' }, ...t.notes.map((n) => el('li', {}, n))) : null,
-        el('div', { class: 'row' },
-          el('button', { class: 'btn ghost', onclick: () => showReportOnMap(R) }, 'على الخريطة'),
-          el('button', { class: 'btn ghost', onclick: () => { selectPlace({ id: 'custom', name: t.where.text, lat: t.lat, lon: t.lon, custom: true }); showTab('conv'); } }, 'حلّل هذه النقطة'))));
-    }
-    host.append(section('الأماكن الثلاثة (الأعلى اتفاقًا أولًا)', list));
-  } else if (R.maxAny) host.append(el('p', { class: 'meta' }, `أعلى قيمة لدى أي نموذج: ${num(R.maxAny.sum, 1)} مم في ${R.maxAny.label}، ${R.maxAny.where.text}.`));
-
-  host.append(section('رأي كل نموذج وحده', el('div', { class: 'cmp' }, ...MODEL_KEYS.map((k) => {
-    const L = R.perModel && R.perModel[k];
-    return el('div', { class: 'cmp-row', style: `--mc:${MODELS[k].color}` }, el('div', { class: 'cmp-label' }, MODELS[k].label),
-      !R.models[k] || !R.models[k].ok ? el('p', { class: 'na' }, `تعذر الجلب: ${(R.models[k] && R.models[k].error) || ''}`)
-        : L && L.length ? el('ol', { class: 'bullets' }, ...L.map((x) => el('li', {}, `${x.where.text}: ${num(x.sum, 1)} مم`))) : el('p', { class: 'na' }, 'لا مطر ≥0.5 مم في أي مكان'));
-  }))));
-  host.append(section('طريقة الحساب', el('p', {}, R.method),
-    el('p', { class: 'warn' }, 'هذا رأي النماذج العالمية كما هو، وليس رصدًا ولا توقعًا رسميًا. النماذج لا ترى جبال مكة الصغيرة ولا تسخين الحرات بدقة، فراجع تبويبي «الجرف» و«الحمل» قبل الحكم.')));
-  if (report.index && report.index.dates && report.index.dates.length > 1) {
-    host.append(section('التقارير السابقة', el('div', { class: 'row chips' }, ...report.index.dates.slice(0, 30).map((d) => el('button', { class: `chip${d === R.date ? ' on' : ''}`, onclick: () => loadReport(d === report.index.dates[0] ? null : d) }, d.slice(5).replace('-', '/'))))));
-  }
-}
-
 // ---------------------------------------------------------------- more: settings, verification, sources, WRF
 function renderMore() {
   const host = $('tab-more'); host.innerHTML = '';
@@ -944,7 +854,7 @@ function init() {
   document.title = SITE.name;
   for (const b of document.querySelectorAll('[data-tab]')) b.addEventListener('click', () => showTab(b.dataset.tab));
   $('placeBtn').addEventListener('click', openPlaces);
-  $('refreshBtn').addEventListener('click', () => { loadPlace(true); if (state.mapUI.field && wxmap) { wxmap.grids = {}; refreshField(); } if (state.tab === 'report') loadReport(); toast('جارٍ التحديث من المصادر'); });
+  $('refreshBtn').addEventListener('click', () => { loadPlace(true); if (state.mapUI.field && wxmap) { wxmap.grids = {}; refreshField(); } toast('جارٍ التحديث من المصادر'); });
   $('layersBtn').addEventListener('click', openLayers);
   $('scrim').addEventListener('click', closeSheet);
   window.addEventListener('online', renderStatus); window.addEventListener('offline', renderStatus);

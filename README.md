@@ -52,7 +52,6 @@ Open-Meteo مجاني للاستخدام غير التجاري، بحدود 10,0
 - `js/analysis.js`: التحليل العربي الآلي.
 - `js/map.js`: الخريطة، والرسم الناعم للحقول، والرياح المتحركة، ومراكز الالتقاء.
 - `js/geo.js`: أسماء المواقع المرجعية، وحدود تقريبية لمنطقة مكة، ووصف «X كم شمال كذا».
-- `scripts/daily-report.mjs` و`.github/workflows/daily-report.yml`: التقرير اليومي، ويكتب ملفاته في `reports/`.
 - `js/charts.js`: المخططات.
 - `sw.js` و`manifest.webmanifest`: تطبيق الويب والعمل دون اتصال.
 - `vendor/leaflet`: مكتبة الخرائط Leaflet 1.9.4.

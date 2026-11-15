@@ -848,7 +848,7 @@
   async function refreshRuns(first) {
     let idx;
     try { idx = await getJSON(DATA + "runs.json"); } catch (e) { idx = { runs: [] }; }
-    S.runs = idx.runs || [];
+    S.runs = (idx.runs || []).filter((r) => !String(r.run).endsWith("00"));  // evening (12Z) runs only: the daytime run was removed (Fahad, 15 Nov 2026)
     const sel = $("runSelect");
     sel.hidden = !S.runs.length;  // the run time lives here, so it shows even with one run
     sel.innerHTML = S.runs.map((r) => `<option value="${r.run}">${runShort(r.run)}${r.status === "running" ? " · جارٍ" : ""}</option>`).join("");
@@ -965,8 +965,9 @@
       return head.map((l, i) => para(l, i, k)).join("") + rainTable(s.table) +
         (rest.length ? `<h4 class="rsub">التفصيل منطقة منطقة</h4>` + rest.map((l) => para(l, 1, k)).join("") : "");
     };
+    if (r && r.sections) r.sections = r.sections.filter((s) => s.kind !== "rain_noon");  // no noon update any more
     if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
-      ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" ${s.kind === "rain" && r.sections.some((x) => x.kind === "rain_noon") ? "" : "open"}><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
+      ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" open><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
       : (r.lines || []).map((l) => `<p>${l}</p>`).join("")) +
       `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، ومعه خرائط هذه الصفحة${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
     let html = "";

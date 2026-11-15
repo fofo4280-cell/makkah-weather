@@ -1,5 +1,5 @@
 // Service worker: offline app shell + last-known API responses.
-const VERSION = 'mwx-v5';
+const VERSION = 'mwx-v6';
 const SHELL = ['./', 'index.html', 'css/app.css', 'js/app.js', 'js/config.js', 'js/util.js', 'js/api.js', 'js/met.js', 'js/charts.js', 'js/analysis.js', 'js/map.js', 'js/escarp.js', 'js/geo.js', 'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png'];
 const API_HOSTS = ['api.open-meteo.com', 'ensemble-api.open-meteo.com', 'previous-runs-api.open-meteo.com', 'api.rainviewer.com', 'aviationweather.gov', 'raw.githubusercontent.com'];
 

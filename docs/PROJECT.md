@@ -62,16 +62,19 @@ Last updated: 15 Nov 2026. Written for Claude, to continue the work without the 
   - The Rossby family is the sixth driver in `bigreport.strength` (0..1 = -ros/(2 ref)), total capped at 5 (Fahad, 14 Nov). Kelvin is only named in the text (for/against), not scored: over the Kingdom box it showed no relation to rain.
   - Compute takes about 15 min (was 8).
   - Its last step waits for the 12Z 3 km runs (until about 02:45 UTC) and rebuilds the report from them.
-- **The noon update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only daily report.** The keeper no longer starts it and `rain-noon.yml` has no schedule; it stays for a run by hand.
-- `rain-noon.yml` (`refresh_report.py`) has inputs `mode=noon|midnight`, `publish`, and `wait=yes|no`.
-  - Noon: waits for the 00Z 3 km runs, unless `wait=no`, which publishes at once from what is out.
-  - Midnight: rewrites the night rain table from the evening runs.
-  - It **shares the concurrency group with climate.yml**. A dispatched update queues behind a climate run that is waiting for the 3 km runs. Open issue: separate them without letting both overwrite `climate-data`.
+- **Everything daytime is gone (Fahad, 14–15 Nov 2026): the midnight report from the evening (12Z) runs is the only report.**
+  - The 00Z model cycle no longer runs (section 3).
+  - `ourmodel.load` skips every run whose id ends in `00`, so no report can read a daytime run, even an old one.
+  - `refresh_report.py` accepts only `midnight`; the noon mode exits.
+  - `rain-noon.yml` became `rain-midnight.yml`: by hand only, rewrites the night rain table from the evening runs (a repair; climate.yml does it nightly).
+  - The model page (`model/app.js`) lists only 12Z runs and hides any old `rain_noon` section.
+  - The main site's «التقرير» tab (the Open-Meteo ECMWF/GFS/ICON report written about noon) was removed with `daily-report.yml`, `scripts/daily-report.mjs` and `reports/`.
+  - `rain-midnight.yml` **shares the concurrency group with climate.yml**. A dispatched rewrite queues behind a climate run that is waiting for the 3 km runs. Open issue: separate them without letting both overwrite `climate-data`.
 - `ourmodel.load`:
   - **3 km grids only** (dx > 5 km skipped).
   - For each grid, takes the newest run that covers ≥90 % of the hours of the best one.
 - `rainreport.py` + `sa_geo.locate()` give rain places from the OSM gazetteer (`sa_osm.json`, built by `gazetteer.yml`). A known place within 10 km wins, then a village within 4 km, then a road or wadi within 1.5 km. Otherwise the text gives distance and direction («٢٧ كم غرب بيش»), and the table gives direction only («غرب بيش»).
-- **Report sections:** rain table (noon and/or night) → «تشخيص الحالة الحالية» (`diag.py`: trough path, cold pool aloft, PW, winds layer by layer, steering, back-building) → «الوضع الحالي» → **«الموجات القادمة»** (since 14 Nov). That last section contains:
+- **Report sections:** rain table (night) → «تشخيص الحالة الحالية» (`diag.py`: trough path, cold pool aloft, PW, winds layer by layer, steering, back-building) → «الوضع الحالي» → **«الموجات القادمة»** (since 14 Nov). That last section contains:
   1. the drivers' movement over the whole data range: isolated MJO component (brake/support spans, extremes, envelope centre moving to a new cycle), warm event in or out of the favourable sector (250–55°E), MJO phases;
   2. every wave in range (`wave_list`): kind mixed/tropical/troughs, grade, peak, drivers for and against, regions reached; it says so when the strongest wave is not the nearest;
   3. the nearest wave in detail, with day-by-day scenario and nightly tracking (`wave_watch`).
