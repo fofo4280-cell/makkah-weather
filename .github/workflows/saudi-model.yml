@@ -4,18 +4,15 @@
 #   regional 3 km grids, split like the western one -> model-data-<id>: south-east, north, centre, east, north-west; with the western highlands they cover the Kingdom at 3 km
 #   (the 1 km nest over Jeddah-Makkah-Taif, domains.json -> model-data-1km, is paused until the 3 km runs settle)
 #   Kingdom-wide 9 km, 33 hours -> model-data-sa
-# Runs on the 00 and 12 UTC GFS cycles (full radiosonde assimilation). GitHub often starts scheduled runs late,
+# Runs on the 12 UTC GFS cycle only since 15 Nov 2026 (was 00 and 12) (full radiosonde assimilation). GitHub often starts scheduled runs late,
 # so the schedule is early and the gate job waits for the GFS files; the model jobs then get their full time.
 name: Saudi model 3 km
 
 on:
   schedule:
-    # GitHub sometimes starts a scheduled run very late or not at all (11 and 12 Nov 2026), so each cycle has
-    # three more tries; a try finds the cycle already run (or running) and does nothing
-    - cron: '47 2 * * *'
-    - cron: '13 3 * * *'
-    - cron: '41 3 * * *'
-    - cron: '7 4 * * *'
+    # GitHub sometimes starts a scheduled run very late or not at all (11 and 12 Nov 2026), so the cycle has
+    # three more tries; a try finds the cycle already run (or running) and does nothing.
+    # The 00 UTC (daytime) cycle was stopped on 15 Nov 2026 (Fahad): only the 12 UTC (evening) cycle runs.
     - cron: '47 14 * * *'
     - cron: '13 15 * * *'
     - cron: '41 15 * * *'
@@ -50,6 +47,8 @@ jobs:
           go=yes
           if [ "${{ github.event_name }}" = "schedule" ]; then
             H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); R="$(date -u +%Y%m%d)$C"
+            # no daytime cycle (Fahad, 15 Nov 2026): a 12 UTC try GitHub fires after midnight UTC must not start 00
+            if [ "$C" = 00 ]; then echo "schedule fired at $H UTC: the 00 UTC cycle is stopped"; echo "go=no" >> "$GITHUB_OUTPUT"; exit 0; fi
             s=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/model-data-sa/runs.json?$(date +%s)" \
               | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo none)
             echo "cycle $R on the page: $s"

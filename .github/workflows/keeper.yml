@@ -50,8 +50,9 @@ jobs:
           start=$(date +%s)
           while [ $(( $(date +%s) - start )) -lt 20400 ]; do       # 5 h 40 min, then hand over
             D=$(date -u +%Y%m%d); HM=$(date -u +%H%M)
-            # the model: 00 UTC cycle from 03:50, 12 UTC cycle from 15:50 (when the GFS is out to 36 hours)
-            for c in 00 12; do
+            # the model: 12 UTC cycle from 15:50 (when the GFS is out to 36 hours)
+            # the 00 UTC (daytime) cycle was stopped on 15 Nov 2026 (Fahad): never start it
+            for c in 12; do
               from=$([ $c = 00 ] && echo 0350 || echo 1550); to=$([ $c = 00 ] && echo 1100 || echo 2300)
               if [ "$HM" -ge "$from" ] && [ "$HM" -le "$to" ]; then
                 st=$(model_status "$D$c")

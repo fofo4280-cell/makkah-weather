@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
+Last updated: 15 Nov 2026. Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -34,9 +34,9 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 - **Grids:**
   - The **Kingdom at 3 km** = west d02 plus nw, n, c, e, se. This is what the maps and all reports use (decided 13 Nov).
   - The 9 km grids (sa, west d01) still run but are hidden. Their only remaining role: the gate and keeper read `model-data-sa/runs.json` to know whether a cycle exists.
-- **Cycles:** 00 and 12 UTC (Fahad wanted 22:00 and 10:00 Makkah). In practice:
+- **Cycles:** **12 UTC only since 15 Nov 2026 (Fahad).** The 00 UTC (daytime) cycle is stopped: no crons, the keeper never starts it, and the gate refuses a schedule firing before 12 UTC. It can still be run by hand (`saudi-model.yml` dispatch with `cycle=YYYYMMDD00`), only if Fahad asks.
   - 12Z finishes about 01–02 Makkah.
-  - 00Z finishes about 12–13 Makkah.
+  - (00Z, when it ran, finished about 12–13 Makkah.)
   - GFS 00Z f033 is on AWS about 03:45 UTC; 12Z about 15:45 UTC.
 - **Jobs** (`wrf-job.yml`, called by `saudi-model.yml`): each grid runs in two parts.
   - Part 1 runs to hour 15, then a restart handover; part 2 runs to 33.
@@ -46,9 +46,9 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
   - Skips if `runs.json` already has the cycle.
   - Waits up to 280 min for the GFS f033 file **on AWS** before starting jobs. Since 13 Nov a schedule fired hours early waits here, not inside the jobs.
   - Concurrency group `saudi-model`, no cancel.
-- **Schedules:** GitHub crons are unreliable (often missed or hours late). The crons are 47 2, 13 3, 41 3, 7 4 and 47 14, 13 15, 41 15, 7 16 (UTC).
+- **Schedules:** GitHub crons are unreliable (often missed or hours late). The crons are 47 14, 13 15, 41 15, 7 16 (UTC); the morning ones were removed on 15 Nov.
 - **Keeper** (`keeper.yml`): runs continuously and checks every 5 min. It re-dispatches itself every 5 h 40 min, with an hourly cron revival. It starts whatever is missing:
-  - model cycle 00 between 03:50 and 11:00 UTC, and 12 between 15:50 and 23:00;
+  - model cycle 12 between 15:50 and 23:00 UTC (cycle 00 removed on 15 Nov: on 15 Nov it still started the 00Z run at 03:52 UTC, which is why Fahad saw a daytime run);
   - the night climate run between 21:00 and 23:59 UTC.
 - **Maps:** PNG with banded palettes. The REFL palette is 5 dBZ bands, blue → green → yellow → red → purple. Model page assets are versioned `v=2026111xx`.
 
@@ -169,7 +169,7 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 
 ## 8. Open items and decisions (state on 14 Nov)
 
-- **Waiting for Fahad's answer:** keep only one daily cycle? Claude recommended **12Z** (past spin-up for the next day's afternoon, ready by about 02:00, fewer failure points). Alternative: 18Z.
+- **Decided (14–15 Nov):** one daily cycle, **12Z**. The 00Z model run was removed from the schedule and keeper on 15 Nov.
 - **After the current spell, Fahad's two paths:**
   1. Improve the oscillation page and maps: a timeline strip of drivers and waves, a verification log of past waves, and an animated component/warm-event map. Ask him what bothers him in the current maps.
   2. A forecast driven by the **German ICON**, downscaled to 3 km or finer. Claude suggested a feasibility test outside production first, comparing ICON and ECMWF open data on the 13 Nov case (plains start missed). Check the data: levels, soil fields, the icosahedral grid needs remapping, about 1-day retention. A GFS + ICON pair could be a two-member ensemble in a single daily cycle.
