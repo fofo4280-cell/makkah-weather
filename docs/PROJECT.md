@@ -147,6 +147,11 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
     - Kingdom: moist days with a trough give 50 % of the rain; moist days without a trough give 16-17 %.
     - Reading: the MJO (phases 8-1) is the main moisture pump, and the trough gives the lift. Part of the "trough/moisture without tropics" rain is tropical through the moisture.
     - Caveat: the trough is measured over the part itself, which can miss the upstream trough that pumps the moisture.
+  - **Reach of the moisture inland (15 Nov).** Days with the west or southwest at >= 130 % of normal: the centre is moist too on 58 % of them in Nov-Jan and 52 % in Feb-Apr.
+    - Nov-Jan, by MJO phase: phase 1 86 %, phase 8 77 %, phases 5-6 38-45 %.
+    - Nov-Jan, phases 8-1 by amplitude: below 1 50 %, 1-1.5 67 %, 1.5 and more 90 %. Amplitude matters only in phases 8-1 (phases 2-3 stay flat at 53-69 %).
+    - Feb-Apr: no amplitude effect. The trough decides: 59-67 % with a trough over the north or centre, 41-45 % without.
+    - 38 % of the centre's moist days come without a moist coast, from the Arabian Sea over the Rub al-Khali and from the Gulf.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
