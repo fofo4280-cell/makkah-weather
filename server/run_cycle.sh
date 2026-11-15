@@ -70,7 +70,8 @@ log "cycle $CYC on $NPROC cores"
 if [ "${RESUME:-0}" = 1 ]; then
   status plan cycle "$CYC" wrf=تشغيل_النموذج_الجزء_الثاني post=الخرائط_والنشر
 else
-  status plan cycle "$CYC" gfs=تنزيل_بيانات_جي_إف_إس wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
+  if [ "${SWRF_IC:-gfs}" = ecmwf ]; then DL=تنزيل_بيانات_المركز_الأوروبي; else DL=تنزيل_بيانات_جي_إف_إس; fi
+  status plan cycle "$CYC" gfs=$DL wps=المعالجة_المسبقة real=التهيئة wrf=تشغيل_النموذج post=الخرائط_والنشر
 fi
 status phase cycle "الدورة قيد التشغيل"
 
