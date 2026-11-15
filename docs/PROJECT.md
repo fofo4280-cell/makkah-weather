@@ -111,6 +111,13 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
 - 24 wide rain days (>= 8 % of the Kingdom), Dec 2025-Nov 2026: component supportive 71 % (alternatives 58-75 %); **Rossby family over the Kingdom supportive 92 %** (base 52 %; rain 4.4 % vs 0.2 % of the Kingdom on strongly negative vs strongly positive days); Kelvin over the Kingdom 38 %.
 - Our Kelvin panel reproduces his (13 Nov: equatorial minimum 43E, -5.9).
 
+- **The 25-season test (15 Nov 2026, `tropics-study.yml` with long=yes, `tropics_long.py`; CHIRPS v2 via the IRI library, RMM, Nino 3.4, DMI, NCEP R1 500 hPa and PW via PSL THREDDS):**
+  - Daily share explained (cross-validated, leave one season out): tropics 2-8 %, troughs+moisture 11-23 %, both 13-24 %. The tropics add 1-3 % beyond the troughs.
+  - Monthly: correlation with the share of favourable-MJO days 0.12 (Hijaz) to 0.32 (north); tropics together explain 0-9 % cross-validated.
+  - **Phase odds (amplitude >= 1), share of the mean daily spread.** Nov-Jan, Hijaz: phase 1 224 %, phase 8 169 %, phases 6-7 140 %, phases 3-5 35-49 %. Feb-Apr, centre: phase 1 200 %, phase 8 174 %, phases 3-5 20-35 %. Phase 2 is near or below normal: the wet phases are 8 and 1 (then 7); phase 6 is wet in Nov-Jan and dry in Feb-Apr except the north.
+  - Whole seasons (25): correlation with IOD +0.49 (Hijaz +0.58), ENSO +0.41, favourable-MJO share +0.29. Wettest Kingdom seasons: 2025/26, 2018/19, 2022/23, 2023/24. Driest: 2007/08 (La Nina), 2014/15, 2002/03, 2011/12.
+  - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
+
 ## 8. Open items and decisions (state on 14 Nov)
 
 - **Waiting for Fahad's answer:** keep only one daily cycle? Claude recommended **12Z** (past spin-up for the next day's afternoon, ready by about 02:00, fewer failure points). Alternative: 18Z.
