@@ -271,6 +271,37 @@ def main():
         for name, X in (("warm 45E", w45), ("Rossby", ros), ("Kelvin", kel), ("component", mf)):
             print(f"    alone {name}: {100*cv_r2(X[has, None], y, se):.1f}%  corr {np.corrcoef(X[has], sp[has])[0, 1]:+.2f}")
 
+    # how far the moisture reaches (Fahad, 15 Nov 2026): when it stops at the Hijaz and the southwestern highlands and
+    # when it goes deep into the interior; by MJO phase, amplitude, troughs and the warm/cold event
+    pc = {g: np.nan_to_num(per[g]["pct"], nan=100) for g in SUBS}
+    coast = (pc["الحجاز"] >= 130) | (pc["الجنوب الغربي"] >= 130)
+    deep = pc["الوسط"] >= 130
+    deepE = (pc["الوسط"] >= 130) | (pc["الشرق"] >= 130)
+    trN = (per["الوسط"]["tr"] <= -25) | (per["الشمال"]["tr"] <= -25)
+    hasall = np.all(np.column_stack([per[g]["has"] for g in SUBS]), 1)
+    print("\n######## reach of the moisture: P(the centre moist, >= 130 %) on days the west or southwest is moist")
+    for h, ms in HALVES.items():
+        s = np.isin(mon, ms) & hasall
+        c = s & coast
+        print(f"  == {h}: coast-moist days {c.sum()} ({100*c.sum()/s.sum():.0f}% of days); of them the centre moist "
+              f"{100*deep[c].mean():.0f}%, centre or east {100*deepE[c].mean():.0f}% | centre moist days {(s & deep).sum()}, "
+              f"of them with the coast moist {100*coast[s & deep].mean():.0f}% (the rest came from the east and south)")
+        print("    by MJO phase (amplitude 1+): " + " ".join(
+            f"{p_}:{100*deep[c & (ph == p_) & (amp >= 1)].mean():.0f}%(n{(c & (ph == p_) & (amp >= 1)).sum()})" for p_ in range(1, 9))
+            + f" weak:{100*deep[c & (amp < 1)].mean():.0f}%(n{(c & (amp < 1)).sum()})")
+        for nm, P_ in (("8-1", (8, 1)), ("2-3", (2, 3)), ("all", tuple(range(1, 9)))):
+            cells = []
+            for a, b in ((0, 1), (1, 1.5), (1.5, 2), (2, 9)):
+                q = c & np.isin(ph, P_) & (amp >= a) & (amp < b)
+                cells.append(f"amp {a}-{b}: {100*deep[q].mean():.0f}% (n{q.sum()})" if q.sum() >= 10 else f"amp {a}-{b}: -")
+            print(f"    phases {nm} by amplitude: " + " | ".join(cells))
+        for nm, f in (("trough over the north/centre", trN), ("no trough there", ~trN), ("warm event in sector", warm),
+                      ("cold event over 45E", w45 <= -4), ("Kelvin supportive", kelF), ("component supportive", mfF)):
+            q = c & f
+            print(f"    {nm}: {100*deep[q].mean():.0f}% (n{q.sum()})")
+        q1, q2 = c & trN & np.isin(ph, (8, 1, 2)) & (amp >= 1), c & ~trN & np.isin(ph, (8, 1, 2)) & (amp >= 1)
+        print(f"    MJO 8-1-2 with a trough {100*deep[q1].mean():.0f}% (n{q1.sum()}), without {100*deep[q2].mean():.0f}% (n{q2.sum()})")
+
 
 if __name__ == "__main__":
     main()
