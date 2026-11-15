@@ -165,7 +165,8 @@
   function preload(i) {
     const d = S.man && S.man.domains[S.dom];
     const us = d && d.members ? d.members.map((m) => urlFor(m, S.frames[i])) : [frameURL(i)];
-    for (const u of us) if (u && !cache.has(u)) { const im = new Image(); im.src = u; cache.set(u, im); if (cache.size > 240) cache.delete(cache.keys().next().value); }
+    for (const u of us) if (u && !cache.has(u)) { const im = new Image(); im.crossOrigin = "anonymous"; im.src = u; cache.set(u, im); if (cache.size > 240) cache.delete(cache.keys().next().value); }
+    if (d && d.members) mosaicURL(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[i]) }))).catch(() => null);
   }
 
   // two image layers that cross-fade, so playback looks continuous
@@ -210,6 +211,160 @@
       img.onload = img.onerror = () => { lay.setUrl(url); lay.setBounds(L.latLngBounds(bounds)); lay.setOpacity(1); };
       img.src = url;
     });
+  }
+
+  // The Kingdom at 3 km as one seamless picture (16 Nov 2026, after Fahad found the humidity and instability maps
+  // boxy): every grid's map is blended into one canvas, each pixel weighted by how far it lies inside its own grid
+  // (the grid's boundary zone is left out, then the weight rises over ~40 km). Where grids overlap their colours are
+  // averaged, so no seam; where only one grid reaches, its edge fades out instead of ending in a hard box.
+  const MOS = { geo: null, urls: new Map(), token: 0 };
+  const MOS_SKIP = 5, MOS_RAMP = 14, MOS_STEP = 0.018;   // grid cells left out and of the fade; mosaic pixel (deg)
+  const mercY = (lat) => Math.log(Math.tan(Math.PI / 4 + lat * Math.PI / 360));
+  const invMercY = (y) => (2 * Math.atan(Math.exp(y)) - Math.PI / 2) * 180 / Math.PI;
+  function mosaicGeo(ids) {
+    const key = S.run + MODEL + ids.join();
+    if (MOS.geo && MOS.geo.key === key) return MOS.geo;
+    const ds = ids.map((id) => S.man.domains[id]);
+    if (ds.some((d) => !d || !d.bounds || !d.points || d.points.x00 == null || !(d.proj || S.man.proj))) return null;
+    const s = Math.min(...ds.map((d) => d.bounds[0][0])), w = Math.min(...ds.map((d) => d.bounds[0][1]));
+    const n = Math.max(...ds.map((d) => d.bounds[1][0])), e = Math.max(...ds.map((d) => d.bounds[1][1]));
+    const ys = mercY(s), yn = mercY(n);
+    const W = Math.ceil((e - w) / MOS_STEP), H = Math.ceil((yn - ys) / (MOS_STEP * Math.PI / 180));
+    const px = (lon) => (lon - w) / (e - w) * W, py = (lat) => (yn - mercY(lat)) / (yn - ys) * H;
+    const doms = ds.map((d, k) => {
+      const P = d.points, pr = d.proj || S.man.proj;
+      const fx0 = px(d.bounds[0][1]), fx1 = px(d.bounds[1][1]), fy0 = py(d.bounds[1][0]), fy1 = py(d.bounds[0][0]);
+      const x0 = Math.max(0, Math.floor(fx0)), x1 = Math.min(W, Math.ceil(fx1)), y0 = Math.max(0, Math.floor(fy0)), y1 = Math.min(H, Math.ceil(fy1));
+      const rw = x1 - x0, rh = y1 - y0, wt = new Float32Array(rw * rh);
+      for (let y = 0; y < rh; y++) {
+        const lat = invMercY(yn - (y0 + y + 0.5) / H * (yn - ys));
+        for (let x = 0; x < rw; x++) {
+          const lon = w + (x0 + x + 0.5) / W * (e - w);
+          const [X, Y] = lccForward(pr, lon, lat);
+          const i = (X - P.x00) / P.dx, j = (Y - P.y00) / P.dx;
+          const edge = Math.min(i, P.nx - 1 - i, j, P.ny - 1 - j);
+          // blend weight: tiny at the grid's edge, full ~40 km inside; zero outside the grid
+          wt[y * rw + x] = edge < 1 ? 0 : 0.03 + 0.97 * Math.max(0, Math.min(1, (edge - MOS_SKIP) / MOS_RAMP));
+        }
+      }
+      return { id: ids[k], fx0, fy0, fw: fx1 - fx0, fh: fy1 - fy0, x0, y0, rw, rh, wt };
+    });
+    // fade only at the outer edge of all the grids together (not where two grids meet): distance to the nearest
+    // uncovered pixel (two-pass chamfer), in grid cells of 3 km
+    // narrow gaps where two grids do not quite meet are closed (dilate then erode by ~16 km) and later filled from
+    // their neighbours, so they neither show as a line nor start a fade
+    const cov = new Uint8Array(W * H);
+    doms.forEach((g) => { for (let y = 0; y < g.rh; y++) for (let x = 0; x < g.rw; x++) if (g.wt[y * g.rw + x] > 0) cov[(g.y0 + y) * W + g.x0 + x] = 1; });
+    const morph = (src, r, grow) => {   // square max (grow) or min filter, separable
+      const a = new Uint8Array(W * H), b = new Uint8Array(W * H);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        let v = grow ? 0 : 1;
+        for (let k = Math.max(0, x - r); k <= Math.min(W - 1, x + r); k++) { const q = src[y * W + k]; if (grow ? q : !q) { v = grow ? 1 : 0; break; } }
+        a[y * W + x] = v;
+      }
+      for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+        let v = grow ? 0 : 1;
+        for (let k = Math.max(0, y - r); k <= Math.min(H - 1, y + r); k++) { const q = a[k * W + x]; if (grow ? q : !q) { v = grow ? 1 : 0; break; } }
+        b[y * W + x] = v;
+      }
+      return b;
+    };
+    const R8 = 8, closed = morph(morph(cov, R8, true), R8, false);
+    const gaps = [];
+    for (let p = 0; p < W * H; p++) { if (cov[p]) closed[p] = 1; else if (closed[p]) gaps.push(p); }
+    const dist = new Float32Array(W * H);
+    for (let p = 0; p < W * H; p++) if (closed[p]) dist[p] = 1e9;
+    const D1 = 1, D2 = Math.SQRT2;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const p = y * W + x; if (!dist[p]) continue;
+      let v = dist[p];
+      v = Math.min(v, x > 0 ? dist[p - 1] + D1 : 0, y > 0 ? dist[p - W] + D1 : 0, x > 0 && y > 0 ? dist[p - W - 1] + D2 : 0, x < W - 1 && y > 0 ? dist[p - W + 1] + D2 : 0);
+      dist[p] = v;
+    }
+    for (let y = H - 1; y >= 0; y--) for (let x = W - 1; x >= 0; x--) {
+      const p = y * W + x; if (!dist[p]) continue;
+      let v = dist[p];
+      v = Math.min(v, x < W - 1 ? dist[p + 1] + D1 : 0, y < H - 1 ? dist[p + W] + D1 : 0, x < W - 1 && y < H - 1 ? dist[p + W + 1] + D2 : 0, x > 0 && y < H - 1 ? dist[p + W - 1] + D2 : 0);
+      dist[p] = v;
+    }
+    const cell = MOS_STEP * 111.32 * Math.cos(((s + n) / 2) * Math.PI / 180) / 3;   // mosaic pixel in 3 km cells
+    const fade = new Float32Array(W * H);
+    for (let p = 0; p < W * H; p++) fade[p] = Math.max(0, Math.min(1, (dist[p] * cell - MOS_SKIP) / MOS_RAMP));
+    MOS.geo = { key, W, H, bounds: [[s, w], [n, e]], doms, fade, gaps: Int32Array.from(gaps) };
+    return MOS.geo;
+  }
+  function loadImg(u) {
+    let im = cache.get(u);
+    if (!im) { im = new Image(); im.crossOrigin = "anonymous"; im.src = u; cache.set(u, im); }
+    if (im.complete && im.naturalWidth) return Promise.resolve(im);
+    return new Promise((ok) => { im.addEventListener("load", () => ok(im)); im.addEventListener("error", () => ok(null)); if (im.complete) ok(im.naturalWidth ? im : null); });
+  }
+  function mosaicURL(items) {
+    const ids = items.map((x) => x.id), key = items.map((x) => x.url || "-").join("|");
+    if (MOS.urls.has(key)) return MOS.urls.get(key);
+    const geo = mosaicGeo(ids);
+    if (!geo) return Promise.resolve(null);
+    const job = Promise.all(items.map((x) => (x.url ? loadImg(x.url) : null))).then((imgs) => {
+      const { W, H } = geo, N = W * H;
+      const R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N), A = new Float32Array(N), WS = new Float32Array(N);
+      const tmp = document.createElement("canvas"), tc = tmp.getContext("2d", { willReadFrequently: true });
+      let any = false;
+      geo.doms.forEach((g, k) => {
+        const im = imgs[k];
+        if (!im || !g.rw || !g.rh) return;
+        any = true;
+        tmp.width = g.rw; tmp.height = g.rh; tc.clearRect(0, 0, g.rw, g.rh);
+        tc.drawImage(im, g.fx0 - g.x0, g.fy0 - g.y0, g.fw, g.fh);
+        const px = tc.getImageData(0, 0, g.rw, g.rh).data;   // throws if the image is not readable: caller falls back
+        for (let y = 0; y < g.rh; y++) {
+          let p = (g.y0 + y) * W + g.x0, q = y * g.rw;
+          for (let x = 0; x < g.rw; x++, p++, q++) {
+            const wt = g.wt[q];
+            if (wt <= 0) continue;
+            const a = px[q * 4 + 3] / 255, wa = wt * a;
+            R[p] += wa * px[q * 4]; G[p] += wa * px[q * 4 + 1]; B[p] += wa * px[q * 4 + 2]; A[p] += wa; WS[p] += wt;
+          }
+        }
+      });
+      if (!any) return null;
+      // per pixel: weighted mean of the grids (colour premultiplied by alpha); then fill the closed gaps
+      for (let p = 0; p < N; p++) if (WS[p] > 0) { R[p] /= WS[p]; G[p] /= WS[p]; B[p] /= WS[p]; A[p] /= WS[p]; WS[p] = 1; }
+      let left = geo.gaps;
+      for (let pass = 0; pass < 20 && left.length; pass++) {
+        const next = [], put = [];
+        for (const p of left) {
+          let r = 0, g2 = 0, b = 0, a = 0, c = 0;
+          for (const q of [p - 1, p + 1, p - W, p + W]) if (q >= 0 && q < N && WS[q] === 1) { r += R[q]; g2 += G[q]; b += B[q]; a += A[q]; c++; }
+          if (c) put.push([p, r / c, g2 / c, b / c, a / c]); else next.push(p);
+        }
+        for (const [p, r, g2, b, a] of put) { R[p] = r; G[p] = g2; B[p] = b; A[p] = a; WS[p] = 1; }
+        left = next;
+      }
+      const out = document.createElement("canvas"); out.width = W; out.height = H;
+      const oc = out.getContext("2d"), od = oc.createImageData(W, H), o = od.data;
+      for (let p = 0; p < N; p++) {
+        const a = A[p];
+        if (!(a > 0)) continue;
+        o[p * 4] = R[p] / a; o[p * 4 + 1] = G[p] / a; o[p * 4 + 2] = B[p] / a;
+        o[p * 4 + 3] = 255 * a * geo.fade[p];
+      }
+      oc.putImageData(od, 0, 0);
+      return new Promise((ok) => out.toBlob((b) => ok(b ? { url: URL.createObjectURL(b), bounds: geo.bounds } : null), "image/png"));
+    });
+    MOS.urls.set(key, job);
+    job.catch(() => MOS.urls.delete(key));
+    if (MOS.urls.size > 60) {
+      const [k0, j0] = MOS.urls.entries().next().value;
+      MOS.urls.delete(k0); j0.then((r) => r && setTimeout(() => URL.revokeObjectURL(r.url), 5000)).catch(() => null);
+    }
+    return job;
+  }
+  function showMosaic(items) {
+    const tok = ++MOS.token;
+    mosaicURL(items).then((r) => {
+      if (tok !== MOS.token) return;
+      if (r) { clearMulti(); overlayTo(r.url, r.bounds); } else overlayMany(items);
+    }).catch(() => { if (tok === MOS.token) overlayMany(items); });
   }
 
   // arrows of water vapour transport, drawn over the colours
@@ -287,8 +442,8 @@
     const d = S.man && S.man.domains[S.dom];
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
-    if (d.members) overlayMany(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[S.idx]), bounds: S.man.domains[m].bounds })));
-    else { clearMulti(); overlayTo(frameURL(S.idx), d.bounds); }
+    if (d.members) showMosaic(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[S.idx]), bounds: S.man.domains[m].bounds })));
+    else { MOS.token++; clearMulti(); overlayTo(frameURL(S.idx), d.bounds); }
     $("timeRange").max = S.frames.length - 1;
     $("timeRange").value = S.idx;
     $("timeLabel").textContent = frameLabel(S.frames[S.idx]);
