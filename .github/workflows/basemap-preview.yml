@@ -1,0 +1,45 @@
+name: basemap-preview
+on:
+  push:
+    branches: [basemap-preview]
+    paths-ignore: ['shots/**']
+permissions:
+  contents: write
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: |
+          npm i --no-save playwright@1.48.2
+          npx playwright install --with-deps chromium
+          sudo apt-get install -y fonts-noto-core fonts-kacst >/dev/null
+          (python3 -m http.server 8080 >/dev/null 2>&1 &)
+          sleep 2
+          cat > shot.mjs <<'JS'
+          import { chromium } from 'playwright';
+          const b = await chromium.launch();
+          const bases = { light: 'فاتحة', detail: 'تفصيلية: القرى والمعالم (أسماء عربية)' };
+          const views = [['west', null], ['makkah', [21.42, 39.84, 11]], ['ksa', [24, 44, 5]]];
+          for (const [bn, bv] of Object.entries(bases)) for (const [vn, v] of views) {
+            const ctx = await b.newContext({ viewport: { width: 412, height: 860 }, deviceScaleFactor: 2, locale: 'ar' });
+            const p = await ctx.newPage();
+            await p.addInitScript((bv) => {
+              localStorage.setItem('swrf.base3', bv); localStorage.setItem('swrf.prod', 'rain24');
+              let _L; Object.defineProperty(window, 'L', { configurable: true, get() { return _L; }, set(x) { _L = x; x.Map.addInitHook(function () { window.__map = this; }); } });
+            }, bv);
+            await p.goto('http://localhost:8080/model/');
+            await p.waitForTimeout(5000);
+            if (v) await p.evaluate(([la, lo, z]) => window.__map.setView([la, lo], z, { animate: false }), v);
+            await p.waitForTimeout(9000);
+            await p.screenshot({ path: `shots/${bn}-${vn}.png` });
+            await ctx.close();
+          }
+          await b.close();
+          JS
+          mkdir -p shots && node shot.mjs
+      - run: |
+          git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
+          git add shots && git commit -m "preview shots" && git push
