@@ -5,10 +5,12 @@ name: Tropics study
 on:
   workflow_dispatch:
     inputs:
+      from_run: {description: 'spring: the run id whose tropics-long series to read', default: ''}
       long: {description: 'yes: the 25-season test (CHIRPS, RMM, ENSO, IOD, NCEP troughs and moisture)', default: 'no'}
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   study:
@@ -46,3 +48,11 @@ jobs:
         with:
           name: tropics-long
           path: long.json
+      - if: inputs.long == 'spring'
+        uses: actions/download-artifact@v4
+        with:
+          name: tropics-long
+          run-id: ${{ inputs.from_run }}
+          github-token: ${{ github.token }}
+      - if: inputs.long == 'spring'
+        run: python3 code/server/climate/tropics_spring.py long.json
