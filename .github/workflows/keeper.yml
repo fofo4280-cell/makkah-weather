@@ -62,6 +62,14 @@ jobs:
                 fi
               fi
             done
+            # the ECMWF-driven run (15 Nov 2026): its 12 UTC cycle from 19:45 (ECMWF hour 33 is out about 19:00-19:35)
+            if [ "$HM" -ge 1945 ] && [ "$HM" -le 2359 ]; then
+              st=$(raw model-data-ec/runs.json | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='${D}12']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo unknown)   # unknown (branch unreadable): do nothing
+              if [ "$st" = none ] && ! busy saudi-model-ec.yml; then
+                echo "$(date -u +%H:%M) ECMWF cycle ${D}12 missing: starting it"
+                post actions/workflows/saudi-model-ec.yml/dispatches "{\"ref\":\"main\",\"inputs\":{\"cycle\":\"${D}12\"}}" || echo "dispatch failed"
+              fi
+            fi
             # the noon rain update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only one
             # the night climate run: from 21:00 UTC
             if [ "$HM" -ge 2100 ] && [ "$HM" -le 2359 ]; then
