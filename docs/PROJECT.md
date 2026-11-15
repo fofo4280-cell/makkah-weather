@@ -152,6 +152,14 @@ Last updated: 14 Nov 2026 (evening). Written for Claude, to continue the work wi
     - Nov-Jan, phases 8-1 by amplitude: below 1 50 %, 1-1.5 67 %, 1.5 and more 90 %. Amplitude matters only in phases 8-1 (phases 2-3 stay flat at 53-69 %).
     - Feb-Apr: no amplitude effect. The trough decides: 59-67 % with a trough over the north or centre, 41-45 % without.
     - 38 % of the centre's moist days come without a moist coast, from the Arabian Sea over the Rub al-Khali and from the Gulf.
+  - **Moisture needed for rain (15 Nov).** PW as % of normal, with a trough (<= -25 m) over the part. "Start" = P(rain on 2 % of the part or more) about 45-50 %; "confident" = about 60-75 %.
+    - Hijaz: Nov-Jan start 115, P stays near 50 % even at 130-150. Feb-Apr start 130, confident 150 (71 %).
+    - Southwest: Nov-Jan rain rare whatever the moisture (33 % at most). Feb-Apr start 100 (58 %), confident 115 (75 %).
+    - North: Nov-Jan start 130 (48 %), confident 150 (71 %). Feb-Apr start 130 (52 %), confident 150 (63 %).
+    - Centre: Nov-Jan start 150 (61 %). Feb-Apr start 115 (54 %), confident 130 (71 %), 150 and more 85 %.
+    - East: Nov-Jan start 150 (52 %). Feb-Apr start 130 (52 %), confident 150 (65 %).
+    - Without a trough, P drops by about 10-30 points at the same PW.
+    - MJO 8-1-2 on top of a trough adds little in most cells (small samples). The exception is the centre in Feb-Apr at 150-175 %: 88 %.
   - Reading: the tropics set the odds (x2 in phases 8/1, /2-4 in 3-5), and the troughs and moisture make the rain. This supports their weight for long range, not for day or place.
 
 ## 8. Open items and decisions (state on 14 Nov)
