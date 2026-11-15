@@ -40,9 +40,21 @@ TSPROB = [(5, "#efeefe", 0), (10, "#d9d6fb", 150), (16, "#b9c7f1", 190), (20, "#
 CONV = [(0.8, "#fbe7a1", 0), (1.5, "#f9d77e", 150), (2.5, "#f5ad3c", 200), (4, "#ea6a25", 225), (6, "#cf2d22", 240),
         (9, "#8f1030", 250), (13, "#4d0a3a", 255)]
 
+# Relative humidity at 700 hPa (%), light to dark green in 10 % bands; drier than 30 % is not drawn
+RH700 = [(30, "#e5f5e0", 160), (40, "#c7e9c0", 180), (50, "#a1d99b", 195), (60, "#74c476", 210), (70, "#41ab5d", 220),
+         (80, "#238b45", 230), (90, "#006d2c", 238), (95, "#00441b", 245), (100, "#00441b", 245)]
+# Most-unstable CAPE (J/kg): pale yellow for weak instability, orange and red for strong, purple for extreme
+CAPE = [(100, "#fff3b0", 120), (250, "#ffe066", 170), (500, "#fdb53c", 200), (1000, "#f7811f", 220),
+        (1500, "#e8481e", 230), (2000, "#c8102e", 240), (2500, "#9c1060", 245), (3000, "#6a1b9a", 250),
+        (4000, "#3d0c5c", 255), (5000, "#3d0c5c", 255)]
+
 PRODUCTS = {
     "refl":    {"label": "الانعكاسية الرادارية المركبة", "unit": "ديسيبل", "stops": REFL, "tf": "lin", "bands": True, "band_alpha_min": 0},
     "rain1h":  {"label": "مطر الساعة", "unit": "ملم", "stops": RAIN, "tf": "sqrt", "bands": True},
+    "rh700":   {"label": "الرطوبة النسبية عند ٧٠٠ هكتوباسكال", "unit": "٪", "stops": RH700, "tf": "lin", "bands": True,
+                "band_alpha_min": 0},
+    "cape":    {"label": "طاقة عدم الاستقرار", "unit": "جول/كغ", "stops": CAPE, "tf": "sqrt", "bands": True,
+                "band_alpha_min": 0},
     "ivt":     {"label": "الأنهار الجوية: نقل بخار الماء", "unit": "كغ/م/ث", "stops": IVT, "tf": "lin", "only": "ivt"},
 }
 DAILY = {
@@ -198,6 +210,78 @@ def conv925_from_frame(nc, dx):
     return conv, u9, v9
 
 
+def _es(tk):
+    """Saturation vapour pressure over water (Pa), Bolton 1980."""
+    return 611.2 * np.exp(17.67 * (tk - 273.15) / (tk - 29.65))
+
+
+def _thetae(tk, p, r, tl):
+    """Equivalent potential temperature (Bolton 1980 eq. 43): tk, tl in K, p in Pa, r mixing ratio kg/kg."""
+    return (tk * (100000.0 / p) ** (0.2854 * (1 - 0.28 * r))
+            * np.exp((3376.0 / tl - 2.54) * r * (1 + 0.81 * r)))
+
+
+def rh700_cape_from_frame(nc):
+    """Relative humidity at 700 hPa (%, NaN where the ground is higher) and most-unstable CAPE (J/kg).
+
+    CAPE: the parcel with the highest theta-e in the lowest 300 hPa is lifted dry to its condensation level, then
+    along a pseudo-adiabat (theta-e kept); the positive buoyancy (virtual temperature) is summed from the parcel's
+    level up to 100 hPa.
+    """
+    v = nc.variables
+    p = np.array(v["P"][0], dtype=np.float64) + np.array(v["PB"][0], dtype=np.float64)
+    th = np.array(v["T"][0], dtype=np.float64) + 300.0
+    r = np.maximum(np.array(v["QVAPOR"][0], dtype=np.float64), 1e-7)
+    tk = th * (p / 100000.0) ** 0.2854
+    zw = (np.array(v["PH"][0], dtype=np.float64) + np.array(v["PHB"][0], dtype=np.float64)) / 9.81
+    dz = zw[1:] - zw[:-1]
+    e = r * p / (0.622 + r)
+    rh = np.clip(100.0 * e / _es(tk), 0, 100)
+
+    # 700 hPa: linear in log p between the two levels around it
+    above = p < 70000.0
+    k1 = np.argmax(above, axis=0)
+    ok = (k1 > 0) & above.any(0)
+    k0 = np.clip(k1 - 1, 0, p.shape[0] - 1)
+    take = lambda a, k: np.take_along_axis(a, k[None], 0)[0]
+    p0, p1 = take(p, k0), take(p, k1)
+    f = np.clip((np.log(p0) - np.log(70000.0)) / np.maximum(np.log(p0) - np.log(p1), 1e-9), 0, 1)
+    rh7 = take(rh, k0) + f * (take(rh, k1) - take(rh, k0))
+    rh7[~ok] = np.nan
+
+    # the most unstable parcel in the lowest 300 hPa
+    tl_env = 1.0 / (1.0 / (tk - 55.0) - np.log(np.maximum(rh, 1e-3) / 100.0) / 2840.0) + 55.0
+    te = _thetae(tk, p, r, tl_env)
+    low = p >= (p[0] - 30000.0)[None]
+    kp = np.argmax(np.where(low, te, -np.inf), axis=0)
+    tp0, pp0, rp0, te0, tlp = take(tk, kp), take(p, kp), take(r, kp), take(te, kp), take(tl_env, kp)
+    plcl = pp0 * (tlp / tp0) ** (1.0 / 0.2854)
+
+    # parcel temperature on every level: dry below the condensation level, saturated with theta-e kept above it
+    tdry = tp0[None] * (p / pp0[None]) ** 0.2854
+    lo, hi = np.full(p.shape, 150.0), np.full(p.shape, 350.0)
+    for _ in range(28):
+        mid = 0.5 * (lo + hi)
+        es = _es(mid)
+        rs = 0.622 * es / np.maximum(p - es, 1.0)
+        big = _thetae(mid, p, rs, mid) > te0[None]
+        hi = np.where(big, mid, hi)
+        lo = np.where(big, lo, mid)
+    tsat = 0.5 * (lo + hi)
+    es = _es(tsat)
+    rsat = 0.622 * es / np.maximum(p - es, 1.0)
+    sat = p < plcl[None]
+    tpar = np.where(sat, tsat, tdry)
+    rpar = np.where(sat, rsat, rp0[None])
+    tvp = tpar * (1 + rpar / 0.622) / (1 + rpar)
+    tve = tk * (1 + r / 0.622) / (1 + r)
+    kk = np.arange(p.shape[0])[:, None, None]
+    use = (kk > kp[None]) & (p >= 10000.0)
+    b = np.where(use, np.maximum(tvp - tve, 0) / tve, 0.0)
+    cape = 9.81 * (b * dz).sum(0)
+    return rh7.astype(np.float32), cape.astype(np.float32)
+
+
 def fields_from_frame(nc, prev_acc):
     """Return dict of 2-D fields for one wrfout frame and the new accumulated rain."""
     v = nc.variables
@@ -213,6 +297,11 @@ def fields_from_frame(nc, prev_acc):
                 np.hypot(np.array(v["U10"][0]), np.array(v["V10"][0])).astype(np.float32) * 3.6,
         "wup": np.array(v["W_UP_MAX"][0], dtype=np.float32) if "W_UP_MAX" in v else None,
     }
+    try:  # a failure here must not stop the other maps
+        out["rh700"], out["cape"] = rh700_cape_from_frame(nc)
+    except Exception as e:
+        import sys
+        print(f"rh700/cape failed: {e}", file=sys.stderr)
     return {k: f for k, f in out.items() if f is not None}, acc
 
 
