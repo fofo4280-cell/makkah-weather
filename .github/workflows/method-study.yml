@@ -1,0 +1,63 @@
+# Hand study (Fahad, 15 Nov 2026): every driver the report reads (MJO, warm and cold event, Rossby and Kelvin
+# families, isolated MJO component, troughs, moisture), rebuilt from 26 years of NCEP/NCAR reanalysis, against the
+# CHIRPS rain series of the long tropics test. Printed to the log (nothing published).
+name: Method study
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_run: {description: 'the Tropics study run whose tropics-long series to use', default: '43657761748'}
+      hist_run: {description: 'optional: a Method study run whose reanalysis chunks to reuse', default: ''}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  fetch:
+    if: inputs.hist_run == ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        years: ["2000 2005", "2006 2011", "2012 2017", "2018 2022", "2023 2026"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy netCDF4 pyshtools
+      - run: |
+          set -- ${{ matrix.years }}
+          python3 code/server/climate/hist_fetch.py $1 $2 hist_$1.npz
+          echo "Y0=$1" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hist-${{ env.Y0 }}
+          path: hist_*.npz
+          retention-days: 30
+
+  analyse:
+    needs: fetch
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - run: pip install -q numpy scipy shapely netCDF4 pyshtools
+      - uses: actions/download-artifact@v4
+        with:
+          name: tropics-long
+          run-id: ${{ inputs.from_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hist-*
+          path: hist
+          run-id: ${{ inputs.hist_run || github.run_id }}
+          github-token: ${{ github.token }}
+      - run: ls -la hist/* && python3 code/server/climate/method_test.py long.json hist
