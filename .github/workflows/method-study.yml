@@ -8,6 +8,7 @@ on:
     inputs:
       from_run: {description: 'the Tropics study run whose tropics-long series to use', default: '43657761748'}
       hist_run: {description: 'optional: a Method study run whose reanalysis chunks to reuse', default: ''}
+      extra: {description: 'highlands: the southwestern highlands and Tihama test instead', default: ''}
 
 permissions:
   contents: read
@@ -48,8 +49,9 @@ jobs:
         with:
           ref: saudi-wrf
           path: code
-      - run: pip install -q numpy scipy shapely netCDF4 pyshtools
-      - uses: actions/download-artifact@v4
+      - run: pip install -q numpy scipy shapely netCDF4 pyshtools pygrib matplotlib pillow cartopy arabic-reshaper python-bidi
+      - if: inputs.extra == ''
+        uses: actions/download-artifact@v4
         with:
           name: tropics-long
           run-id: ${{ inputs.from_run }}
@@ -60,4 +62,7 @@ jobs:
           path: hist
           run-id: ${{ inputs.hist_run || github.run_id }}
           github-token: ${{ github.token }}
-      - run: ls -la hist/* && python3 code/server/climate/method_test.py long.json hist
+      - if: inputs.extra == ''
+        run: ls -la hist/* && python3 code/server/climate/method_test.py long.json hist
+      - if: inputs.extra == 'highlands'
+        run: python3 code/server/climate/highland_test.py hist
