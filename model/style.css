@@ -254,3 +254,10 @@ a { color: var(--sea); }
 .rtab td i { opacity: .35; font-style: normal; }
 .rtab th.h, .rtab td.h span { color: var(--red); } .rtab th.m { color: var(--amber); } .rtab th.l { color: var(--sea); }
 .rtab td.h span { font-weight: 600; }
+.tw-scroll { padding-bottom: 4px; }
+.tw-panel { width: max-content; }
+.tw-panel h4 { position: sticky; left: 0; width: max-content; max-width: calc(100vw - 70px); margin: 8px 0 3px; padding: 0 8px; font-size: .85rem; font-weight: 700; color: #1b1b1b; }
+.tw-stage { position: relative; height: 260px; aspect-ratio: 2400 / 509; background: #fff; }
+.tw-stage img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; opacity: 0; transition: opacity .55s ease-in-out; }
+.tw-stage img.on { opacity: 1; }
+#twkLegend { margin-top: 6px; }

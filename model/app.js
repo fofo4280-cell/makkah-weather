@@ -996,7 +996,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); waveCard(); mjofCard(); beltCard();
+    mjoMap(); waveCard(); mjofCard(); twCard(); beltCard();
   }
 
   function mjoText() {
@@ -1242,6 +1242,33 @@
   function lonTxt(x) {
     x = ((Math.round(x) % 360) + 360) % 360;
     return x === 0 || x === 180 ? `${num(x)}°` : x < 180 ? `${num(x)}° شرقًا` : `${num(360 - x)}° غربًا`;
+  }
+  // the Kelvin and Rossby maps as in Dr Khalid's charts: a week of analyses and the forecast, one frame a day,
+  // each new frame faded in over the last so the waves move on smoothly
+  function twCard() {
+    const st = M.st, t = st.twf;
+    $("twCard").hidden = !t;
+    if (!t) return;
+    const n = t.days.length, kinds = ["twr", "twk"];
+    const url = (kd, k) => `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    kinds.forEach((kd) => { for (let k = 0; k < n; k++) { const im = new Image(); im.src = url(kd, k); } });
+    kinds.forEach((kd) => { if (st.figs && st.figs[kd]) $(kd + "Legend").innerHTML = legendHTML(st.figs[kd]); });
+    const show = () => {
+      const k = +$("twDay").value || 0, d = t.days[k];
+      document.querySelectorAll("#twCard .tw-stage").forEach((sg) => {
+        const [a, b] = sg.querySelectorAll("img"), front = a.classList.contains("on") ? a : b.classList.contains("on") ? b : null;
+        const back = front === a ? b : a, u = url(sg.dataset.k, k);
+        if (front && front.dataset.u === u) return;
+        back.onload = () => { back.classList.add("on"); if (front) front.classList.remove("on"); };
+        back.dataset.u = u; back.src = u;
+      });
+      const lab = k < t.t0 ? "تحليل" : k === t.t0 ? "اليوم" : "توقع";
+      $("twDayLabel").textContent = d ? `${lab}: ${fmtDayD.format(dOf(d))}` : "";
+    };
+    $("twDay").max = n - 1;
+    if (!twCard.done) { $("twDay").value = t.t0; twCard.done = true; }
+    $("twDay").oninput = show;
+    show();
   }
   function beltCard() {
     const st = M.st, days = st.days || [];

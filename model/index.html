@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261115f">
+<link rel="stylesheet" href="style.css?v=20261116w">
 </head>
 <body>
 <div class="app">
@@ -68,6 +68,20 @@
           <h3>مخطط أطوار التذبذب</h3>
           <div id="mjoPhase"></div>
           <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مكتب الأرصاد الأسترالي، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
+        </div>
+        <div class="card" id="twCard" hidden>
+          <h3>موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال</h3>
+          <div class="figwrap tw-scroll" dir="ltr">
+            <div class="tw-panel"><h4>عائلة روسبي، متجهة غربًا</h4><div class="tw-stage" data-k="twr"><img alt="عائلة روسبي"><img alt=""></div></div>
+            <div class="tw-panel"><h4>موجات كلفن، متجهة شرقًا</h4><div class="tw-stage" data-k="twk"><img alt="موجات كلفن"><img alt=""></div></div>
+          </div>
+          <div class="mjo-time">
+            <input type="range" id="twDay" min="0" max="22" value="7" dir="ltr" aria-label="اليوم">
+            <span id="twDayLabel"></span>
+          </div>
+          <div class="legend mjo-legend" id="twrLegend"></div>
+          <div class="legend mjo-legend" id="twkLegend"></div>
+          <p class="hint">جهد السرعة عند ٢٠٠ هكتوباسكال من تحاليل جي إف إس لأكثر من سنة مع توقعه لخمسة عشر يومًا، بعد التصفية في الرقم الموجي والدورة والسرعة، كما في خرائط الدكتور خالد: عائلة روسبي متجهة غربًا (٥ إلى ٩٠ يومًا، ٠٫٥ إلى ٢٥ م/ث)، وكلفن متجهة شرقًا (٢ إلى ٣٠ يومًا، ٨ إلى ٦٠ م/ث)، والأرقام الموجية ١ إلى ٩. الأزرق تباعد في الأعلى يدعم الحمل العميق، والأحمر تقارب يكبته، والأسهم البيضاء الرياح المتباعدة. الأيام من أسبوع مضى (تحليل) إلى خمسة عشر يومًا قادمة (توقع)، وآخر أيام التوقع أقل ثقة. اسحب الخريطتين يمينًا ويسارًا لترى بقية الحزام.</p>
         </div>
         <div class="card" id="beltCard" hidden>
           <h3>اللوحة الاستوائية الشاملة</h3>
@@ -162,6 +176,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261116a"></script>
+<script src="app.js?v=20261116w"></script>
 </body>
 </html>
