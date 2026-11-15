@@ -696,77 +696,144 @@ def wave_vec_ref(vectors_list, lat):
 
 
 def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
-    """field (10^6 m2/s) and vectors (u, v m/s) on lat x lon (0..359, 1 degree); vec_ref from wave_vec_ref."""
+    """The tropical belt (0-360, 35S-35N) in the style of the mid-level wave map: grey shaded relief, the filtered
+    200 hPa velocity potential as thin contours (blue below zero: divergence aloft that supports convection; gold
+    above: convergence that suppresses it) with their values, the zero line dash-dot, every centre marked with its
+    word and value (10^6 m2/s), and curved arrows along the divergent wind: out of the blue centres, into the gold.
+    field (10^6 m2/s) and vectors (u, v m/s) on lat x lon (0..359, 1 degree); vec_ref is kept for the call."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
+    from matplotlib import patheffects as pe
     import cartopy.crs as ccrs
-    import cartopy.feature as cfeature
-    from scipy.ndimage import zoom
+    from scipy.ndimage import zoom, maximum_filter, minimum_filter
+    from scipy.interpolate import RegularGridInterpolator
+    fam = _ar_font()
     sc = SCALES[kind]
     w, e, s, n = WAVE_BOX
     dpi = 200
     fig_w = width_px / dpi
-    lm, rm, bm, tm = 0.30, 0.04, 0.24, 0.04                     # inches
-    map_w = fig_w - lm - rm
-    map_h = map_w * (n - s) / (e - w)
-    fig_h = map_h + bm + tm
+    fig_h = fig_w * (n - s) / (e - w)
     fig = plt.figure(figsize=(fig_w, fig_h), dpi=dpi)
-    fig.patch.set_facecolor("#ffffff")
+    fig.patch.set_facecolor("#3a3f45")
     pc = ccrs.PlateCarree()
-    ax = fig.add_axes([lm / fig_w, bm / fig_h, map_w / fig_w, map_h / fig_h],
-                      projection=ccrs.PlateCarree(central_longitude=180))
+    ax = fig.add_axes([0, 0, 1, 1], projection=ccrs.PlateCarree(central_longitude=180))
     ax.set_extent([w, e - 0.001, s, n], crs=pc)
-    order = np.argsort(lat)[::-1]                                # descending
-    lat, field = lat[order], field[order]
+    try:
+        from PIL import Image
+        rel = np.asarray(Image.open(RELIEF_BELT).convert("L"))
+        ax.imshow(rel, extent=[-180, 180, -36, 36], origin="upper", cmap="gray", vmin=0, vmax=255,
+                  transform=ax.projection, interpolation="lanczos", zorder=0)
+    except Exception as ex:
+        print("relief unavailable:", str(ex)[:80])
+    ax.coastlines(resolution="50m", linewidth=0.45, color="#2b2b2b", alpha=0.75, zorder=1)
+    order = np.argsort(lat)                                         # ascending for the interpolators
+    la = lat[order]
+    f = field[order]
     u, v = vectors[0][order], vectors[1][order]
-    j = (lat >= s - 3) & (lat <= n + 3)
-    la = lat[j]
-    f = np.hstack([field[j], field[j][:, :1]])
-    lo = np.append(lon, lon[0] + 360)
-    up = 6
-    fine = zoom(np.nan_to_num(f), up, order=3)
-    ax.imshow(fine, extent=[lo[0] - 180, lo[-1] - 180, la[-1], la[0]], origin="upper", cmap="RdBu_r",
-              vmin=sc["vmin"], vmax=sc["vmax"], interpolation="bilinear", transform=ax.projection, zorder=1)
+    j = (la >= s - 4) & (la <= n + 4)
+    la, f, u, v = la[j], f[j], u[j], v[j]
+    fw = np.hstack([f[:, -20:], f, f[:, :20]])                       # wrapped so the contours run on across 0/360
+    low = np.concatenate([lon[-20:] - 360, lon, lon[:20] + 360])
+    up = 3
+    fz = zoom(fw, up, order=3)
+    flo = np.linspace(low[0], low[-1], fz.shape[1])
+    fla = np.linspace(la[0], la[-1], fz.shape[0])
     st = sc["step"]
-    lv = np.arange(-30 * st, 30 * st + st / 2, st)
-    lv = lv[np.abs(lv) > st / 2]
-    fs = zoom(np.nan_to_num(f), 2, order=3)
-    los = np.linspace(lo[0], lo[-1], fs.shape[1])
-    las = np.linspace(la[0], la[-1], fs.shape[0])
-    ax.contour(los, las, fs, levels=lv, colors="white", linewidths=0.55, alpha=0.55, transform=pc, zorder=2,
-               linestyles=["dashed" if x < 0 else "solid" for x in lv])
-    ax.add_feature(cfeature.BORDERS.with_scale("50m"), linewidth=0.25, edgecolor="#3a3a3a", alpha=0.6, zorder=3)
-    ax.coastlines(resolution="50m", linewidth=0.55, color="#111111", zorder=3)
-    # the arrows: every 5 degrees, where the divergent wind is a quarter of the full-length wind or more
-    ue = np.hstack([u[j], u[j][:, :1]])
-    ve = np.hstack([v[j], v[j][:, :1]])
-    stp = 5
-    LO, LA = np.meshgrid(lo, la)
-    sel = (np.round(LO) % stp == 2) & (np.round(LA) % stp == 2) & (LA >= s + 1) & (LA <= n - 1) & (LO < e)
-    U, V = ue[sel] / vec_ref, ve[sel] / vec_ref
-    M = np.hypot(U, V)
-    k = M >= 0.25
-    if k.any():
-        sc_ = np.minimum(M[k], 1.15) / M[k]                       # the strongest few capped, so none hides another
-        ax.quiver(LO[sel][k], LA[sel][k], U[k] * sc_, V[k] * sc_, transform=pc, color="white", alpha=0.95,
-                  angles="xy", scale_units="xy", scale=1 / 5.0, width=0.0013, headwidth=3.4, headlength=3.4,
-                  headaxislength=3.2, zorder=5)
-    ax.plot([w, e], [0, 0], color="#333333", alpha=0.55, linewidth=0.6, transform=pc, zorder=4)
+    halo_l = [pe.withStroke(linewidth=2.2, foreground=(0.05, 0.08, 0.12, 0.5))]
+    dig = (lambda x: f"{x:g}") if st >= 1 else (lambda x: f"{x:.1f}".rstrip("0").rstrip("."))
+    for sign, col in ((-1, "#6fd0f6"), (1, "#f2c14e")):
+        lv = sorted(sign * np.arange(st, 12 * st + st / 2, st))
+        cs = ax.contour(flo, fla, fz, levels=lv, colors=col, linewidths=1.0, linestyles="solid", transform=pc,
+                        zorder=3)
+        try:
+            cs.set_path_effects(halo_l)
+        except Exception:
+            pass
+        lab = ax.clabel(cs, levels=lv[1::2] if sign > 0 else lv[-2::-2], inline=True, inline_spacing=2, fontsize=6.2,
+                        fmt=lambda x: dig(x).replace(".", "٫").translate(AR_DIG))
+        for t in lab:
+            t.set_fontfamily(fam); t.set_fontweight("bold"); t.set_color(col)
+            t.set_path_effects([pe.withStroke(linewidth=2, foreground="#10161d")])
+    cz = ax.contour(flo, fla, fz, levels=[0], colors="#ffffff", linewidths=1.2, linestyles=[(0, (7, 3, 1.5, 3))],
+                    transform=pc, zorder=3)
+    # the centres: the strongest highs and lows of the field, at least 15 degrees apart
+    vmax = sc["vmax"]
+    jj = (la >= s + 3) & (la <= n - 3)
+    sub, sla = f[jj], la[jj]
+    marks = []
+    for kd, filt, cmp in (("lo", minimum_filter, lambda x: x <= -0.35 * vmax), ("hi", maximum_filter, lambda x: x >= 0.35 * vmax)):
+        m = (sub == filt(sub, size=(15, 25), mode=("nearest", "wrap"))) & cmp(sub)
+        for a_, b_ in zip(*np.nonzero(m)):
+            marks.append((kd, float(sla[a_]), float(lon[b_]), float(sub[a_, b_])))
+    marks = sorted([m for m in marks if abs(m[3]) >= 0.45 * vmax], key=lambda m: -abs(m[3]))[:9]
+    # curved arrows along the divergent wind (the gradient of chi): out of the blue centres, into the gold ones
+    uw = np.hstack([u[:, -20:], u, u[:, :20]]); vw = np.hstack([v[:, -20:], v, v[:, :20]])
+    U = RegularGridInterpolator((la, low), uw, bounds_error=False, fill_value=0)
+    V = RegularGridInterpolator((la, low), vw, bounds_error=False, fill_value=0)
+    for kd, y0, x0, val in marks:
+        r0, r1 = (3.0, 10.0) if kd == "lo" else (12.0, 4.5)
+        for q in range(6):
+            a0 = 2 * np.pi * (q + 0.25) / 6
+            x, y = x0 + r0 * np.cos(a0), y0 + r0 * np.sin(a0)
+            pts, L = [(x, y)], 0.0
+            while L < abs(r1 - r0) + 2:
+                uu, vv = float(U((y, x))), float(V((y, x)))
+                mm = np.hypot(uu, vv)
+                if mm < 0.03:
+                    break
+                x += 0.2 * uu / mm; y += 0.2 * vv / mm
+                L += 0.2
+                if not (s + 0.5 < y < n - 0.5):
+                    break
+                pts.append((x, y))
+                if kd == "hi" and np.hypot(x - x0, y - y0) < r1:
+                    break
+            if L < 4:
+                continue
+            xs, ys = zip(*pts)
+            head = "#86ccef" if kd == "lo" else "#f3a06c"
+            ax.plot(xs, ys, color="#e9edf1", linewidth=3.2, alpha=0.4, transform=pc, zorder=4, solid_capstyle="round")
+            ax.plot(xs, ys, color="#2c333b", linewidth=1.6, transform=pc, zorder=4.1, solid_capstyle="round")
+            k = max(1, len(pts) // 6)
+            ax.annotate("", xy=pts[-1], xytext=pts[-1 - k], xycoords=pc._as_mpl_transform(ax),
+                        arrowprops=dict(arrowstyle="-|>,head_length=0.8,head_width=0.42", color=head, lw=1.0,
+                                        mutation_scale=9, shrinkA=0, shrinkB=0,
+                                        path_effects=[pe.withStroke(linewidth=2.0, foreground="#2c333b")]), zorder=4.2)
+    for name, y, x in BELT_PLACES:
+        ax.text(x, y, _rtl(name), transform=pc, ha="center", va="center", fontsize=6.5, fontfamily=fam,
+                fontweight="bold", color="#d9dde2", alpha=0.85,
+                path_effects=[pe.withStroke(linewidth=1.8, foreground="#3a3f45")], zorder=5)
+    ax.plot([39.83], [21.42], marker="o", markersize=2.8, color="#ffffff", markeredgecolor="#111111",
+            markeredgewidth=0.7, transform=pc, zorder=5)
+    for kd, y, x, val in marks:
+        col = "#7cc6f2" if kd == "lo" else "#ffb36b"
+        word = "تباعد" if kd == "lo" else "تقارب"
+        ax.plot([x], [y], marker="o", markersize=4, color=col, markeredgecolor="#10161d", markeredgewidth=1.0,
+                transform=pc, zorder=6)
+        ax.text(x, y + 0.9, word, transform=pc, ha="center", va="bottom", fontsize=8.5, fontfamily=fam,
+                fontweight="bold", color=col, path_effects=[pe.withStroke(linewidth=2.8, foreground="#10161d")],
+                zorder=6)
+        ax.text(x, y - 0.9, f"{val:+.1f}".replace(".", "٫").translate(AR_DIG), transform=pc, ha="center", va="top",
+                fontsize=7.5, fontfamily=fam, fontweight="bold", color="#ffffff",
+                path_effects=[pe.withStroke(linewidth=2.6, foreground="#10161d")], zorder=6)
+    ax.plot([w, e], [0, 0], color="#ffffff", alpha=0.25, linewidth=0.6, transform=pc, zorder=2)
     for x in range(30, 360, 30):
-        ax.plot([x, x], [s, n], color="#000000", alpha=0.06, linewidth=0.4, transform=pc, zorder=4)
-    for y in (-30, -15, 15, 30):
-        ax.plot([w, e], [y, y], color="#000000", alpha=0.06, linewidth=0.4, transform=pc, zorder=4)
-    ax.spines["geo"].set_edgecolor("#b5b5b5")
-    ax.spines["geo"].set_linewidth(0.6)
-    xt = np.arange(0, 361, 30)
-    yt = np.array([-30, -15, 0, 15, 30])
-    ax.set_xticks(xt, crs=pc)
-    ax.set_yticks(yt, crs=pc)
-    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=6, color="#555555", fontweight="bold")
-    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=6, color="#555555", fontweight="bold")
-    ax.tick_params(length=0, pad=2.5)
+        lab_ = lon_label(x).replace("°E", "° ش").replace("°W", "° غ")
+        ax.text(x, s + 0.6, _rtl(lab_).translate(AR_DIG), transform=pc, ha="center", va="bottom", fontsize=5.8,
+                fontfamily=fam, color="#f1f3f5", alpha=0.8, path_effects=[pe.withStroke(linewidth=1.6, foreground="#2b2f34")],
+                zorder=5)
+    for y, t in ((30, "٣٠ ش"), (15, "١٥ ش"), (0, "الاستواء"), (-15, "١٥ ج"), (-30, "٣٠ ج")):
+        ax.text(1.0, y, _rtl(t), transform=pc, ha="left", va="center", fontsize=5.8, fontfamily=fam, color="#f1f3f5",
+                alpha=0.8, path_effects=[pe.withStroke(linewidth=1.6, foreground="#2b2f34")], zorder=5)
+    ax.spines["geo"].set_visible(False)
     _save_png(fig, path)
+
+
+RELIEF_BELT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "relief_belt.png")
+BELT_PLACES = [("المحيط الهندي", -20, 72), ("المحيط الهادي", 2, 200), ("المحيط الأطلسي", 8, 325),
+               ("الجزيرة العربية", 23, 46), ("أفريقيا", 3, 22), ("أستراليا", -24, 133), ("الهند", 21, 78),
+               ("أمريكا الجنوبية", -10, 300)]
 
 
 # ------------------------------------------------------------------ the mid-level wave map (as Dr Khalid's wave charts)
