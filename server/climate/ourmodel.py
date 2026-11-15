@@ -54,6 +54,8 @@ def load(dirs, day=None, log=print, t_a=None, t_b=None):
     for root in [d for d in dirs if d and os.path.exists(os.path.join(d, "runs.json"))]:
         cands = {}
         for r in json.load(open(os.path.join(root, "runs.json"))).get("runs", []):
+            if str(r["run"]).endswith("00"):   # no daytime (00Z) run feeds any report (Fahad, 15 Nov 2026)
+                continue
             p = os.path.join(root, "runs", r["run"], "manifest.json")
             if not os.path.exists(p):
                 continue

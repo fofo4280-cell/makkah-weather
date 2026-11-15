@@ -2,7 +2,7 @@
 """Rewrite the rain section of the published report from our latest complete runs, without recomputing the rest
 of the page.
 
-refresh_report.py <state_dir> <out_dir> [midnight|noon]
+refresh_report.py <state_dir> <out_dir> [midnight]   (noon removed on 15 Nov 2026)
   midnight: the Makkah day of the report (00:00 to 24:00), once the evening (12Z) runs are complete;
   noon:     an update at noon Makkah from the morning (00Z) runs, for the rest of the day (12:00 to 24:00).
 Our runs come from SA_DATA, WEST_DATA, KM1_DATA and REGION_DATA as in daily.py.
@@ -19,6 +19,8 @@ import bigreport  # noqa: E402
 def main():
     state, out = sys.argv[1:3]
     mode = sys.argv[3] if len(sys.argv) > 3 else "midnight"
+    if mode != "midnight":   # the noon update and the daytime (00Z) run were removed (Fahad, 14-15 Nov 2026)
+        sys.exit("only the midnight report exists now")
     p = os.path.join(out, "mjo.json")
     st = json.load(open(p))
     rep = st.get("report") or {}
