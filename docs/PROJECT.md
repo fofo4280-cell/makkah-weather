@@ -53,6 +53,16 @@ Last updated: 15 Nov 2026. Written for Claude, to continue the work without the 
 - **Rain map `rain24`:** hours 9-33, i.e. 12 to 12 Makkah time (midnight to midnight in the 12Z run, noon to noon in the 00Z run); label «المطر التراكمي من ١٢ إلى ١٢» (Fahad, 14 Nov 2026).
 - **Maps:** PNG with banded palettes. The REFL palette is 5 dBZ bands, blue → green → yellow → red → purple. Model page assets are versioned `v=2026111xx`.
 
+## 3b. The ECMWF-driven run (added 15 Nov 2026, Fahad: "accuracy first")
+
+- `saudi-model-ec.yml`: the same six 3 km grids (west d02 + nw, n, c, e, se, each in its 9 km parent), driven by **ECMWF IFS open data** (`ic: ecmwf` → `server/ecmwf_ic.py` writes WPS intermediate files; ungrib not used). No 9 km Kingdom job. Concurrency group `saudi-model-ec`, so it never queues behind the GFS run.
+- Data: 0.25° (~28 km), 13 pressure levels + surface + 4 soil layers, 3-hourly, downloaded from data.ecmwf.int (AWS fallback). The native 9 km IFS is not free (paid licence): 0.25° is the best freely available. Weakness: fewer low levels than GFS (no 975/950/900/800), so the marine layer starts coarser; WRF builds it in the first hours.
+- Branches: `model-data-ec` (west) and `model-data-ec-<id>`. The reports, `ourmodel.load` and the climate run do **not** read them (comparison only, for now).
+- 12 UTC cycle only. ECMWF hour 33 is on AWS about 19:34 UTC. Crons 18:47, 19:13, 19:41, 20:07 UTC; the gate waits up to 280 min for hour 33; the keeper starts it from 19:45 to 23:59 UTC if `model-data-ec/runs.json` lacks the cycle. Run ~6.5 h, so complete about 02:30 UTC (05:30 Makkah). 6 runners beside the GFS run's 7 (limit 20).
+- First full test: cycle 2026111500, dispatched 11:15 UTC on 15 Nov (download 3 min, WPS + real under 1 min). 00Z runs are hidden on the page, so this test does not show there.
+- Model page: two tabs **GFS / ECMWF** under the product list (`#modelTabs`, saved in localStorage `swrf.model`). Switching reloads runs, maps, cities and status from the chosen branches and keeps the same valid time. The 1 km nest is GFS-only.
+- Plan: follow the 22-24 Nov Red Sea cut-off low with both; Fahad will judge which places the rain better (lesson: the GFS-driven run missed the 10 Nov stratiform rain over Jeddah/Makkah).
+
 ## 4. Reports pipeline (`server/climate`)
 
 - `climate.yml` runs nightly. Crons 33 20, 7 21, 43 21 UTC, plus the keeper.
