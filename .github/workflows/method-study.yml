@@ -1,0 +1,36 @@
+# Study branch (Fahad, 16 Nov 2026): our Rossby/Kelvin families against SCORPION-like variants over 26 wet seasons.
+# Prints only (nothing published). Dispatch with ref=study/scorpion-tw.
+name: Method study
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_run: {description: 'the Tropics study run whose tropics-long series to use', default: '43657761748'}
+      hist_run: {description: 'the Method study run whose reanalysis chunks to reuse', default: '43679904944'}
+      extra: {description: 'unused here', default: ''}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  analyse:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: code
+      - run: pip install -q numpy scipy shapely netCDF4 pyshtools pygrib matplotlib pillow cartopy arabic-reshaper python-bidi
+      - uses: actions/download-artifact@v4
+        with:
+          name: tropics-long
+          run-id: ${{ inputs.from_run }}
+          github-token: ${{ github.token }}
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hist-*
+          path: hist
+          run-id: ${{ inputs.hist_run }}
+          github-token: ${{ github.token }}
+      - run: ls -la hist/* && python3 code/server/climate/scorp_test.py long.json hist
