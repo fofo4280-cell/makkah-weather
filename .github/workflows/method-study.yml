@@ -1,0 +1,50 @@
+# Study branch copy (16 Nov 2026): November rain around Makkah by regime. Prints to the log, publishes nothing.
+name: Method study
+
+on:
+  workflow_dispatch:
+    inputs:
+      from_run: {description: 'unused here', default: ''}
+      hist_run: {description: 'unused here', default: ''}
+      extra: {description: 'unused here', default: 'makkah'}
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    strategy:
+      fail-fast: false
+      matrix:
+        years: ["1981 1985", "1986 1990", "1991 1995", "1996 2000", "2001 2005", "2006 2010", "2011 2015", "2016 2020", "2021 2025"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: code
+      - run: pip install -q numpy netCDF4
+      - run: |
+          set -- ${{ matrix.years }}
+          python3 code/server/climate/nov_regime.py fetch $1 $2 nr_$1.json
+          echo "Y0=$1" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nr-${{ env.Y0 }}
+          path: nr_*.json
+          retention-days: 30
+
+  analyse:
+    needs: fetch
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: code
+      - run: pip install -q numpy netCDF4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: nr-*
+          path: nr
+      - run: python3 code/server/climate/nov_regime.py analyse nr
