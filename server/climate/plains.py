@@ -251,8 +251,10 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
         }
         # 16 Nov 2026 season test (1 Aug-15 Oct + 1-16 Nov): mid-level moisture and a dew point on the edge cut the
         # dry-air days (the October harrat at Td 0-5 C, summer days with PW >= 35 mm but RH700 30-45 %)
+        # ... unless GFS itself rains >= 1 mm on the edge: Fahad (16 Nov 2026), GFS catches convective behaviour better
+        # than ECMWF, the test's reference; 25 of the 34 season days that gate removed had GFS rain >= 1 mm
         gate = (f["moist"] and cape >= EDGE_CAPE and (f["upslope"] or f["south"])
-                and rh >= EDGE_RH and td >= EDGE_TD)
+                and ((rh >= EDGE_RH and td >= EDGE_TD) or r >= 1.0))
         row = {"key": key, "name": name, "region": region, "kind": "harra" if z[5] else "edge",
                "pw": round(pw, 1), "pct": pct, "td": round(td, 1), "cape": int(cape), "rh700": int(rh),
                "u_foot": round(u_ft, 1), "v_low": round(v_low, 1), "rain_gfs": round(r, 1), "steer": round(sp, 1),
