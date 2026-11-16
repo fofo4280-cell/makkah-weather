@@ -315,3 +315,14 @@ a { color: var(--sea); }
 .hist .pill { margin-inline: 12px; }
 .about h3, .card h3 { color: #fff; }
 .city { background: var(--surface); border-color: var(--line); }
+/* text in white and grey only (Fahad, 16 Nov 2026): no coloured words in the report, tables and lists; the map colours stay */
+.rtab thead th, .rtab th.h, .rtab th.m, .rtab th.l { color: var(--muted); }
+.rtab td.h span { color: #fff; font-weight: 700; }
+.rtab td.m span { color: #e6e6e6; }
+.rtab td.l span { color: var(--muted); }
+.rtab tbody th { color: #fff; }
+.wet, .dry { color: #fff; font-weight: 600; }
+.wave-row b, .ao-now b, .mjo-big b { color: #fff; }
+.report a, .card a:not(.logs a) { color: #fff; }
+.pill.err { color: #fff; border-color: #6a6a6a; border-style: dashed; }
+.dot.err { background: #fff; }
