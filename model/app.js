@@ -1140,7 +1140,7 @@
     $("mapEmpty").hidden = !!has;
     if (!has) return;
     const st = S.man.status === "running" ? " · جارٍ" : S.man.status === "failed" ? " · ناقص" : "";
-    $("runLabel").textContent = `تطوير فهد متعب العيسي${st}`;
+    $("runState").textContent = st;
     drawProducts(); drawLegend();
     if (first && !LX.on) { S.dom = domFor(S.prod); buildFrames(false); S.idx = 0; }
     setDomain(S.dom, first);
@@ -1218,7 +1218,7 @@
       $("statusCard").innerHTML = `<p class="muted">لم تصل حالة الخادم بعد.</p>`; return;
     }
     const [ph, cls] = PH[s.phase] || [s.phase, "wait"];
-    $("statusDot").className = "dot " + cls;
+    $("statusDot").className = "dot " + cls; $("menuDot").className = "dot " + cls;
     const steps = (s.steps || []).map((x) => {
       const [lab, c] = STATE[x.state] || [x.state, "wait"];
       const note = x.note && !/-\d/.test(x.note) ? arDigits(x.note) : "";
@@ -1660,7 +1660,14 @@
   }
   addPlayers();
 
+  // the sections live in a menu behind the button at the top corner (Fahad, 16 Nov 2026)
+  function menuShow(on) {
+    $("menu").hidden = !on; $("menuBtn").classList.toggle("open", on); $("menuBtn").setAttribute("aria-expanded", on);
+  }
+  $("menuBtn").onclick = () => menuShow($("menu").hidden);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") menuShow(false); });
   document.querySelectorAll(".tab").forEach((b) => b.onclick = () => {
+    menuShow(false);
     document.querySelectorAll(".tab").forEach((x) => x.classList.toggle("active", x === b));
     plStop();
     for (const p of ["map", "mjo", "status"]) $("p-" + p).hidden = p !== b.dataset.tab;
