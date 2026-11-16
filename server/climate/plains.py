@@ -21,6 +21,8 @@ moisture (PW >= 115 % or the humid air of 2) are all there, and 4 enhancers or m
 written (Fahad: "if nothing is found, write nothing").
 
 check(get, cycle, day, normal) -> [{key, name, region, ...}] ; get(cycle, fh, fields) as daily.gfs_fields at 0.25.
+check_all(...) -> (plains rows, mountain-edge rows): the afternoon cells on the escarpment and the harrat (EDGES,
+Fahad 16 Nov 2026), from the same fields; see edge_rows.
 """
 import math
 from datetime import datetime, timedelta
@@ -54,7 +56,7 @@ FIELDS = [("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
           ("t2", r":TMP:2 m above ground:"), ("td2", r":DPT:2 m above ground:")]
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 UTC = (9, 12, 15, 18)                       # 12, 15, 18 and 21 Makkah
-BOX = (15.5, 23.0, 38.5, 44.5)
+BOX = (15.5, 25.0, 38.5, 44.5)      # to 25 N for the harrat (edges below)
 
 
 def apcp(fh):
@@ -116,9 +118,18 @@ def masks(static, lat, lon, p):
 def check(get, cycle, day, pct_of, log=print):
     """pct_of(lat, lon) -> PW as % of normal on `day` for the oscillation page's box over that point (the same
     numbers as the page: southwest box south of 20 N, west box north of it)"""
+    return check_all(get, cycle, day, pct_of, log)[0]
+
+
+def check_all(get, cycle, day, pct_of, log=print):
+    """(plains rows, mountain-edge rows) from one fetch of the GFS fields"""
     hours, static, acc, grid = fetch(get, cycle, day, log)
     if static is None or not {12, 15}.issubset(hours):
-        return []
+        return [], []
+    return plains_rows(hours, static, acc, grid, pct_of, log), edge_rows(hours, static, acc, grid, pct_of, log)
+
+
+def plains_rows(hours, static, acc, grid, pct_of, log=print):
     lat, lon = grid
     out = []
     for p in PLAINS:
@@ -163,6 +174,96 @@ def check(get, cycle, day, pct_of, log=print):
         log("plains:", key, row["score"], "gate" if gate else "-", {k: v for k, v in row.items() if k not in ("flags", "name", "box", "mbox")})
         out.append(row)
     return out
+
+
+# ------------------------------------------------------------------ the mountain edges and the harrat (16 Nov 2026)
+# Fahad, 16 Nov 2026: "measure the mountain edges". The southwestern highlands, Makkah's escarpment and the harrat
+# north of Makkah make their own rain: the sea breeze and the moist southerly air run into the escarpment, the slope
+# forces them up, and with steady moisture (PW around 120 % of normal) convective cells form in the afternoon, even
+# with no active MJO or wave phase and no trough; scattered, not widespread. The harrat do the same, the black
+# basalt heating fast under the sun. Case: 16 Nov, cells on Al-Hada and Ash-Shafa at 16-17 Makkah with PW 120 %.
+# The edge is found on the GFS 0.25 terrain itself: land >= 600 m that stands 400 m or more above one of the two
+# cells west of it (the escarpment line from Jazan to the west rim of Harrat Rahat); the harrat add their plateau.
+# key, name, region, lat south/north, harra plateau box (lat s, n, lon w, e, min height) or None
+EDGES = [
+    ("jazan_h", "مرتفعات جازان (فيفاء وبني مالك والعيدابي)", "جازان", 16.3, 17.6, None),
+    ("asir_s", "حافة عسير الجنوبية (أبها والسودة ورجال ألمع)", "عسير", 17.6, 18.6, None),
+    ("asir_n", "حافة عسير الشمالية (النماص وتنومة وبللسمر)", "عسير", 18.6, 19.5, None),
+    ("baha", "حافة الباحة (بلجرشي والباحة والمندق)", "الباحة", 19.5, 20.4, None),
+    ("sarawat", "سروات مكة (ميسان وبني سعد فوق أضم والليث)", "مكة المكرمة", 20.4, 21.0, None),
+    ("hada", "حافة الهدا والشفا فوق الشرائع", "مكة المكرمة", 21.0, 21.8, None),
+    ("rahat_s", "حرة رهط وحافتها شرق خليص والكامل", "مكة المكرمة", 21.8, 23.3, (22.0, 23.3, 39.9, 40.75, 800.0)),
+    ("rahat_n", "حرة رهط الشمالية جنوب المدينة", "المدينة المنورة", 23.3, 24.6, (23.3, 24.6, 39.6, 40.4, 800.0)),
+    ("kishb", "حرة كشب", "مكة المكرمة", None, None, (22.6, 23.4, 41.0, 41.75, 900.0)),
+]
+EDGE_HGT, EDGE_RISE = 600.0, 400.0
+
+
+def edge_masks(static, lat, lon, z):
+    """(edge cells, their foot: the one or two cells west of them, lower down)"""
+    key, _, _, s, n, harra = z
+    hg, land = static["hgt"], static["land"] > 0.5
+    LA, LO = np.meshgrid(lat, lon, indexing="ij")
+    west = np.minimum(np.roll(hg, 1, 1), np.roll(hg, 2, 1))       # lon increases with the column
+    edge = land & (hg >= EDGE_HGT) & (hg - west >= EDGE_RISE)
+    edge[:, :2] = False
+    edge &= ~np.roll(edge, 1, 1)               # the front of the escarpment: the first rise, where the sea breeze hits
+    edge &= (LA >= s) & (LA <= n) if s is not None else False
+    if harra:
+        hs, hn, hw, he, hmin = harra
+        edge |= land & (LA >= hs) & (LA <= hn) & (LO >= hw) & (LO <= he) & (hg >= hmin)
+    foot = (np.roll(edge, -1, 1) | np.roll(edge, -2, 1)) & ~edge
+    return edge, foot
+
+
+def edge_rows(hours, static, acc, grid, pct_of, log=print):
+    lat, lon = grid
+    out = []
+    for z in EDGES:
+        key, name, region = z[:3]
+        ed, ft = edge_masks(static, lat, lon, z)
+        if ed.sum() < 3:
+            continue
+        H = lambda k, h: hours[h][k]
+        aft = [h for h in (9, 12) if h in hours]
+        day = [h for h in (9, 12, 15) if h in hours]          # 12, 15 and 18 Makkah: the cells start 15-17 Makkah
+        LA, LO = np.meshgrid(lat, lon, indexing="ij")
+        clat, clon = float(LA[ed].mean()), float(LO[ed].mean())
+        pct = int(pct_of(clat, clon))
+        both = ed | ft
+        pw = float(np.mean([H("pw", h)[both].mean() for h in aft]))
+        cape = float(max(np.percentile(H("cape", h)[ed], 75) for h in day))
+        rh = float(np.mean([H("rh700", h)[ed].mean() for h in aft]))
+        td = float(np.mean([H("td2", h)[ed].mean() - 273.15 for h in aft]))
+        u_ft = float(max(H("u10", h)[ft].mean() for h in aft)) if ft.any() else 0.0
+        v_low = float(np.mean([(H("v850", h)[both].mean() + H("v10", h)[both].mean()) / 2 for h in aft]))
+        r = float(np.percentile(acc[15][ed] - acc[9][ed], 90)) if 9 in acc and 15 in acc else 0.0
+        us = float(np.mean([(H("u700", h)[ed] + H("u500", h)[ed]).mean() / 2 for h in aft]))
+        vs = float(np.mean([(H("v700", h)[ed] + H("v500", h)[ed]).mean() / 2 for h in aft]))
+        sp = math.hypot(us, vs)
+        f = {
+            "moist": pct >= EDGE_PCT or pw >= 35,
+            "upslope": u_ft >= 1.0,
+            "south": v_low >= 1.0,
+            "unstable": cape >= 500,
+            "midmoist": rh >= 50,
+            "gfs_rain": r >= 0.5,
+        }
+        gate = f["moist"] and cape >= EDGE_CAPE and (f["upslope"] or f["south"])
+        row = {"key": key, "name": name, "region": region, "kind": "harra" if z[5] else "edge",
+               "pw": round(pw, 1), "pct": pct, "td": round(td, 1), "cape": int(cape), "rh700": int(rh),
+               "u_foot": round(u_ft, 1), "v_low": round(v_low, 1), "rain_gfs": round(r, 1), "steer": round(sp, 1),
+               "flags": f, "gate": bool(gate), "score": int(sum(f.values())),
+               "box": [round(float(LA[ed].min()) - 0.125, 2), round(float(LA[ed].max()) + 0.125, 2),
+                       round(float(LO[ed].min()) - 0.125, 2), round(float(LO[ed].max()) + 0.125, 2)]}
+        log("edges:", key, row["score"], "gate" if gate else "-",
+            {k: v for k, v in row.items() if k not in ("flags", "name", "box", "region")})
+        out.append(row)
+    return out
+
+
+EDGE_CAPE = 250                             # J/kg, 75th percentile on the front edge, 12-18 Makkah
+EDGE_PCT = 115                              # 16 Nov 2026: 117 % on the west box with cells on Al-Hada
 
 
 # ------------------------------------------------------------------ the words (rainreport adds them to the region)
@@ -215,4 +316,69 @@ def sentence(row, model_mtn_rain=None, model_plain_rain=None):
         s += "، ولا يُظهره نموذجنا على السهل"
     elif model_plain_rain is not None and model_plain_rain >= 5:
         s += "، ونموذجنا يُظهره على السهل أيضًا"
+    return s + "."
+
+
+# ------------------------------------------------------------------ the words for the mountain edges and the harrat
+EDGE_MECHANISM = ("والمعنى أن نسيم البحر والهواء الجنوبي الرطب يصطدمان بالحافة فتجبرهما الجبال على الصعود، فتنشأ خلايا "
+                  "رعدية متفرقة بعد الظهر حتى دون طور داعم أو موجة نشطة أو أخدود.")
+HARRA_MECHANISM = "وتسخن صخور الحرة السوداء تحت الشمس فتقوّي الصعود."
+
+
+def edge_named(row, model_rain=None):
+    """the final decision for an edge, with our model's afternoon rain on it (mm, max) when known"""
+    f = dict(row["flags"])
+    if model_rain is not None and model_rain >= 5:
+        f["gfs_rain"] = True
+    score = sum(f.values())
+    return (row["gate"] and score >= EDGE_SCORE), score, f
+
+
+EDGE_SCORE = 5
+
+
+def short(name):
+    return name.split(" (")[0]
+
+
+def rng(a, b, unit):
+    return f"{n0(a)}{unit}" if n0(a) == n0(b) else f"{n0(a)} إلى {n0(b)}{unit}"
+
+
+def edges_sentence(items):
+    """one sentence for the named edges of a region (Fahad wants it concise): items [(row, our model's rain or None)]"""
+    from rainreport import jl
+    got = []
+    for row, mr in items:
+        ok, score, f = edge_named(row, mr)
+        if ok:
+            got.append((row, mr, score, f))
+    if not got:
+        return None
+    rows = [g[0] for g in got]
+    anyf = lambda k: any(g[3][k] for g in got)
+    caps = [round(r["cape"], -1 if r["cape"] < 100 else -2) for r in rows]
+    why = [f"الماء القابل للهطول {rng(min(r['pct'] for r in rows), max(r['pct'] for r in rows), '٪')} من معدله"]
+    if anyf("upslope"):
+        why.append("ونسيم البحر يصعد الحافة")
+    if anyf("south"):
+        why.append("والهواء الجنوبي الرطب يصل إليها")
+    why.append(f"وطاقة عدم الاستقرار نحو {rng(min(caps), max(caps), ' جول/كغ')}")
+    if anyf("midmoist"):
+        rh = [r["rh700"] for r, _, _, f in got if f["midmoist"]]
+        why.append(f"والرطوبة عند ٧٠٠ هكتوباسكال {rng(min(rh), max(rh), '٪')}")
+    conf = {}
+    for r, _, sc, _ in got:
+        conf.setdefault(confidence(sc), []).append(short(r["name"]))
+    if len(conf) == 1:
+        c = f"والثقة {next(iter(conf))}"
+    else:
+        c = "والثقة " + " و".join(f"{k} على {jl(v)}" for k, v in conf.items())
+    s = f"وعلى {jl([r['name'] for r in rows])} تتهيأ أمطار الحمل الحراري بعد الظهر: {'، '.join(why)}؛ {c}"
+    no = [short(r["name"]) for r, mr, _, _ in got if mr is not None and mr < 2]
+    yes = [short(r["name"]) for r, mr, _, _ in got if mr is not None and mr >= 5]
+    if no:
+        s += "، ولا يُظهرها نموذجنا " + ("هناك" if len(no) == len(got) else f"على {jl(no)}")
+    if yes:
+        s += "، ونموذجنا يُظهرها " + ("هناك أيضًا" if len(yes) == len(got) else f"على {jl(yes)}")
     return s + "."

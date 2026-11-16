@@ -687,10 +687,12 @@ def main():
         prow = next((r for r in pw_rows if r["d"] == dd.isoformat()), None)
         if prow:
             pct_of = lambda la_, lo_: prow["southwest" if la_ < 20 else "west"]["pct"]
-            prs = plains.check(lambda c, h, f: gfs_fields(c, h, res="0p25", fields=f), cycle, dd, pct_of,
-                               log=lambda *a: print(*a, flush=True))
-            plains_out = {"day": dd.isoformat(), "cycle": cycle, "rows": prs}
+            prs, eds = plains.check_all(lambda c, h, f: gfs_fields(c, h, res="0p25", fields=f), cycle, dd, pct_of,
+                                        log=lambda *a: print(*a, flush=True))
+            # the mountain edges and the harrat (Fahad 16 Nov 2026) ride in the same block
+            plains_out = {"day": dd.isoformat(), "cycle": cycle, "rows": prs, "edges": eds}
             print("plains named:", [r["key"] for r in prs if plains.named(r)[0]], flush=True)
+            print("edges named:", [r["key"] for r in eds if plains.edge_named(r)[0]], flush=True)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()

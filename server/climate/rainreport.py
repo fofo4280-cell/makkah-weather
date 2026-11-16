@@ -212,9 +212,26 @@ def plains_words(st, cells, t_a, log=print):
             s = P.sentence(row, mr, pr)
             log(f"rain report: plains {row['key']}: model mountain {mr}, plain {pr} -> {'named' if s else 'nothing'}")
             if s:
-                out.setdefault(row["region"], []).append(s)
+                out.setdefault(row["region"], []).append(("plain", s))
         except Exception as e:  # noqa: BLE001
             log(f"rain report: plains {row.get('key')} failed: {e!r}")
+    # the mountain edges and the harrat (Fahad 16 Nov 2026): afternoon cells where the sea breeze and the moist
+    # southerly air are forced up the escarpment; our model's rain on the edge 12-21 Makkah
+    for row in pl.get("edges") or []:
+        try:
+            mr = None
+            if cells is not None:
+                keys = np.array(cells["keys"]); b = row["box"]
+                m = ((cells["lat"] >= b[0]) & (cells["lat"] <= b[1]) & (cells["lon"] >= b[2]) & (cells["lon"] <= b[3]))
+                k = (keys > 12) & (keys <= 21)
+                if m.any() and k.any():
+                    mr = float(cells["rain"][k][:, m].sum(0).max())
+            ok = P.edge_named(row, mr)[0]
+            log(f"rain report: edge {row['key']}: model {mr} -> {'named' if ok else 'nothing'}")
+            if ok:
+                out.setdefault(row["region"], []).append((row.get("kind", "edge"), (row, mr)))
+        except Exception as e:  # noqa: BLE001
+            log(f"rain report: edge {row.get('key')} failed: {e!r}")
     return out
 
 
@@ -225,12 +242,21 @@ def jl(names):
 
 
 def plains_text(items):
-    """the evening plains storms of one region: a sentence for each plain (its ingredients, confidence and what our
-    model shows), then the mechanism once (it was repeated in full for every plain before, 16 Nov 2026)"""
+    """the afternoon mountain-edge cells and the evening plains storms of one region: a sentence for each edge or
+    plain (its ingredients, confidence and what our model shows), then each mechanism once; items are (kind, sentence)
+    for a plain and (kind, (row, our model's rain)) for an edge, all the edges of the region in one sentence"""
     if not items:
         return ""
     import plains as P
-    return " " + " ".join(items) + " " + P.MECHANISM
+    kinds = {k for k, _ in items}
+    ed = [x for k, x in items if k != "plain"]          # the afternoon on the edges first, then the evening plains
+    pl = [x for k, x in items if k == "plain"]
+    out = ""
+    if ed:
+        out += " " + P.edges_sentence(ed) + " " + P.EDGE_MECHANISM + (" " + P.HARRA_MECHANISM if "harra" in kinds else "")
+    if pl:
+        out += " " + " ".join(pl) + " " + P.MECHANISM
+    return out
 
 
 def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
