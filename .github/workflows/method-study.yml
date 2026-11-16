@@ -1,12 +1,12 @@
-# Study branch (Fahad, 16 Nov 2026): our Rossby/Kelvin families against SCORPION-like variants over 26 wet seasons.
-# Prints only (nothing published). Dispatch with ref=study/scorpion-tw.
+# Study branch (Fahad, 17 Nov 2026): historical rain of Taif, Makkah, Al-Jumum and Jeddah by month (CHIRPS 0.05,
+# NCEP R1, RMM, ENSO, IOD). Prints only. Dispatch with ref=study/hijaz.
 name: Method study
 
 on:
   workflow_dispatch:
     inputs:
-      from_run: {description: 'the Tropics study run whose tropics-long series to use', default: '43657761748'}
-      hist_run: {description: 'the Method study run whose reanalysis chunks to reuse', default: '43679904944'}
+      from_run: {description: 'unused here', default: ''}
+      hist_run: {description: 'optional: a run whose hj-* chunks to reuse', default: ''}
       extra: {description: 'unused here', default: ''}
 
 permissions:
@@ -14,7 +14,33 @@ permissions:
   actions: read
 
 jobs:
+  fetch:
+    if: inputs.hist_run == ''
+    runs-on: ubuntu-24.04
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      max-parallel: 5
+      matrix:
+        years: ["1981 1985", "1986 1990", "1991 1995", "1996 2000", "2001 2005", "2006 2010", "2011 2015", "2016 2020", "2021 2025"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: code
+      - run: pip install -q numpy netCDF4 cftime
+      - run: |
+          set -- ${{ matrix.years }}
+          python3 code/server/climate/hijaz_study.py fetch $1 $2 hj_$1.npz
+          echo "Y0=$1" >> $GITHUB_ENV
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hj-${{ env.Y0 }}
+          path: hj_*.npz
+          retention-days: 30
+
   analyse:
+    needs: [fetch]
+    if: always()
     runs-on: ubuntu-24.04
     timeout-minutes: 120
     steps:
@@ -24,13 +50,8 @@ jobs:
       - run: pip install -q numpy scipy shapely netCDF4 pyshtools pygrib matplotlib pillow cartopy arabic-reshaper python-bidi
       - uses: actions/download-artifact@v4
         with:
-          name: tropics-long
-          run-id: ${{ inputs.from_run }}
+          pattern: hj-*
+          path: hj
+          run-id: ${{ inputs.hist_run || github.run_id }}
           github-token: ${{ github.token }}
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: hist-*
-          path: hist
-          run-id: ${{ inputs.hist_run }}
-          github-token: ${{ github.token }}
-      - run: python3 code/server/climate/iod_conv.py long.json hist
+      - run: ls -la hj/* && python3 code/server/climate/hijaz_study.py analyse hj && cat hijaz.json
