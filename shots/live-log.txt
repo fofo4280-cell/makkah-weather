@@ -1,14 +1,14 @@
 webkit ec refl console: Successfully preconnected to https://fonts.gstatic.com/
 webkit ec refl console: Successfully preconnected to https://fonts.googleapis.com/
-webkit ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb","blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
-webkit ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb","blob:https://fofo4280-cell.github.io/32f351eb-4b21-48e6-a0ee"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/99ff2b09-dbaa-4265-a53a","blob:https://fofo4280-cell.github.io/99ff2b09-dbaa-4265-a53a"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
+webkit ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/99ff2b09-dbaa-4265-a53a","blob:https://fofo4280-cell.github.io/bcc92d5d-34f9-4ebc-8119"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
 webkit ec rh700 console: Successfully preconnected to https://fonts.gstatic.com/
 webkit ec rh700 console: Successfully preconnected to https://fonts.googleapis.com/
-webkit ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/4ee7567e-9276-4072-b7bf","blob:https://fofo4280-cell.github.io/4ee7567e-9276-4072-b7bf"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/88503b2f-b10d-4bf2-bac3","blob:https://fofo4280-cell.github.io/88503b2f-b10d-4bf2-bac3"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
 webkit gfs refl console: Successfully preconnected to https://fonts.gstatic.com/
 webkit gfs refl console: Successfully preconnected to https://fonts.googleapis.com/
 webkit gfs refl console: Failed to load resource: the server responded with a status of 404 ()
-webkit gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1","blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/705e5d75-ce92-4864-a4b0","blob:https://fofo4280-cell.github.io/705e5d75-ce92-4864-a4b0"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
 select fail page.selectOption: Timeout 30000ms exceeded.
 Call log:
   - waiting for locator('#prodSelect')
@@ -265,13 +265,17 @@ Call log:
   -   did not find some options
   - retrying select option action, attempt #63
   -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #64
+  -   waiting 500ms
 
-webkit gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1","blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
-chromium ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e","blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
-chromium ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e","blob:https://fofo4280-cell.github.io/48601ca0-6258-4e0f-abbf"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
-chromium ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/5ec606ab-9bd9-49be-9872","blob:https://fofo4280-cell.github.io/5ec606ab-9bd9-49be-9872"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/705e5d75-ce92-4864-a4b0","blob:https://fofo4280-cell.github.io/705e5d75-ce92-4864-a4b0"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
+chromium ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/dba07822-1dcc-4eea-a0dc","blob:https://fofo4280-cell.github.io/dba07822-1dcc-4eea-a0dc"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
+chromium ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/dba07822-1dcc-4eea-a0dc","blob:https://fofo4280-cell.github.io/6c7441f0-4b19-44a4-95a0"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
+chromium ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/80da2d55-6a47-44d8-8abb","blob:https://fofo4280-cell.github.io/80da2d55-6a47-44d8-8abb"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
 chromium gfs refl console: Failed to load resource: the server responded with a status of 404 ()
-chromium gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383","blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/0bb147ff-4b16-41f5-a611","blob:https://fofo4280-cell.github.io/0bb147ff-4b16-41f5-a611"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
 select fail page.selectOption: Timeout 30000ms exceeded.
 Call log:
   - waiting for locator('#prodSelect')
@@ -513,4 +517,4 @@ Call log:
   - retrying select option action, attempt #59
   -   waiting 500ms
 
-chromium gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383","blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/0bb147ff-4b16-41f5-a611","blob:https://fofo4280-cell.github.io/0bb147ff-4b16-41f5-a611"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116p2"]}
