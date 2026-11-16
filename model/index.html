@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261116id">
+<link rel="stylesheet" href="style.css?v=20261116id2">
 </head>
 <body>
 <div class="app">
@@ -33,9 +33,9 @@
       <div id="map" dir="ltr"></div>
       <div class="map-top">
         <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
+        <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
         <label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label>
-        <div class="map-row"><div class="model-tabs" id="modelTabs" role="tablist" aria-label="النموذج المغذي"><button data-m="gfs" dir="ltr">GFS</button><button data-m="ec" dir="ltr">ECMWF</button></div>
-        <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select></div>
+        <div class="model-tabs" id="modelTabs" role="tablist" aria-label="النموذج المغذي"><button data-m="gfs" dir="ltr">GFS</button><button data-m="ec" dir="ltr">ECMWF</button></div>
       </div>
       <div class="map-empty" id="mapEmpty" hidden>
         <div class="map-empty-box">
@@ -177,6 +177,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261116p3"></script>
+<script src="app.js?v=20261116p4"></script>
 </body>
 </html>

@@ -51,7 +51,8 @@
     set(k, v) { try { localStorage.setItem("swrf." + k, v); } catch (e) { /* private mode */ } },
   };
 
-  const S = { runs: [], run: null, man: null, meteo: null, dom: store.get("dom") || "d02", prod: store.get("prod") || "refl",
+  const S = { runs: [], run: null, man: null, meteo: null, dom: "k3",  // always the whole Kingdom; the regions list was removed (Fahad, 16 Nov 2026)
+    prod: store.get("prod") || "refl",
               frames: [], idx: 0, playing: null, overlay: null, rects: [], cityLayer: null };
 
   async function getJSON(url) {
@@ -61,7 +62,7 @@
   }
 
   // ------------------------------------------------------------------ map
-  const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 16 }).setView([23.5, 44], 5);
+  const map = L.map("map", { zoomControl: false, attributionControl: true, minZoom: 4, maxZoom: 16, zoomSnap: 0.25 }).setView([23.5, 44], 5);
   // basemaps: toned-down satellite relief by default, place names drawn above the model colours
   map.createPane("labels"); map.getPane("labels").style.zIndex = 650; map.getPane("labels").style.pointerEvents = "none";
   // Esri's grey canvas tiles need no key (CARTO started requiring one and stamps its tiles otherwise)
@@ -698,7 +699,7 @@
   // the current domain if it has the product, otherwise the first that does
   function domFor(p) {
     const has = (k) => { const d = S.man && S.man.domains[k]; return d && (!d.products || d.products.includes(p)); };
-    if (p === "lightning" || has(S.dom)) return S.dom;
+    if (p === "lightning") return S.dom;
     return ["k3", "sa", "d02", "d03", "d01"].find(has) || S.dom;
   }
 

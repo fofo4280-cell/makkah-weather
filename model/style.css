@@ -295,3 +295,5 @@ a { color: var(--sea); }
 .map-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; pointer-events: auto; }
 .report p, .card p:not(.hint) { color: #d6d6d6; }
 .report p.lead, .report p.sum, .report .rsec p.lead, .report .rsec p.sum { color: #fff; }
+#domChips { display: none !important; }
+.run-select { font-weight: 600; }
