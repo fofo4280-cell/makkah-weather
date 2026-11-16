@@ -1262,13 +1262,9 @@
     const m = Math.round(((b ? Date.parse(b) : Date.now()) - Date.parse(a)) / 60000);
     return m < 60 ? `${num(m)} د` : `${num(Math.floor(m / 60))} س ${num(m % 60)} د`;
   }
-  async function refreshStatus() {
-    let s;
-    try { s = await getJSON(DATA + "status.json"); } catch (e) {
-      $("statusCard").innerHTML = `<p class="muted">لم تصل حالة الخادم بعد.</p>`; return;
-    }
+  // the status tab always shows both evening runs (American then European), whichever model tab is selected on the map
+  function statusBlock(s, title) {
     const [ph, cls] = PH[s.phase] || [s.phase, "wait"];
-    $("statusDot").className = "dot " + cls; $("menuDot").className = "dot " + cls;
     const steps = (s.steps || []).map((x) => {
       const [lab, c] = STATE[x.state] || [x.state, "wait"];
       const note = x.note && !/-\d/.test(x.note) ? arDigits(x.note) : "";
@@ -1276,9 +1272,24 @@
         <span><small>${x.state === "running" || x.state === "done" ? dur(x.started, x.ended) : ""}</small> <span class="pill ${c}">${lab}</span></span></li>`;
     }).join("");
     const what = (s.cycle || "").length !== 10 ? "التثبيت" : `الدورة: ${runName(s.cycle)}`;
-    $("statusCard").innerHTML = `<div class="phase"><span class="pill ${cls}">${ph}</span></div>
+    return `<h3>${title}</h3><div class="phase"><span class="pill ${cls}">${ph}</span></div>
       <div>${arDigits((s.message || "").replace(/\s*\d{10}\s*/, " "))}</div><div class="muted" style="font-size:.8rem">${what} · آخر تحديث ${ago(s.updated)}</div>
       <ul class="steps">${steps}</ul>`;
+  }
+  async function refreshStatus() {
+    const GFS_DATA = DATA0, EC_DATA = DATA0.replace("/model-data/", "/model-data-ec/");
+    const [g, e] = await Promise.all([GFS_DATA, EC_DATA].map((d) => getJSON(d + "status.json").catch(() => null)));
+    const s = MODEL === "gfs" ? g : e;
+    if (!g && !e) { $("statusCard").innerHTML = `<p class="muted">لم تصل حالة الخادم بعد.</p>`; return; }
+    const running = [g, e].some((x) => x && (x.phase === "cycle" || x.phase === "install"));
+    const err = [g, e].some((x) => x && x.phase === "error");
+    const cls = running ? "run" : err ? "err" : "ok";
+    $("statusDot").className = "dot " + cls; $("menuDot").className = "dot " + cls;
+    $("statusCard").innerHTML = [[g, "تشغيل النموذج الأمريكي"], [e, "تشغيل النموذج الأوروبي"]]
+      .map(([x, t]) => x ? statusBlock(x, t) : `<h3>${t}</h3><p class="muted">لم تصل حالته بعد.</p>`)
+      .join(`<div style="height:14px"></div>`);
+    if (!s) return;
+    const [ph] = PH[s.phase] || [s.phase];
     // each cycle runs in two parts, each logged on its own: one row per cycle with both parts' minutes; evening (12Z) cycles only
     const hist = [];
     for (const h of s.history || []) {
