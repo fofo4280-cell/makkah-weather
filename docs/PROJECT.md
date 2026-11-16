@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 16 Nov 2026 (midday). Written for Claude, to continue the work without the long history.
+Last updated: 16 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -90,6 +90,8 @@ Last updated: 16 Nov 2026 (midday). Written for Claude, to continue the work wit
   - Five plains, each with its mountains just east (lat band boxes in `PLAINS`): Jazan Tihama (region جازان), Asir Tihama/Muhayil (عسير), Al-Qunfudhah + Baha Tihama, Al-Lith/Adham, Makkah/Al-Jumum/Bahra (all مكة المكرمة).
   - daily.py step 8c2 reads GFS 0.25 of the report day (09, 12, 15, 18, 21 UTC: PW, MUCAPE 180-0, RH700, winds 850/700/500/10 m, T/Td 2 m, APCP, terrain, land) into `mjo.json` `plains` {day, cycle, rows}.
   - Six enhancers: PW >= 130 % (page box: southwest south of 20N, west north of it) or >= 40 mm; Td >= 19 C (Al-Lith 18, Makkah 17); plain CAPE >= 1000; mountain storms (GFS rain >= 1 mm 12-18 Makkah, or mountain CAPE >= 300 with RH700 >= 60 %, or **our model's mountain rain >= 5 mm**); steering < 5 m/s or westward; plain wind toward the mountains. Named only with mountain storms + plain CAPE >= 500 + some moisture, and 4+ enhancers; confidence 4 low, 5 medium, 6 high.
+  - **Makkah's mountains = the escarpment rim (16 Nov 2026, Fahad chose the fix):** `MTN_BOX["makkah"]` = 21.0-21.6 N, 40.15-40.35 E (the 40.25 E column at 0.25 deg: Al-Hada, Ash-Shafa, heights above Ash-Sharai), instead of the band's 40.15-40.8 E box that sampled the Taif plateau. Case 16 Nov: storms born on Al-Hada/Ash-Shafa came down onto Ash-Sharai at 17-19 Makkah; the old box gave mountain CAPE 4 J/kg (rim 300-500) and the Makkah plain stayed silent. Test 1-16 Nov: dry days still silent, 10 Nov unchanged, 16 Nov now named (score 4, low). Also used for our model's mountain rain (`mbox` in rainreport). saudi-wrf/-next 454f165.
+  - Same case: our GFS-driven run missed it (21 dBZ, 0.2 mm), the ECMWF-driven run caught it (44 dBZ, 15 mm/h on the rim, 5 mm at Ash-Sharai/Al-Juranah at 19 Makkah), same physics: ECMWF run ~1.3 C hotter at noon and stronger upslope wind in a marginal case (rim CAPE 300-500, RH500 3-6 %). Newer GFS cycles (00Z/06Z) were nearly identical, so cycle age was not the cause. The GFS run alone can miss marginal mountain convection.
   - `rainreport.plains_words` adds one sentence to that region's «منطقة …» line (a dry region gets its own line), and says «ولا يظهره نموذجنا على السهل» when our run has < 2 mm on the plain 17-24 Makkah.
   - Tested 1-15 Nov: silent on the dry days 1, 5, 8 Nov; names the southern plains on the wet days 10-15 Nov; on 15 Nov names Al-Qunfudhah (high) and Al-Lith (medium) where our run had nothing.
 - `ourmodel.load`:
