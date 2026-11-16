@@ -50,8 +50,18 @@ def chirps_year(y, res="0p05", tmp="/tmp/hj.nc"):
     with netCDF4.Dataset(tmp) as nc:
         la, lo = np.asarray(nc["Y"][:], float), np.asarray(nc["X"][:], float)
         t = nc["T"]
-        dd = netCDF4.num2date(t[:], t.units, calendar=getattr(t, "calendar", "standard"))
+        tv, un = np.asarray(t[:], float), str(getattr(t, "units", ""))
+        if "julian" in un.lower():                  # the IRI library counts julian days
+            dd = [date.fromordinal(int(round(v - 1721424.5))) for v in tv]
+        else:
+            try:
+                dd = netCDF4.num2date(tv, un, getattr(t, "calendar", "standard"))
+            except ValueError:                      # an odd unit: the days run on from 1 January
+                dd = [date(y, 1, 1) + timedelta(days=i) for i in range(len(tv))]
         p = np.ma.filled(nc["prcp"][:].astype(np.float32), np.nan)
+    if dd[0].year != y or dd[0].month != 1 or dd[0].day != 1:
+        print("chirps dates odd", y, un, dd[0], "-> counted from 1 January", flush=True)
+        dd = [date(y, 1, 1) + timedelta(days=i) for i in range(len(tv))]
     os.remove(tmp)
     if la[0] > la[-1]:
         la, p = la[::-1], p[:, ::-1]
