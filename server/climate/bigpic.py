@@ -43,6 +43,23 @@ def wave1(hov):
     return out
 
 
+def warm(hov):
+    """The warm event for the report: [(date string, centre lon, amplitude)] like wave1, but when the wave-1 centre
+    falls in the favourable sector while the actual divergence maximum (the profile smoothed to zonal wavenumbers
+    1-5) lies outside it, the centre is the maximum. The wave-1 phase of a profile that is not one clean wave can sit
+    far from the real centre: on 19 Nov 2026 (GFS) wave-1 put it at 49E while the maximum was over the Bay of
+    Bengal (90E), and the report wrongly called the event favourable (Fahad, 16 Nov 2026)."""
+    out = []
+    for (d, lo, a), row in zip(wave1(hov), hov["v"]):
+        v = np.asarray(row, float)
+        f = np.fft.rfft(v)
+        f[0] = 0
+        f[6:] = 0
+        pk = (hov["lon0"] + hov["dlon"] * int(np.argmax(np.fft.irfft(f, n=len(v))))) % 360
+        out.append((d, pk if favourable(lo) and not favourable(pk) else lo, a))
+    return out
+
+
 def speed(lons, days=None):
     """Eastward speed in degrees per day from a series of longitudes (least squares on the unwrapped series)."""
     if len(lons) < 8:

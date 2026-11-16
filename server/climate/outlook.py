@@ -36,7 +36,7 @@ def outlook(st, day0, log=print):
     fc = [x for x in (st.get("rmm_fc") or []) if x["d"] >= day0.isoformat()]
     rmm = {x["d"]: x for x in obs + (st.get("rmm_fc") or [])}
     w1 = B.wave1(st["hov"]) if st.get("hov") else []
-    warm = {d: (lon, amp) for d, lon, amp in w1}
+    warm = {d: (lon, amp) for d, lon, amp in (B.warm(st["hov"]) if st.get("hov") else [])}
     end15 = day0 + timedelta(days=15)
     good_m = lambda x: x is not None and x["amp"] >= 1 and x["phase"] in B.WET_PHASES
     good_w = lambda w: w is not None and w[1] >= 4 and B.favourable(w[0])

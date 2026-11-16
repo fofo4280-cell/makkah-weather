@@ -492,7 +492,7 @@ def big_picture(st, day, rainy):
             pro.append(f"التذبذب المداري في الطور {ar(m['phase'])} الرطب للمملكة بشدة {num(m['amp'], 1)}")
         elif m["amp"] >= 1:
             con.append(f"التذبذب المداري في الطور {ar(m['phase'])} الجاف للمملكة فيكبت الحمل")
-    w = next((x for x in B.wave1(st["hov"]) if x[0] == day.isoformat()), None) if st.get("hov") else None
+    w = next((x for x in B.warm(st["hov"]) if x[0] == day.isoformat()), None) if st.get("hov") else None
     if w:
         if B.favourable(w[1]):
             pro.append(f"الحدث الدافئ (التباعد العلوي) متمركز فوق {B.region_name(w[1])} في القطاع المحفز للجزيرة العربية")

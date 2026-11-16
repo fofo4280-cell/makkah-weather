@@ -26,7 +26,7 @@ def _day_factors(st, d):
     m = B.rmm_on(st, d)
     if m and st.get("wet_season") and m["amp"] >= 1 and m["phase"] in B.WET_PHASES:
         out.append(("mjo", f"التذبذب في الطور {ar(m['phase'])}"))
-    w = next((x for x in B.wave1(st["hov"]) if x[0] == s), None) if st.get("hov") else None
+    w = next((x for x in B.warm(st["hov"]) if x[0] == s), None) if st.get("hov") else None
     if w and w[2] >= 4 and B.favourable(w[1]):
         out.append(("warm", "الحدث الدافئ في القطاع المحفز"))
     row = next((r for r in st.get("pw", []) if r["d"] == s), None)
@@ -128,7 +128,7 @@ def _factors(st, day0):
         if fam == "ros" and eff and eff["rain_n"] >= 5:
             t += f". سجلها: سالبة في {ar(eff['rain_neg'])} من {ar(eff['rain_n'])} يومًا مطيرًا واسعًا"
         add(t + ".")
-    w1 = {d: (lo, a) for d, lo, a in B.wave1(st["hov"])} if st.get("hov") else {}
+    w1 = {d: (lo, a) for d, lo, a in B.warm(st["hov"])} if st.get("hov") else {}
     if day0.isoformat() in w1:
         lo, a = w1[day0.isoformat()]
         fw = B.favourable(lo) and a >= 4
@@ -278,7 +278,7 @@ def fc_cover(st, d):
 def _vals(st, d):
     s = d.isoformat()
     v = {"m": B.rmm_on(st, d)}
-    w = next((x for x in B.wave1(st["hov"]) if x[0] == s), None) if st.get("hov") else None
+    w = next((x for x in B.warm(st["hov"]) if x[0] == s), None) if st.get("hov") else None
     v["w"] = (w[1], w[2]) if w else None
     row = next((r for r in st.get("pw", []) if r["d"] == s), None)
     v["pw"] = max(((row[k]["pct"], k) for k in BOX_NAME if row and k in row), default=None)
@@ -594,7 +594,7 @@ def drivers_timeline(st, day0, days):
                    + ("، و".join(parts) if parts else "محايدة طوال المدة") + ".")
     # the warm event
     if st.get("hov"):
-        w1 = {date.fromisoformat(d): (lo, a) for d, lo, a in B.wave1(st["hov"])}
+        w1 = {date.fromisoformat(d): (lo, a) for d, lo, a in B.warm(st["hov"])}
         wd = [d for d in days if d in w1]
         if wd:
             last = min(last, wd[-1])
@@ -634,7 +634,7 @@ def wave_list(st, day0, days, f, cur_end):
     ws = {d: wave_score(st, d, day0, sc[d], rc[d]) for d in days}
     ref = (st.get("mjof") or {}).get("z_ref") or 10
     names = {"mjo": "التذبذب المداري في طور داعم", "warm": "الحدث الدافئ في القطاع الداعم",
-             "pw": "رطوبة فوق المعدل", "trough": "أخدود عميق قريب", "mjof": "المكوّن المعزول الداعم"}
+             "pw": "رطوبة فوق المعدل", "mjof": "المكوّن المعزول الداعم"}
     out = []
     for a, b in _runs(cand, ok):
         wd = [d for d in days if a <= d <= b]
@@ -644,6 +644,11 @@ def wave_list(st, day0, days, f, cur_end):
         peak = max(wd, key=lambda d: ws[d]["score"])
         c = sc[peak]
         pro = [names[k] for k in names if c.get(k, 0) >= 0.3]
+        # the trough by its place and depth (the 500 hPa wave band), counted only from 25 m as in the drivers' line;
+        # it was called "deep" from 18 m before (Fahad, 16 Nov 2026)
+        tr = _vals(st, peak)["tr"]
+        if tr and tr[0] <= -25:
+            pro.append(f"أخدود فوق {tr[1]} بعمق {n1(-tr[0] / 10)} ديكامتر")
         con = []
         mf = _mf(st, peak)
         if mf and mf[0] >= ref / 3:
