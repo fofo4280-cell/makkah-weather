@@ -297,3 +297,8 @@ a { color: var(--sea); }
 .report p.lead, .report p.sum, .report .rsec p.lead, .report .rsec p.sum { color: #fff; }
 #domChips { display: none !important; }
 .run-select { font-weight: 600; }
+/* governorates: smaller, lighter names; the larger from zoom 6.5, the rest from 7.5 */
+.map-name-p.g span { font-size: 10px; font-weight: 500; color: rgba(255,255,255,.8); }
+.map-name-p.g span::before { width: 3px; height: 3px; }
+.z-lt65 .map-name-p.g, .z-lt75 .map-name-p.g2 { display: none; }
+.map-name.hid { display: none; }
