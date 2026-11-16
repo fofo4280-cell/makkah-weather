@@ -7,15 +7,14 @@ permissions:
   contents: write
 jobs:
   shots:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 20 }
       - run: |
           npm i --no-save playwright@1.48.2
-          npx playwright install --with-deps webkit chromium
-          sudo apt-get install -y fonts-noto-core fonts-kacst >/dev/null
+          npx playwright install webkit chromium
           cat > live.mjs <<'JS'
           import { webkit, chromium, devices } from 'playwright';
           import fs from 'fs';
