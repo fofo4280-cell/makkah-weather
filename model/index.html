@@ -4,21 +4,27 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>نموذج التنبؤ العددي عالي الدقة</title>
-<meta name="theme-color" content="#0b1d2c">
+<meta name="theme-color" content="#111111">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261116y">
+<link rel="stylesheet" href="style.css?v=20261116id">
 </head>
 <body>
 <div class="app">
   <header class="top">
+    <img class="logo" src="logo.png?v=1" alt="شعار فهد العيسى" width="38" height="38">
     <div class="brand">
       <span class="brand-name">نموذج التنبؤ العددي عالي الدقة</span>
-      <span class="brand-sub" id="runLabel">تطوير فهد متعب العيسي</span>
+      <span class="brand-sub" id="runLabel"><span class="credit" dir="ltr" lang="en">Developed by Fahad Al-Essa</span><span id="runState"></span></span>
     </div>
-    <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
+    <button class="burger" id="menuBtn" aria-label="القائمة" aria-expanded="false" aria-controls="menu"><i></i><i></i><span class="dot" id="menuDot"></span></button>
+    <nav class="menu" id="menu" role="tablist" aria-label="الأقسام" hidden>
+      <button class="tab active" data-tab="map">الخريطة</button>
+      <button class="tab" data-tab="mjo">التذبذب</button>
+      <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
+    </nav>
   </header>
 
   <main class="panels">
@@ -28,7 +34,8 @@
       <div class="map-top">
         <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
         <label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label>
-        <div class="model-tabs" id="modelTabs" role="tablist" aria-label="النموذج المغذي"><button data-m="gfs" dir="ltr">GFS</button><button data-m="ec" dir="ltr">ECMWF</button></div>
+        <div class="map-row"><div class="model-tabs" id="modelTabs" role="tablist" aria-label="النموذج المغذي"><button data-m="gfs" dir="ltr">GFS</button><button data-m="ec" dir="ltr">ECMWF</button></div>
+        <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select></div>
       </div>
       <div class="map-empty" id="mapEmpty" hidden>
         <div class="map-empty-box">
@@ -166,15 +173,10 @@
     </section>
   </main>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-tab="map">الخريطة</button>
-    <button class="tab" data-tab="mjo">التذبذب</button>
-    <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
-  </nav>
 </div>
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261116z1"></script>
+<script src="app.js?v=20261116id"></script>
 </body>
 </html>
