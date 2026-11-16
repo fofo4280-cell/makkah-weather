@@ -165,7 +165,8 @@
   function preload(i) {
     const d = S.man && S.man.domains[S.dom];
     const us = d && d.members ? d.members.map((m) => urlFor(m, S.frames[i])) : [frameURL(i)];
-    for (const u of us) if (u && !cache.has(u)) { const im = new Image(); im.crossOrigin = "anonymous"; im.src = u; cache.set(u, im); if (cache.size > 240) cache.delete(cache.keys().next().value); }
+    for (const u of us) if (u) loadImg(u);
+    if (cache.size > 240) cache.delete(cache.keys().next().value);
     if (d && d.members) mosaicURL(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[i]) }))).catch(() => null);
   }
 
@@ -293,11 +294,113 @@
     MOS.geo = { key, W, H, bounds: [[s, w], [n, e]], doms, fade, gaps: Int32Array.from(gaps) };
     return MOS.geo;
   }
+  // Smooth palettes of the 700 hPa humidity and instability maps (the same stops as server/post/products.py since
+  // the 16 Nov 12Z run). Runs drawn before that carry 10 % / banded colours: the page decodes each band back to a
+  // value, blends and smooths the values, and paints them with these palettes, so every run looks the same.
+  const NEWPAL = {
+    rh700: { tf: "lin", stops: [[40, "#a6e39a", 0], [50, "#7fd36f", 120], [60, "#4fc052", 170], [70, "#25a843", 205], [80, "#138c39", 225], [90, "#086e2e", 238], [100, "#044a1f", 245]] },
+    cape: { tf: "sqrt", stops: [[100, "#ffe680", 0], [250, "#ffd75a", 110], [500, "#ffbb38", 160], [1000, "#ff8a1c", 195], [1500, "#f2551c", 215], [2000, "#d62b3e", 228], [2500, "#b3187a", 236], [3000, "#7f22aa", 242], [4000, "#4c1a86", 248]] },
+  };
+  const tfv = (v, tf) => (tf === "sqrt" ? Math.sqrt(Math.max(v, 0)) : v);
+  function newLegend(k) {
+    const P = NEWPAL[k], t0 = tfv(P.stops[0][0], P.tf), t1 = tfv(P.stops[P.stops.length - 1][0], P.tf);
+    return { tf: P.tf, vmin: P.stops[0][0], vmax: P.stops[P.stops.length - 1][0],
+      stops: P.stops.map(([v, c, a]) => ({ p: +((tfv(v, P.tf) - t0) / (t1 - t0)).toFixed(4), v, c, a })) };
+  }
+  function palLUT(k) {   // 256 colours along the new palette, for painting values
+    const P = NEWPAL[k], st = P.stops, t0 = tfv(st[0][0], P.tf), t1 = tfv(st[st.length - 1][0], P.tf);
+    const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16));
+    const lut = new Uint8ClampedArray(256 * 4);
+    for (let i = 0; i < 256; i++) {
+      const t = t0 + (t1 - t0) * i / 255;
+      let k2 = 0; while (k2 < st.length - 2 && tfv(st[k2 + 1][0], P.tf) < t) k2++;
+      const ta = tfv(st[k2][0], P.tf), tb = tfv(st[k2 + 1][0], P.tf), f = Math.max(0, Math.min(1, (t - ta) / (tb - ta)));
+      const ca = hex(st[k2][1]), cb = hex(st[k2 + 1][1]);
+      for (let c = 0; c < 3; c++) lut[i * 4 + c] = ca[c] + f * (cb[c] - ca[c]);
+      lut[i * 4 + 3] = st[k2][2] + f * (st[k2 + 1][2] - st[k2][2]);
+    }
+    return { lut, t0, t1, tf: P.tf, vmin: st[0][0] };
+  }
   function loadImg(u) {
+    // read with CORS under its own address, so a copy cached earlier without CORS can never taint the canvas
     let im = cache.get(u);
-    if (!im) { im = new Image(); im.crossOrigin = "anonymous"; im.src = u; cache.set(u, im); }
+    if (!im) { im = new Image(); im.crossOrigin = "anonymous"; im.src = u + (u.includes("?") ? "&" : "?") + "c=1"; cache.set(u, im); }
     if (im.complete && im.naturalWidth) return Promise.resolve(im);
     return new Promise((ok) => { im.addEventListener("load", () => ok(im)); im.addEventListener("error", () => ok(null)); if (im.complete) ok(im.naturalWidth ? im : null); });
+  }
+  function paintValues(geo, imgs, lg, prod, tmp, tc) {
+    const { W, H } = geo, N = W * H, st = lg.stops;
+    const cols = st.map((x) => [1, 3, 5].map((i) => parseInt(x.c.slice(i, i + 2), 16)));
+    const mid = st.map((x, i) => (i < st.length - 1 ? (x.v + st[i + 1].v) / 2 : x.v));
+    const below = st[0].v - (st[1].v - st[0].v) / 2;   // value given to clear pixels (below the scale)
+    const V = new Float32Array(N), WS = new Float32Array(N);
+    let any = false;
+    geo.doms.forEach((g, k) => {
+      const im = imgs[k];
+      if (!im || !g.rw || !g.rh) return;
+      any = true;
+      tmp.width = g.rw; tmp.height = g.rh; tc.imageSmoothingEnabled = false; tc.clearRect(0, 0, g.rw, g.rh);
+      tc.drawImage(im, g.fx0 - g.x0, g.fy0 - g.y0, g.fw, g.fh);
+      const px = tc.getImageData(0, 0, g.rw, g.rh).data;
+      for (let y = 0; y < g.rh; y++) {
+        let p = (g.y0 + y) * W + g.x0, q = y * g.rw;
+        for (let x = 0; x < g.rw; x++, p++, q++) {
+          const wt = g.wt[q];
+          if (wt <= 0) continue;
+          let v = below;
+          if (px[q * 4 + 3] > 8) {
+            let best = 0, bd = 1e9;
+            for (let b = 0; b < cols.length; b++) {
+              const d = (px[q * 4] - cols[b][0]) ** 2 + (px[q * 4 + 1] - cols[b][1]) ** 2 + (px[q * 4 + 2] - cols[b][2]) ** 2;
+              if (d < bd) { bd = d; best = b; }
+            }
+            v = mid[best];
+          }
+          V[p] += wt * v; WS[p] += wt;
+        }
+      }
+    });
+    if (!any) return null;
+    for (let p = 0; p < N; p++) V[p] = WS[p] > 0 ? V[p] / WS[p] : NaN;
+    for (const p of geo.gaps) V[p] = NaN;
+    // fill the closed gaps, then smooth the bands away (two box passes of ~4 km), skipping the empty area
+    for (let pass = 0; pass < 20; pass++) {
+      let left = 0;
+      for (const p of geo.gaps) {
+        if (!isNaN(V[p])) continue;
+        let s2 = 0, c = 0;
+        for (const q of [p - 1, p + 1, p - W, p + W]) if (q >= 0 && q < N && !isNaN(V[q])) { s2 += V[q]; c++; }
+        if (c) V[p] = s2 / c; else left++;
+      }
+      if (!left) break;
+    }
+    const blur = (src, r) => {
+      const a = new Float32Array(N), out = new Float32Array(N);
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const p = y * W + x; if (isNaN(src[p])) { a[p] = NaN; continue; }
+        let s2 = 0, c = 0; for (let k = Math.max(0, x - r); k <= Math.min(W - 1, x + r); k++) { const v = src[y * W + k]; if (!isNaN(v)) { s2 += v; c++; } }
+        a[p] = s2 / c;
+      }
+      for (let x = 0; x < W; x++) for (let y = 0; y < H; y++) {
+        const p = y * W + x; if (isNaN(a[p])) { out[p] = NaN; continue; }
+        let s2 = 0, c = 0; for (let k = Math.max(0, y - r); k <= Math.min(H - 1, y + r); k++) { const v = a[k * W + x]; if (!isNaN(v)) { s2 += v; c++; } }
+        out[p] = s2 / c;
+      }
+      return out;
+    };
+    const Vs = blur(blur(V, 2), 2);
+    const L2 = palLUT(prod);
+    const out = document.createElement("canvas"); out.width = W; out.height = H;
+    const oc = out.getContext("2d"), od = oc.createImageData(W, H), o = od.data;
+    for (let p = 0; p < N; p++) {
+      const v = Vs[p];
+      if (isNaN(v) || v < L2.vmin) continue;
+      const i = Math.max(0, Math.min(255, Math.round((tfv(v, L2.tf) - L2.t0) / (L2.t1 - L2.t0) * 255)));
+      o[p * 4] = L2.lut[i * 4]; o[p * 4 + 1] = L2.lut[i * 4 + 1]; o[p * 4 + 2] = L2.lut[i * 4 + 2];
+      o[p * 4 + 3] = L2.lut[i * 4 + 3] * geo.fade[p];
+    }
+    oc.putImageData(od, 0, 0);
+    return new Promise((ok) => out.toBlob((b) => ok(b ? { url: URL.createObjectURL(b), bounds: geo.bounds } : null), "image/png"));
   }
   function mosaicURL(items) {
     const ids = items.map((x) => x.id), key = items.map((x) => x.url || "-").join("|");
@@ -309,6 +412,9 @@
       const R = new Float32Array(N), G = new Float32Array(N), B = new Float32Array(N), A = new Float32Array(N), WS = new Float32Array(N);
       const tmp = document.createElement("canvas"), tc = tmp.getContext("2d", { willReadFrequently: true });
       let any = false;
+      const prod = ((items.find((x) => x.url) || {}).url || "").split("/").slice(-2)[0];
+      const lg = S.man && S.man.products[prod] && S.man.products[prod].oldLegend;
+      if (NEWPAL[prod] && lg && lg.bands) return paintValues(geo, imgs, lg, prod, tmp, tc);
       geo.doms.forEach((g, k) => {
         const im = imgs[k];
         if (!im || !g.rw || !g.rh) return;
@@ -443,6 +549,7 @@
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
     if (d.members) showMosaic(d.members.map((m) => ({ id: m, url: urlFor(m, S.frames[S.idx]), bounds: S.man.domains[m].bounds })));
+    else if (NEWPAL[S.prod] && d.points) showMosaic([{ id: S.dom, url: frameURL(S.idx), bounds: d.bounds }]);   // one grid, same smooth painting
     else { MOS.token++; clearMulti(); overlayTo(frameURL(S.idx), d.bounds); }
     $("timeRange").max = S.frames.length - 1;
     $("timeRange").value = S.idx;
@@ -1018,6 +1125,10 @@
       }
     }
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
+    if (S.man) for (const k of Object.keys(NEWPAL)) {   // old banded humidity/instability runs: show the new scale
+      const p = S.man.products[k];
+      if (p && p.legend && p.legend.bands) { p.oldLegend = p.legend; p.legend = newLegend(k); }
+    }
     if (S.man) for (const p of Object.values(S.man.products)) {
       if (Array.isArray(p.legend)) {  // runs made before the gradient colours
         const n = p.legend.length;
