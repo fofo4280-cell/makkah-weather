@@ -28,7 +28,7 @@ jobs:
               p.on('pageerror', (e) => log.push(`${bn} ${model} ${first} pageerror: ${e.message}`));
               await p.addInitScript(([model, first]) => { localStorage.setItem('swrf.prod', first); localStorage.setItem('swrf.model', model); localStorage.setItem('swrf.dom', 'k3'); }, [model, first]);
               await p.goto('https://fofo4280-cell.github.io/makkah-weather/model/?t=' + Date.now());
-              await p.waitForTimeout(12000);
+              await p.waitForTimeout(15000);
               const st = async (tag) => {
                 const r = await p.evaluate(() => ({ imgs: [...document.querySelectorAll('img.wx-layer')].map((i) => i.src.slice(0, 60)), opts: [...document.querySelectorAll('#prodSelect option')].map((o) => o.value), app: [...document.scripts].map((s) => s.src).filter((s) => s.includes('app.js')) }));
                 log.push(`${bn} ${model} ${first} ${tag}: ${JSON.stringify(r)}`);
