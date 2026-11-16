@@ -97,11 +97,11 @@ a { color: var(--sea); }
 .time-label { font-size: .84rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
 #timeRange { width: 100%; accent-color: var(--sea); margin: 2px 0 0; }
 
-.map-empty { position: absolute; inset: 0; z-index: 600; display: grid; place-items: center; background: rgba(10,16,23,.35); }
+.map-empty { position: absolute; inset: 0; z-index: 600; display: grid; place-items: center; background: rgba(0,0,0,.45); }
 .map-empty-box { background: var(--surface); color: var(--ink); border-radius: var(--r); padding: 18px 20px; max-width: 300px;
   box-shadow: var(--shadow); display: flex; flex-direction: column; gap: 6px; text-align: center; }
 
-.city-label { background: rgba(10,18,26,.72); color: #eef4f7; border: 0; border-radius: 8px; padding: 1px 6px; font: 600 11px var(--f-ui);
+.city-label { background: rgba(17,17,17,.78); color: #f4f4f4; border: 0; border-radius: 8px; padding: 1px 6px; font: 600 11px var(--f-ui);
   box-shadow: none; }
 .city-label::before { display: none; }
 .leaflet-popup-content { font-family: var(--f-ui); direction: rtl; margin: 10px 12px; }
@@ -172,18 +172,18 @@ a { color: var(--sea); }
 .leaflet-control-layers-expanded { color: var(--glass-ink); padding: 8px 10px; border-radius: 12px; }
 .leaflet-bar { border: 1px solid var(--glass-line) !important; border-radius: 12px !important; overflow: hidden; }
 .leaflet-bar a { border-bottom-color: var(--glass-line) !important; }
-.leaflet-control-attribution { background: rgba(10,18,26,.55) !important; color: #9fb2bf !important; }
-.leaflet-control-attribution a { color: #c8d6df !important; }
+.leaflet-control-attribution { background: rgba(17,17,17,.6) !important; color: #9a9a9a !important; }
+.leaflet-control-attribution a { color: #c9c9c9 !important; }
 .leaflet-container { font-family: var(--f-ui); }
-.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #111a23; color: #e5edf3; }
-.leaflet-popup-content-wrapper .muted, .leaflet-popup-content-wrapper .city-sum { color: #9fb2bf; }
-.leaflet-popup-content-wrapper .chart text { fill: #9fb2bf; }
-.leaflet-container a.leaflet-popup-close-button { color: #9fb2bf; }
+.leaflet-popup-content-wrapper, .leaflet-popup-tip { background: #171717; color: #f4f4f4; border: 1px solid #2a2a2a; }
+.leaflet-popup-content-wrapper .muted, .leaflet-popup-content-wrapper .city-sum { color: #9a9a9a; }
+.leaflet-popup-content-wrapper .chart text { fill: #9a9a9a; }
+.leaflet-container a.leaflet-popup-close-button { color: #9a9a9a; }
 .pt-head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
-.pt-head small { color: #9fb2bf; }
-.pt-now { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0 4px; text-align: center; font-size: .74rem; color: #9fb2bf; }
-.pt-now b { display: block; font-size: 1rem; color: #e5edf3; }
-.chart { color: #9fb2bf; }
+.pt-head small { color: #9a9a9a; }
+.pt-now { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px; margin: 6px 0 4px; text-align: center; font-size: .74rem; color: #9a9a9a; }
+.pt-now b { display: block; font-size: 1rem; color: #f4f4f4; }
+.chart { color: #9a9a9a; }
 
 /* lightning legend */
 .bolt-key { display: flex; justify-content: space-between; gap: 6px; flex-wrap: wrap; padding: 2px 2px 1px; }
@@ -202,9 +202,9 @@ a { color: var(--sea); }
 .mjo-big b { font-size: 1.7rem; color: var(--sea); }
 .mjo-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--line); font-size: .9rem; }
 .mjo-row span:first-child { color: var(--muted); }
-.wet { color: var(--green); } .dry { color: var(--amber); }
+.wet { color: #7aa8ff; } .dry { color: var(--amber); }
 #mjoPhase svg { width: 100%; max-width: 420px; display: block; margin: 0 auto; }
-.figwrap { overflow-x: auto; border-radius: 10px; background: #f7f5f0; -webkit-overflow-scrolling: touch; }
+.figwrap { overflow-x: auto; border-radius: 12px; background: #f7f5f0; border: 1px solid var(--line); -webkit-overflow-scrolling: touch; }
 #mjoFig { display: block; height: 230px; width: auto; max-width: none; }
 .figwrap.fit #mjoFig { width: 100%; height: auto; }
 #mjofFig { display: block; height: 260px; width: auto; max-width: none; }
@@ -302,3 +302,16 @@ a { color: var(--sea); }
 .map-name-p.g span::before { width: 3px; height: 3px; }
 .z-lt65 .map-name-p.g, .z-lt75 .map-name-p.g2 { display: none; }
 .map-name.hid { display: none; }
+/* status badges and dots in the new identity: outlined, no green (Fahad, 16 Nov 2026) */
+.pill { border-radius: 8px; padding: 1px 10px; font-weight: 600; border: 1px solid #343434; background: transparent; }
+.pill.ok { background: transparent; color: #e8e8e8; border-color: #3a3a3a; }
+.pill.run { background: var(--sea); color: #fff; border-color: transparent; }
+.pill.err { background: transparent; color: var(--red); border-color: rgba(255,111,97,.55); }
+.pill.wait { background: transparent; color: var(--muted); border-color: #2e2e2e; }
+.dot.ok { background: #7a7a7a; } .dot.run { background: var(--sea); } .dot.err { background: var(--red); }
+.steps li, .hist, .mjo-row, .wave-row { border-top-color: var(--line); }
+.hist { align-items: center; padding: 9px 0; }
+.hist > span:first-child { flex: 1; }
+.hist .pill { margin-inline: 12px; }
+.about h3, .card h3 { color: #fff; }
+.city { background: var(--surface); border-color: var(--line); }

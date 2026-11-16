@@ -313,3 +313,19 @@ table.rep-tbl tbody th { text-align: start; border-inline-start: 3px solid var(-
 table.rep-tbl tr.wet td { color: var(--sea); font-weight: 600; }
 table.rep-tbl small { font-weight: 400; color: var(--muted); font-size: .68rem; }
 .cmp-row ol { margin: 6px 0 0; }
+
+/* Modern minimal identity shared with the model page (Fahad, 16 Nov 2026): near-black, white headings, grey text, one blue accent, thin borders; always dark */
+:root:not(#_) {
+  --bg: #111111; --surface: #171717; --surface-2: #1e1e1e; --ink: #f4f4f4; --muted: #9a9a9a; --line: #2a2a2a;
+  --sea: #4a86f5; --sea-ink: #ffffff; --amber: #e3ad55; --red: #ff6f61; --green: #7aa8ff;
+  --pill-ok: transparent; --pill-watch: transparent; --pill-alert: transparent; --pill-info: transparent; --pill-none: transparent;
+  --shadow: 0 10px 30px rgba(0, 0, 0, .45); --shadow-s: none;
+  --chrome: #111111; --chrome-ink: #ffffff; --chrome-muted: #8e8e8e;
+  --glass: rgba(17, 17, 17, .84); --glass-line: rgba(255, 255, 255, .13); --glass-ink: #f4f4f4; --glass-muted: #a3a3a3;
+  --f-ui: "IBM Plex Sans Arabic", -apple-system, BlinkMacSystemFont, "SF Arabic", "Segoe UI", Tahoma, "Noto Sans Arabic", sans-serif;
+  --r: 16px;
+  color-scheme: dark;
+}
+.top { border-bottom: 1px solid var(--line); }
+.place-chip, .top .icon-btn { background: transparent; border-color: #3a3a3a; border-radius: 10px; }
+.icon-btn { background: transparent; border-color: #333; }

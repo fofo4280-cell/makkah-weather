@@ -1279,9 +1279,17 @@
     $("statusCard").innerHTML = `<div class="phase"><span class="pill ${cls}">${ph}</span></div>
       <div>${arDigits((s.message || "").replace(/\s*\d{10}\s*/, " "))}</div><div class="muted" style="font-size:.8rem">${what} · آخر تحديث ${ago(s.updated)}</div>
       <ul class="steps">${steps}</ul>`;
-    $("historyList").innerHTML = (s.history || []).length ? s.history.map((h) => `<div class="hist">
+    // each cycle runs in two parts, each logged on its own: one row per cycle with both parts' minutes; evening (12Z) cycles only
+    const hist = [];
+    for (const h of s.history || []) {
+      if (!/12$/.test(h.cycle || "")) continue;
+      const o = hist.find((x) => x.cycle === h.cycle);
+      if (o) { o.minutes += h.minutes || 0; o.ok = o.ok && h.ok; } else hist.push({ cycle: h.cycle, ok: h.ok, minutes: h.minutes || 0 });
+    }
+    const mins = (m) => (m < 60 ? `${num(m)} د` : `${num(Math.floor(m / 60))} س ${num(m % 60)} د`);
+    $("historyList").innerHTML = hist.length ? hist.map((h) => `<div class="hist">
       <span>${runName(h.cycle)}</span><span class="pill ${h.ok ? "ok" : "err"}">${h.ok ? "اكتملت" : "ناقصة"}</span>
-      <span class="muted">${dur(new Date(Date.parse(h.finished) - h.minutes * 60000).toISOString(), h.finished)}</span></div>`).join("")
+      <span class="muted">${mins(h.minutes)}</span></div>`).join("")
       : `<p class="muted">لا دورات مكتملة بعد.</p>`;
     if (!S.runs.length) $("mapEmptyMsg").textContent = `${ph}${s.message ? ": " + s.message : ""}. التفاصيل في تبويب الحالة.`;
   }
