@@ -14,31 +14,36 @@ jobs:
         with: { node-version: 20 }
       - run: |
           npm i --no-save playwright@1.48.2
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps webkit chromium
           sudo apt-get install -y fonts-noto-core fonts-kacst >/dev/null
-          (python3 -m http.server 8080 >/dev/null 2>&1 &)
-          sleep 2
-          cat > shot.mjs <<'JS'
-          import { chromium } from 'playwright';
-          const b = await chromium.launch();
-          const views = [['ksa', [23.6, 43.5, 5]], ['west', [21.6, 40.6, 7]]];
-          for (const prod of ['rh700', 'cape']) for (const [vn, v] of views) {
-            const ctx = await b.newContext({ viewport: { width: 412, height: 860 }, deviceScaleFactor: 2, locale: 'ar' });
-            const p = await ctx.newPage();
-            await p.addInitScript((prod) => {
-              localStorage.setItem('swrf.prod', prod); localStorage.setItem('swrf.model', 'gfs'); localStorage.setItem('swrf.dom', 'k3');
-              let _L; Object.defineProperty(window, 'L', { configurable: true, get() { return _L; }, set(x) { _L = x; x.Map.addInitHook(function () { window.__map = this; }); } });
-            }, prod);
-            await p.goto('http://localhost:8080/model/');
-            await p.waitForTimeout(5000);
-            await p.evaluate(([la, lo, z]) => window.__map.setView([la, lo], z, { animate: false }), v);
-            await p.waitForTimeout(9000);
-            await p.screenshot({ path: `shots/${prod}-${vn}.png` });
-            await ctx.close();
+          cat > live.mjs <<'JS'
+          import { webkit, chromium, devices } from 'playwright';
+          import fs from 'fs';
+          const log = [];
+          for (const [bn, bt] of [['webkit', webkit], ['chromium', chromium]]) {
+            const b = await bt.launch();
+            for (const [model, first] of [['ec', 'refl'], ['ec', 'rh700'], ['gfs', 'refl']]) {
+              const ctx = await b.newContext({ ...devices['iPad Pro 11 landscape'], locale: 'ar' });
+              const p = await ctx.newPage();
+              p.on('console', (m) => log.push(`${bn} ${model} ${first} console: ${m.text()}`));
+              p.on('pageerror', (e) => log.push(`${bn} ${model} ${first} pageerror: ${e.message}`));
+              await p.addInitScript(([model, first]) => { localStorage.setItem('swrf.prod', first); localStorage.setItem('swrf.model', model); localStorage.setItem('swrf.dom', 'k3'); }, [model, first]);
+              await p.goto('https://fofo4280-cell.github.io/makkah-weather/model/?t=' + Date.now());
+              await p.waitForTimeout(12000);
+              const st = async (tag) => {
+                const r = await p.evaluate(() => ({ imgs: [...document.querySelectorAll('img.wx-layer')].map((i) => i.src.slice(0, 60)), opts: [...document.querySelectorAll('#prodSelect option')].map((o) => o.value), app: [...document.scripts].map((s) => s.src).filter((s) => s.includes('app.js')) }));
+                log.push(`${bn} ${model} ${first} ${tag}: ${JSON.stringify(r)}`);
+              };
+              await st('start');
+              if (first === 'refl') { await p.selectOption('#prodSelect', 'rh700').catch((e) => log.push('select fail ' + e.message)); await p.waitForTimeout(8000); await st('after-switch'); }
+              await p.screenshot({ path: `shots/live-${bn}-${model}-${first}.png` });
+              await ctx.close();
+            }
+            await b.close();
           }
-          await b.close();
+          fs.writeFileSync('shots/live-log.txt', log.join('\n'));
           JS
-          mkdir -p shots && node shot.mjs
+          mkdir -p shots && node live.mjs
       - run: |
           git config user.name github-actions; git config user.email github-actions@users.noreply.github.com
           git add shots && git commit -m "preview shots" && git push
