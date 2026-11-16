@@ -1593,7 +1593,7 @@
         const [a, b] = sg.querySelectorAll("img"), front = a.classList.contains("on") ? a : b.classList.contains("on") ? b : null;
         const back = front === a ? b : a, u = url(sg.dataset.k, k);
         if (front && front.dataset.u === u) return;
-        back.onload = () => { back.classList.add("on"); if (front) front.classList.remove("on"); };
+        back.onload = () => { if (back.naturalWidth) sg.style.aspectRatio = `${back.naturalWidth} / ${back.naturalHeight}`; back.classList.add("on"); if (front) front.classList.remove("on"); };  // the stage takes the picture's own shape, so no empty strip at the side
         back.dataset.u = u; back.src = u;
       });
       const lab = k < t.t0 ? "تحليل" : k === t.t0 ? "اليوم" : "توقع";
