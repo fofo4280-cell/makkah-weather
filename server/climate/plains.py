@@ -28,6 +28,7 @@ from datetime import datetime, timedelta
 import numpy as np
 
 # name, region of the report it belongs to, lat south/north, plain lon west/east, mountain lon west/east
+# (the mountains in the same lat band, unless MTN_BOX gives the storm-making ridge itself)
 PLAINS = [
     ("jazan", "سهول تهامة جازان (صبيا وأبو عريش وصامطة)", "جازان", 16.5, 17.9, 42.5, 43.1, 43.0, 43.6),
     ("asir", "تهامة عسير (محايل والدرب والبرك)", "عسير", 17.9, 18.9, 41.6, 42.35, 42.25, 43.0),
@@ -35,6 +36,11 @@ PLAINS = [
     ("lith", "سهول الليث وأضم", "مكة المكرمة", 19.9, 21.0, 40.1, 40.85, 40.8, 41.6),
     ("makkah", "سهول مكة والجموم وبحرة", "مكة المكرمة", 21.0, 22.2, 39.35, 40.2, 40.15, 40.8),
 ]
+# The ridge where the plain's afternoon storms are born, when the band's mountain box would sample the wrong ground.
+# Makkah (16 Nov 2026): the box 40.15-40.8 E over 21-22.2 N is mostly the Taif plateau and the Hijaz interior, where
+# GFS CAPE was 4 J/kg, while the escarpment rim (Al-Hada, Ash-Shafa, the heights above Ash-Sharai) had 300-500 and
+# storms formed there at 16-17 Makkah and came down onto Ash-Sharai. At 0.25 deg the rim is the 40.25 E column.
+MTN_BOX = {"makkah": (21.0, 21.6, 40.15, 40.35)}
 PLAIN_HGT, MTN_HGT = 500.0, 1000.0          # m, GFS 0.25 terrain (smoothed)
 # the dew point that makes a plain "very humid": the Makkah plains sit farther from the sea and run drier at 2 m
 # (13 Nov 2026, plains storms over Makkah and Al-Jumum at 17 C), Tihama at 19-21 C on its storm days
@@ -92,11 +98,14 @@ def fetch(get, cycle, day, log=print):
 
 
 def masks(static, lat, lon, p):
-    _, _, _, s, n, pw_, pe, mw, me = p
+    key, _, _, s, n, pw_, pe, mw, me = p
     LA, LO = np.meshgrid(lat, lon, indexing="ij")
     band = (LA >= s) & (LA <= n)
     hg, land = static["hgt"], static["land"] > 0.5
     plain = band & (LO >= pw_) & (LO <= pe) & land & (hg <= PLAIN_HGT)
+    if key in MTN_BOX:
+        ms, mn, mw, me = MTN_BOX[key]
+        band = (LA >= ms) & (LA <= mn)
     mtn = band & (LO >= mw) & (LO <= me) & (hg >= MTN_HGT)
     if mtn.sum() < 3:                          # smoothed terrain: the highest third of the mountain box
         box = band & (LO >= mw) & (LO <= me)
@@ -150,7 +159,7 @@ def check(get, cycle, day, pct_of, log=print):
                "rain_mtn_gfs": round(r_mt, 1), "rain_plain_gfs": None if r_pl is None else round(r_pl, 1),
                "steer": round(sp, 1), "steer_u": round(us, 1), "u10": round(u10, 1), "u850": round(u850, 1),
                "flags": f, "gate": bool(gate), "score": int(sum(f.values())),
-               "box": [p[3], p[4], p[5], p[6]], "mbox": [p[3], p[4], p[7], p[8]]}
+               "box": [p[3], p[4], p[5], p[6]], "mbox": list(MTN_BOX.get(key, (p[3], p[4], p[7], p[8])))}
         log("plains:", key, row["score"], "gate" if gate else "-", {k: v for k, v in row.items() if k not in ("flags", "name", "box", "mbox")})
         out.append(row)
     return out
