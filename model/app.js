@@ -39,7 +39,7 @@
   const HOURLY = ["refl", "rain1h", "rh700", "cape"];   // 700 hPa humidity and instability energy since 16 Nov 2026 (older runs lack them and the list skips them)
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
-  const DAILY = ["refl_day"];
+  const DAILY = [];   // the daily max reflectivity map was removed from the list (Fahad, 16 Nov 2026)
   // current names, also for runs made before an option was renamed
   const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي من ١٢ إلى ١٢", ivt: "تدفق الأنهار الجوية" };
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
