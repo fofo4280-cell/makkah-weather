@@ -36,6 +36,26 @@ def clock(t):
     return f"{ar(h % 12)} {'ص' if h < 12 else 'م'}"
 
 
+def clock_long(t):
+    """the hour for running text: '١٠ مساءً'، '٣ عصرًا'، '١٢ ظهرًا'، 'منتصف الليل' (Makkah time)"""
+    h = local(t).hour
+    if h == 0:
+        return "منتصف الليل"
+    word = ("فجرًا" if h < 5 else "صباحًا" if h < 12 else "ظهرًا" if h < 15 else "عصرًا" if h < 18
+            else "مساءً")
+    return f"{ar(h if h <= 12 else h - 12)} {word}"
+
+
+def span_long(a, b):
+    """the window for running text: 'من ٣ عصرًا إلى ١٠ مساءً'، 'طوال اليوم'"""
+    if (b - a) >= timedelta(hours=22) and local(a).hour == 0:
+        return "طوال اليوم"
+    return f"من {clock_long(a)} إلى {clock_long(b)}"
+
+
+ADVERB = {"الفجر": "فجرًا", "الصباح": "صباحًا", "الظهيرة": "ظهرًا", "العصر": "عصرًا", "المساء": "مساءً", "الليل": "ليلًا"}
+
+
 def span_words(a, b):
     """Window from a to b (UTC datetimes): 'من ٣ ص إلى ٨ ص', or 'طوال اليوم'."""
     if (b - a) >= timedelta(hours=22) and local(a).hour == 0:
@@ -198,6 +218,21 @@ def plains_words(st, cells, t_a, log=print):
     return out
 
 
+def jl(names):
+    """an Arabic list: 'أ وب'، and from three items 'أ، وب، وج'"""
+    names = [x for x in names if x]
+    return " و".join(names) if len(names) <= 2 else "، و".join(names)
+
+
+def plains_text(items):
+    """the evening plains storms of one region: a sentence for each plain (its ingredients, confidence and what our
+    model shows), then the mechanism once (it was repeated in full for every plain before, 16 Nov 2026)"""
+    if not items:
+        return ""
+    import plains as P
+    return " " + " ".join(items) + " " + P.MECHANISM
+
+
 def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     om = om or G.OpenMeteo()
     regs = G.tag_towns(G.regions())
@@ -273,7 +308,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     if not rows:
         lines.append(f"لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة {span_words(t_a, t_b)}.")
         for name, ss in pw_.items():
-            lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر، " + " ".join(ss))
+            lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر." + plains_text(ss))
         return {"heading": head, "lines": lines, "table": [], "data": {}}
     n = len(rows)
     extent = "واسعة" if n >= 8 else "متوسطة الانتشار" if n >= 4 else "محدودة"
@@ -286,22 +321,22 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     hail_good = [x["name"] for x in rows if any(w["hail"] == 2 for w in x["wins"])]
     sc_regs = [x["name"] for x in rows if any(w["sc"] for w in x["wins"])]
     sc_mod = [x["name"] for x in rows if any(w["sc"] == 2 for w in x["wins"])]
-    when = span_words(a0, b0)
-    when = "على مدى اليوم" if when == "طوال اليوم" else f"{when.replace('من ', 'تبدأ من الساعة ').replace(' إلى ', ' وتمتد إلى ')}"
+    when = ("على مدى اليوم" if span_words(a0, b0) == "طوال اليوم" else
+            f"بين {clock_long(a0)} و{clock_long(b0)}")
     s = (f"تشهد المملكة حالة مطرية {extent} تشمل {count} من مناطقها الثلاث عشرة، {when}. ")
     tops = []
     for x in top:
         best = max(x["wins"], key=lambda w: w["max"])
         # the most rain is named where it falls (not at the first heavy town, which can be elsewhere in the region)
-        tops.append(f"{x['name']} (أعلاها {num(x['max'])} ملم {x['at']} {part_of_day(best['a'], best['b'])})")
-    s += f"وتتركز الأمطار الأغزر على {join(tops)}. "
+        tops.append(f"{x['name']} (أعلاها {num(x['max'])} ملم {x['at']} {ADVERB[part_of_day(best['a'], best['b'])]})")
+    s += f"وتتركز الأمطار الأغزر على {jl(tops)}. "
     mids = [x["name"] for x in rows if x not in top and x["max"] >= MODERATE]
     lows = [x["name"] for x in rows if x["max"] < MODERATE]
     if mids:
-        s += f"وتمتد الأمطار المتوسطة إلى {join(mids)}"
-        s += f"، وتبقى خفيفة على {join(lows)}. " if lows else ". "
+        s += f"وتمتد الأمطار المتوسطة إلى {jl(mids)}"
+        s += f"، وتبقى خفيفة على {jl(lows)}. " if lows else ". "
     elif lows:
-        s += f"وتبقى خفيفة على {join(lows)}. "
+        s += f"وتبقى خفيفة على {jl(lows)}. "
     s += f"وطابع الحالة الغالب أمطار {main_type}"
     if hail_regs:
         s += (f"، مع فرص جيدة لتساقط البَرَد على {join(hail_good)}" if hail_good else "") + \
@@ -319,17 +354,27 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
             log(f"rain report: large-scale line failed: {e!r}")
 
     # ---- region by region
+    day0 = local(t_a).date()
     for x in rows:
         parts = []
         for w in x["wins"]:
-            t = f"{day_word(w['a'], w['b'])} {span_words(w['a'], w['b'])}: أمطار {w['type']}"
-            if w["heavy"]:
-                t += f"، غزيرة على {join(w['heavy'][:6])}"
-            if w["moderate"]:
-                t += f"، ومتوسطة على {join(w['moderate'][:6])}"
-            if w["light"] and len(w["heavy"]) + len(w["moderate"]) < 6:
-                t += f"، وخفيفة على {join(w['light'][:5])}"
-            t += f"؛ أعلاها {num(w['max'])} ملم {w['at']}"
+            dw = "" if local(w["a"]).date() == day0 == local(w["b"] - timedelta(minutes=1)).date() else day_word(w["a"], w["b"]) + " "
+            t = f"{dw}{span_long(w['a'], w['b'])}، أمطار {w['type']}"
+            only = w["heavy"] + w["moderate"] + w["light"]
+            if len(only) == 1 and only[0] == w["loc"]["short"]:
+                # one place only, the place of the most rain: say it once
+                t += f" {amount_word(w['max'])} {w['at']} بلغت {num(w['max'])} ملم"
+            else:
+                amounts = []
+                if w["heavy"]:
+                    amounts.append(f"غزيرة على {join(w['heavy'][:6])}")
+                if w["moderate"]:
+                    amounts.append(f"متوسطة على {join(w['moderate'][:6])}")
+                if w["light"] and len(w["heavy"]) + len(w["moderate"]) < 6:
+                    amounts.append(f"خفيفة على {join(w['light'][:5])}")
+                if amounts:
+                    t += "، " + "، و".join(amounts)
+                t += f"؛ وأعلاها {num(w['max'])} ملم {w['at']}"
             if w["hail"] == 2:
                 t += f"، وفرص جيدة للبَرَد (صدى رادار {num(w['z'])} ديسيبل)"
             elif w["hail"] == 1:
@@ -340,17 +385,20 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
                 t += "، واحتمال ضعيف لخلايا عملاقة (سوبر سل)"
             parts.append(t)
         lines.append(f"منطقة {x['name']} ({amount_word(x['max'])}): " + "؛ ثم ".join(parts) + "."
-                     + "".join(" " + s_ for s_ in pw_.get(x["name"], [])))
+                     + plains_text(pw_.get(x["name"], [])))
     for r in regs:     # a dry region with plains enhancers: the model shows nothing there, the sentence says why to watch
         if r["name"] not in order and pw_.get(r["name"]):
-            lines.append(f"منطقة {r['name']}: لا يُظهر نموذجنا أمطارًا تُذكر، " + " ".join(pw_[r["name"]]))
+            lines.append(f"منطقة {r['name']}: لا يُظهر نموذجنا أمطارًا تُذكر." + plains_text(pw_[r["name"]]))
     dry = [r["name"] for r in regs if r["name"] not in order and not pw_.get(r["name"])]
     if dry:
-        lines.append(f"ولا أمطار تُذكر على {join(dry)}.")
-    lines.append("المصدر: نموذجنا وحده (" + "، و".join(f"{n_} بدقة {r_}" for n_, r_, _ in cells["used"])
-                 + f")، الساعات {span_words(t_a, t_b)} بتوقيت مكة؛ والفئات للمدن والمحافظات: غزير ٢٠ ملم فأكثر "
-                 "أو ١٠ ملم في ساعة، متوسط ٥ إلى ٢٠، خفيف دون ٥. وفرص البَرَد والخلايا العملاقة من صدى الرادار في نموذجنا "
-                 "مع طاقة الحمل وقص الرياح ومستوى التجمد.")
+        lines.append(f"ولا أمطار تُذكر على {jl(dry)}.")
+    by_res = {}
+    for n_, r_, _ in cells["used"]:
+        by_res.setdefault(r_, []).append(n_)
+    grids = "، و".join(f"{'شبكة واحدة' if len(v) == 1 else ar(len(v)) + ' شبكات'} بدقة {r_}" for r_, v in by_res.items())
+    lines.append(f"المصدر: نموذجنا وحده ({grids} تغطي المملكة)، والساعات بتوقيت مكة. فئات المطر للمدن والمحافظات: "
+                 "غزير ٢٠ ملم فأكثر أو ١٠ ملم في ساعة، ومتوسط من ٥ إلى ٢٠، وخفيف دون ٥. وفرص البَرَد والخلايا العملاقة "
+                 "من صدى الرادار في نموذجنا مع طاقة عدم الاستقرار وقص الرياح ومستوى التجمد.")
     data = {"t_a": t_a.isoformat(), "t_b": t_b.isoformat(), "issue": issue, "res": res_used,
             "regions": [{"name": x["name"], "mean": round(x["mean"], 2), "max": round(x["max"], 1)} for x in rows]}
     return {"heading": head, "lines": lines, "table": table, "data": data}

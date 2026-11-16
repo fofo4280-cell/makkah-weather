@@ -486,34 +486,43 @@ def big_picture(st, day, rainy):
     import bigpic as B
     regs = {r["name"]: r for r in G.regions()}
     pro, con = [], []
+    import bigreport as BR
     m = B.rmm_on(st, day)
     if m and st.get("wet_season"):
         if m["amp"] >= 1 and m["phase"] in B.WET_PHASES:
-            pro.append(f"التذبذب المداري في الطور {ar(m['phase'])} الرطب للمملكة بشدة {num(m['amp'], 1)}")
+            pro.append(f"التذبذب المداري في الطور {ar(m['phase'])} بشدة {num(m['amp'], 1)}"
+                       + (" (دعم ضعيف)" if m["phase"] == 2 else ""))
         elif m["amp"] >= 1:
-            con.append(f"التذبذب المداري في الطور {ar(m['phase'])} الجاف للمملكة فيكبت الحمل")
+            con.append(f"التذبذب المداري في الطور {ar(m['phase'])} غير الداعم، فيكبت الحمل")
     w = next((x for x in B.warm(st["hov"]) if x[0] == day.isoformat()), None) if st.get("hov") else None
-    if w:
-        if B.favourable(w[1]):
-            pro.append(f"الحدث الدافئ (التباعد العلوي) متمركز فوق {B.region_name(w[1])} في القطاع المحفز للجزيرة العربية")
+    if w:      # the same rule as the drivers' lines: in the sector and strong enough
+        if BR.warm_ok(w[1], w[2]):
+            pro.append(f"الحدث الدافئ (التباعد العلوي) فوق {B.region_name(w[1])} في القطاع الداعم للجزيرة العربية")
         else:
-            con.append(f"الحدث الدافئ بعيد فوق {B.region_name(w[1])}")
+            con.append(f"الحدث الدافئ خارج القطاع الداعم (فوق {B.region_name(w[1])})")
+    x = BR._tw(st, day, "ros")
+    if x and x[0] <= -x[1] / 3:
+        pro.append("عائلة روسبي الاستوائية فوق المملكة")
+    x = BR._tw(st, day, "kel")
+    if x and x[0] >= x[1] / 3:
+        con.append("موجات كلفن كابحة فوق المملكة")
     row = next((r for r in st.get("pw", []) if r["d"] == day.isoformat()), None)
     if row:
         boxes = [k for k in BOX_NAME if k in row and row[k]["pct"] >= 150]
         if boxes:
-            pro.append("مد رطوبي فوق " + join(f"{BOX_NAME[k]} ({num(row[k]['pct'])}٪ من المعدل)" for k in boxes))
+            pro.append("مد رطوبي فوق " + BR.jl(f"{BOX_NAME[k]} ({num(row[k]['pct'])}٪ من المعدل)" for k in boxes))
         else:
             dry = [k for k in BOX_NAME if k in row and row[k]["pct"] < 80]
             if dry and rainy and all(BOX_OF[regs[x["name"]]["id"]] in dry for x in rainy):
                 con.append("الرطوبة دون المعدل فوق مناطق المطر")
     wv = next((x for x in st.get("waves", []) if x["d"] == day.isoformat()), None)
     if wv and "trough" in wv and wv["trough"]["v"] <= -25:
-        pro.append(f"أخدود في الطبقة الوسطى فوق {wv['trough']['area']}")
+        dam = -wv["trough"]["v"] / 10
+        pro.append(f"أخدود {BR.trough_word(dam)} عند ٥٠٠ هكتوباسكال فوق {wv['trough']['area']} ({num(dam, 1)} ديكامتر)")
     zs = (st.get("collide") or {}).get("zones") or []
     if zs and (st.get("collide") or {}).get("day") == day.isoformat():
         rs = list(dict.fromkeys(r for z in zs for r in (z.get("regions") or [z["region"]])))
-        pro.append("تصادم رياح رطبة بعد الظهر فوق " + join(rs[:4]))
+        pro.append("تصادم رياح رطبة بعد الظهر فوق " + BR.jl(rs[:4]))
     ar_ = st.get("ar") or {}
     mk = [r for r in ar_.get("sa", []) if (datetime.strptime(r["t"], "%Y-%m-%dT%H:%MZ") + timedelta(hours=3)).date() == day]
     if mk and max(r["v"] for r in mk) >= 250:
@@ -527,12 +536,12 @@ def big_picture(st, day, rainy):
     else:
         verdict = ("مهيأة للمطر، لكن نموذجنا لا يُظهر أمطارًا اليوم، فتُتابع التحديثات" if n >= 2 else
                    "لا تدعم حالة مطرية اليوم")
-    txt = f"الصورة الكبرى {verdict}"
+    txt = f"الصورة الكبرى {verdict}."
     if pro:
-        txt += ": " + "، و".join(pro)
+        txt += " يسندها " + BR.jl(pro) + "."
     if con:
-        txt += ("؛ وفي المقابل " if pro else ": ") + "، و".join(con)
-    return txt + "."
+        txt += (" ويعاكسها " if pro else " ويعاكسها ") + BR.jl(con) + "."
+    return txt
 
 
 def stratiform_alert(what, items):

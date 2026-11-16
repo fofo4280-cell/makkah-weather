@@ -176,8 +176,13 @@ def named(row, model_mtn_rain=None):
     return (gate and score >= 4), score, f
 
 
+MECHANISM = ("والمعنى أن تيارات السحب الباردة تنحدر من الجبال بعد العصر فترفع هواء السهل، فتنشأ عليه خلايا جديدة بين "
+             "المغرب والعشاء، وتجري الأودية بسيول الجبال.")
+
+
 def sentence(row, model_mtn_rain=None, model_plain_rain=None):
-    """one Arabic sentence for the region's line, or None"""
+    """one Arabic sentence for the region's line, or None: the plain, its ingredients, the confidence and what our
+    model shows there; the mechanism itself (MECHANISM) is added once per region by the rain report"""
     ok, score, f = named(row, model_mtn_rain)
     if not ok:
         return None
@@ -185,21 +190,20 @@ def sentence(row, model_mtn_rain=None, model_plain_rain=None):
     if f["moist"]:
         why.append(f"الماء القابل للهطول {n0(row['pct'])}٪ من معدله")
     if f["humid"]:
-        why.append(f"هواء السهل حار رطب (نقطة الندى {n0(row['td'])}°)")
+        why.append(f"ونقطة الندى {n0(row['td'])}° فالهواء حار رطب")
     if f["unstable"]:
-        why.append(f"طاقة عدم الاستقرار على السهل نحو {n0(round(row['cape_plain'], -2))} جول/كغ")
+        why.append(f"وطاقة عدم الاستقرار نحو {n0(round(row['cape_plain'], -2))} جول/كغ")
     if f["mountain"]:
-        why.append("حمل الجبال المجاورة بعد الظهر قائم")
+        why.append("والسحب قائمة على الجبال المجاورة بعد الظهر")
     if f["steer"]:
-        why.append(f"رياح القيادة ضعيفة ({n0(row['steer'])} م/ث) فتثبت الخلايا" if row["steer"] < 5 else
-                   "رياح القيادة تدفع الخلايا غربًا نحو السهل")
+        why.append(f"ورياح القيادة ضعيفة ({n0(row['steer'])} م/ث) فتبقى الخلايا في مكانها" if row["steer"] < 5 else
+                   "ورياح القيادة تدفع الخلايا غربًا نحو السهل")
     if f["inflow"]:
-        why.append("الرياح على السهل تهب نحو الجبال")
-    s = (f"وفي {row['name']} معززات للنمط الحملي المسائي: {'، و'.join(why)}؛ فقد تنزل تيارات السحب الباردة من "
-         "الجبال فترفع هواء السهل وتنشأ خلايا جديدة عليه بين المغرب والعشاء، وتجري الأودية بسيول الجبال؛ "
-         f"والثقة {confidence(score)}")
+        why.append("والرياح على السهل تهب نحو الجبال")
+    why[0] = why[0].removeprefix("و")
+    s = f"وتتهيأ في {row['name']} عوامل المطر المسائي على السهل: {'، '.join(why)}؛ والثقة {confidence(score)}"
     if model_plain_rain is not None and model_plain_rain < 2:
-        s += "، ولا يظهره نموذجنا على السهل"
+        s += "، ولا يُظهره نموذجنا على السهل"
     elif model_plain_rain is not None and model_plain_rain >= 5:
-        s += "، ويظهره نموذجنا على السهل أيضًا"
+        s += "، ونموذجنا يُظهره على السهل أيضًا"
     return s + "."

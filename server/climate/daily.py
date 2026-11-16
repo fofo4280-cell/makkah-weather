@@ -769,7 +769,7 @@ def main():
         ana = [(t0 - timedelta(hours=12 * k)).strftime("%Y%m%d%H") for k in range(7, -1, -1)]
         rows_ = diag.snapshots(lambda c, h, fields: gfs_fields(c, h, fields=fields), ana, cycle, range(12, 73, 12),
                                log=lambda *a: print(*a, flush=True))
-        status["diag"] = {"lines": diag.text(rows_, t0.replace(tzinfo=None)), "cycle": cycle}
+        status["diag"] = {"lines": diag.text(rows_, t0.replace(tzinfo=None), day0), "cycle": cycle}
         print("diagnosis:", len(status["diag"]["lines"]), "lines", flush=True)
     except Exception as e:  # noqa: BLE001
         import traceback

@@ -27,6 +27,8 @@ def place(lat, lon):
         return ("غرب أوروبا" if lon < 8 else "وسط أوروبا" if lon < 22 else "شرق أوروبا وأوكرانيا" if lon < 40
                 else "جنوب روسيا وشمال قزوين" if lon < 55 else "كازاخستان")
     if lat >= 36:
+        if lat < 40 and 40 <= lon < 48:
+            return "شرق تركيا وشمال العراق"
         return ("غرب المتوسط" if lon < 10 else "إيطاليا ووسط المتوسط" if lon < 20 else "اليونان والبلقان" if lon < 27
                 else "تركيا والبحر الأسود" if lon < 42 else "القوقاز وبحر قزوين" if lon < 54 else "تركمانستان وشمال إيران" if lon < 66
                 else "أفغانستان")
