@@ -1670,12 +1670,13 @@
     const st = M.st, rows = (st.pw || []).slice(1, 11);
     if (!rows.length) return;
     const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
-    const lg = (st.figs && st.figs.pw) || st.legends.pw;
     let t = `<table class="pwt"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
     for (const k of Object.keys(names)) {
       t += `<tr><td>${names[k]}</td>` + rows.map((r) => {
-        const v = r[k].pct, bg = v >= 110 ? scaleColor(lg, v) : "transparent", fg = v >= 175 ? "#fff" : "inherit";
-        return `<td style="background:${bg};color:${fg}">${num(v)}</td>`;
+        // shades of the site's blue on the dark page (Fahad, 16 Nov 2026): faint at 110 %, full from about 180 %
+        const v = r[k].pct, a = Math.min(1, Math.max(0.16, (v - 100) / 80));
+        const bg = v >= 110 ? `rgba(74,134,245,${a.toFixed(2)})` : "transparent", fw = v >= 130 ? 700 : 400;
+        return `<td style="background:${bg};color:#fff;font-weight:${fw}">${num(v)}</td>`;
       }).join("") + "</tr>";
     }
     $("mjoPw").innerHTML = t + "</table>";
