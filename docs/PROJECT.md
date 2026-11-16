@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 16 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
+Last updated: 16 Nov 2026 (late evening). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -146,6 +146,7 @@ Last updated: 16 Nov 2026 (evening). Written for Claude, to continue the work wi
 - Fahad's reference maps ("SCORPION ENGINE", Dr Khalid's method) put the MJO core at 38E on 13 Nov; ours 93E. Checked: our numbers reproduce exactly; no filter end delay (82 past days, perfect 15-day forecast: corr 0.90, amplitude 1.05, best at lag 0); no wavenumber/period/core definition gives 38E (82-118E). 38E is the Ethiopian highlands and his field (+-250 m, terrain detail) is not a pure MJO-filtered field. **Core and component left unchanged.**
 - 24 wide rain days (>= 8 % of the Kingdom), Dec 2025-Nov 2026: component supportive 71 % (alternatives 58-75 %); **Rossby family over the Kingdom supportive 92 %** (base 52 %; rain 4.4 % vs 0.2 % of the Kingdom on strongly negative vs strongly positive days); Kelvin over the Kingdom 38 %.
 - Our Kelvin panel reproduces his (13 Nov: equatorial minimum 43E, -5.9).
+- **16 Nov 2026 check (Kelvin/Rossby maps vs SCORPION, 24 Nov and 16 Nov 09Z; Fahad chose to keep ours):** no timing, sign or longitude error. On the analysis day, tropics 20S-20N, ours matches his about 0.46 (Kelvin) and 0.31 (Rossby); ~190 settings scanned, the closest (60-90 day record, no phase-speed bound) reaches about 0.65, so his tool likely uses a short record and does not apply the 8-60 m/s bound. Hindcast on six GFS cycles: our filtered maps match the later full-data filter about 0.9 at day 0, 0.65 at day 4, 0.4 at day 8 (Rossby amplitude x1.3), so maps past day 7 are low confidence in any tool. Method unchanged; open question to Dr Khalid: record length, speed bound, what follows the forecast end.
 
 - **The 25-season test (15 Nov 2026, `tropics-study.yml` with long=yes, `tropics_long.py`; CHIRPS v2 via the IRI library, RMM, Nino 3.4, DMI, NCEP R1 500 hPa and PW via PSL THREDDS):**
   - Daily share explained (cross-validated, leave one season out): tropics 2-8 %, troughs+moisture 11-23 %, both 13-24 %. The tropics add 1-3 % beyond the troughs.
