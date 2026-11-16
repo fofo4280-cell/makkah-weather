@@ -326,3 +326,4 @@ a { color: var(--sea); }
 .report a, .card a:not(.logs a) { color: #fff; }
 .pill.err { color: #fff; border-color: #6a6a6a; border-style: dashed; }
 .dot.err { background: #fff; }
+.wv-key .ln.red { border-color: #c8553d; }
