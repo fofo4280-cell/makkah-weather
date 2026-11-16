@@ -65,7 +65,7 @@ Last updated: 16 Nov 2026 (evening). Written for Claude, to continue the work wi
 - 12 UTC cycle only. ECMWF hour 33 is on AWS about 19:34 UTC. Crons 18:47, 19:13, 19:41, 20:07 UTC; the gate waits up to 280 min for hour 33; the keeper starts it from 19:45 to 23:59 UTC if `model-data-ec/runs.json` lacks the cycle. Run ~6.5 h, so complete about 02:30 UTC (05:30 Makkah). 6 runners beside the GFS run's 7 (limit 20).
 - First real 12Z run (15 Nov): the new crons did not fire; the keeper started it at 19:48 UTC; all six grids complete at 03:35 UTC (06:35 Makkah, slowest nw; part 1 took 2-3.4 h). Expect ready about 06:00-06:30 Makkah, not 05:30.
 - First full test: cycle 2026111500, dispatched 11:15 UTC on 15 Nov (download 3 min, WPS + real under 1 min). 00Z runs are hidden on the page, so this test does not show there.
-- Model page: two tabs **GFS / ECMWF** under the product list (`#modelTabs`, saved in localStorage `swrf.model`). Switching reloads runs, maps, cities and status from the chosen branches and keeps the same valid time. The 1 km nest is GFS-only.
+- Model page: two tabs **GFS / ECMWF** under the product list (`#modelTabs`, saved in localStorage `swrf.model`). Switching reloads runs, maps and cities from the chosen branches and keeps the same valid time. The 1 km nest is GFS-only. The status tab (الحالة) always shows both runs, GFS then ECMWF, whatever tab is chosen (16 Nov: with ECMWF chosen it showed last night's finished run and looked like tonight had not started).
 - Plan: follow the 22-24 Nov Red Sea cut-off low with both; Fahad will judge which places the rain better (lesson: the GFS-driven run missed the 10 Nov stratiform rain over Jeddah/Makkah).
 
 ## 4. Reports pipeline (`server/climate`)
