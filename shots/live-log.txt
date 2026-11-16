@@ -1,0 +1,516 @@
+webkit ec refl console: Successfully preconnected to https://fonts.gstatic.com/
+webkit ec refl console: Successfully preconnected to https://fonts.googleapis.com/
+webkit ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb","blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/a384cf79-626a-4a80-9eeb","blob:https://fofo4280-cell.github.io/32f351eb-4b21-48e6-a0ee"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit ec rh700 console: Successfully preconnected to https://fonts.gstatic.com/
+webkit ec rh700 console: Successfully preconnected to https://fonts.googleapis.com/
+webkit ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/4ee7567e-9276-4072-b7bf","blob:https://fofo4280-cell.github.io/4ee7567e-9276-4072-b7bf"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+webkit gfs refl console: Successfully preconnected to https://fonts.gstatic.com/
+webkit gfs refl console: Successfully preconnected to https://fonts.googleapis.com/
+webkit gfs refl console: Failed to load resource: the server responded with a status of 404 ()
+webkit gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1","blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+select fail page.selectOption: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('#prodSelect')
+  -   locator resolved to <select id="prodSelect" class="prod-select" aria-label="المنتج">…</select>
+  - attempting select option action
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #1
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #2
+  -   waiting 20ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #3
+  -   waiting 100ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #4
+  -   waiting 100ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #5
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #6
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #7
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #8
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #9
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #10
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #11
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #12
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #13
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #14
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #15
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #16
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #17
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #18
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #19
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #20
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #21
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #22
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #23
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #24
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #25
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #26
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #27
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #28
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #29
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #30
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #31
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #32
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #33
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #34
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #35
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #36
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #37
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #38
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #39
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #40
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #41
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #42
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #43
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #44
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #45
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #46
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #47
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #48
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #49
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #50
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #51
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #52
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #53
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #54
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #55
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #56
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #57
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #58
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #59
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #60
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #61
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #62
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #63
+  -   waiting 500ms
+
+webkit gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1","blob:https://fofo4280-cell.github.io/613849df-90ad-4f10-baf1"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium ec refl start: {"imgs":["blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e","blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium ec refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/60a4ab93-2c82-4ff3-b24e","blob:https://fofo4280-cell.github.io/48601ca0-6258-4e0f-abbf"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium ec rh700 start: {"imgs":["blob:https://fofo4280-cell.github.io/5ec606ab-9bd9-49be-9872","blob:https://fofo4280-cell.github.io/5ec606ab-9bd9-49be-9872"],"opts":["lightning","refl","rain1h","rh700","cape","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+chromium gfs refl console: Failed to load resource: the server responded with a status of 404 ()
+chromium gfs refl start: {"imgs":["blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383","blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
+select fail page.selectOption: Timeout 30000ms exceeded.
+Call log:
+  - waiting for locator('#prodSelect')
+  -   locator resolved to <select id="prodSelect" class="prod-select" aria-label="المنتج">…</select>
+  - attempting select option action
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #1
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #2
+  -   waiting 20ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #3
+  -   waiting 100ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #4
+  -   waiting 100ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #5
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #6
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #7
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #8
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #9
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #10
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #11
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #12
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #13
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #14
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #15
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #16
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #17
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #18
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #19
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #20
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #21
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #22
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #23
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #24
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #25
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #26
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #27
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #28
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #29
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #30
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #31
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #32
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #33
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #34
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #35
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #36
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #37
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #38
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #39
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #40
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #41
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #42
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #43
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #44
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #45
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #46
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #47
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #48
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #49
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #50
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #51
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #52
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #53
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #54
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #55
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #56
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #57
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #58
+  -   waiting 500ms
+  -   waiting for element to be visible and enabled
+  -   did not find some options
+  - retrying select option action, attempt #59
+  -   waiting 500ms
+
+chromium gfs refl after-switch: {"imgs":["blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383","blob:https://fofo4280-cell.github.io/4d197463-0bb8-4a7c-8383"],"opts":["lightning","refl","rain1h","rain24","tsprob","refl_day"],"app":["https://fofo4280-cell.github.io/makkah-weather/model/app.js?v=20261116z1"]}
