@@ -27,4 +27,10 @@ jobs:
           name: tropics-long
           run-id: ${{ inputs.from_run }}
           github-token: ${{ github.token }}
-      - run: python3 code/server/climate/iod_test.py long.json
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: hist-*
+          path: hist
+          run-id: ${{ inputs.hist_run }}
+          github-token: ${{ github.token }}
+      - run: python3 code/server/climate/iod_conv.py long.json hist
