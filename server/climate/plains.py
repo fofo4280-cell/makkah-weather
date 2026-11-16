@@ -249,7 +249,10 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
             "midmoist": rh >= 50,
             "gfs_rain": r >= 0.5,
         }
-        gate = f["moist"] and cape >= EDGE_CAPE and (f["upslope"] or f["south"])
+        # 16 Nov 2026 season test (1 Aug-15 Oct + 1-16 Nov): mid-level moisture and a dew point on the edge cut the
+        # dry-air days (the October harrat at Td 0-5 C, summer days with PW >= 35 mm but RH700 30-45 %)
+        gate = (f["moist"] and cape >= EDGE_CAPE and (f["upslope"] or f["south"])
+                and rh >= EDGE_RH and td >= EDGE_TD)
         row = {"key": key, "name": name, "region": region, "kind": "harra" if z[5] else "edge",
                "pw": round(pw, 1), "pct": pct, "td": round(td, 1), "cape": int(cape), "rh700": int(rh),
                "u_foot": round(u_ft, 1), "v_low": round(v_low, 1), "rain_gfs": round(r, 1), "steer": round(sp, 1),
@@ -263,6 +266,7 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
 
 
 EDGE_CAPE = 250                             # J/kg, 75th percentile on the front edge, 12-18 Makkah
+EDGE_RH, EDGE_TD = 50, 6.0                  # %, C: the gate's mid-level moisture and edge dew point
 EDGE_PCT = 115                              # 16 Nov 2026: 117 % on the west box with cells on Al-Hada
 
 
@@ -334,7 +338,7 @@ def edge_named(row, model_rain=None):
     return (row["gate"] and score >= EDGE_SCORE), score, f
 
 
-EDGE_SCORE = 5
+EDGE_SCORE = 4                              # with the gate (moisture, RH700 >= 50 %) that is 2 of the other 4
 
 
 def short(name):
