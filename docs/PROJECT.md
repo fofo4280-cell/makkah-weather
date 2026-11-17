@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 17 Nov 2026 (morning). Written for Claude, to continue the work without the long history.
+Last updated: 17 Nov 2026 (midday). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -106,6 +106,7 @@ Last updated: 17 Nov 2026 (morning). Written for Claude, to continue the work wi
   - The page named the run's first day (yesterday, the evening analysis) «اليوم» all day. Now every card labels days against today's date in Makkah (`dayLab`, `todayIdx` in `model/app.js`) and opens on today; the MJO box reads today's GFS estimate; phase 2 shows «داعم ضعيف» as in the report.
   - Report: grade and trough depth judged on the printed number (1.8 was «ضعيفة»); the summary names the lesser helps (moisture 110-150 %, Rossby) instead of «عامل واحد»; main rain kind by amount; the region high is called «أعلى مجموع لليوم»; heading names the day; each mechanism paragraph once per report («وآلية ذلك كما في منطقة …»); a dry region no longer says our model shows rain on its edge; regions a failed grid leaves uncovered (`rainreport.uncovered`, < 60 % of their 0.5° points) are said so instead of «لا أمطار تُذكر»; diag treats a jump of 8°+ north as another disturbance.
   - 16 Nov 12Z: the north 3 km grid (`r_n`) crashed at hour 2 (wrf exit 1, no message); re-run of the failed jobs dispatched 17 Nov ~06:40 UTC (run 43901480886 attempt 2).
+- **Kingdom maps on the oscillation page (17 Nov 2026, Fahad):** the «التغير خلال ٢٤ ساعة» tab (wcd) of the warm/cold map card is gone from the page (the run still draws wcd). Under that card, «خريطة المملكة» (`#ksaCard`, `ksaCard()` in `model/app.js`) switches four GFS-only maps (`server/climate/ksa.py`, daily.py step 8a2; GFS 0.25, 12 UTC = 3 PM Makkah of each page day, dark relief style as the wave map): `krh7` RH 700, `krh5` RH 500, `kconv` 10 m wind convergence (smoothed ~40 km) with streamlines, MSLET isobars every 2 hPa and surface lows, `kt5` T 500 (isotherms every 1 °C). A low = smoothed MSLP minimum enclosed by the isobar 1 hPa above (0.5: «منخفض ضعيف»), centre on ground < 1000 m; named over the Red Sea / Gulf / land with the nearest place; `mjo.json` `ksa` {days, lows}. An open (not closed) Red Sea trough is not marked. ~3 min a night.
 - `ourmodel.load`:
   - **3 km grids only** (dx > 5 km skipped).
   - For each grid, takes the newest run that covers ≥90 % of the hours of the best one.
