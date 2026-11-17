@@ -969,7 +969,7 @@
   // with the source named. In lightning mode the radar follows the lightning time; over the model
   // maps it shows the latest picture. A pill turns it on and off (remembered in this browser).
   const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
-  var RV = { on: store.get("rv") !== "0", host: "", frames: [], layers: new Map(), cur: null, timer: null, got: 0 };
+  var RV = { on: false, host: "", frames: [], layers: new Map(), cur: null, timer: null, got: 0 };
   map.createPane("radar"); map.getPane("radar").style.zIndex = 620; map.getPane("radar").style.pointerEvents = "none";
   async function rvLoad() {
     try {
@@ -1031,7 +1031,6 @@
     RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
     if (RV.on && (!RV.frames.length || Date.now() - RV.got > 5 * 60e3)) rvLoad(); else rvSync();
   }
-  $("rvBtn").addEventListener("click", rvToggle);
   rvLoad();
   RV.timer = setInterval(() => { if (RV.on && !document.hidden) rvLoad(); }, 5 * 60e3);
 
@@ -1305,9 +1304,11 @@
 
   // GFS / ECMWF: the same model and grids, driven by either; switching reloads the newest run of the chosen one
   function drawModelTabs() {
-    document.querySelectorAll("#modelTabs button").forEach((b) => b.classList.toggle("active", b.dataset.m === MODEL));
+    const sel = $("modelSelect"); sel.value = MODEL;
+    $("modelTxt").textContent = sel.options[sel.selectedIndex] ? sel.options[sel.selectedIndex].textContent : "";
   }
-  document.querySelectorAll("#modelTabs button").forEach((b) => b.onclick = async () => {
+  $("modelSelect").onchange = async (e) => {
+    const b = { dataset: { m: e.target.value } };   // one pill for the three runs (Fahad 17 Nov 2026)
     if (b.dataset.m === MODEL) return;
     // keep the same valid time (or day) on the map, so the two drivers compare at a glance
     const f0 = S.frames[S.idx], t0 = f0 && f0.h != null && S.man ? Date.parse(S.man.init) + f0.h * 3600e3 : null;
@@ -1326,7 +1327,7 @@
       if (k >= 0) { S.idx = k; showFrame(); }
     }
     if (!$("p-status").hidden) refreshStatus();
-  });
+  };
   drawModelTabs();
 
   // ------------------------------------------------------------------ status
