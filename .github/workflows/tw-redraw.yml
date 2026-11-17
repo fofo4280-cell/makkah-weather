@@ -1,0 +1,56 @@
+# One-off (Fahad, 17 Nov 2026): redraw only the Kelvin/Rossby frames (fig/twr_*, fig/twk_*) with the new shading,
+# from the same GFS cycle as the page's current data, and put them on climate-data. Nothing else changes.
+name: Redraw Kelvin/Rossby frames
+
+on:
+  workflow_dispatch:
+    inputs:
+      cycle: {description: 'GFS cycle of the page data', default: '2026111612'}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate
+  cancel-in-progress: false
+
+jobs:
+  redraw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with: {ref: saudi-wrf, path: code}
+      - run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
+      - uses: actions/cache/restore@v4
+        with: {path: /home/runner/clim, key: clim-r1-1991-2020-v2}
+      - uses: actions/cache/restore@v4
+        with: {path: /home/runner/mjo_state, key: mjo-hist-none, restore-keys: mjo-hist-}
+      - name: Pin the cycle
+        run: |
+          python3 - <<'PY'
+          p = "code/server/climate/daily.py"; s = open(p).read()
+          s = s.replace("def latest_cycle():\n", "def latest_cycle():\n    return '${{ inputs.cycle }}'\n", 1)
+          open(p, "w").write(s)
+          PY
+      - name: Compute into a scratch folder
+        run: |
+          mkdir -p /home/runner/scratch
+          python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/scratch
+      - name: Copy the frames onto climate-data
+        run: |
+          git clone -q --depth 1 --branch climate-data "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}" /home/runner/live
+          python3 - <<'PY'
+          import json
+          a = json.load(open("/home/runner/live/mjo.json")); b = json.load(open("/home/runner/scratch/mjo.json"))
+          print("cycle live", a.get("cycle"), "scratch", b.get("cycle"))
+          print("twf live", a.get("twf"), "\ntwf new", b.get("twf"))
+          assert a.get("cycle") == b.get("cycle") and a.get("twf") == b.get("twf"), "page data moved on; not copying"
+          PY
+          n=$(ls /home/runner/scratch/fig/twr_*.png /home/runner/scratch/fig/twk_*.png | wc -l); echo "frames $n"; test "$n" -ge 20
+          cp /home/runner/scratch/fig/twr_*.png /home/runner/scratch/fig/twk_*.png /home/runner/live/fig/
+          cd /home/runner/live
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -qam "Kelvin/Rossby frames redrawn with the shading"
+          git push -q origin HEAD:climate-data
+      - uses: actions/upload-artifact@v4
+        with: {name: frames, path: /home/runner/scratch/fig/tw*_1*.png}
