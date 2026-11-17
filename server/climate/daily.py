@@ -643,6 +643,17 @@ def main():
         traceback.print_exc()
         print("kingdom maps failed:", repr(e), flush=True)
 
+    # 8a3. where the afternoon winds collide around Taif (Fahad, 17 Nov 2026): the Al-Hada / Ash-Shafa edge or east and
+    #      north-east of Taif; 7 days before today, today and 7 after, timeline + one map per day (taifconv.py)
+    taifc_out = None
+    try:
+        import taifconv
+        taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("taif collision failed:", repr(e), flush=True)
+
     # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
     wave_rows = []
     for k, dt in enumerate(days[:WAVE_DAYS + 1]):
@@ -790,7 +801,7 @@ def main():
         "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5")}},
-        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}
