@@ -605,6 +605,7 @@
     $("timeRange").value = S.idx;
     $("timeLabel").textContent = frameLabel(S.frames[S.idx]);
     for (let k = 1; k <= 4; k++) preload(S.idx + k);
+    rvSync();
     if (S.pointPopup && S.pointPopup.isOpen()) S.pointPopup.setContent(pointHTML(S.pointPopup._pt));
   }
 
@@ -920,7 +921,6 @@
     stop(); clearOverlay();
     S.rects.forEach((r) => map.removeLayer(r)); S.rects = [];
     $("domChips").hidden = true; $("mapEmpty").hidden = true;
-    $("ybRadar").hidden = false;   // the Yanbu rain radar opens on its own site (it cannot be shown inside our map: framing blocked, signed links)
     if (!LX.layer) LX.layer = new BoltLayer();
     LX.layer.addTo(map);
     if (!LX.raw) liCacheLoad();
@@ -934,7 +934,7 @@
     clearInterval(LX.timer); LX.timer = null;
     stop();
     if (LX.layer) map.removeLayer(LX.layer);
-    $("domChips").hidden = false; $("ybRadar").hidden = true;
+    $("domChips").hidden = false;
     $("mapEmpty").hidden = !!(S.man && Object.keys(S.man.domains).length);
   }
 
@@ -946,6 +946,7 @@
     $("timeLabel").textContent = f ? `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`
       : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
     if (LX.layer) LX.layer.redraw();
+    rvSync();
     const n = $("liCount"); if (n) n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
   }
 
@@ -956,6 +957,77 @@
     $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
       <div class="bolt-key">${keys}</div>`;
   }
+
+  // ------------------------------------------------------------------ live rain radar
+  // Saudi weather radars (National Center for Meteorology) through the free RainViewer service:
+  // the last two hours every 10 minutes, tiles up to zoom 7 (enlarged beyond). Free for personal use,
+  // with the source named. In lightning mode the radar follows the lightning time; over the model
+  // maps it shows the latest picture. A pill turns it on and off (remembered in this browser).
+  const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
+  var RV = { on: store.get("rv") !== "0", host: "", frames: [], layers: new Map(), cur: null, timer: null, got: 0 };
+  map.createPane("radar"); map.getPane("radar").style.zIndex = 620; map.getPane("radar").style.pointerEvents = "none";
+  async function rvLoad() {
+    try {
+      const r = await fetch(RV_API, { cache: "no-store" });
+      if (!r.ok) throw new Error(r.status);
+      const j = await r.json();
+      RV.host = j.host || "https://tilecache.rainviewer.com";
+      RV.frames = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path }));
+      RV.got = Date.now();
+      for (const [k, l] of RV.layers) if (!RV.frames.some((f) => f.path === k)) { map.removeLayer(l); RV.layers.delete(k); }
+    } catch (e) { /* offline or service down: keep what we have */ }
+    rvSync();
+  }
+  function rvLayer(f) {
+    let l = RV.layers.get(f.path);
+    if (!l) {
+      l = L.tileLayer(`${RV.host}${f.path}/256/{z}/{x}/{y}/2/1_0.png`, {
+        pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 19, tileSize: 256,
+        attribution: '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>',
+      });
+      RV.layers.set(f.path, l);
+    }
+    if (!map.hasLayer(l)) l.addTo(map);
+    return l;
+  }
+  function rvPick() {
+    if (!RV.frames.length) return null;
+    if (LX.on && S.frames[S.idx]) {   // the radar picture closest before the lightning time
+      const t = S.frames[S.idx].t; let best = RV.frames[0];
+      for (const f of RV.frames) if (f.t <= t + 5 * 60e3) best = f;
+      return best;
+    }
+    return RV.frames[RV.frames.length - 1];
+  }
+  function rvSync() {
+    if (!RV) return;
+    const btn = $("rvBtn");
+    if (!RV.on) {
+      for (const l of RV.layers.values()) map.removeLayer(l);
+      RV.layers.clear(); RV.cur = null;
+      if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-pressed", "false"); btn.textContent = "الرادار"; }
+      return;
+    }
+    if (btn) { btn.classList.add("active"); btn.setAttribute("aria-pressed", "true"); }
+    const f = rvPick();
+    if (!f) { if (btn) btn.textContent = "الرادار…"; return; }
+    if (btn) btn.textContent = `الرادار ${fmtClock.format(f.t)}`;
+    if (RV.cur === f.path) return;
+    const l = rvLayer(f), old = RV.cur && RV.layers.get(RV.cur);
+    RV.cur = f.path;
+    const show = () => { l.setOpacity(0.85); if (old && old !== l) old.setOpacity(0); };
+    if (!l.isLoading()) show(); else { l.once("load", show); setTimeout(show, 1500); }
+    // keep the neighbours ready so sliding through time does not flash
+    const i = RV.frames.indexOf(f);
+    for (const k of [i - 1, i + 1]) if (RV.frames[k] && LX.on) rvLayer(RV.frames[k]);
+  }
+  function rvToggle() {
+    RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
+    if (RV.on && (!RV.frames.length || Date.now() - RV.got > 5 * 60e3)) rvLoad(); else rvSync();
+  }
+  $("rvBtn").addEventListener("click", rvToggle);
+  rvLoad();
+  RV.timer = setInterval(() => { if (RV.on && !document.hidden) rvLoad(); }, 5 * 60e3);
 
   // ------------------------------------------------------------------ time controls
   function stop() { if (S.playing) { clearInterval(S.playing); S.playing = null; $("btnPlay").textContent = "▶"; } }

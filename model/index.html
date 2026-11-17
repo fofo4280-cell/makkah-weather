@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261117yb2">
+<link rel="stylesheet" href="style.css?v=20261117rv">
 </head>
 <body>
 <div class="app">
@@ -35,7 +35,7 @@
         <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
         <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
         <label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label>
-        <a class="mpill yb-link" id="ybRadar" href="https://www.yanbuweather.com/pages/RainRadar/" target="_blank" rel="noopener noreferrer" hidden>رادار المطر المباشر ↗</a>
+        <button class="mpill rv-btn" id="rvBtn" type="button" aria-pressed="false" title="رادارات المركز الوطني للأرصاد، كل ١٠ دقائق">الرادار</button>
         <div class="model-tabs" id="modelTabs" role="tablist" aria-label="النموذج المغذي"><button data-m="gfs" dir="ltr">GFS</button><button data-m="ec" dir="ltr">ECMWF</button></div>
       </div>
       <div class="map-empty" id="mapEmpty" hidden>
@@ -210,6 +210,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261117yb2"></script>
+<script src="app.js?v=20261117rv"></script>
 </body>
 </html>
