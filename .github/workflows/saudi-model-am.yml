@@ -1,0 +1,94 @@
+# Morning run (Fahad, 17 Nov 2026: the one daytime exception to the 15 Nov "no daytime" rule).
+#   GFS 00 UTC, 18 hours (3 AM to 9 PM Makkah), one 3 km grid over Makkah and its surroundings only
+#   (Taif, the Al-Hada/Ash-Shafa edge, south to Yalamlam/Al-Lith, Makkah, Al-Jumum, Jeddah, Usfan, Khulais,
+#   Harrat Rahat): server/domains_am.json -> model-data-am. GFS 00Z hour 18 is on AWS about 03:35 UTC, the run
+#   takes about an hour, so it is ready about 8 AM Makkah, well before noon.
+#   Not read by the reports (Fahad: do not add it to the report). The alert job writes alert.json (afternoon rain
+#   over the edges, harrat, Makkah, Al-Jumum, Jeddah...) on model-data-am; Claude posts it to Fahad every morning.
+name: Saudi model morning
+
+on:
+  schedule:
+    # GitHub may start a schedule late or skip it: three tries, a try finds the cycle run (or running) and leaves;
+    # the keeper also starts it from 03:40 UTC if it is missing
+    - cron: '9 3 * * *'
+    - cron: '37 3 * * *'
+    - cron: '3 4 * * *'
+  workflow_dispatch:
+    inputs:
+      cycle:
+        description: 'GFS cycle YYYYMMDD00 (empty: today 00 UTC)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saudi-model-am
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 200
+    outputs:
+      go: ${{ steps.done.outputs.go }}
+      cycle: ${{ steps.done.outputs.cycle }}
+    steps:
+      - name: Already run?
+        id: done
+        run: |
+          C="${{ inputs.cycle }}"; [ -n "$C" ] || C="$(date -u +%Y%m%d)00"
+          echo "cycle=$C" >> "$GITHUB_OUTPUT"
+          go=yes
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            s=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/model-data-am/runs.json?$(date +%s)" \
+              | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$C']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo none)
+            echo "cycle $C on the page: $s"
+            [ "$s" != none ] && go=no
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+      - name: Wait for GFS hour 18
+        if: steps.done.outputs.go == 'yes'
+        run: |
+          C=${{ steps.done.outputs.cycle }}
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.${C:0:8}/00/atmos/gfs.t00z.pgrb2.0p25.f018.idx"
+          for i in $(seq 1 190); do
+            if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $C hour 18 ready"; exit 0; fi
+            sleep 60
+          done
+          echo "still waiting after 190 minutes"; exit 1
+
+  am:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: am
+      domains: domains_am.json
+      branch: model-data-am
+      cycle: ${{ needs.gate.outputs.cycle }}
+
+  alert:
+    needs: [gate, am]
+    if: always() && needs.gate.outputs.go == 'yes'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - name: Afternoon rain alert
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          pip install -q numpy pyproj
+          git clone -q --depth 1 --branch model-data-am "https://github.com/${GITHUB_REPOSITORY}" data
+          python3 code/server/post/am_alert.py data ${{ needs.gate.outputs.cycle }}
+          cat data/alert.json
+          cd data
+          git -c user.name="model bot" -c user.email="actions@users.noreply.github.com" add alert.json
+          git -c user.name="model bot" -c user.email="actions@users.noreply.github.com" commit -q -m "alert ${{ needs.gate.outputs.cycle }}" || exit 0
+          for i in 1 2 3; do git push -q "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" HEAD:model-data-am && break; sleep 10; git pull -q --rebase origin model-data-am; done
