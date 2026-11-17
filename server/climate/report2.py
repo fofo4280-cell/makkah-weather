@@ -322,6 +322,10 @@ def makkah_section(st, rs, regs):
         if r and P.named(r, r.get("model_mtn"))[0]:
             t += "، ومنها قد ينزل المطر بين المغرب والعشاء إلى الشرائع وشرق مكة"
         B.append({"p": t + "، دون إشارة واسعة داخل المدن." if not mk and not pending(rs) else t + "."})
+        mr_ = [(eds[k].get("model_rain") or 0, nm_) for k, nm_ in zones if k in named]
+        if mr_ and max(mr_)[0] >= 5:      # our run's heaviest zone, so the verdict and the model read together
+            top_ = max(mr_)
+            B.append({"p": f"ويضع نموذجنا أغزر المطر على {top_[1]} (نحو {ar(round(top_[0]))} ملم بعد الظهر)."})
     else:
         B.append({"p": "لا تجتمع مكونات الحمل الحراري على حواف مكة ولا حراتها اليوم."})
     if tz and tz["shifted"]:
@@ -744,7 +748,7 @@ def s9(st, secs, rs, regs, day0):
                  "تهيؤ الظروف الجوية لا يعني بالضرورة ظهور أمطار في مخرجات النموذج.",
                  "تزداد موثوقية التفاصيل المكانية كلما اقترب موعد الحالة ودخلت نطاق التنبؤات عالية الدقة.",
                  "تُراجع التوقعات يوميًا وفق آخر مخرجات الشبكات العددية."]},
-         {"note": "المصدر: نموذج Fahad AlEissa وحده. جميع الأوقات بتوقيت مكة المكرمة."},
+         {"note": "المصدر: نموذجنا وحده. جميع الأوقات بتوقيت مكة المكرمة."},
          {"note": "إعداد وتطوير: Fahad AlEissa"}]
     return sec("٩. منهجية النموذج", "method", B)
 

@@ -144,7 +144,11 @@ def mk_hour(iso):
 
 def hour_words(h):
     from sa_geo import ar
-    return "الظهر" if h == 12 else f"{ar(h if h <= 12 else h - 12)} {'ص' if h < 12 else 'م'}"
+    # 18 Nov 2026: "أشدها نحو ٥ م" read as five metres; the hour now carries its part of the day
+    if h == 12:
+        return "الظهر"
+    part = "صباحًا" if h < 12 else "ظهرًا" if h < 15 else "عصرًا" if h < 18 else "مساءً"
+    return f"{ar(h if h <= 12 else h - 12)} {part}"
 
 
 def zone_text(z):
