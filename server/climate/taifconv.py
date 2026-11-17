@@ -22,8 +22,8 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-BOX = (19.0, 24.5, 37.5, 43.5)            # south, north, west, east of the data cut
-MAP = (39.0, 41.8, 20.4, 23.2)            # west, east, south, north of the map
+BOX = (19.0, 24.5, 36.5, 43.5)            # south, north, west, east of the data cut
+MAP = (37.8, 41.8, 20.2, 23.3)            # west, east, south, north of the map (Red Sea and Jeddah in, Fahad 17 Nov 2026)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
 AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
@@ -36,7 +36,7 @@ CAPE_SCALE = {"vmin": 0, "vmax": 2500, "cols": [(0, "#00000000"), (.04, "#000000
                                                 (.4, "#a9cf6a"), (.6, "#e9cf55"), (.8, "#e58a4c"), (1, "#c2445a")],
               "label": "طاقة عدم الاستقرار عند ٣ عصرًا (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
-PLACES = [("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
+PLACES = [("جدة", 21.54, 39.17), ("رابغ", 22.80, 39.03), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
           ("السيل", 21.6, 40.43), ("حرة رهاط", 22.8, 40.1), ("الجموم", 21.62, 39.70)]
 AR = str.maketrans("0123456789.-", "٠١٢٣٤٥٦٧٨٩٫−")
 MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
@@ -159,7 +159,7 @@ def run(gfs_fields, cycle, out_fig):
         traceback.print_exc()
         print("taif collision timeline failed", repr(e)[:160], flush=True)
     print("taif collision:", [(r["d"][5:], r.get("where"), r.get("u850")) for r in rows], flush=True)
-    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST,
+    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST, "extent": list(MAP),
             "cape_legend": {"label": CAPE_SCALE["label"], "unit": CAPE_SCALE["unit"], "vmin": CAPE_SCALE["vmin"],
                             "vmax": CAPE_SCALE["vmax"], "ticks": CAPE_SCALE["ticks"],
                             "stops": [{"p": p, "c": c[:7]} for p, c in CAPE_SCALE["cols"][2:]]}}
@@ -226,7 +226,7 @@ def draw_map(path, f, width_px=1000, kind="conv"):
         if not (w < x < e and s < y < n):
             continue
         ax.plot(x, y, "o", ms=4.5, color="#ffffff", mec=BG, mew=1, zorder=5)
-        left = name in ("الهدا", "الشفا", "مكة", "الجموم")
+        left = name in ("الهدا", "الشفا", "مكة", "الجموم", "جدة", "رابغ")
         ax.text(x + (-0.05 if left else 0.05), y + 0.03, name, ha="right" if left else "left", va="bottom", fontsize=10,
                 color=INK, family=fam, fontweight="bold", path_effects=halo, zorder=6)
     ax.set_xlim(w, e)
@@ -246,7 +246,7 @@ def conv_axes(cv, lat, lon, land, thr=AXIS_MIN, min_len=0.6):
     chains, open_ = [], []
     for j in range(cv.shape[0]):
         row = cv[j]
-        ok = (row >= thr) & land[j]
+        ok = row >= thr          # over the sea too: a collision line off Jeddah matters (Fahad 17 Nov 2026)
         ok[1:-1] &= (row[1:-1] >= row[:-2]) & (row[1:-1] >= row[2:])
         ok[0] = ok[-1] = False
         pts = [float(lon[i]) for i in np.where(ok)[0]]

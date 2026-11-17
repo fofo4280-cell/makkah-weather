@@ -20,7 +20,7 @@ FIELDS = [("rh7", r":RH:700 mb:"), ("rh5", r":RH:500 mb:"), ("t5", r":TMP:500 mb
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 BOX = (8.0, 38.0, 28.0, 62.0)            # south, north, west, east of the data (margin around the map)
 EXTENT = (33.0, 57.5, 14.0, 33.5)        # west, east, south, north of the map
-KINDS = ("krh7", "krh5", "kconv", "kt5")
+KINDS = ("krh7", "krh5", "kt5")            # kconv dropped 17 Nov 2026 (Fahad): convergence has its own card (taifconv)
 SMOOTH = 1.5                             # convergence smoothing, grid lengths (about 40 km, as collide.py)
 
 SCALES = {
