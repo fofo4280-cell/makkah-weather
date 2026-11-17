@@ -60,9 +60,56 @@ jobs:
           done
           echo "still waiting after 190 minutes"; exit 1
 
-  am:
+  # the grids are cut-outs of the western run's grids: their geography is cut from its cached geo_em files
+  # (no download; 17 Nov 2026 the UCAR geography server refused the runners) and cached under this design's id,
+  # where the model job's own "Restore static grid" step finds it
+  static:
     needs: gate
     if: needs.gate.outputs.go == 'yes'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+      - name: Grid design ids
+        id: ids
+        run: |
+          echo "am=$(SWRF_DOMAINS=domains_am.json python3 code/server/render_namelists.py geohash)" >> "$GITHUB_OUTPUT"
+          echo "west=$(SWRF_DOMAINS=domains_west.json python3 code/server/render_namelists.py geohash)" >> "$GITHUB_OUTPUT"
+      - name: Morning grid already cut?
+        id: have
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/swrf/work/static
+          key: geo-${{ steps.ids.outputs.am }}
+          lookup-only: true
+      - name: Western grid
+        if: steps.have.outputs.cache-hit != 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/swrf/work/static
+          key: geo-${{ steps.ids.outputs.west }}
+          fail-on-cache-miss: true
+      - name: Cut the morning grids out of it
+        if: steps.have.outputs.cache-hit != 'true'
+        run: |
+          pip install -q numpy netCDF4 pyproj
+          mv /home/runner/swrf/work/static /home/runner/west_static
+          python3 code/server/ci/crop_geo.py /home/runner/west_static /home/runner/swrf/work/static
+          echo "${{ steps.ids.outputs.am }}" > /home/runner/swrf/work/static/geohash
+          ls -la /home/runner/swrf/work/static
+      - name: Keep it
+        if: steps.have.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/swrf/work/static
+          key: geo-${{ steps.ids.outputs.am }}
+
+  am:
+    needs: [gate, static]
+    if: needs.gate.outputs.go == 'yes' && needs.static.result == 'success'
     uses: ./.github/workflows/wrf-job.yml
     with:
       name: am
@@ -71,7 +118,7 @@ jobs:
       cycle: ${{ needs.gate.outputs.cycle }}
 
   alert:
-    needs: [gate, am]
+    needs: [gate, static, am]
     if: always() && needs.gate.outputs.go == 'yes'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
