@@ -286,6 +286,11 @@ def arrows(u, v, lat, lon, every=6, south=-40, north=40, scale=1.0, vmin=0.8):
     return out
 
 
+def ksa_legend(k):
+    import ksa
+    return ksa.legend(k)
+
+
 # ------------------------------------------------------------------ main
 def main():
     clim_dir, state, out = sys.argv[1:4]
@@ -606,6 +611,31 @@ def main():
         except Exception as e:
             print("figure failed pw", k, e, flush=True)
 
+    # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
+    #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
+    ksa_out = {"days": [], "lows": []}
+    try:
+        import ksa
+        stat = None
+        for k, dt in enumerate(days):
+            try:
+                f_ = ksa.fields(gfs_fields, cycle, int((dt - t0).total_seconds() // 3600), stat)
+                if stat is None:
+                    stat = {"hgt": f_["hgt"], "land": f_["land"]}
+                lw_ = ksa.lows(f_)
+                for kd in ksa.KINDS:
+                    ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_)
+            except Exception as e:  # noqa: BLE001
+                print("kingdom maps failed", k, repr(e)[:160], flush=True)
+                lw_ = None
+            ksa_out["days"].append(dt.strftime("%Y-%m-%d"))
+            ksa_out["lows"].append(lw_)
+        print("kingdom surface lows:", [[(x["where"], x["p"]) for x in l] if l else l for l in ksa_out["lows"]], flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("kingdom maps failed:", repr(e), flush=True)
+
     # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
     wave_rows = []
     for k, dt in enumerate(days[:WAVE_DAYS + 1]):
@@ -750,9 +780,10 @@ def main():
                     "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
                     "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "figs": {k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr", "twk")
-                 if k in figures.SCALES},
-        "marks": belt_marks, "tw": tw, "twf": twf, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
+                                                   "twk") if k in figures.SCALES},
+                 **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5")}},
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}
