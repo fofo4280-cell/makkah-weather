@@ -1493,6 +1493,43 @@
     kconv: "الألوان مواضع تصادم الرياح السطحية (تقارب الرياح عند ١٠ أمتار بعد تنعيم نحو ٤٠ كم)، وفيها يُدفع الهواء إلى الصعود. الخطوط البيضاء اتجاه الرياح، والخطوط الداكنة الضغط عند سطح البحر كل هكتوباسكالين. «منخفض» تحيط به خطوط ضغط مغلقة، و«منخفض ضعيف» أقل من ذلك. لا يُعلَّم منخفض فوق أرض أعلى من ١٠٠٠ متر، لأن الضغط هناك محسوب لا مقاس. الخط الأزرق المتقطع أخدود البحر الأحمر: لسان الضغط المنخفض الممتد من السودان وجنوب البحر شمالًا، يحمل الرطوبة الجنوبية نحو جدة ومكة، والمثلث آخر امتداده. يُحكم عليه بمتوسط ضغط الثالثة عصرًا والثالثة فجرًا، لأن حرارة العصر تخفض الضغط فوق اليابسة فتخفيه.",
     kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، وعليها القيمة كل درجتين.",
   };
+  // zoom buttons, and the coordinates of a tapped point (Fahad, 17 Nov 2026). The map is a plain latitude-longitude
+  // picture of the extent [west, east, south, north], edge to edge, so a point's place in the picture gives its position.
+  const AR_DIG = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
+  function ksaZoomSetup(ext) {
+    if (ksaZoomSetup.done) { ksaZoomSetup.ext = ext; return; }
+    ksaZoomSetup.done = true; ksaZoomSetup.ext = ext;
+    const LV = [1, 1.5, 2, 3];
+    let z = 0, pt = null;
+    const sc = $("ksaScroll"), inner = $("ksaInner"), img = $("ksaFig");
+    const zoom = (d) => {
+      const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
+      const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+      // the box keeps the map's height at zoom 1, so a zoomed map scrolls both ways inside it
+      if (z === 0) sc.style.height = sc.clientHeight + "px";
+      z = nz; inner.style.width = LV[z] * 100 + "%";
+      if (z === 0) sc.style.height = "";
+      // keep the tapped point (or the middle) in view
+      const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
+      sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+      $("ksaIn").disabled = z === LV.length - 1; $("ksaOut").disabled = z === 0;
+    };
+    $("ksaIn").onclick = () => zoom(1); $("ksaOut").onclick = () => zoom(-1);
+    img.addEventListener("click", (ev) => {
+      const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+      pt = [fx, fy];
+      const [w, e, s, n] = ksaZoomSetup.ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
+      const pin = $("ksaPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+      const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      const box = $("ksaCoord"); box.hidden = false;
+      box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
+      box.querySelector("button").onclick = async (e2) => {
+        try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+        setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+      };
+    });
+  }
   function ksaCard() {
     const st = M.st, K = st.ksa;
     $("ksaCard").hidden = !(K && K.days && K.days.length);
@@ -1501,11 +1538,11 @@
     const show = () => {
       const k = +$("ksaDay").value || 0, kk = String(k).padStart(2, "0");
       const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
-      $("ksaFig").src = url; $("ksaLink").href = url;
+      $("ksaFig").src = url;
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
-      $("ksaHint").textContent = KSA_HINT[lay] + " المس الخريطة لفتحها بحجم كامل.";
+      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته.";
       const box = $("ksaLow");
       box.hidden = lay !== "kconv";
       if (lay === "kconv") {
@@ -1521,6 +1558,7 @@
       document.querySelectorAll("#ksaLayer button").forEach((x) => x.classList.toggle("on", x === b));
       lay = M.ksaLayer = b.dataset.l; show();
     });
+    ksaZoomSetup(K.extent || [33, 57.5, 14, 33.5]);
     $("ksaDay").max = Math.max(0, K.days.length - 1);
     if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
     $("ksaDay").oninput = show;

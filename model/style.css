@@ -343,3 +343,16 @@ a { color: var(--sea); }
 .report table.rgen th, .report table.rgen td { padding: 5px 6px; border-bottom: 1px solid rgba(127,127,127,.25); text-align: start; white-space: nowrap; vertical-align: top; }
 .report table.rgen thead th { color: var(--muted); background: var(--surface-2); font-weight: 700; }
 .report table.rgen tbody th { color: #fff; font-weight: 700; border-inline-end: 1px solid rgba(127,127,127,.2); position: sticky; inset-inline-start: 0; background: var(--surface, #161616); }
+
+/* the Kingdom map: zoom buttons and the tapped point's coordinates (17 Nov 2026) */
+.ksa-map { position: relative; }
+.ksa-scroll { overflow: auto; border-radius: 12px; border: 1px solid var(--line); background: #0c1118; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+.ksa-inner { position: relative; width: 100%; }
+.ksa-inner img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: crosshair; }
+.ksa-pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #4a86f5; border: 2.5px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.55); pointer-events: none; }
+.ksa-zoom { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ksa-zoom button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(17,17,17,.82); color: #fff; font: 600 1.4rem/1 inherit; display: flex; align-items: center; justify-content: center; }
+.ksa-zoom button:disabled { opacity: .35; }
+.ksa-coord { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .88rem; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.ksa-coord b { color: #fff; }
+.ksa-coord button { flex: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: .8rem; }
