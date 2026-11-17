@@ -1617,8 +1617,10 @@
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
       $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته.";
       const box = $("ksaLow");
-      box.hidden = lay !== "kconv";
-      if (lay === "kconv") {
+      // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
+      // surface lows stay under every layer
+      box.hidden = false;
+      {
         const L = K.lows[k], R = (K.rst || [])[k];
         const rs = R == null ? "" : R ? `<div><b>أخدود البحر الأحمر</b> يمتد شمالًا حتى ${R.reach}.</div>`
           : `<div>لا يمتد أخدود البحر الأحمر شمالًا في هذا اليوم.</div>`;
@@ -1643,9 +1645,61 @@
   const TC_WHERE = { edge: "التصادم على حافة الهدا والشفا", east: "التصادم شرق الطائف وشماله الشرقي (السيل والهضبة)", weak: "التصادم ضعيف حول الطائف" };
   const TC_HINT = {
     line: "الأزرق حافة الهدا والشفا والبرتقالي شرق الطائف والسيل. الخط المتقطع هو اليوم، وما بعده توقع. حين تكون الرياح فوق الهضبة شرقية بأكثر من ٢ م/ث يقف هواء البحر عند الحافة فيكون التصادم والمطر على الهدا والشفا، وحين تضعف أو تصير جنوبية أو غربية يصعد هواء البحر فوق الحافة وينتقل التصادم شرق الطائف والسيل ورهاط.",
-    cape: "طاقة عدم الاستقرار السطحية عند ٣ عصرًا من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين.",
-    day: "البرتقالي والأحمر تصادم الرياح السطحية ظهرًا وعصرًا، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي.",
+    cape: "طاقة عدم الاستقرار السطحية عند ٣ عصرًا من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
+    day: "البرتقالي والأحمر تصادم الرياح السطحية ظهرًا وعصرًا، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته وأقرب مكان له.",
   };
+
+  // zoom and tap on the Taif collision maps (Fahad, 17 Nov 2026): as the Kingdom map, and the tap also names the
+  // nearest known place (tc_places.json: towns and known sites of the map box from the OSM gazetteer, then villages)
+  const DIR8 = ["شمال", "شمال شرق", "شرق", "جنوب شرق", "جنوب", "جنوب غرب", "غرب", "شمال غرب"];
+  function tcWhere(lat, lon) {
+    const P = tcZoomSetup.places; if (!P || !P.length) return "";
+    const km = (p) => { const dy = (p[1] - lat) * 111.2, dx = (p[2] - lon) * 111.2 * Math.cos(lat * Math.PI / 180); return Math.hypot(dx, dy); };
+    let best = null, bd = 1e9, near = null, nd = 1e9;
+    P.forEach((p) => { const d = km(p); if (p[3] && d < bd) { bd = d; best = p; } if (d < nd) { nd = d; near = p; } });
+    if (near && nd <= 3 && (!best || bd > 3)) return `قرب ${near[0]}`;
+    if (!best) return "";
+    if (bd <= 3) return `في ${best[0]} أو قربها`;
+    const ang = Math.atan2((lon - best[2]) * Math.cos(lat * Math.PI / 180), lat - best[1]) * 180 / Math.PI;
+    const dir = DIR8[Math.round(((ang + 360) % 360) / 45) % 8];
+    return `${num(Math.round(bd))} كم ${dir} ${best[0]}` + (near && near !== best && nd < bd / 2 && nd <= 8 ? `، قرب ${near[0]}` : "");
+  }
+  function tcZoomSetup(ext) {
+    tcZoomSetup.ext = ext;
+    if (tcZoomSetup.done) return;
+    tcZoomSetup.done = true;
+    getJSON("tc_places.json").then((p) => { tcZoomSetup.places = p; }).catch(() => {});
+    const LV = [1, 1.5, 2, 3];
+    let z = 0, pt = null;
+    const sc = $("tcScroll"), inner = $("tcInner"), img = $("tcFig");
+    const zoom = (d) => {
+      const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
+      const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+      if (z === 0) sc.style.height = sc.clientHeight + "px";
+      z = nz; inner.style.width = LV[z] * 100 + "%";
+      if (z === 0) sc.style.height = "";
+      const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
+      sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+      $("tcIn").disabled = z === LV.length - 1; $("tcOut").disabled = z === 0;
+    };
+    tcZoomSetup.reset = () => { while (z > 0) zoom(-1); };
+    $("tcIn").onclick = () => zoom(1); $("tcOut").onclick = () => zoom(-1);
+    img.addEventListener("click", (ev) => {
+      if (tcZoomSetup.off) return;
+      const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+      pt = [fx, fy];
+      const [w, e, s, n] = tcZoomSetup.ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
+      const pin = $("tcPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+      const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, where = tcWhere(lat, lon);
+      const box = $("tcCoord"); box.hidden = false;
+      box.innerHTML = `<span>${where ? `<b>${where}</b><br>` : ""}خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
+      box.querySelector("button").onclick = async (e2) => {
+        try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+        setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+      };
+    });
+  }
   function tcCard() {
     const st = M.st, T = st.taifc;
     $("tcCard").hidden = !(T && T.rows && T.rows.length);
@@ -1656,6 +1710,8 @@
       const name = lay === "line" ? "tconv_line" : lay === "cape" ? `tcape_${kk}` : `tconv_${kk}`;
       $("tcFig").src = `${CL}fig/${name}.png?v=${encodeURIComponent(st.updated)}`;
       $("tcTime").hidden = lay === "line";
+      tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
+      if (lay === "line") { if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true; }
       $("tcLegend").hidden = !(lay === "cape" && T.cape_legend);
       if (lay === "cape" && T.cape_legend) $("tcLegend").innerHTML = legendHTML(T.cape_legend);
       $("tcHint").textContent = TC_HINT[lay];
@@ -1673,6 +1729,7 @@
       document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x === b));
       lay = M.tcLayer = b.dataset.l; show();
     });
+    tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
     $("tcDay").oninput = show;
