@@ -308,6 +308,12 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     # the 9 km grid is the Kingdom run's alone (the 9 km parents of the 3 km runs are not used)
     doms = [d for d in doms if d["dx"] < 9000 or d["name"] == "السعودية"]
     cells = O.composite(doms)
+    if isinstance(st, dict):        # one reading of the Makkah day (makkah_story, 18 Nov 2026)
+        try:
+            import makkah_story
+            st["mstory"] = makkah_story.track(doms, t_a)
+        except Exception as e:  # noqa: BLE001
+            log("rain report: Makkah track failed", repr(e)[:160])
     head = (("تحديث الظهر: " if issue == "noon" else "") + f"الأمطار على المملكة من {ar(local(t_a).day)} {G.AR_MONTHS[local(t_a).month - 1]} الساعة {clock(t_a)}"
             f" إلى {ar(local(t_b).day)} {G.AR_MONTHS[local(t_b).month - 1]} الساعة {clock(t_b)}")
     if local(t_a).hour == 0 and t_b - t_a == timedelta(hours=24):   # one whole Makkah day: name the day itself

@@ -189,6 +189,13 @@ def makkah_section(st, rs, regs):
     B.append({"p": "تُدرس هذه المنطقة كل ليلة حافةً حافة: هل تجتمع على الحافة مكونات الحمل الحراري بعد الظهر، "
                    "وهل يدعمها الجو العلوي، وهل ينزل هواء السحب البارد مساءً إلى سهل مكة."})
     mk = next((r for r in regs if r["name"] == "مكة المكرمة"), None)
+    # one reading of the day first; every Makkah sentence below follows it (Fahad 18 Nov 2026)
+    import makkah_story as MS
+    RD = MS.read(st, pending(rs))
+    para = MS.story(RD)
+    if para:
+        B.append({"h": "قراءة الحالة اليوم"})
+        B.append({"p": " ".join(para)})
 
     def model_words(keys, label):
         if pending(rs):
@@ -299,9 +306,20 @@ def makkah_section(st, rs, regs):
                "الرياح على السهل تهب نحو الجبال" + (f" {YES}" if f["inflow"] else f" {NO}")]
         B.append({"p": "مكونات المطر المسائي على السهل (نزول هواء السحب البارد من الحافة):"})
         B.append({"ul": ing})
-        if ok:
-            B.append({"p": f"الحكم: خلايا جديدة واردة بين المغرب والعشاء على الشرائع والجعرانة وشرق مكة، وقد تصل إلى "
-                           f"الجموم ووادي فاطمة، مع جريان محتمل في الأودية؛ والثقة {P.confidence(score)}."})
+        cty = RD.get("city") or {}
+        away = all(cty.get(k) == "unlikely" for k in ("makkah", "jumum"))
+        if ok and away:
+            sv = RD.get("steer")
+            ev = (RD.get("evening") or {}).get("places") or []
+            t = "الحكم: مكونات المطر المسائي على السهل متوفرة"
+            t += (f"، لكن الخلايا تتحرك نحو {sv['to']} مبتعدة عن مكة والجموم" if sv else "")
+            t += (f"، فتمر خلايا المساء على {MS.jl(ev[:3])}" if ev else "")
+            t += ("، وقد يصل طرفها إلى الشرائع" if cty.get("sharai") in ("light", "rain", "possible") else "")
+            B.append({"p": t + "؛ والثقة في مطر مكة والجموم منخفضة."})
+        elif ok:
+            reach = "، وقد تصل إلى الجموم ووادي فاطمة" if cty.get("jumum") != "unlikely" else ""
+            B.append({"p": f"الحكم: خلايا جديدة واردة بين المغرب والعشاء على الشرائع والجعرانة وشرق مكة{reach}، "
+                           f"مع جريان محتمل في الأودية؛ والثقة {P.confidence(score)}."})
         elif any(eds.get(k) and eds[k].get("plain") and named.get(k) and eds[k]["plain"]["cape"] >= P.OUT_CAPE
                  and eds[k]["steer"] < P.OUT_STEER for k in ("hada", "shafa")):
             B.append({"p": "الحكم: إن نشأت الخلايا على حافة الهدا أو الشفا فقد ينحدر هواؤها البارد نحو الشرائع وشرق مكة "
@@ -319,13 +337,17 @@ def makkah_section(st, rs, regs):
     if named:
         names = [nm for k, nm in zones if k in named]
         t = f"الحمل الحراري مرجح بعد الظهر على {jl(names)}"
-        if r and P.named(r, r.get("model_mtn"))[0]:
+        cty = RD.get("city") or {}
+        if r and P.named(r, r.get("model_mtn"))[0] and not all(cty.get(k) == "unlikely" for k in ("makkah", "jumum", "sharai")):
             t += "، ومنها قد ينزل المطر بين المغرب والعشاء إلى الشرائع وشرق مكة"
         B.append({"p": t + "، دون إشارة واسعة داخل المدن." if not mk and not pending(rs) else t + "."})
-        mr_ = [(eds[k].get("model_rain") or 0, nm_) for k, nm_ in zones if k in named]
-        if mr_ and max(mr_)[0] >= 5:      # our run's heaviest zone, so the verdict and the model read together
-            top_ = max(mr_)
-            B.append({"p": f"ويضع نموذجنا أغزر المطر على {top_[1]} (نحو {ar(round(top_[0]))} ملم بعد الظهر)."})
+        rn_ = RD.get("rain") or []
+        if rn_:                           # our run's heaviest zones, the same numbers as the reading above
+            B.append({"p": "ويضع نموذجنا أغزر المطر على " + "، و".join(
+                f"{MS.SHORT.get(x['k'], x['name'])} (نحو {ar(round(x['max']))} ملم)" for x in rn_[:3]) + "."})
+        if all(cty.get(k) == "unlikely" for k in ("makkah", "jumum")):
+            sv = RD.get("steer")
+            B.append({"p": "أما مكة والجموم ففرصهما ضعيفة" + (f"، لأن الخلايا تتحرك نحو {sv['to']}" if sv else "") + "."})
     else:
         B.append({"p": "لا تجتمع مكونات الحمل الحراري على حواف مكة ولا حراتها اليوم."})
     if tz and tz["shifted"]:
@@ -334,7 +356,8 @@ def makkah_section(st, rs, regs):
             B.append({"p": f"وتصادم الرياح اليوم أقوى شرق الطائف وشماله (قرب {where_})، فقد تنشأ خلايا هناك أيضًا إلى جانب الحافة."})
         else:
             B.append({"p": f"وتصادم الرياح اليوم شرق الطائف وشماله (قرب {where_})، فالفرص هناك أكبر منها على الحافة."})
-    return B
+    return MS.audit(B, RD)
+
 
 
 SEC_NAMES = {"s1": "١. الخلاصة التنفيذية", "s2": "٢. توقعات الأمطار اليوم", "s3": "٣. منطقة مكة المكرمة وما حولها",
@@ -364,6 +387,12 @@ def _build(rep, st):
     rs = find(secs, kind="rain")
     regs = rain_regions(rs)
     out = []
+    if not pending(rs):     # the edges' model rain from the same zones as the Makkah reading (18 Nov 2026)
+        import makkah_story as MS
+        em = MS.edge_model_rain(st)
+        for e in (st.get("plains") or {}).get("edges") or []:
+            if e["key"] in em:
+                e["model_rain"] = em[e["key"]]
     # the summary first, then the regions with Makkah first (Fahad lives in Al-Jumum, 17 Nov 2026: «أول شيء يبدأ
     # بالخلاصة، وإذا دخلت للمناطق تفصّل فيها ابدأ بمنطقة مكة»)
     regs.sort(key=lambda r: r["name"] != "مكة المكرمة")
@@ -409,7 +438,16 @@ def s1(st, secs, rs, regs, day0):
             B.append({"p": cur})
     B.append({"h": "أبرز توقعات اليوم"})
     ul = []
+    import makkah_story as MS
+    mk_line = None
+    try:
+        mk_line = MS.summary_line(MS.read(st, pending(rs)))
+    except Exception as e:  # noqa: BLE001
+        print("report2: Makkah reading failed", repr(e), flush=True)
     for r in regs:
+        if r["name"] == "مكة المكرمة" and mk_line:
+            ul.append(f"مكة المكرمة: {mk_line}")
+            continue
         w = max(r["wins"], key=lambda w: float(str(w.get("max", "0")).translate(str.maketrans("٠١٢٣٤٥٦٧٨٩٫", "0123456789."))
                                               or 0), default=None)
         if not w:

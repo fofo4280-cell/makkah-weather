@@ -214,6 +214,7 @@ def plains_rows(hours, static, acc, grid, pct_of, log=print):
         us = float(np.mean([(H("u700", h)[both] + H("u500", h)[both]).mean() / 2 for h in (12, 15)]))
         vs = float(np.mean([(H("v700", h)[both] + H("v500", h)[both]).mean() / 2 for h in (12, 15)]))
         sp = math.hypot(us, vs)
+        u700 = float(np.mean([H("u700", h)[both].mean() for h in (12, 15)]))
         u10 = float(H("u10", 12)[pl].mean())
         u850 = float(H("u850", 12)[pl].mean())
         f = {
@@ -228,7 +229,7 @@ def plains_rows(hours, static, acc, grid, pct_of, log=print):
         row = {"key": key, "name": name, "region": region, "pw": round(pw, 1), "pct": pct, "td": round(td, 1),
                "t2": round(t2, 1), "cape_plain": int(cape_pl), "cape_mtn": int(cape_mt), "rh700_mtn": int(rh_mt),
                "rain_mtn_gfs": round(r_mt, 1), "rain_plain_gfs": None if r_pl is None else round(r_pl, 1),
-               "steer": round(sp, 1), "steer_u": round(us, 1), "u10": round(u10, 1), "u850": round(u850, 1),
+               "steer": round(sp, 1), "steer_u": round(us, 1), "steer_v": round(vs, 1), "u700": round(u700, 1), "u10": round(u10, 1), "u850": round(u850, 1),
                "flags": f, "gate": bool(gate), "score": int(sum(f.values())),
                "box": [p[3], p[4], p[5], p[6]], "mbox": list(MTN_BOX.get(key, (p[3], p[4], p[7], p[8])))}
         log("plains:", key, row["score"], "gate" if gate else "-", {k: v for k, v in row.items() if k not in ("flags", "name", "box", "mbox")})
