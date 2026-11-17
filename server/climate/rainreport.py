@@ -209,6 +209,7 @@ def plains_words(st, cells, t_a, log=print):
                     return float(cells["rain"][k][:, m].sum(0).max())
                 mr = box_max(row["mbox"], 12, 18)
                 pr = box_max(row["box"], 17, 24)
+                row["model_mtn"], row["model_plain"] = mr, pr       # for the report's new layout (report2.py)
             s = P.sentence(row, mr, pr)
             log(f"rain report: plains {row['key']}: model mountain {mr}, plain {pr} -> {'named' if s else 'nothing'}")
             if s:
@@ -226,6 +227,7 @@ def plains_words(st, cells, t_a, log=print):
                 k = (keys > 12) & (keys <= 21)
                 if m.any() and k.any():
                     mr = float(cells["rain"][k][:, m].sum(0).max())
+            row["model_rain"] = mr                                   # for the report's new layout (report2.py)
             ok = P.edge_named(row, mr)[0]
             log(f"rain report: edge {row['key']}: model {mr} -> {'named' if ok else 'nothing'}")
             if ok:

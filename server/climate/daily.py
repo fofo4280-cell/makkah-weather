@@ -876,6 +876,11 @@ def main():
                         "issued": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "day": day0.isoformat(),
                         "sections": [x for x in big if x.get("kind") == "sum"] + ([dict(rain, kind="rain")] if rain else [])
                         + [x for x in big if x.get("kind") != "sum"]}
+    try:   # Fahad's layout (17 Nov 2026): nine sections, the Makkah edges study (report2.py)
+        import report2
+        status["report"] = report2.build(status["report"], status)
+    except Exception as e:
+        print("report layout v2 failed, old layout kept:", repr(e), flush=True)
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
