@@ -726,6 +726,13 @@ def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
                   transform=ax.projection, interpolation="lanczos", zorder=0)
     except Exception as ex:
         print("relief unavailable:", str(ex)[:80])
+    if WAVE_SHADE:   # translucent red-blue shading of the field over the relief (blue = divergence aloft, supportive)
+        o_ = np.argsort(lat)
+        fs_ = np.hstack([field[o_], field[o_][:, :1]])
+        al_ = WAVE_SHADE * np.clip((np.abs(fs_) / sc["vmax"] - 0.1) / 0.6, 0, 1) ** 0.8   # stronger where the wave is
+        ax.imshow(np.clip(fs_, sc["vmin"], sc["vmax"]), extent=[-180, 180, lat[o_][0], lat[o_][-1]], origin="lower",
+                  cmap="RdBu_r", vmin=sc["vmin"], vmax=sc["vmax"], alpha=al_, transform=ax.projection,
+                  interpolation="bilinear", zorder=0.5)
     ax.coastlines(resolution="50m", linewidth=0.45, color="#2b2b2b", alpha=0.75, zorder=1)
     order = np.argsort(lat)                                         # ascending for the interpolators
     la = lat[order]
@@ -830,6 +837,7 @@ def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
     _save_png(fig, path)
 
 
+WAVE_SHADE = 0.5          # opacity of the red-blue shading under the contours (0 = contours only)
 RELIEF_BELT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "relief_belt.png")
 BELT_PLACES = [("المحيط الهندي", -20, 72), ("المحيط الهادي", 2, 200), ("المحيط الأطلسي", 8, 325),
                ("الجزيرة العربية", 23, 46), ("أفريقيا", 3, 22), ("أستراليا", -24, 133), ("الهند", 21, 78),
