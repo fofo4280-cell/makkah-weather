@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 17 Nov 2026 (evening). Written for Claude, to continue the work without the long history.
+Last updated: 17 Nov 2026 (night). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -34,7 +34,7 @@ Last updated: 17 Nov 2026 (evening). Written for Claude, to continue the work wi
 - **Grids:**
   - The **Kingdom at 3 km** = west d02 plus nw, n, c, e, se. This is what the maps and all reports use (decided 13 Nov).
   - The 9 km grids (sa, west d01) still run but are hidden. Their only remaining role: the gate and keeper read `model-data-sa/runs.json` to know whether a cycle exists.
-- **Cycles:** **12 UTC only since 15 Nov 2026 (Fahad).** The 00 UTC (daytime) cycle is stopped: no crons, the keeper never starts it, and the gate refuses a schedule firing before 12 UTC. It can still be run by hand (`saudi-model.yml` dispatch with `cycle=YYYYMMDD00`), only if Fahad asks.
+- **Cycles:** **12 UTC only since 15 Nov 2026 (Fahad)** (exception: the small morning run of section 3c). The 00 UTC (daytime) cycle is stopped: no crons, the keeper never starts it, and the gate refuses a schedule firing before 12 UTC. It can still be run by hand (`saudi-model.yml` dispatch with `cycle=YYYYMMDD00`), only if Fahad asks.
   - 12Z finishes about 01–02 Makkah.
   - (00Z, when it ran, finished about 12–13 Makkah.)
   - GFS 00Z f033 is on AWS about 03:45 UTC; 12Z about 15:45 UTC.
@@ -68,6 +68,14 @@ Last updated: 17 Nov 2026 (evening). Written for Claude, to continue the work wi
 - First full test: cycle 2026111500, dispatched 11:15 UTC on 15 Nov (download 3 min, WPS + real under 1 min). 00Z runs are hidden on the page, so this test does not show there.
 - Model page: two tabs **GFS / ECMWF** under the product list (`#modelTabs`, saved in localStorage `swrf.model`). Switching reloads runs, maps and cities from the chosen branches and keeps the same valid time. The 1 km nest is GFS-only. The status tab (الحالة) always shows both runs, GFS then ECMWF, whatever tab is chosen (16 Nov: with ECMWF chosen it showed last night's finished run and looked like tonight had not started).
 - Plan: follow the 22-24 Nov Red Sea cut-off low with both; Fahad will judge which places the rain better (lesson: the GFS-driven run missed the 10 Nov stratiform rain over Jeddah/Makkah).
+
+## 3c. The morning run over Makkah and Taif (17 Nov 2026, Fahad: the ONE daytime exception)
+
+- Fahad asked (17 Nov 2026 night, after the 12Z run showed the afternoon storms on Rahjan and the Al-Hada/Ash-Shafa edge but was read too late; storms seen ~5 PM): a limited morning run to confirm noon/afternoon convective rain on convective days, finished before noon, **GFS only** («نكتفي فقط بالأمريكي»), **not in the report** («لا تضيفه للتقرير»), just an alert to him every day after it completes. Everything else daytime stays removed (section 4).
+- `saudi-model-am.yml` (main): GFS **00Z**, **18 h** (3 AM-9 PM Makkah), `server/domains_am.json` on saudi-wrf: one **3 km** grid (96 x 141 cells, 19.9-23.7 N, 38.8-41.6 E: Al-Lith/Yalamlam to Harrat Rahat, the sea just west of Jeddah to east of Taif) in a 9 km parent (61 x 77), same physics as the evening runs; one runner, no split. **Both grids are exact cut-outs of the western run's grids** (same projection and points; `crop` in domains_am.json): the workflow's `static` job cuts their geo_em files out of the western run's cached ones (`server/ci/crop_geo.py`, position check printed) and caches them as `geo-<am id>`, because the UCAR geography download (`static_data.sh`) failed on the runners on 17 Nov 2026 (wget exit 4). Do not move the morning grids off the western grids without fixing that. Test on cycle 2026111700: whole job 52 min (WRF ~3 min per model hour), so expect it ready about 7:30 AM Makkah. That test put heavy rain on the Al-Hada/Ash-Shafa edge (34 mm, 47 dBZ, from 3 PM, peak 6 PM), light on Rahjan/Ash-Sharai (7 mm) and Taif (8 mm), nothing on Makkah/Jeddah: storms were observed ~5 PM that day. Branch `model-data-am`. Crons 03:09, 03:37, 04:03 UTC; the gate waits for GFS f018 on AWS (~03:35 UTC); the keeper starts it 03:40-07:00 UTC if `model-data-am/runs.json` lacks `YYYYMMDD00`. Concurrency group `saudi-model-am`.
+- Alert job (same workflow): `server/post/am_alert.py` reads the run's `points.bin` (hourly rain/echo), sums rain of the hours ending 10 AM-9 PM Makkah in 9 zones (حافة الهدا والشفا، رهجان والشرائع وشرق مكة، مكة، الجموم ووادي فاطمة، جنوب مكة حتى يلملم، الطائف ومحيطه، حرة رهاط، عسفان وخليص، جدة) and writes `alert.json` on model-data-am (`text` in Arabic: grade by zone max >= 2/8/20 mm, start and peak hour, echo >= 45 dBZ). Claude posts that text to Fahad every morning in the project thread «تشغيل صباحي لتنبيه مطر الحواف» (a daily scheduled task into that thread's session, 7:41 AM Makkah, re-checks every 20 min until ~11:40). Daily, also when nothing is expected.
+- Model page: third tab «صباحي» beside GFS/ECMWF (`MODELS.am`, no regional grids, lists only 00Z runs, rain24 label «المطر التراكمي من الظهر حتى ٩ مساءً»); the status tab shows it as a third block.
+- `ourmodel.load` and the reports do not read model-data-am.
 
 ## 4. Reports pipeline (`server/climate`)
 

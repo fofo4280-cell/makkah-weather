@@ -43,6 +43,8 @@
   const DAILY = [];   // the daily max reflectivity map was removed from the list (Fahad, 16 Nov 2026)
   // current names, also for runs made before an option was renamed
   const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي من ١٢ إلى ١٢", ivt: "تدفق الأنهار الجوية" };
+  // the morning run's 24-hour map holds its hours 9-18: noon to 9 PM Makkah
+  const lab = (k) => (MODEL === "am" && k === "rain24" ? "المطر التراكمي من الظهر حتى ٩ مساءً" : LABELS[k]);
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
@@ -653,7 +655,7 @@
     const ticks = lg.stops.map((x, i) => (i % step === 0 || i === lg.stops.length - 1)
       ? `<span style="left:${(x.p * 100).toFixed(1)}%">${num(x.v, x.v < 1 ? 1 : 0)}</span>` : "").join("");
     setMini(`linear-gradient(to right, ${grad})`);
-    $("legend").innerHTML = `<div class="legend-title"><span>${LABELS[S.prod] || p.label}</span><span>${p.unit}</span></div>
+    $("legend").innerHTML = `<div class="legend-title"><span>${lab(S.prod) || p.label}</span><span>${p.unit}</span></div>
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
 
@@ -713,7 +715,7 @@
   function drawProducts() {
     const sel = $("prodSelect");
     const P = (S.man && S.man.products) || {};
-    const opt = (k) => (P[k] ? `<option value="${k}">${LABELS[k] || P[k].label}</option>` : "");
+    const opt = (k) => (P[k] ? `<option value="${k}">${lab(k) || P[k].label}</option>` : "");
     // one flat list, live lightning first
     sel.innerHTML = `<option value="radar">الرادار</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
@@ -1252,7 +1254,6 @@
         S.man.domains.k3 = k3;
       }
     }
-    if (S.man && MODEL === "am" && S.man.products && S.man.products.rain24) S.man.products.rain24 = { ...S.man.products.rain24, label: "المطر التراكمي من الظهر حتى ٩ مساءً" };
     if (S.meteo && S.meteo.cities) S.meteo.cities = S.meteo.cities.filter((c) => CITY_KEEP.has(c.id));
     if (S.man) for (const k of Object.keys(NEWPAL)) {   // old banded humidity/instability runs: show the new scale
       const p = S.man.products[k];
