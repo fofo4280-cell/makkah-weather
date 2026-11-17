@@ -14,7 +14,7 @@ nightly run uses the evening 12Z cycle and finishes after midnight Makkah). Days
 that day's 06Z GFS cycle (f03, f06 = 12 and 3 PM Makkah: near-analyses); later days from the nightly 12Z cycle.
 
 run(gfs_fields, cycle, out_fig) -> dict for mjo.json["taifc"]; draws fig/tconv_line.png, fig/tconv_NN.png (one map
-per day), fig/tconv_past.png and fig/tconv_next.png (mean of the 7 days before / after today).
+per day, with the axis of each collision zone as a dashed line). GFS only, as every product of the oscillation page.
 """
 import math
 import os
@@ -26,6 +26,7 @@ BOX = (19.0, 24.5, 37.5, 43.5)            # south, north, west, east of the data
 MAP = (39.0, 41.8, 20.4, 23.2)            # west, east, south, north of the map
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
+AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
 PAST, NEXT = 7, 7
 WIND = [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
@@ -38,7 +39,7 @@ MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "�
 WEEK = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
 # dark page palette (as the Kingdom maps)
 BG, INK, MUTED, GRID = "#0c1118", "#e8ecf1", "#9aa4b1", "#1f2833"
-EDGE_C, EAST_C = "#3987e5", "#e8743f"
+EDGE_C, EAST_C = "#6f9fd8", "#e0895a"            # calmer than the study charts (Fahad 17 Nov 2026)
 
 
 def ar(x):
@@ -143,13 +144,6 @@ def run(gfs_fields, cycle, out_fig):
                 draw_map(os.path.join(out_fig, f"tconv_{k:02d}.png"), flds[d])
             except Exception as e:  # noqa: BLE001
                 print("taif collision map failed", k, repr(e)[:160], flush=True)
-    for name, sel in (("past", [d for d in days if d < today]), ("next", [d for d in days if d > today])):
-        got = [flds[d] for d in sel if d in flds]
-        if len(got) >= 3:
-            try:
-                draw_map(os.path.join(out_fig, f"tconv_{name}.png"), mean_fields(got))
-            except Exception as e:  # noqa: BLE001
-                print("taif collision mean map failed", name, repr(e)[:160], flush=True)
     try:
         draw_line(os.path.join(out_fig, "tconv_line.png"), rows, today)
     except Exception as e:  # noqa: BLE001
@@ -158,13 +152,6 @@ def run(gfs_fields, cycle, out_fig):
         print("taif collision timeline failed", repr(e)[:160], flush=True)
     print("taif collision:", [(r["d"][5:], r.get("where"), r.get("u850")) for r in rows], flush=True)
     return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST}
-
-
-def mean_fields(fs):
-    m = {k: np.mean([f[k] for f in fs], axis=0) for k in ("u9", "v9", "u12", "v12", "u850", "v850", "rain")}
-    m.update(lat=fs[0]["lat"], lon=fs[0]["lon"], hgt=fs[0]["hgt"], land=fs[0]["land"])
-    m["conv"] = np.mean([convergence(m["u9"], m["v9"], m["lat"]), convergence(m["u12"], m["v12"], m["lat"])], axis=0)
-    return m
 
 
 def _font():
@@ -212,6 +199,10 @@ def draw_map(path, f, width_px=1000):
     spd = np.hypot(u, v)
     ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8), density=1.4,
                   linewidth=np.clip(0.4 + 0.12 * spd[::-1], 0.4, 1.5), arrowsize=0.8, zorder=3)
+    # the axis of each collision zone (Fahad, 17 Nov 2026: «حط لي خط عليه زي خط الكنتور، منقط أو مقطع»)
+    for xs, ys in conv_axes(cv, fla, flo, land):
+        ax.plot(xs, ys, color="#fff6d8", lw=2.0, ls=(0, (5, 3.5)), solid_capstyle="round", zorder=4,
+                path_effects=[pe.withStroke(linewidth=3.6, foreground="#3a1606")])
     halo = [pe.withStroke(linewidth=3, foreground=BG)]
     for name, y, x in PLACES:
         if not (w < x < e and s < y < n):
@@ -226,6 +217,47 @@ def draw_map(path, f, width_px=1000):
     ax.axis("off")
     fig.savefig(path, dpi=200, facecolor=BG)
     plt.close(fig)
+
+
+def conv_axes(cv, lat, lon, land, thr=AXIS_MIN, min_len=0.6):
+    """the axis of every collision zone on the fine grid (lat increasing or decreasing): along each row the local
+    maxima of convergence >= thr over land, chained row to row when they lie within 0.12 deg of longitude; chains
+    shorter than min_len degrees dropped, then smoothed. Zones run roughly north-south along the escarpment, so
+    row maxima trace them."""
+    dl = abs(float(lon[1] - lon[0]))
+    chains, open_ = [], []
+    for j in range(cv.shape[0]):
+        row = cv[j]
+        ok = (row >= thr) & land[j]
+        ok[1:-1] &= (row[1:-1] >= row[:-2]) & (row[1:-1] >= row[2:])
+        ok[0] = ok[-1] = False
+        pts = [float(lon[i]) for i in np.where(ok)[0]]
+        nxt = []
+        for x in pts:
+            best = None
+            for c in open_:
+                if abs(c[-1][0] - x) <= 0.12 + dl and (best is None or abs(c[-1][0] - x) < abs(best[-1][0] - x)):
+                    best = c
+            if best is not None:
+                open_.remove(best)
+                best.append((x, float(lat[j])))
+                nxt.append(best)
+            else:
+                c = [(x, float(lat[j]))]
+                chains.append(c)
+                nxt.append(c)
+        open_ = nxt
+    out = []
+    for c in chains:
+        if abs(c[-1][1] - c[0][1]) < min_len:
+            continue
+        xs = np.array([p[0] for p in c])
+        ys = np.array([p[1] for p in c])
+        k = 9
+        if len(xs) > k:
+            xs = np.convolve(np.pad(xs, k // 2, mode="edge"), np.ones(k) / k, "valid")
+        out.append((xs, ys))
+    return out
 
 
 def _day_label(d):
@@ -250,54 +282,53 @@ def draw_line(path, rows, today):
         ax.set_facecolor(BG)
         for sp in ("top", "right", "left"):
             ax.spines[sp].set_visible(False)
-        ax.spines["bottom"].set_color("#3a4552")
-        ax.grid(axis="y", color=GRID, lw=.8)
-        ax.tick_params(colors=MUTED, length=0, labelsize=11.5)
+        ax.spines["bottom"].set_color("#2a3440")
+        ax.grid(axis="y", color=GRID, lw=.6)
+        ax.tick_params(colors=MUTED, length=0, labelsize=10)
         ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda v, p: ar(f"{v:g}")))
         for k, r in enumerate(rows):   # the day's verdict as a faint band
             if r.get("where") in ("edge", "east"):
-                ax.axvspan(k - .5, k + .5, color=EDGE_C if r["where"] == "edge" else EAST_C, alpha=.10, lw=0)
+                ax.axvspan(k - .5, k + .5, color=EDGE_C if r["where"] == "edge" else EAST_C, alpha=.05, lw=0)
         if ti is not None:
-            ax.axvline(ti, color="#ffffff", lw=1, ls=(0, (3, 3)), alpha=.6)
-    T = lambda ax, t: ax.set_title(t, loc="right", color=INK, fontsize=13, fontweight="bold", pad=7)
+            ax.axvline(ti, color="#c9d1db", lw=.8, ls=(0, (3, 3)), alpha=.5)
+    T = lambda ax, t: ax.set_title(t, loc="right", color="#c9d1db", fontsize=11.5, fontweight="semibold", pad=7)
     ax = axs[0]
-    ax.bar(x - .2, g("ce"), .38, color=EDGE_C, label="حافة الهدا والشفا")
-    ax.bar(x + .2, g("cx"), .38, color=EAST_C, label="شرق الطائف والسيل")
+    ax.bar(x - .18, g("ce"), .32, color=EDGE_C, alpha=.85, label="حافة الهدا والشفا")
+    ax.bar(x + .18, g("cx"), .32, color=EAST_C, alpha=.85, label="شرق الطائف والسيل")
     T(ax, "قوة التصادم ظهرًا وعصرًا")
-    ax.legend(loc="upper left", frameon=False, fontsize=11, labelcolor=INK, ncol=2, bbox_to_anchor=(0, 1.0))
+    ax.legend(loc="upper left", frameon=False, fontsize=9.5, labelcolor="#c9d1db", ncol=2, bbox_to_anchor=(0, 1.0))
     ax.set_ylim(0, max(10, np.nanmax([g("ce"), g("cx")]) * 1.45))
     ax = axs[1]
     u = g("u850")
-    ax.bar(x, u, .7, color=[EDGE_C if (np.isfinite(v) and v <= U_EAST) else ("#7d8794" if (np.isfinite(v) and v < 0) else EAST_C) for v in u])
+    ax.bar(x, u, .55, alpha=.85, color=[EDGE_C if (np.isfinite(v) and v <= U_EAST) else ("#5d6773" if (np.isfinite(v) and v < 0) else EAST_C) for v in u])
     ax.axhline(0, color="#56616e", lw=.8)
     ax.axhline(U_EAST, color=MUTED, lw=.8, ls=(0, (4, 3)))
     lim = max(6, np.nanmax(np.abs(u)) * 1.15)
     ax.set_ylim(-lim, lim)
     T(ax, "الرياح فوق هضبة الطائف عند ٨٥٠ (م/ث)")
-    ax.text(len(rows) - .5, -lim * .93, "سالب = شرقية تُوقف هواء البحر عند الحافة", ha="right", color=EDGE_C, fontsize=10.5)
-    ax.text(len(rows) - .5, lim * .82, "موجب = غربية تدفعه شرقًا", ha="right", color=EAST_C, fontsize=10.5)
+    ax.text(len(rows) - .5, -lim * .93, "سالب = شرقية تُوقف هواء البحر عند الحافة", ha="right", color=EDGE_C, fontsize=9)
+    ax.text(len(rows) - .5, lim * .82, "موجب = غربية تدفعه شرقًا", ha="right", color=EAST_C, fontsize=9)
     ax = axs[2]
     fr = g("front")
-    ax.plot(x, fr, "-o", color=INK, lw=2, ms=4)
+    ax.plot(x, fr, "-o", color="#c9d1db", lw=1.3, ms=3)
     places = ((40.3, "الهدا"), (40.75, "شرق الطائف"), (41.5, "عمق الهضبة"), (42.3, "شرقًا أبعد"))
     for v, _ in places:
-        ax.axhline(v, color="#56616e", lw=.8, ls=(0, (4, 3)))
+        ax.axhline(v, color="#3a4552", lw=.6, ls=(0, (4, 3)))
     ax.set_ylim(42.6, 39.9)
     ax.set_yticks([v for v, _ in places])
-    ax.set_yticklabels([t for _, t in places], fontsize=10)
+    ax.set_yticklabels([t for _, t in places], fontsize=9)
     T(ax, "أبعد ما يصله هواء البحر عصرًا (خط طول)")
     ax = axs[3]
-    b1 = ax.bar(x - .2, g("r_edge"), .38, color=EDGE_C)
-    b2 = ax.bar(x + .2, g("r_east"), .38, color=EAST_C)
+    b1 = ax.bar(x - .18, g("r_edge"), .32, color=EDGE_C, alpha=.85)
+    b2 = ax.bar(x + .18, g("r_east"), .32, color=EAST_C, alpha=.85)
     ax.set_ylim(0, max(3, np.nanmax([g("r_edge"), g("r_east")]) * 1.45))
-    ax.legend([b1, b2], ["حافة الهدا والشفا", "السيل وشرق الطائف ورهاط"], loc="upper left", frameon=False, fontsize=10.5, labelcolor=INK, ncol=2)
+    ax.legend([b1, b2], ["حافة الهدا والشفا", "السيل وشرق الطائف ورهاط"], loc="upper left", frameon=False, fontsize=9.5, labelcolor="#c9d1db", ncol=2)
     T(ax, "متوسط المطر من الظهر إلى منتصف الليل (ملم)")
     ax.set_xticks(x)
-    ax.set_xticklabels([("اليوم" if d == today else _day_label(d)) for d in ds], rotation=0, fontsize=9, color=MUTED)
+    ax.set_xticklabels([("اليوم" if d == today else _day_label(d)) for d in ds], rotation=0, fontsize=8.5, color=MUTED)
     for lab, d in zip(ax.get_xticklabels(), ds):
         if d == today:
-            lab.set_color(INK)
-            lab.set_fontweight("bold")
+            lab.set_color("#c9d1db")
     ax.set_xlim(-.6, len(rows) - .4)
     fig.subplots_adjust(left=.16, right=.98, top=.96, bottom=.045)
     fig.savefig(path, dpi=180, facecolor=BG)
