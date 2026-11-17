@@ -53,7 +53,7 @@
   };
 
   const S = { runs: [], run: null, man: null, meteo: null, dom: "k3",  // always the whole Kingdom; the regions list was removed (Fahad, 16 Nov 2026)
-    prod: store.get("prod") || "refl",
+    prod: store.get("prod") === "lightning" ? "radar" : (store.get("prod") || "refl"),   // lightning alone was merged into the radar entry (17 Nov 2026)
               frames: [], idx: 0, playing: null, overlay: null, rects: [], cityLayer: null };
 
   async function getJSON(url) {
@@ -715,7 +715,7 @@
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${LABELS[k] || P[k].label}</option>` : "");
     // one flat list, live lightning first
-    sel.innerHTML = `<option value="lightning">رادار البرق المباشر</option><option value="radar">رادار المطر المباشر مع البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
+    sel.innerHTML = `<option value="radar">الرادار</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
     if ((!P[S.prod] || !listed) && !LIVE(S.prod)) S.prod = "refl";
     sel.value = S.prod;
@@ -2042,7 +2042,7 @@
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
     if (LIVE(S.prod)) {  // show lightning / radar straight away; the model data loads behind it
-      $("prodSelect").innerHTML = `<option value="lightning">رادار البرق المباشر</option><option value="radar">رادار المطر المباشر مع البرق</option>`; $("prodSelect").value = S.prod;
+      $("prodSelect").innerHTML = `<option value="radar">الرادار</option>`; $("prodSelect").value = S.prod;
       liEnter();
     } else {
       setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant
