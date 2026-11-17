@@ -36,6 +36,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
+  const LIVE = (p) => p === "lightning" || p === "radar";   // live observations (lightning; rain radar with lightning)
   const HOURLY = ["refl", "rain1h"];   // 700 hPa humidity and instability layers removed from the menu 17 Nov 2026 (Fahad); the runs still write them
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
@@ -628,7 +629,7 @@
     const prevKey = keepTime && S.frames[S.idx] ? S.frames[S.idx] : null;
     if (!d) { S.frames = []; return; }
     // a domain may not have every product (the 1 km nest has hourly maps only)
-    if (S.prod !== "lightning" && d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
+    if (!LIVE(S.prod) && d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
     if (SINGLE.includes(S.prod)) { const r = d[S.prod]; S.frames = r ? [{ single: true, from: r.from, to: r.to }] : []; S.idx = 0; return; }
     if (DAILY.includes(S.prod)) S.frames = (d.days || []).map((x) => ({ date: x.date, hours: x.hours }));
     else S.frames = d.hours.filter((h) => !(NO_H0.has(S.prod) && h === 0)).map((h) => ({ h }));
@@ -714,9 +715,9 @@
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${LABELS[k] || P[k].label}</option>` : "");
     // one flat list, live lightning first
-    sel.innerHTML = `<option value="lightning">رادار البرق المباشر</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
+    sel.innerHTML = `<option value="lightning">رادار البرق المباشر</option><option value="radar">رادار المطر المباشر مع البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
-    if ((!P[S.prod] || !listed) && S.prod !== "lightning") S.prod = "refl";
+    if ((!P[S.prod] || !listed) && !LIVE(S.prod)) S.prod = "refl";
     sel.value = S.prod;
   }
 
@@ -749,13 +750,13 @@
   // the current domain if it has the product, otherwise the first that does
   function domFor(p) {
     const has = (k) => { const d = S.man && S.man.domains[k]; return d && (!d.products || d.products.includes(p)); };
-    if (p === "lightning") return S.dom;
+    if (LIVE(p)) return S.dom;
     return ["k3", "sa", "d02", "d03", "d01"].find(has) || S.dom;
   }
 
   function setProduct(p) {
     S.prod = p; store.set("prod", p);
-    if (p === "lightning") { if (!LX.on) liEnter(); return; }
+    if (LIVE(p)) { if (!LX.on) liEnter(); else { S.frames = []; liFrames(); } return; }
     if (LX.on) liExit();
     // a product made only on some domains (water vapour transport: the Kingdom run) moves there
     const k = domFor(p);
@@ -877,10 +878,13 @@
 
   function liFrames() {
     if (!LX.on) return;
-    const times = [...LX.got.keys()].sort((a, b) => a - b);
-    const newest = times.length ? times[times.length - 1] : 0;
     const atEnd = S.idx >= S.frames.length - 1;
-    S.frames = times.filter((t) => t >= newest - LI_WIN).map((t) => ({ t }));
+    if (S.prod === "radar") S.frames = RV.frames.map((f) => ({ t: f.t }));   // the radar's last two hours, every 10 minutes
+    else {
+      const times = [...LX.got.keys()].sort((a, b) => a - b);
+      const newest = times.length ? times[times.length - 1] : 0;
+      S.frames = times.filter((t) => t >= newest - LI_WIN).map((t) => ({ t }));
+    }
     if (atEnd || !S.playing) S.idx = S.frames.length - 1;
     drawLegend(); showFrame();
   }
@@ -943,7 +947,8 @@
     const f = S.frames[S.idx];
     $("timeRange").max = Math.max(0, S.frames.length - 1);
     $("timeRange").value = S.idx;
-    $("timeLabel").textContent = f ? `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`
+    $("timeLabel").textContent = f ? (S.prod === "radar" ? `الرادار والبرق ${fmtClock.format(f.t)}` : `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`)
+      : S.prod === "radar" ? "جارٍ جلب صور الرادار…"
       : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
     if (LX.layer) LX.layer.redraw();
     rvSync();
@@ -976,7 +981,7 @@
       RV.got = Date.now();
       for (const [k, l] of RV.layers) if (!RV.frames.some((f) => f.path === k)) { map.removeLayer(l); RV.layers.delete(k); }
     } catch (e) { /* offline or service down: keep what we have */ }
-    rvSync();
+    if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
   function rvLayer(f) {
     let l = RV.layers.get(f.path);
@@ -994,15 +999,16 @@
     if (!RV.frames.length) return null;
     if (LX.on && S.frames[S.idx]) {   // the radar picture closest before the lightning time
       const t = S.frames[S.idx].t; let best = RV.frames[0];
-      for (const f of RV.frames) if (f.t <= t + 5 * 60e3) best = f;
+      for (const f of RV.frames) if (f.t <= t + (S.prod === "radar" ? 0 : 5 * 60e3)) best = f;
       return best;
     }
     return RV.frames[RV.frames.length - 1];
   }
   function rvSync() {
     if (!RV) return;
-    const btn = $("rvBtn");
-    if (!RV.on) {
+    const btn = $("rvBtn"), forced = S.prod === "radar";
+    if (btn) btn.hidden = forced;   // in the radar entry the radar is always on
+    if (!RV.on && !forced) {
       for (const l of RV.layers.values()) map.removeLayer(l);
       RV.layers.clear(); RV.cur = null;
       if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-pressed", "false"); btn.textContent = "الرادار"; }
@@ -1019,7 +1025,7 @@
     if (!l.isLoading()) show(); else { l.once("load", show); setTimeout(show, 1500); }
     // keep the neighbours ready so sliding through time does not flash
     const i = RV.frames.indexOf(f);
-    for (const k of [i - 1, i + 1]) if (RV.frames[k] && LX.on) rvLayer(RV.frames[k]);
+    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k] && LX.on) rvLayer(RV.frames[k]);
   }
   function rvToggle() {
     RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
@@ -2030,8 +2036,8 @@
 
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
-    if (S.prod === "lightning") {  // show lightning straight away; the model data loads behind it
-      $("prodSelect").innerHTML = `<option value="lightning">رادار البرق المباشر</option>`; $("prodSelect").value = "lightning";
+    if (LIVE(S.prod)) {  // show lightning / radar straight away; the model data loads behind it
+      $("prodSelect").innerHTML = `<option value="lightning">رادار البرق المباشر</option><option value="radar">رادار المطر المباشر مع البرق</option>`; $("prodSelect").value = S.prod;
       liEnter();
     } else {
       setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant
