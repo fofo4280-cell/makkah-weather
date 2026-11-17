@@ -30,7 +30,11 @@ AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn 
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
 PAST, NEXT = 7, 7
 WIND = [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
-UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:")]
+UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("cape", r":CAPE:surface:")]
+# afternoon surface CAPE (Fahad, 17 Nov 2026: third view of the card), J/kg; calm sequential scale on the dark map
+CAPE_SCALE = {"vmin": 0, "vmax": 2500, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
+                                                (.4, "#a9cf6a"), (.6, "#e9cf55"), (.8, "#e58a4c"), (1, "#c2445a")],
+              "label": "طاقة عدم الاستقرار عند ٣ عصرًا (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 PLACES = [("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
           ("السيل", 21.6, 40.43), ("حرة رهاط", 22.8, 40.1), ("الجموم", 21.62, 39.70)]
@@ -79,7 +83,7 @@ def day_fields(gfs_fields, cycle, fh9, static=None):
     b, _, _ = _get(gfs_fields, cycle, fh9 + 3, WIND + UP)
     c, _, _ = _get(gfs_fields, cycle, fh9 + 12, [("ap2", rf":APCP:surface:0-{fh9 + 12} hour acc")])
     f = {"lat": lat, "lon": lon, "u9": a["u10"], "v9": a["v10"], "u12": b["u10"], "v12": b["v10"],
-         "u850": b["u850"], "v850": b["v850"], "rain": np.clip(c["ap2"] - a["ap1"], 0, None)}
+         "u850": b["u850"], "v850": b["v850"], "cape": b["cape"], "rain": np.clip(c["ap2"] - a["ap1"], 0, None)}
     f.update(static or {"hgt": a["hgt"], "land": a["land"]})
     f["conv"] = np.mean([convergence(f["u9"], f["v9"], lat), convergence(f["u12"], f["v12"], lat)], axis=0)
     return f
@@ -105,6 +109,9 @@ def measure(f):
         k += 1
     front = float(ll[k - 1]) if k else 39.5
     rain = f["rain"]
+    cape = f["cape"]
+    cp_edge = float(np.percentile(cape[edge], 75))
+    cp_east = float(np.percentile(cape[east], 75))
     r_edge = float(rain[B(20.85, 21.6, 40.15, 40.45)].mean())
     r_east = float(np.mean([rain[B(21.45, 21.85, 40.35, 40.7)].mean(), rain[B(20.9, 21.6, 40.6, 41.1)].mean(),
                             rain[B(22.2, 23.3, 39.8, 40.5)].mean()]))
@@ -114,7 +121,7 @@ def measure(f):
         where = "weak"
     else:
         where = "edge"
-    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "u850": round(u850, 1), "v850": round(v850, 1),
+    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
             "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1)}
 
 
@@ -142,6 +149,7 @@ def run(gfs_fields, cycle, out_fig):
         if d in flds:
             try:
                 draw_map(os.path.join(out_fig, f"tconv_{k:02d}.png"), flds[d])
+                draw_map(os.path.join(out_fig, f"tcape_{k:02d}.png"), flds[d], kind="cape")
             except Exception as e:  # noqa: BLE001
                 print("taif collision map failed", k, repr(e)[:160], flush=True)
     try:
@@ -151,7 +159,10 @@ def run(gfs_fields, cycle, out_fig):
         traceback.print_exc()
         print("taif collision timeline failed", repr(e)[:160], flush=True)
     print("taif collision:", [(r["d"][5:], r.get("where"), r.get("u850")) for r in rows], flush=True)
-    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST}
+    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST,
+            "cape_legend": {"label": CAPE_SCALE["label"], "unit": CAPE_SCALE["unit"], "vmin": CAPE_SCALE["vmin"],
+                            "vmax": CAPE_SCALE["vmax"], "ticks": CAPE_SCALE["ticks"],
+                            "stops": [{"p": p, "c": c[:7]} for p, c in CAPE_SCALE["cols"][2:]]}}
 
 
 def _font():
@@ -162,7 +173,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1000):
+def draw_map(path, f, width_px=1000, kind="conv"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -191,13 +202,20 @@ def draw_map(path, f, width_px=1000):
     cmap = LinearSegmentedColormap.from_list("c", [(0, "#2f7fd0"), (.38, "#8fd0ea00"), (.5, "#00000000"), (.62, "#f6e27a00"),
                                                    (.72, "#f5a623"), (.86, "#e2532d"), (1, "#b3124a")], N=256)
     cv = zoom(sub(f["conv"]), up, order=3)
-    ax.imshow(cv, extent=ext, cmap=cmap, vmin=-8, vmax=8, alpha=.85, interpolation="bilinear", zorder=1)
+    if kind == "cape":
+        from matplotlib.colors import to_rgba
+        cm2 = LinearSegmentedColormap.from_list("cape", [(p, to_rgba(c)) for p, c in CAPE_SCALE["cols"]], N=256)
+        cp = np.clip(gaussian_filter(zoom(sub(f["cape"]), up, order=1), 3), 0, None)
+        ax.imshow(cp, extent=ext, cmap=cm2, vmin=CAPE_SCALE["vmin"], vmax=CAPE_SCALE["vmax"], alpha=.85,
+                  interpolation="bilinear", zorder=1)
+    else:
+        ax.imshow(cv, extent=ext, cmap=cmap, vmin=-8, vmax=8, alpha=.85, interpolation="bilinear", zorder=1)
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
     ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.6, .9], zorder=2)
     ax.contour(flo, fla, land.astype(float), levels=[.5], colors=["#5d6d7e"], linewidths=.8, zorder=2)
     u, v = sub((f["u9"] + f["u12"]) / 2), sub((f["v9"] + f["v12"]) / 2)
     spd = np.hypot(u, v)
-    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8), density=1.4,
+    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8 if kind == "conv" else 0.45), density=1.4,
                   linewidth=np.clip(0.4 + 0.12 * spd[::-1], 0.4, 1.5), arrowsize=0.8, zorder=3)
     # the axis of each collision zone (Fahad, 17 Nov 2026: «حط لي خط عليه زي خط الكنتور، منقط أو مقطع»)
     for xs, ys in conv_axes(cv, fla, flo, land):
