@@ -1369,7 +1369,7 @@
     // the report in Fahad's layout (17 Nov 2026, report2.py): sub-headings, paragraphs, lists and small tables
     const blocksHTML = (bs) => bs.map((b) => b.h ? `<h4 class="rsub">${b.h}</h4>` : b.p ? `<p>${b.p}</p>`
       : b.note ? `<p class="src">${b.note}</p>` : b.ul ? `<ul class="rlist">${b.ul.map((x) => `<li>${x}</li>`).join("")}</ul>`
-      : b.table ? `<div class="rtab-wrap"><table class="rtab rgen"><thead><tr>${b.table.head.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${
+      : b.table ? `<div class="rtab-wrap"><table class="rgen"><thead><tr>${b.table.head.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${
           b.table.rows.map((r) => `<tr>${r.map((x, i) => i ? `<td>${x}</td>` : `<th scope="row">${x}</th>`).join("")}</tr>`).join("")}</tbody></table></div>` : "").join("");
     const secHTML = (s, k) => {
       if (s.blocks) return blocksHTML(s.blocks);

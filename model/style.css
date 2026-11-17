@@ -339,6 +339,7 @@ a { color: var(--sea); }
 .report .rbrand span { opacity: .75; font-size: .85em; }
 .report ul.rlist { margin: 4px 0 8px; padding-inline-start: 1.2em; }
 .report ul.rlist li { margin: 2px 0; }
-.report table.rgen { width: 100%; border-collapse: collapse; font-size: .82em; }
-.report table.rgen th, .report table.rgen td { padding: 4px 6px; border-bottom: 1px solid rgba(127,127,127,.25); text-align: start; white-space: nowrap; }
-.report table.rgen thead th { color: var(--amber); }
+.report table.rgen { min-width: 100%; border-collapse: collapse; font-size: .75rem; line-height: 1.45; table-layout: auto; }
+.report table.rgen th, .report table.rgen td { padding: 5px 6px; border-bottom: 1px solid rgba(127,127,127,.25); text-align: start; white-space: nowrap; vertical-align: top; }
+.report table.rgen thead th { color: var(--muted); background: var(--surface-2); font-weight: 700; }
+.report table.rgen tbody th { color: #fff; font-weight: 700; border-inline-end: 1px solid rgba(127,127,127,.2); position: sticky; inset-inline-start: 0; background: var(--surface, #161616); }
