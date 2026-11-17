@@ -33,4 +33,4 @@ jobs:
           path: hist
           run-id: ${{ inputs.hist_run }}
           github-token: ${{ github.token }}
-      - run: python3 code/server/climate/iod_conv.py long.json hist
+      - run: python3 code/server/climate/scorp_lead.py long.json hist
