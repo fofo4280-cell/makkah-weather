@@ -1,0 +1,505 @@
+
+=== 200 https://www.yanbuweather.com/pages/RainRadar/
+{"age":"63985","alt-svc":"h3=\":443\"; ma=86400","cf-cache-status":"HIT","cf-ray":"a5c08e1d1fd6bd19-ATL","content-encoding":"zstd","content-type":"text/html; charset=UTF-8","date":"Tue, 17 Nov 2026 17:46:29 GMT","expires":"Wed, 18 Nov 2026 00:00:00 GMT","last-modified":"Tue, 17 Nov 2026 00:00:00 GMT","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=0gk5bWlAWpgz38cK%2BFWOX7MDdPc9Dqwujfjt2l5J%2Bg4bKBmpja2aggYVIf01ErP6Tp9vAVf%2Bpmu5ixexsge3xCZxEPDuvOpcPA9Y%2F9QDCNjEejPlj1eBGLxnQ%2BPEmu0B5dk5MQYwEQ%3D%3D\"}]}","server":"cloudflare","strict-transport-security":"max-age=15552000; includeSubDomains; preload","vary":"Accept-Encoding,User-Agent","x-content-type-options":"nosniff","x-frame-options":"SAMEORIGIN"}
+<!DOCTYPE html> <html> <head> <meta http-equiv="Content-Type" content="text/html; charset=utf-8"> <title>رادار المطر</title> <meta name="referrer" content="no-referrer"> <meta name="apple-itunes-app" content="app-id=1585595592"> <link href="maplibre/maplibre-gl.css" rel="stylesheet" /> <script src="maplibre/maplibre-gl.js"></script> <link rel="stylesheet" href="styles2.css?20"> <meta id="viewport" name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" /> <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script> <script> window.googletag = window.googletag || { cmd: [] }; googletag.cmd.push(function () { var mapping = googletag.sizeMapping() .addSize([970, 0], [[970, 90], [728, 90], [468, 60], [320, 50], [300, 100], [234, 60]]) .addSize([728, 0], [[728, 90], [468, 60], [320, 50], [300, 100], [234, 60]]) .addSize([468, 0], [[468, 60], [320, 50], [300, 100], [234, 60]]) .addSize([320, 0], [[320, 50], [300, 100], [234, 60]]) .addSize([0, 0], [[320, 50], [300, 100], [234, 60]]) .build(); googletag.defineSlot('/21841097903/ad', [[970, 90], [728, 90], [468, 60], [320, 50], [300, 100], [234, 60]], 'div-gpt-ad-1565843300729-0') .defineSizeMapping(mapping) .addService(googletag.pubads()); googletag.pubads().enableSingleRequest(); googletag.pubads().collapseEmptyDivs(); googletag.enableServices(); }); </script> <style> #div-gpt-ad-1565843300729-0 { position: fixed; top: 0; left: 0; right: 0; z-index: 20; min-height: 0; pointer-events: none; } #div-gpt-ad-1565843300729-0 iframe, #div-gpt-ad-1565843300729-0 > div { pointer-events: auto; } </style> </head> <body style="overflow-y: hidden;"> <script>function showloader(h) { 0 == h ? document.getElementById("loader").style.display = "none" : document.getElementById("loader").style.display = "block" }</script> <div style='display: flex; flex-direction: column;height: 100%;'> <div id=loader style=display:none> <div id=dw8 align=center><svg class="circle-loader progress" width=40 height=40> <circle cx=20 cy=20 r=15 /> </svg></div> </div> <div id='div-gpt-ad-1565843300729-0' style='width: 100%; text-align: center; overflow: hidden; white-space: nowrap; display: flex; justify-content: center;'> <script> var savedpro = ("; " + document.cookie).split("; savedpro=").pop().split(";")[0]; if (savedpro.length <= 3) { googletag.cmd.push(function () { googletag.display('div-gpt-ad-1565843300729-0'); }); setInterval(function () { googletag.pubads().refresh(null, { changeCorrelator: false }); }, 120000); } else { document.getElementById('div-gpt-ad-1565843300729-0').style.display = 'none'; } </script> </div> <div id="map" style='flex-grow: 1;min-height:0;height:100%'></div> <div id="loading"> <div id="loading_1" class="loading"></div> </div> <select id="hour" style="display:none"></select> <button style="display:none;" value="a" class="btn" id="ab">متحرك</button> <div id="bottom-controls" style="position: absolute; bottom: 0; width: 100%; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; align-items: center;"> <div id="time-control" style="width: 90%;max-width: 600px;background: transparent;padding: 6px 10px;opacity: 0.9;border-radius: 12px;box-shadow: 0 4px 20px rgba(0,0,0,0.15);direction: rtl;backdrop-filter: blur(3px);pointer-events: auto;margin-bottom: 10px;border: 1px solid rgba(255,255,255,0.3);"> <div style="display: flex;align-items: center;justify-content: space-between;"> <button id="play-pause-btn" onclick="togglePlay()" style="background: transparent;border: 1px solid rgb(0 0 0 / 14%);cursor: pointer;padding: 6px 14px 6px 10px;color: #333;display: flex;align-items: center;gap: 8px;border-radius: 20px;transition: all 0.2s ease;"> <svg id="play-icon-ctrl" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display: block;"> <polygon points="8 5 19 12 8 19 8 5"></polygon> </svg> <svg id="pause-icon-ctrl" style="display: none;" xmlns="http://www.w3.org
+=== 200 https://www.yanbuweather.com/pages/RainRadar/styles2.css?20
+{"content-encoding":"zstd","cf-cache-status":"HIT","etag":"W/\"5959-6592403ecdc79-gzip\"","age":"1514489","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=lgyyFw2JmYPqeO94TU%2B7esBzqMzevxgEXUkFA4Wap%2BR1rfBm0NqSe9O%2FY9BjzmZKf5ZEVu03BfnqqXVdWokoeLfUgo0uQgH%2FqS1ViMiYXGJ7e5ekNY%2BACHcmhxgjL7SRawXD3siIAw%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Mon, 30 Nov 2026 05:05:00 GMT","alt-svc":"h3=\":443\"; ma=86400","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"text/css","last-modified":"Sun, 16 Aug 2026 06:17:59 GMT","vary":"Accept-Encoding,User-Agent","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=2592000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1d9861bd19-ATL","server":"cloudflare"}
+body {
+    padding: 0;
+    margin: 0;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: -moz-none;
+    -o-user-select: none;
+    user-select: none;
+    background-color: #f2efe9;
+}
+
+iframe {
+    border-radius: 15px;
+}
+
+#text {
+    -webkit-user-select: text;
+    -khtml-user-select: text;
+    -moz-user-select: text;
+    -o-user-select: text;
+    user-select: text;
+}
+
+html,
+body {
+    height: 100%;
+    width: 100%;
+}
+
+#map {
+    width: 100%;
+    height: 100%;
+}
+
+#div-gpt-ad-1565843300729-0 {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 20;
+    min-height: 0 !important;
+    height: auto;
+    overflow: hidden;
+    pointer-events: none;
+}
+
+#div-gpt-ad-1565843300729-0 iframe,
+#div-gpt-ad-1565843300729-0 > div {
+    pointer-events: auto;
+}
+
+.maplibregl-ctrl-top-left {
+    top: var(--ad-offset-left, 0px);
+    transition: top 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.maplibregl-ctrl-top-right {
+    top: var(--ad-offset-right, 0px);
+    transition: top 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+#loading,
+.loading {
+    width: 100%;
+    height: 1px
+}
+
+#loading {
+    position: fixed;
+    top: 0px;
+    z-index: 999;
+    overflow: hidden;
+    background-color: #000;
+    margin: auto;
+    border-radius: 10px;
+    -o-border-radius: 10px;
+    -ms-border-radius: 10px;
+    -webkit-border-radius: 10px;
+    -moz-border-radius: 10px
+}
+
+.loading {
+    background-color: #ffffffb8;
+    margin-top: 0;
+    margin-left: -100%;
+    animation-name: bounce_loading;
+    -o-animation-name: bounce_loading;
+    -ms-animation-name: bounce_loading;
+    -webkit-animation-name: bounce_loading;
+    -moz-animation-name: bounce_loading;
+    animation-duration: 1.5s;
+    -o-animation-duration: 1.5s;
+    -ms-animation-duration: 1.5s;
+    -webkit-animation-duration: 1.5s;
+    -moz-animation-duration: 1.5s;
+    animation-iteration-count: infinite;
+    -o-animation-iteration-count: infinite;
+    -ms-animation-iteration-count: infinite;
+    -webkit-animation-iteration-count: infinite;
+    -moz-animation-iteration-count: infinite;
+    animation-timing-function: linear;
+    -o-animation-timing-function: linear;
+    -ms-animation-timing-function: linear;
+    -webkit-animation-timing-function: linear;
+    -moz-animation-timing-function: linear
+}
+
+@keyframes bounce_loading {
+    0% {
+        margin-left: -100%
+    }
+
+    100% {
+        margin-left: 100%
+    }
+}
+
+@-o-keyframes bounce_loading {
+    0% {
+        margin-left: -100%
+    }
+
+    100% {
+        margin-left: 100%
+    }
+}
+
+@-ms-keyframes bounce_loading {
+    0% {
+        margin-left: -100%
+    }
+
+    100% {
+        margin-left: 100%
+    }
+}
+
+@-webkit-keyframes bounce_loading {
+    0% {
+        margin-left: -100%
+    }
+
+    100% {
+        margin-left: 100%
+    }
+}
+
+@-moz-keyframes bounce_loading {
+    0% {
+        margin-left: -100%
+    }
+
+    100% {
+        margin-left: 100%
+    }
+}
+
+button:focus {
+    outline: 0;
+}
+
+#dw8,
+#loader {
+    width: 100%;
+    height: 100%
+}
+
+#loader {
+    position: absolute;
+    z-index: 999;
+    background-color: rgba(0, 0, 0, .3);
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none
+}
+
+#dw8 {
+    position: fixed;
+    top: 45%
+}
+
+.circle-loader {
+    fill: transparent;
+    stroke: #009688;
+    stroke-width: 5;
+    animation: dash 2s ease infinite, rotate 2s linear infinite
+}
+
+@keyframes dash {
+    0% {
+        stroke-dasharray: 1, 95;
+        stroke-dashoffset: 0
+    }
+
+    50% {
+        stroke-dasharray: 85, 95;
+        stroke-dashoffset: -25
+    }
+
+    100% {
+        stroke-dasharray: 85, 95;
+        stroke-dashoffset: -93
+    }
+}
+
+@keyframes rotate {
+    0% {
+        transform: rotate(0)
+    }
+
+    100% {
+        transform: rotate(360deg)
+    }
+}
+
+#dbz_table span {
+    font-size: 8px;
+    font-weight: bold;
+    color: black;
+}
+
+#dbz_legend {
+    display: flex;
+    width: 100%;
+    direction: rtl;
+    background: none;
+    backdrop-filter: none;
+    margin-bottom: 2px;
+    opacity: 
+=== 200 https://www.yanbuweather.com/pages/RainRadar/maplibre/maplibre-gl.css
+{"content-encoding":"zstd","cf-cache-status":"HIT","etag":"W/\"10f49-6467b4c205e76-gzip\"","age":"132497","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=NI0ZO7roX4125o5enFS8Yz7ZXaUzw%2FCmYo2CzC%2BnXJIlGWWSVi3KOvDnXGiU7x8BzwvI0jLqmaT9DyKuD%2FIY0JmdQD6YIOeSM%2Bfxdd0buiCVcpuyNr%2F6YNaGZmvFoFdCDhrbMSVWbw%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 16 Dec 2026 04:58:12 GMT","alt-svc":"h3=\":443\"; ma=86400","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"text/css","last-modified":"Sun, 21 Dec 2025 19:27:12 GMT","vary":"Accept-Encoding,User-Agent","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=2592000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1d985ebd19-ATL","server":"cloudflare"}
+.maplibregl-map{font:12px/20px Helvetica Neue,Arial,Helvetica,sans-serif;overflow:hidden;position:relative;-webkit-tap-highlight-color:rgb(0,0,0,0)}.maplibregl-canvas{left:0;position:absolute;top:0}.maplibregl-map:fullscreen{height:100%;width:100%}.maplibregl-ctrl-group button.maplibregl-ctrl-compass{touch-action:none}.maplibregl-canvas-container.maplibregl-interactive,.maplibregl-ctrl-group button.maplibregl-ctrl-compass{cursor:grab;-webkit-user-select:none;-moz-user-select:none;user-select:none}.maplibregl-canvas-container.maplibregl-interactive.maplibregl-track-pointer{cursor:pointer}.maplibregl-canvas-container.maplibregl-interactive:active,.maplibregl-ctrl-group button.maplibregl-ctrl-compass:active{cursor:grabbing}.maplibregl-canvas-container.maplibregl-touch-zoom-rotate,.maplibregl-canvas-container.maplibregl-touch-zoom-rotate .maplibregl-canvas{touch-action:pan-x pan-y}.maplibregl-canvas-container.maplibregl-touch-drag-pan,.maplibregl-canvas-container.maplibregl-touch-drag-pan .maplibregl-canvas{touch-action:pinch-zoom}.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan,.maplibregl-canvas-container.maplibregl-touch-zoom-rotate.maplibregl-touch-drag-pan .maplibregl-canvas{touch-action:none}.maplibregl-canvas-container.maplibregl-touch-drag-pan.maplibregl-cooperative-gestures,.maplibregl-canvas-container.maplibregl-touch-drag-pan.maplibregl-cooperative-gestures .maplibregl-canvas{touch-action:pan-x pan-y}.maplibregl-ctrl-bottom-left,.maplibregl-ctrl-bottom-right,.maplibregl-ctrl-top-left,.maplibregl-ctrl-top-right{pointer-events:none;position:absolute;z-index:2}.maplibregl-ctrl-top-left{left:0;top:0}.maplibregl-ctrl-top-right{right:0;top:0}.maplibregl-ctrl-bottom-left{bottom:0;left:0}.maplibregl-ctrl-bottom-right{bottom:0;right:0}.maplibregl-ctrl{clear:both;pointer-events:auto;transform:translate(0)}.maplibregl-ctrl-top-left .maplibregl-ctrl{float:left;margin:10px 0 0 10px}.maplibregl-ctrl-top-right .maplibregl-ctrl{float:right;margin:10px 10px 0 0}.maplibregl-ctrl-bottom-left .maplibregl-ctrl{float:left;margin:0 0 10px 10px}.maplibregl-ctrl-bottom-right .maplibregl-ctrl{float:right;margin:0 10px 10px 0}.maplibregl-ctrl-group{background:#fff;border-radius:4px}.maplibregl-ctrl-group:not(:empty){box-shadow:0 0 0 2px rgba(0,0,0,.1)}@media (forced-colors:active){.maplibregl-ctrl-group:not(:empty){box-shadow:0 0 0 2px ButtonText}}.maplibregl-ctrl-group button{background-color:transparent;border:0;box-sizing:border-box;cursor:pointer;display:block;height:29px;outline:none;padding:0;width:29px}.maplibregl-ctrl-group button+button{border-top:1px solid #ddd}.maplibregl-ctrl button .maplibregl-ctrl-icon{background-position:50%;background-repeat:no-repeat;display:block;height:100%;width:100%}@media (forced-colors:active){.maplibregl-ctrl-icon{background-color:transparent}.maplibregl-ctrl-group button+button{border-top:1px solid ButtonText}}.maplibregl-ctrl button::-moz-focus-inner{border:0;padding:0}.maplibregl-ctrl-attrib-button:focus,.maplibregl-ctrl-group button:focus{box-shadow:0 0 2px 2px #0096ff}.maplibregl-ctrl button:disabled{cursor:not-allowed}.maplibregl-ctrl button:disabled .maplibregl-ctrl-icon{opacity:.25}@media (hover:hover){.maplibregl-ctrl button:not(:disabled):hover{background-color:rgba(0,0,0,.05)}}.maplibregl-ctrl button:not(:disabled):active{background-color:rgba(0,0,0,.05)}.maplibregl-ctrl-group button:focus:focus-visible{box-shadow:0 0 2px 2px #0096ff}.maplibregl-ctrl-group button:focus:not(:focus-visible){box-shadow:none}.maplibregl-ctrl-group button:focus:first-child{border-radius:4px 4px 0 0}.maplibregl-ctrl-group button:focus:last-child{border-radius:0 0 4px 4px}.maplibregl-ctrl-group button:focus:only-child{border-radius:inherit}.maplibregl-ctrl button.maplibregl-ctrl-zoom-out .maplibregl-ctrl-icon{background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='29' height='29' fill='%23333' viewBox='0 0 29 29'%3E%3Cpath d='M10 13c-.75
+=== 200 https://www.yanbuweather.com/pages/RainRadar/maplibre/maplibre-gl.js
+{"content-encoding":"zstd","cf-cache-status":"HIT","etag":"W/\"b07dc6023e2beb986eaa514513b1474a-1766345233-1014818-2-big\"","age":"6698513","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=tAZpwtlZWwPDwx7DqkZIJMfvvjK83dGDroALAtO0zUpLMOvg4jlMdrHbYdQms%2FgEn290XQNiK%2FEO4sJUGeWZNkD2XdBiOnxdPTCFBX1dPqV41CvMCWwvEUhXn3f8Uob4zSkchpl%2B7Q%3D%3D\"}]}","x-content-type-options":"nosniff","alt-svc":"h3=\":443\"; ma=86400","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"application/javascript; charset=utf-8","vary":"Accept-Encoding,User-Agent","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"public, max-age=31536000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1d9862bd19-ATL","server":"cloudflare"}
+/**
+ * MapLibre GL JS
+ * @license 3-Clause BSD. Full text of license: https://github.com/maplibre/maplibre-gl-js/blob/v5.15.0/LICENSE.txt
+ */
+(function (global, factory) {
+typeof exports === 'object' && typeof module !== 'undefined' ? module.exports = factory() :
+typeof define === 'function' && define.amd ? define(factory) :
+(global = typeof globalThis !== 'undefined' ? globalThis : global || self, global.maplibregl = factory());
+})(this, (function () { 'use strict';
+
+/* eslint-disable */
+
+var maplibregl = {};
+var modules = {};
+function define(moduleName, _dependencies, moduleFactory) {
+    modules[moduleName] = moduleFactory;
+
+    // to get the list of modules see generated dist/maplibre-gl-dev.js file (look for `define(` calls)
+    if (moduleName !== 'index') {
+        return;
+    }
+
+    // we assume that when an index module is initializing then other modules are loaded already
+    var workerBundleString = 'var sharedModule = {}; (' + modules.shared + ')(sharedModule); (' + modules.worker + ')(sharedModule);'
+
+    var sharedModule = {};
+    // the order of arguments of a module factory depends on rollup (it decides who is whose dependency)
+    // to check the correct order, see dist/maplibre-gl-dev.js file (look for `define(` calls)
+    // we assume that for our 3 chunks it will generate 3 modules and their order is predefined like the following
+    modules.shared(sharedModule);
+    modules.index(maplibregl, sharedModule);
+
+    if (typeof window !== 'undefined') {
+        maplibregl.setWorkerUrl(window.URL.createObjectURL(new Blob([workerBundleString], { type: 'text/javascript' })));
+    }
+
+    return maplibregl;
+};
+
+
+
+define("shared",["exports"],(function(t){"use strict";function e(t,e,r,n){return new(r||(r=Promise))((function(i,s){function a(t){try{l(n.next(t));}catch(t){s(t);}}function o(t){try{l(n.throw(t));}catch(t){s(t);}}function l(t){var e;t.done?i(t.value):(e=t.value,e instanceof r?e:new r((function(t){t(e);}))).then(a,o);}l((n=n.apply(t,e||[])).next());}))}function r(t,e){this.x=t,this.y=e;}function n(t){return t&&t.__esModule&&Object.prototype.hasOwnProperty.call(t,"default")?t.default:t}var i,s;"function"==typeof SuppressedError&&SuppressedError,r.prototype={clone(){return new r(this.x,this.y)},add(t){return this.clone()._add(t)},sub(t){return this.clone()._sub(t)},multByPoint(t){return this.clone()._multByPoint(t)},divByPoint(t){return this.clone()._divByPoint(t)},mult(t){return this.clone()._mult(t)},div(t){return this.clone()._div(t)},rotate(t){return this.clone()._rotate(t)},rotateAround(t,e){return this.clone()._rotateAround(t,e)},matMult(t){return this.clone()._matMult(t)},unit(){return this.clone()._unit()},perp(){return this.clone()._perp()},round(){return this.clone()._round()},mag(){return Math.sqrt(this.x*this.x+this.y*this.y)},equals(t){return this.x===t.x&&this.y===t.y},dist(t){return Math.sqrt(this.distSqr(t))},distSqr(t){const e=t.x-this.x,r=t.y-this.y;return e*e+r*r},angle(){return Math.atan2(this.y,this.x)},angleTo(t){return Math.atan2(this.y-t.y,this.x-t.x)},angleWith(t){return this.angleWithSep(t.x,t.y)},angleWithSep(t,e){return Math.atan2(this.x*e-this.y*t,this.x*t+this.y*e)},_matMult(t){const e=t[2]*this.x+t[3]*this.y;return this.x=t[0]*this.x+t[1]*this.y,this.y=e,this},_add(t){return this.x+=t.x,this.y+=t.y,this},_sub(t){return this.x-=t.x,this.y-=t.y,this},_mult(t){return this.x*=t,this.y*=t,this},_div(t){return this.x/=t,this.y/=t,this},_multByPoint(t){return this.x*=t.x,this.y*=t.y,this},_divByPoint(t){return this.x/=t.x,this.y/=t.y,this},_unit(){return this._div(this.mag()),this},_perp(){const t=this.y;return this.y=this.x,this.x=-t,this},_rotate(t){const e=Math.cos(t),r=Math.sin(t),n=r*this.x+e*this.y;return this.x=e*this.x-r*this.y,this.y=n,this},_rotateAround(t,e){const r=Math.cos(t),n=Math.sin(t),i=e.y+n*(this.x-e.x)+r*(this.y-e.y);return this.x=e.x+r*(this.x-e.x)-n*(this.y-e.y),this.y=i,this},_round(){return this.x=Math.round(this.x),this.y=Math.round(this.y),this},constructor:r},r
+=== 200 https://www.yanbuweather.com/pages/RainRadar/functions4.js?36
+{"content-encoding":"zstd","cf-cache-status":"HIT","etag":"W/\"a15c8ff585d72e4b56c908d8806613e3-1788618190-152711-2\"","age":"6319336","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=l%2FvQ86kA7U%2FK8XYCRgrdXBPaqwcCGoO4bBUvC74sSzKLDu8m1l4tVmTf%2BOXyzsxhlb8dlsDmwDmZuPz5MhmLLpeKEbQq0Es5zGxNKVx1qKSxb29j1OqniRGe2SN8eFGS%2B0bxci%2BDFw%3D%3D\"}]}","x-content-type-options":"nosniff","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"application/javascript; charset=utf-8","vary":"Accept-Encoding,User-Agent","priority":"u=3,i=?0","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"public, max-age=31536000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1e5d3764e6-ATL","server":"cloudflare"}
+var a0_0x1deb99=a0_0x5c50;(function(_0x11d56e,_0x526d00){var _0x6f6e50=a0_0x5c50,_0x214cfe=_0x11d56e();while(!![]){try{var _0x3d130a=-parseInt(_0x6f6e50(0x26a))/0x1+-parseInt(_0x6f6e50(0x13b))/0x2+-parseInt(_0x6f6e50(0x208))/0x3+parseInt(_0x6f6e50(0xf8))/0x4*(-parseInt(_0x6f6e50(0x1c2))/0x5)+parseInt(_0x6f6e50(0x138))/0x6+parseInt(_0x6f6e50(0x198))/0x7*(parseInt(_0x6f6e50(0x123))/0x8)+-parseInt(_0x6f6e50(0xab))/0x9*(parseInt(_0x6f6e50(0x27e))/0xa);if(_0x3d130a===_0x526d00)break;else _0x214cfe['push'](_0x214cfe['shift']());}catch(_0xf8e661){_0x214cfe['push'](_0x214cfe['shift']());}}}(a0_0x26ca,0x55317));function showloading(){var _0x83cfde=a0_0x5c50;document[_0x83cfde(0xa4)](_0x83cfde(0x1d5))[_0x83cfde(0x116)]['visibility']=_0x83cfde(0x224);}function hideloading(){var _0x1491ca=a0_0x5c50;document[_0x1491ca(0xa4)](_0x1491ca(0x1d5))[_0x1491ca(0x116)]['visibility']=_0x1491ca(0x178);}function syncAdOffset(){var _0x4f25dd=a0_0x5c50,_0x1c6547=0xc,_0x4a63d0=document[_0x4f25dd(0xa4)](_0x4f25dd(0x204)),_0x3583c4=0x0,_0x103a5d=0x0;function _0x3c8169(_0x18031e){var _0x55e5fc=_0x4f25dd;if(!_0x18031e)return null;var _0x130258=_0x18031e[_0x55e5fc(0x1dc)]();if(_0x130258[_0x55e5fc(0x21b)]<0x2&&_0x130258[_0x55e5fc(0x1af)]<0x2)return null;return{'left':_0x130258[_0x55e5fc(0x117)],'right':_0x130258[_0x55e5fc(0x108)],'top':_0x130258[_0x55e5fc(0x12e)],'bottom':_0x130258['bottom'],'width':_0x130258[_0x55e5fc(0x21b)],'height':_0x130258[_0x55e5fc(0x1af)]};}function _0x25c03f(_0x484edd){var _0x378ea3=_0x4f25dd,_0xea7f29=null;for(var _0x3edef2=0x0;_0x3edef2<_0x484edd['length'];_0x3edef2++){var _0x57cda2=_0x3c8169(_0x484edd[_0x3edef2]);if(!_0x57cda2)continue;if(!_0xea7f29)_0xea7f29={'left':_0x57cda2['left'],'right':_0x57cda2['right'],'top':_0x57cda2[_0x378ea3(0x12e)],'bottom':_0x57cda2['bottom']};else _0xea7f29['left']=Math[_0x378ea3(0x160)](_0xea7f29[_0x378ea3(0x117)],_0x57cda2[_0x378ea3(0x117)]),_0xea7f29['right']=Math[_0x378ea3(0x188)](_0xea7f29[_0x378ea3(0x108)],_0x57cda2['right']),_0xea7f29['top']=Math[_0x378ea3(0x160)](_0xea7f29[_0x378ea3(0x12e)],_0x57cda2[_0x378ea3(0x12e)]),_0xea7f29[_0x378ea3(0x1f3)]=Math[_0x378ea3(0x188)](_0xea7f29[_0x378ea3(0x1f3)],_0x57cda2['bottom']);}if(!_0xea7f29)return null;return _0xea7f29[_0x378ea3(0x21b)]=_0xea7f29[_0x378ea3(0x108)]-_0xea7f29[_0x378ea3(0x117)],_0xea7f29['height']=_0xea7f29[_0x378ea3(0x1f3)]-_0xea7f29[_0x378ea3(0x12e)],_0xea7f29;}function _0x29334f(_0x4a9ec9){var _0xf11419=_0x4f25dd,_0x22b6e1=document[_0xf11419(0x96)](_0x4a9ec9);if(!_0x22b6e1)return null;return _0x25c03f(_0x22b6e1[_0xf11419(0xbb)]('.maplibregl-ctrl'))||_0x3c8169(_0x22b6e1);}function _0x162c57(){var _0x1c082e=_0x4f25dd;if(!_0x4a63d0)return null;var _0x130315=window[_0x1c082e(0x1d8)](_0x4a63d0);if(_0x130315['display']==='none'||_0x130315[_0x1c082e(0x10f)]===_0x1c082e(0x178))return null;var _0xc01f57=_0x25c03f(_0x4a63d0['querySelectorAll'](_0x1c082e(0x250)));if(_0xc01f57&&_0xc01f57[_0x1c082e(0x1af)]>=0x14)return _0xc01f57;var _0x1e84a0=[];for(var _0x120f57=0x0;_0x120f57<_0x4a63d0[_0x1c082e(0x245)][_0x1c082e(0x16d)];_0x120f57++){if(_0x4a63d0['children'][_0x120f57][_0x1c082e(0x94)]==='SCRIPT')continue;_0x1e84a0[_0x1c082e(0x1bc)](_0x4a63d0['children'][_0x120f57]);}_0xc01f57=_0x25c03f(_0x1e84a0);if(_0xc01f57&&_0xc01f57['height']>=0x14&&_0xc01f57['width']<window[_0x1c082e(0x19c)]-0x4)return _0xc01f57;return null;}function _0x8dd3e9(_0x2cde18){var _0x21cb41=_0x4f25dd,_0x1b8907=_0x2cde18?_0x2cde18[_0x21cb41(0x21b)]:0x34;if(document[_0x21cb41(0xf4)][_0x21cb41(0x1b6)][_0x21cb41(0x1ab)](_0x21cb41(0x169))){var _0xa4f348=window[_0x21cb41(0x281)]('(max-width:\x20720px)')[_0x21cb41(0x14d)]?Math[_0x21cb41(0x188)](window['innerWidth']-0x14,_0x1b8907):0x20+0x20+0x104;_0x1b8907=Math[_0x21cb41(0x188)](_0x1b8907,_0xa4f348);}return _0x1b8907;}var _0xec04f=_0x162c57();if(_0xec04f){var _0x43baab=Math[_0x4f25dd(0xf0)](Math[_0x4f25dd(0x188)](_0xec04f[_0x4f25dd(0x1af)],_0xec04f[_0x4f25dd(0x1f3)])),_0x23cfb3=_0x29334f(_0x4f25dd(0xe3)),_0x1c094b=_0x29334f(_0x4f25dd(0x
+=== 200 https://www.yanbuweather.com/pages/RainRadar/export_local.js?21
+{"content-encoding":"zstd","cf-cache-status":"HIT","etag":"W/\"f87317fd8ff60fd9706039bc00860e48-1787177372-75444-2\"","age":"6698514","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=Nk3Qnuo89DmnvcuQkRghM1z6MCQv%2FbpS%2FMiMxIRi5l962k7AjhIous9fn2Plp%2F1JWI8BZOnJM6XvNaq%2FI7VfqXzfWL%2BL5CRAZSqURiBvrKjCZARxG8%2FJfkzHi%2FVnEp3AeHo7bXaRBA%3D%3D\"}]}","x-content-type-options":"nosniff","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"application/javascript; charset=utf-8","vary":"Accept-Encoding,User-Agent","priority":"u=3,i=?0","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"public, max-age=31536000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1e6d4464e6-ATL","server":"cloudflare"}
+function a0_0x1392(){var _0x2f9ac6=['dbz','sinh','rel','209xoNzhP','unproject','<button\x20type=\x22button\x22\x20id=\x22export-choose-still\x22\x20class=\x22export-chooser-btn\x22>','paused','ترميز\x20الملف','stop','restore','catch','18yTAORe','left','middle','add','dom-layer-cloud','<span\x20class=\x22export-chooser-icon\x22><svg\x20viewBox=\x220\x200\x2024\x2024\x22\x20width=\x2222\x22\x20height=\x2222\x22\x20aria-hidden=\x22true\x22><path\x20fill=\x22currentColor\x22\x20fill-rule=\x22evenodd\x22\x20d=\x22M4\x205.5A1.5\x201.5\x200\x20015.5\x204h13A1.5\x201.5\x200\x200120\x205.5v13a1.5\x201.5\x200\x2001-1.5\x201.5h-13A1.5\x201.5\x200\x20014\x2018.5v-13zM5.5\x205.5v9.2l3.4-3.85a1.25\x201.25\x200\x20011.9\x200L14\x2014.1l1.35-1.35a1.25\x201.25\x200\x20011.77\x200L18.5\x2015.1V5.5h-13zM8.25\x208a1.25\x201.25\x200\x20100\x202.5A1.25\x201.25\x200\x20008.25\x208z\x22></path></svg></span>','getMonth','imageSmoothingEnabled','#f2efe9','offsetHeight','createObjectURL','indexOf','280730itaqlZ','string','2821281VeNmrF','get.php','onstart','.png','export-progress-label','time','size','canvas','work','lat','stroke','برد\x20خفيف','resume','resolve','urlFont','shortOffset','أكتوبر','classList','getHours','options_n','direction','الخميس','timeZoneName','<div\x20id=\x22export-chooser\x22\x20class=\x22export-panel\x22>','click','test','clientWidth','putImageData','name','&colors=','chipH','معالجة\x20الرادار\x20','filter','video/webm','gcs_tiles/img/','urlA','معالجة\x20الرادار','onclick','2988876YCYZxp','strokeStyle','<div\x20class=\x22export-progress-meta\x22>','timeZone','charAt','getImageData','icon.png','interp','#222','إيقاف','acTL','shadowOffsetY','textAlign','http\x20','div','zone','getcloudflow.php?time=','status','style','abs','rgba(34,\x2034,\x2034,\x200.42)','IHDR','water','export-progress-stop','getContext','windy','1180sBMFiL','padY','idat','parentNode','ltr','floor','start','رادار\x20المطر','numeric','#fff','fillText','right','hour','naturalWidth','contains','project','titleSize','then','offsetTop','gcs','أمطار\x20غزيرة','shadowBlur','<div\x20class=\x22export-progress-card\x22>','roundRect','#000','resolvedOptions','نوفمبر','مايو','log','forecast','blob','برد\x20كثيف','setAttribute','lng','once','windy_tiles/img/','rgba(0,0,0,0.15)','measureText','close','\x20/\x20','logo','choose','getMinutes','forEach','logoH','frame','maxTouchPoints','innerHTML','ترميز\x20الفيديو','data','getElementById','fillStyle','splice','offsetWidth','href','dom-layer-ri','clientHeight','still','false','anim','outH','getCanvas','year','function','rgba(','gif_speed','all','ctx','جاري\x20التحميل','تعذر\x20تجهيز\x20الصورة\x20على\x20الجهاز.\x20حاول\x20مرة\x20أخرى\x20أو\x20قلّص\x20مساحة\x20الخريطة.','fill','600\x20','shadowColor','lineWidth','جاري\x20التجهيز\x20على\x20جهازك','thqafi','يوليو','day','recording','تجهيز\x20الألوان','<div\x20id=\x22export-progress-work\x22\x20class=\x22export-panel\x20is-off\x22>','ihdr','AbortError','&type=forecast','undefined','slice','is-work','#333','ceil','mix','fcTL','الخريطة\x20غير\x20جاهزة\x20بعد.','true','IEND','scheme','blur(','<div\x20class=\x22export-progress-row\x22>','px\x20','options','clearRect','base','url','SmoothRadar','كثيف','disabled','date','أمطار\x20خفيفة','epoch','save','canShare','<span>فيديو\x20متحرك</span></button>','رذاذ','chipW','outW','export-progress','getDate','textContent','preventDefault','برد','isTypeSupported','position:fixed;left:-100vw;top:0;opacity:0.01;pointer-events:none;z-index:-1','closePath','export-choose-anim','format','416VUaJZa','revokeObjectURL','innerWidth','clip','stepSec','addEventListener','yanbuweather-radar-','<button\x20type=\x22button\x22\x20id=\x22export-progress-stop\x22>إيقاف</button>','mode','<button\x20type=\x22button\x22\x20id=\x22export-choose-anim\x22\x20class=\x22export-chooser-btn\x22>','h23','target','متوسطة','logoW','globalAlpha','mp4','<span\x20class=\x22export-chooser-icon\x22><svg\x20viewBox=\x220\x200\x2024\x2024\x22\x20width=\x2222\x22\x20height=\x2222\x22\x2
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getclouds.php
+{"content-encoding":"zstd","cf-cache-status":"HIT","age":"1514491","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=NvkT37Z%2BUf7dj8PjouwbPZnspklVlPszf9I28iB%2F9e098yG1OrTX7%2BS5ev4BI75gjwuuVBSSzunXzcMXnNstcGhrnWmus3065lIeCBWiohIBniwEJZtMk0nEbW8%2FTGYpVTzhQCXyrQ%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Mon, 30 Nov 2026 05:04:57 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:29 GMT","last-modified":"Sat, 31 Oct 2026 14:34:19 GMT","content-type":"text/html; charset=UTF-8","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=2592000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e200dd364e6-ATL","server":"cloudflare"}
+
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getlut2.php?token=1794873600&sig=f54880e39729dc11043af6a079cf9539&colors=titan&mode=smooth
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=vv227X3Zlac9iY5NgRFAI8rGTN2ohcgMzWXrnSVfuc9W9QKClZK7Hp01Z0OexqNIEx8n22L5XXeZUOKhuG3PycvaIQRbrx4S1l96uY4NriZI0nQIPetxpXO43V3BUfKiIDEiNJp6yA%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 18:00:46 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"image/png","last-modified":"Thu, 13 Aug 2026 11:44:12 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=3600","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e200dd564e6-ATL","access-control-allow-origin":"*","server":"cloudflare"}
+�PNG
+
+   IHDR         1Ypw   	pHYs  �  ��+   �IDAT8��Ar�0[Z![��S�����oXH��>��VMuϬ���v���	k-�Z�~ܲ����/�����˓J �Y#���2]�tݨ��]��
+t��Rl����f���\h�B7Z�x����f�����?6c2�A=��v�:PvFKD��2a��&͌���h�Q�v�f��m+��3�������#�q�0.=g�dI���6ێp�	�/¥'~����AD�Z�("(��O� �U�z����    IEND�B`�
+=== 200 https://www.yanbuweather.com/pages/RainRadar/get_landsat_latest.php?token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","age":"42373","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=d4gl2ttZJ6i9aVjosgyLFSHQ1jItI8uGhmnLqP%2BfMhbvkt4BD3mnWR%2BlpW2mZNh2F0Xp7kWowhlGke%2BwgbwU3vxTEIz%2FVfvLb6eB56dzyOwLpXTFVnBk8XPO%2BH4V%2BMQhseJCHRwpTQ%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Thu, 17 Dec 2026 06:00:15 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:29 GMT","content-type":"image/png","last-modified":"Mon, 16 Nov 2026 06:13:56 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=21600, max-age=2592000","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e200dd464e6-ATL","server":"cloudflare"}
+�PNG
+
+   IHDR  �  �   e�>�   	pHYs  �  ��+    IDATx���\�u&��ڗs�T�P �~ŕ$ʒ{;n'��܊_�7���t��8�~�yq+b�R�V�{ˑd�!$A�H\
+�S���<�
+ H��e��a�ADUu�>{����߷>2~�D�3�  ����B0b8�~V�?I�	�M@� �t<�n#��c�% �	�A�=��HY��X
+ �C's�a�|��Ϡ)�`+�%@yP��mR��P���U@ �`�`z���v}|��#lՂI̶��}����x�E��v�h�f�fbկ �gl��&1�PIgԏyt/���9ʍom�����9����Gt?��p�c��]���X&Ԁ��P�Qm�AYO'R?.;�������ͺ��ב�H�14� ��c�,�uv<�a%Z�����55�E4QD��
+`��[4U� t��ۇ���`d�Xb:4u �6�t��M� fl�I9���E3b�p�'������<ݠYv"pԁ�����G�Ɩ��}�3��F`+t��X��c�܂�ZP��\��U ��uF;]�@�t���8t���`jX�n�65�L�  @� �D+������,ºy!s��s��s�AS�����2W��ۦfb[f��|����K�;Q��q��������������i���������w�M
+j���v~[g@7��G�TM�y��Ԡ�o��3 0v�x�F���*�@ �!V74#� mQ���D�U�:p̕׏��F����p��j��P�gi�ޗ�u�:05����賟�8=|�H��-��p j@k10U�5n?/���X�`-�  �Av<��5D�~��� �ޜ��0>k+�K��o�<�����~���_�����2�3U#� �G���3��9�{b�$F�Bkb#P�6�DK�@ :���[GGg�5���6�wh+V���q���_�9����������O�0���[���߷�����|ܺ�����������N4���ݫ��R�O�q@�l��jH�i���b�۟����w��u `�e����!Y��׾w��ԅ�YT�-�����.��f'�M�55�bQ�����3�g?Y���[GϿ51�"�.�xf `������gFϿ51cjF�C�樃��g?Y`�,��e�����fb"�6U#��5�t�X�&*7+��?�=�����8}��#��$S��ٴ��܂��Ye����2�Ԋ��u��;4u�l��!�
+��Z�"�X[,vPC,��[�.���p���ѩ���CS31[e���!�қ۟% ���&f���ߚ�ѽ:���[G���ܻcs(Q_�����;�s�<3|y�-�)���}�f��x!^��7N��uܱ+?�y2<��g^ˏ捙W>�v�I7�6U�ĲHM��P� �Z	�+?�7�*O�� P��{5�3�u~8�a��ڢ2?��x!��WY ����=��5L�0E�;~o `��M���&1�A<2<'ڢ�{5���mQp�q_ �VL�� [g�{�|l�w5y��s�w>�W~~��Tuy@
+S1��qϊP5�P�!Uc�Y�6X*�d]74���d���:�&-���=,?��}�j@(��Đ�A,
+P
+t�.c�`������ͤ{/�[]<�������M���$@���6}b_y#���4-�G��wŻ;�%�)�M�/s@������#gUl9v|���1�b�ڧ5�(a��D�����1M�ֽ��!��ic+h�f���!Kwߊ3T���h��e�2l�����L�l�s  �"8�����V��$@�O�H��Y����8�ۙ���׷s.�X�;��m
+�b�8�V~���+"� ݤ �Xa����Ģ�1I��E���pP�]M��
+�-�G<ˏ�1v|�M,)sX젏34)��U,	`�L�A)�{Q ��͞<��Ȃ<$c9$�v���Ԑ��N4�6?�c�J�E�����Z,��e��\��c�ﴑ��%,G��d�X��p���},H$�C�?�R�+A5��n�rn�bQ m�2W׽�&���hVX�Ne ��OQt��� Z��< ]���Z�(�6���0C�����4�؂�x�v��
+�G8� %�#�8��J X� �A��-��:P� G�7� нާc�@7h&�˘_W ���F�w�_��G����@)�-
+@L� ķb|��� �tF:�Zb�j���]~}����v��Ë6�L,����X�S3���������_�Ϋ!US�
+������������25�bկ�2_�6��
+��7�o�z~۳���j@At7�6���A}���!Y�=�M3է|�b ������GT����LŀX�9jY|�I�޶ж�󘚁�n���GLŔs�V,�%�� n"  ��v�gI����׭L� [c�3�a�1���`����� �e�,]����x(�������M��A�+ �@t� ���� ^�e�|[8��Y2�h�O��PիU��),k=��fv<��A�4��h�1�#9�e��g��VY�{u��ڊ���8�lh���-��8��L��x�����MG����M}.F���M�Ab�Z���~�ߔt]���.�N�q�#��[��=��kݣ���5���W�0�n�5*l��c�� ���O��e\�|�H�� ��{���t�)bQ�~�q�>��2ݧcGD�Q�s�S��G�T1�T�G����T�Ӕ�gP�ώ�m5<"	�U^��� ��Swm�Fvk��~�qorP��=����a-�����Ē ���ݺW�198���)똎:���O���߃Հ�6w�>�-n@@����c]�%�̭<,��1  E[���4�.��"����Խ:���_ �0�rk���y����H�>���5��>�{u��z]��: � *���s�ǯ�>,�����V��v�����+H^<g 9)?������y���\��#K"�y�F�]~}f�ܻcs�9�}�F[4s�cDmj&v�[e�T��10w����_��O�Rb�S������J��qm��=nP�1�t��m�,4���g�Ze���|�kկ_�(�i��AԠ��B�{��[y��G���V�uկX~$/�?����P����!ٰ�1�rH
+��}
+��>�+���  �5.M�]��"�_m�qV���х<���؂�i�lb�=�5��T�}K��u⾰�a�T��Bt/�~T!�u�����
+9$kD�9jڦY��<�ohƷc�}L��x>��+�c�����Ƴ>��=����8��ڥ����s�����Ͱ�;�}Re���]s�A�_`�ݍVux������Z
+1 �����1C�jcW�7o��u���O�LlP@�N3�O�3S�N]�5�&p����zp�y�����������it/��W#��\�ś�zv2{�n��Y��k;yQɉ�s��oN-�e��Y3|Q5��~6ya���ѽ���H^�bI�ګ�~��s�C���<6��ɦ�5�V������WiS�gӱ�rO�Ʋ�HW�VWB-`�Yn{�;�srH։&���v��aو�F+�ޜ����YS51Mi�CY�2�w|�@�v|���Tw�;,��ϥ�b��S@)��e�1�~ѹ�?���kb���EM����@}݁/��q��������t����P��5T���`��mj&6=&���[3r���u��Ϸ�#��B;���!/.�@X8'���� ���+횭X���&ٺ�G�G�:_�mӌ8RTr����c��h��	�Q���	 ��ҡ&v�תkj@�+���?�?�����s�����X�?�ͼ���`dA������s�͇Z��Zw~t�X�r��F����V7����Lw��5|?̭�=�c���u�4u��������p�}v_��������o��s����u�\����n��8>��~��[36�S�6�"įjP��h�6��ޜ��8>��p�2�����v̡��y_�n�/�Xv��fO��<G��-Fk�f�2{���S3���_��?�:��S����&f�O�0���}��_W�k�h�J�b)X����
+=== 200 https://www.yanbuweather.com/pages/RainRadar/xhrv2/cloudlastupdate
+{"cf-cache-status":"HIT","etag":"\"a-6607c6ae69022\"","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=DIr1akumP%2Bdiqy35pXF%2BVwApZFgolHZD5PJwShE1nzVkDUa4iRdi2aPG%2FjDC6DfUVrC3iwQAPVKkg5Nn31DmYqN9EroipaCK30vyjoxQdqLTB1dfll2rYu3NxDld20Zcu9BkvVHL6A%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:46:33 GMT","server-timing":"cfExtPri","alt-svc":"h3=\":443\"; ma=86400","date":"Tue, 17 Nov 2026 17:46:29 GMT","last-modified":"Tue, 17 Nov 2026 17:42:25 GMT","vary":"User-Agent","priority":"u=1,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"public, max-age=5","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1fada664e6-ATL","accept-ranges":"bytes","content-length":"10","server":"cloudflare"}
+1794937200
+=== 200 https://www.yanbuweather.com/pages/RainRadar/xhrv2/lastupdate_dbz
+{"cf-cache-status":"HIT","etag":"\"a-6607c7414df00\"","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=dOkwj2tTY0F4Q0UI5LSI4e5Z4Ia4jFl7%2BVqr4xDDKHn%2BGAwaC%2Bp%2F3r3tQ56Jv1i%2FjYxZJSReUCC2kvOj9xhteHfbQdGpc51FNFKDk4Q02ArMIVYEoWdGR2X5Vg2xjIL12Ucz4y3C1w%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:46:33 GMT","server-timing":"cfExtPri","alt-svc":"h3=\":443\"; ma=86400","date":"Tue, 17 Nov 2026 17:46:29 GMT","last-modified":"Tue, 17 Nov 2026 17:45:00 GMT","vary":"User-Agent","priority":"u=1,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"public, max-age=5","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e1ffdcd64e6-ATL","accept-ranges":"bytes","content-length":"10","server":"cloudflare"}
+1794937500
+=== 404 https://www.yanbuweather.com/pages/RainRadar/getflow2.php?time=2026-11-17-17-45&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"zstd","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=zlUVlFfyq8vwN4Q3oluyrbrg54K1t6vMjxI2zC%2Bay3IFtogs3R%2F5qEl2V8uEuDU0UbIiBOaKvbKeNb6HXt0TFlp9oLqV89O%2F9YZ7fg3O2PyH9DNDKWgBGL87s262V9M7HNYCunIGKQ%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:46:42 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"text/html; charset=UTF-8","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=30","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb264e6-ATL","access-control-allow-origin":"*","server":"cloudflare"}
+
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getcloudflow.php?time=2026-11-17-17-40&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=elaDbqPK84f4vub4fQJrsRM%2BzVNmoLAlvXDgWMnKiP1QrqioEo66UvNPHGwiD7qMAlFZiFsAbRJ07j7gQ9mV7YYi0fi%2B0EvG3A3JvWGSs9K95bpJcmzZmIR%2FutcfLB82ijF1Zg9InA%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 18 Nov 2026 17:43:06 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:42:25 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=86400","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb864e6-ATL","access-control-allow-origin":"*","server":"cloudflare"}
+�PNG
+
+   IHDR   �   �    ���   	pHYs  �  ��+  KIDATx��]�v�8��`�zv^����o��c(��UT^�i���铕Δ%��% �����x�; �  @��_7`�?������+�� �ͯһ��B�[�?�OB�6�_�j" ��J����b�y��.|
+�ุ|�si ?���e����[u՛4�#���||�=�e*y����UW\��whZ8V'o��������Ƌ0<���Y�cn:��]�J��Ow�r���[�F�d�׉�L��:ɮ�m{8����oA��e�~	7�ֈ#������I��}��S��j�H��<��qoi���Ru����%�!F�	��.���+��:�;WZp�l��*H�wT�H���/a�a�-?�J�:�J1[�S�&��dΖT�5)���o:�c}�Q)˘��C������"�k��\�!� ���RըY_���yl��~��hש�����:�=̉φ ���+A��q�V������q��p�4H:5�A��'X�CT�c���a0�.��pĿ���ᴦ��q�`�qb��Z��>:Lx���.���)���Ez���MI��o4
+�y&��G��reO�*_�_oZ������=��x��1����d�I���X\��=�h�){־��*[�CȻ��
+:����+g���|z�f�`r^~yl���JϹ{/�\U���bY&�M��Lxe/�EG��A!���o��	p�����ݏ�d�X����m��� '�����bg�?7\q5��*3S9;�}�ZF#Π�iN�'�8"�7�����gT^к�23����NON�Np�W�XF�	�:��b;ݺ��k��}�E?Nv���:^؀�?�{x�����qU��?7(ĂJ����	�z/���b�M���V����>�
+�p�ݠ2r�q���MM���.	;�=<s���r]��
+�F�*D�7z8���##���鞫֛?�+]��(e�u@b8?]t���FO"��^�;yC�Ţ if�m³d���u!b��e�H�8�d_o���Fd��,0��ʘX�If���ޒz���[���1�%�hl�!�6z�v�y�3�F)X� �ZQ�*!��A�K�$�cO�}����%���[fDw�ו�7���9�hxWƗ�se��J� �C�YQ��ўi{}f�����Np�%��Ҋ��Gr�H��H��M*�P]�kœ�h};�8\��8x�4j�e�����(����ł���vF��@:�M���rR?ȱ'��cٷ@G��������Ze����a�t��Bg��;n�����;�p3QPo	:| ΁1^��2hu�J���w.e d+cqj�۳�_C7Η��X�]��C���^����Aw�RR����Kg�:��9��e\)_5��Q��=�G-]U&q�M���Q��ňvt3�&v =x��j"v�������G�|�s��ȔuS�77K� �E���Đ�P6F�^G�}`��q��r��.?��"�	/��ک$-p�N��O17{�ṫ5.��^�*������=��
+����C��#HWG^ŗ����1!Eh.{��Wq����\�I�<pvdK:zI4%8:��U�7>��T�����tl��o����ݑk��	Ũߣ,^!�:)U�����ї�r����2�)���S�<vbW�jϜ�X}/�ރ�D�C.��b��p#�����X�oq>�bX�>:/���5��E6:� WV�F���;ʲ/�l�\v,�uA�>�]2g��Q�)W�&4�@��9X�k��PK6bJ9 9+:�d��I���3}��Kj�B1��b��H���0^��4�&Vش	"����ԏ�Ú%��F��&�����Q����%�T�U�~�h�{�@�o������7��� �{$�c�B����g�$C�щ�5+�S��Wa&���W?�/���;�i��A�_�z�]M<
+Z�Q�Pp��w1�uG�F������J�'�$Sa%�&�^�l+oyp�k2�`,z7�	s3`9�l���PE�,��	I�����"��"?td��Cϼ*7�'����ۑQ9���������5����OΙ��)�������n�����}'v��hz;�>yU\�3w���`q�tS��F��&n��uT,{Ɣ	#\�?T�}��A칰�v�4&6T�� �x����y��J����0��	�G��c���5���H�����I�u�~�����L�/�;?�օ	�+~�}��K�귓Z��弍��N3���=_�eQ�Qc�M)��K��{4��;��|���?,��-Hss�D��6ʷk��	sHY��m�{��<�錫l)�K�TA,:��Xo#=ܦW�B�� 5v����bI���_�@VT	�~bM����u��������k�4p.(��G
+&ح�Z\%����
+{��-��T�l�v����u/I��b֒�I`t�5�������,z�b/3!L��!>���(X�r.Zӝ��h�UK�Өh���F?"�	������L�G\cD��cku	�X�&@����#b�O<�z�*�ly��e4�P�qW���g2N�����Ҷbzu�W�9���D�%>̍_4啌�՞j���]�v�%ӟf�u_\��SO+0�$cAfSy_�4���4�)�F��7�X��-�֡�>>]�T&)�DsLՋ��t&���dK��k��������e��\��T��};z��Z}��?��r��i���c�]�nO6i�3w���M�x�Y��uy��3b�{�̪�Լ��e˃�#��s�|���	�	̔�(O���➲S5h��%5Y��]�T/?�c5P�FE��;7*-��n�>��:K(�WU��;�x�������I�˕�Cu��������eH�V����1k�����Н��4�����¢�-�W�]�y�@(�[%l�����+\��e��_�qǮ���G�]��&��"J�L��9�����+����3.�
+y���5TD�<���`7|��i`�G�b�FV�2�z�I�%�\f���V第��){n���%�;$��k�)I��r��pJ��4dz$Kc'�|�U]k9������%��O��=SjPƦ� �OM���H��dM~|�-�lj�9�;n�W̬�{<��aQu��M_�d�3#@���'�T�*[M���:�x�R���jΔ�`�W��_����e��h��.Y�v���[H�2�����{=�m��-Ga�'V��ؼP���}̪ޖohCWWP���������̤��qvflV�Q��R�w�+���������)S.{��M�,�:�dw��D;l���论IN.��m������OI���@�^.�S�]�?#A�t6��$PD4��C�X��ߺ�V�;q���Y�������5>z�X� ���[]N�� �������~Vd�T9ڔX����ˉcUy�r}Q�Ŷ�²as�{��<�=�,���e���;J�,���Zǁ�k%�����}u|�~D;��]F��S6��~���A�A�j]Ց��]�U[�D��'և&�͵Ǚ���<1�G�6J}���ws�NLZ�K%���n���e?��ņ��\Se���iMF���&ʧ�VfF��=�/�٬!~�Ȯc᝗
+�i�;Z/U-^֭S"iЕs��h@�3���S9�4�z-�,8b�B�1������⸓��+�3�zC9e�«�	�3��$c>�l{��*��ڗV�KU��Q�C�7�J�]9]��.��[��T�,�}Sg���A�dʪ�fb�پ�T?3rt Ye�-�%U�N36�{��R���'Сt|��)��w.P7��e���\SK�1.m���o\=����~�Md�d�dV���>?���q�x�u�꺥jR��I\fP�|D_�R�]ɲ�x�Gl=�H�ą̿�b ۂ�g��� MҀ�MuU���ޥ(�`޸W5�Fm엖��m��nԀx����T'�`Y�fl�X�<7����_��U�L<ߺ*ևM�/NA'=��I�ʼ�������h�tK�EKm��]�4�(�D\��{�V4��g�윕t?��f�"ǭ.�V�c��Z$o��'�4���:6�{m������T�pF��bH���M��n�.����`Ǩ
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getarrows.php?time=2026-11-17-17-45&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"zstd","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=VqkezpHwqAvLc2fzSMZ83C7jIblhPj4JKZkwXgoAxNav3sOVQC8RoIY6iC%2F0KhANpkzxsWrfEVH4zu51AAmAjWyZQq8a9glh5%2BEoyp1ZcEsvcngLRsbuRpjRbr2sa3fOO%2BC1CAbfBQ%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:45:26 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/svg+xml","last-modified":"Tue, 17 Nov 2026 17:40:21 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=300","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb364e6-ATL","server":"cloudflare"}
+<svg width="5000" height="4500" xmlns="http://www.w3.org/2000/svg" version="1.1"></svg>
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getdbz.php?time=2026-11-17-17-40&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=8Yhjz6IAT7Tb%2FMgcqp4n7eYOz4uvWP1OscXaQScsBdbVRoM7PBEaiz1mL5lIouO7QINsSzAntw6ft0U2Wc1vNeHkRuUgXIh%2B661UCErDCyB10LSPT43WIkrsAacJxz5eRb1dPcbPpw%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 18 Nov 2026 17:40:18 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:40:13 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=86400","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb064e6-ATL","access-control-allow-origin":"*","server":"cloudflare"}
+�PNG
+
+   IHDR  �  �   �T   	pHYs  �  ��+    IDATx����n��Mj��d��󺍭�*ڞ�υ��	#�JaG�Z@��|����                   �B]  ����1�����8                 .P]                   ��it x�f�|zQ""���y�7}��/ɯ?n                �w���                  ��                  X�it x�f��-�Y�{K�[/5�5�떇�
+                 �  .�]���k����<��n~�w�                `)��=                                                                                                                                                                                                                                                           �I�  ����2_�z�)]�<�                  �.                   �A]  �ۈ��}�.K�/���kv��                ���g�                  `it ���F��=�lNd�t��/'>�w�?xF                �g�                  `�                  ��4�  �cQ""R]?���\;oM[�}��vs���+q��                ��y( ���p�giXo���6����n}������o��?��9�                ���{                   X�4�  �uQ"�_3�:EĶ��;,ᗵ�e_;`���[�i�)�?�1                0J>c                   H� �>ۈ2_�9��پ�s��Lw�y+��z������y������                ,$�.                   �A] ����(1���Yj�SE�,w�)W�������}&Z�V���ޖ��/                ���g�                   0H] ��%"bS�-�k�n[��G�^6��?y�8�w����{���Z����S�z�8                ��<�                    it �cQ""6u�Rs�~q���x�0=�ӹj]ۏ��)^�O�ޫ#                �)yt                   �� ��6�DD��'�`w��#������                ���                   8�F `}vitXB�|                `�<�                    ��  �)�,��;[?��                `Qyt                   ��  �C�Yjn"⥾6!                X+�Q                   V8                  ���F  x�f��?t���/�                �� �����t��8                `��{                   X�4�  �[�F��M�=����f����	                �S��=                   , �.  ��"J�r��^�.�z&                V"�.                   ��4�  �[*]��H�                �%yt                   �                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      nM]  �Zl#��>?��վ��l                7/�.                   �A]  �R�G��=P�ɻ�ۗ�������3                �i��=                   ,��8                  ���F  �T�f���ľ��c�o#JD���v                �� �/����}��;�                �M��                   ��4�  ���F�8�����e�;�g                p���                                                                                                                                                                                                                                                                                                                                           WmQ�et                 �#�.                   �A]  ��}D����zS�Mi}��T���                �f�3�                   ��4�  \�mD���O]njN5����Y>�G                ܤ|�                   �F �K��(1���2u9u�����3                ���g�                  `it �4ۈ�۴��+�k7��/5�j�ܗ                n^>c                   0                   `%�� p��"J̦��7�r�{�����                                                                                                                                                                                                                                                                                           
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getclouds.php?time=2026-11-17-17-30&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=YTPpf3I05mb8t%2BVSM6JUcMYwxZgeRwVjGxVLtKeaqS2pga8LEjFXuAP%2BHbJzu7SkhmwUMgc97IBOpIA6FvwhTE1QtPsrQvC7XtjSSSaBD04Jx2dGq1HbXhc6hvtK%2FoUuQRqWxKUpmA%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 18 Nov 2026 17:35:18 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:33:19 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=86400","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb164e6-ATL","server":"cloudflare"}
+�PNG
+
+   IHDR     �   �#��   	pHYs  �  ��+    IDATx�����8���`�(�N�̮�����g_���vW���Q0`�Gh{��)EV�d�H����p����o��o�OU����RUoU�?�����߫�U�;�Ϫ���Q^Uu�Ĺ��-Е`�?�ּu�^���>���;���y����ۡ9����e����o�sC��[:��c����i&�G�90�"<x��
+�qW�s��<�}�.X&}.��4���M�w��;�����&X��T�_��owxKfxA�Av�>�'W�Y����e��2�|'���r����Ϡo������I�v���:p�]:ԇ:x�7��^�6���a����Cz_�߂w _ҽ�O��z��~=������'�#~��Q�5�6�xH/�qףk��&�A�;�.�z�|��Y������e�:0���'�LI�J�ȏ�w���q��47��AG�B];��t�0�����'�c��ſ��1�L�ɓd���A_�w�(�l:�K�Vo��:on���Թ��n'�g��?�^��xwp��Xh?��6�*/����1�#��k����:d/����VU�ܿ�����06�Ƙp�lW��M:_�_=�}��xY��L��-�n����|���uin�.�k[u�C�E�7����~��$��f�w̿c���䮔�WZ�Q�ݴ�-�y��P̂�u1(�f���>/�q�w�%�+����o:f;8N�l5���K�K�HG��;���a�?����d��&�үU��
+��v���p^�&������֧g[��񄾜v{���I�5kI�����,��|����ܺxf}I�����y�r{R^���M����6�˽.�`�n�����ȿ�IW9���qXi̳�,𤀞��A��`�3x�
+	ngx�o;ν�T���P+��7-��?�3Tx�q!3t����&�4B&DN�|�*9��:��|�>-�M	�U���z���ɓ���^���[�W%���!\S�o���Î�����,�|��&� Zҳ����`8�pޑ�q�g	��,��١v;l�:q��9����lW�C_��!~L}˳$��ɳ�_�г=�[Ŵ+b�W�lɁ0�|}�����u�{�nh{g�����Lj8�C�Q��O���%��:������ٖ��ﴐ��>_�'�l���)I�Y���s��󎗖�Ԙ�_hr���}��)�M���0nv����n�a�;���ŧ�����n��Ǽha�o�#���^��2O:�ܬ$��s��#�O��G����M���MWI8dm��XU���N:��7v<��I�$��?/Jg��$�3�g�wr��bYA�ol��x׿;��(�z��s��l9vH	�1e5�2�ѯ=jS>:��w��<���u�װ;?�d�7��QK�O�����NK>h���{J/�Yz؟�,��S�!��M4�h�l��^�R����g�c�yB�L�8�gp3D�h�y7ɸ$�NǞm��_�����^�{šq�GZ<%��`�v��
+�$���<�r��D�xv8R�m��cW\iL����
+�r��V�ҹ�𿣷�B?_���ǪqN@�/����T�9�t̋�q��+ ��g#H�+�i��S��]�,ۡg�u�MW͸a�F߂l����N,'<��`�#�x�ȅ����6�2�n�?avE�
+so��O�?�#֯���߽	��*}�(��>|�cc2��.��������d��Ȳ���!�����7|Ws��1�4Ц)����)>�����_�>ݤ�]��⤌p��w�W4��E��΂�7Ɋ��bӔ\��A6���?�S_��;t�p�I%���e��
+w������]1��S�˷\�+�Tky�.SA�𧎍;�����W�s�C���S�;����ǩ�G���s�^�o�X��ź=�W�o���.ʭ�J�'ߘp��Κ�[�Jr6�I�̗�߄CI��;�0��8����vF[:g��xC;Z������#���s1�;���=g�r��9�]��>�O���T�uͱ.��4�Y;�������k��u��tγZ�T|������k��eY���б
+q͹N�[�|<���㼏��8�y[�SE:��Fi.����$����m>��G�`�<볒>�������}�Ѽ�����oC��J-%�ɹ��WLZ��<�����%Ū��&�+��� ��_N��n*��|{_jv�7�7]��Bq�_�$c�p�����yq~�y�3s�;��x�*��J>�m����x������L�|�m�G:�	[歱�өyޅ��U�.\�,Y�����C�-ߔ��.ȻtNȜ0��ScVہ����z�^:oR��M0XL���?ۜү�[����с��G�3�z�F��-�����ޥ��q��B�q����[��#y���!���'ɖr=4���c	}M�'�P��ģ4W��g��Y�G�	m��a�����s��]�`^z��`��E�#���>�d�P~��u~E_�.^��q����t��Bg�|� ;�X���~���X�Ş����_}���������Ŋc��C�Sl�I&C���@h�m�I�HC�o�
+�t���?ђ���p��%�Z��ki�}�G;y�uס��#���qu(f��;��%�t�l+�m_�t���܂��yU£��G�7���܇xZ�S�1�ݦ6��
+~#�5=��2m���������؇����'|F�7�n�=���������������c���䙖x�/�~L� �uo�|��u�gޠ`@\�h'���z�b�ۣ8\��ܟ1�
+7�;\a'!|>ԁ�^v<:��?%9LԾ�Կ�:|�����s���T�p9O*~��W���Q��R�(����[���S�g�iNҽ˱�'%]�6\/ <W���o�%�$��X�`H���񿁇��f�f8�<�@"��7և]�ѹsG��%̂�eN��sND(�����xR��!��t���.�M�x�'�8�?�y>ŗ-�k��s�o��c����6�ljn�˕��_�wR�\���M��K�]�AY�ƭF�:��y�qf��Lu�nܳ�*ȭ[��=*��9%���l怼��윗;�����Y��A�_u{������	����5f�V&��@o��)��o�Pr��9�|H�1)N�p�k�������	�T�Bb�s)����x����d��n�-��*�$��q7Ʌs��u�c��7�����y\�0��ѷ�'�������u���lS?��n���W�+l��BH�U������y�Y眬�����9��z�Th ��=g��G��o�t�j��~�c؜/�o��N�\�Xt:�I�k5�u��\���?e��i���NV���򢤛n,�u�t�JitK��xf�ͣ�����kN?N(凴�����M1��E>���t����*�����{G�o=��D�谐�����G���3�΀�K8���9�L��n�^յ���ɒ��T0,�KJ�g�wv�N�K�:^��H��)0����V*~��H�m��9��)�cB?!�=8�O,�V���3��r_�|�.�5��wX��e��y���,ISJ��Oޡ�%]#�+�+� �@�t��L
+ҷ�m�.�JI�~��
+<;������%����M�2�'�ѥ��H7,��_�0�'��/�'�I5�Z0��o�%�������Z��A��{�䢾��>�KR���<�|��C��d��!�����E�q��]�h8��L��&�&Ɇ���	��ݥ�3��-R7�w��ۉN�B���7��I�OYXd�ʜ�@����:�7<��J�lp6���b%�����r��r�|	}ׄ�@s���I���O��x����dɎ�����L�{9���˳���� ��諭^��F���}����Qa�|�ƷT��jx�<6�q�W������̑�\$��(��%<:�9���Gñ�;��3�R��Z�3�F�r��6Z��p��~���|�z]��7SL�xt�vd�ǾS�RLf��_�SՃ㏚y�5�=�r��q��򳎣��	��d׺8F�w��M*����M���x��C1�s>�]�s6x;/��,\��6�Q d��I��	RR�l�A��hG��
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getdbz.php?time=2026-11-17-17-45&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=C8uco%2FDMPeAoSizYcx9wwjVSAQi%2BKnsivYdOig8Zl5PisbPFGj2emwnUegQQEyh1dTfiAJgFtAN4ObrDQIGWqVV9jF7x%2FTBPelbhP1Y5TdrfLGEAf0kkMD0yxsHlrvjvPiiaEs1qlQ%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 18 Nov 2026 17:45:11 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:45:08 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=86400","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb564e6-ATL","access-control-allow-origin":"*","server":"cloudflare"}
+�PNG
+
+   IHDR  �  �   �T   	pHYs  �  ��+    IDATx����v���-���p�yݮ�z����4�I��I� ���lF�W�u�'                   ܅it ��%)I2�u����                 ؀��=                   ��2�  �6]y~��$Y�                 <�yt                   N�                  ��� l�KR�d��>                `��`��Õ�ǚ��q                 l�<�                    '�� l�>)I2���I��.                `.��                  �Ʀ� ئ}R�dW���C�W�                 ؐyt                   N�� ئ5���%)I]�e֌G����g���                �nͣ                   p2�.  ����u��i��o\=                wj]                   ��                   ��4�  �[�I9_����������{�5W�F                �`��  �כ�u��-�                ����                  � ��  o�'������>{�,                ܙ~�
+                   �,�  |�ԭK����x��?~                �]�G                   �d]  �g�I���~�����z�                �\?c                  �A�                  ���  �O��z�����_=�                 wΐ �.��Yo���7�08                �ͣ                   p��.  �w��                 >�<�                    '��  I�OJ���t��zzg                ����                   8YF  H������c�Ӆ}�7�                ��yt                   N��  r6�vWs���e�2��G�R�kX�>                �	�+�                   p��  Ir��W͹�C�ǚS���/F��>`w                �s�W�                  ���  �퓒�)�����ǚ�?Ǵk��G�.                ���W�                  ���  ޲OJ��O��Ү�i�z�O��c�p�                ���+�                   p��  oY�it��m�;�                ܏��=                   ��4�  ���'%gyw5�u9�C}��Xs��                �0_�                  �0                   �N,�  <�6�w�r�e9�o�{5_궶wM��k                �b@ �'9�,���N                �5�.                   ��q  �dM�5�J�2�                ��                  ���  ��_II�?I����M�-gy���lV�o                ���+�                   p�� |�>)I2�u�����0��[�խ��nΦ���                �a�b                   7`@                  ���F ��{IJޘ�Y�|u߇�z���K�-~bNr�pn��               �MXF ��M��g�OՆT}1p
+>U���n�����                �-��                   �,� ���&��z���M�l'M�1J��<v��n_�:I��{                <73�                   ��4�  ��%)I��p�[������ly/}�Y�k�K                ئ��=                   ��2�  ��5�Fw �+W��               �m�G                   �d]  ��쓒$�����                ��G                   �Ā8                  �;��.  ��]N]�l]n�                �?� �&�:߭~k���Aps�Å�                �v�W�                  ���  ��ԭ�D�cw��5�ٱ                `��+�                   p�� �6퓒�i�}k��_��?�l�۵�k�G�]����^                �4_�                  �XF  �e��$���~zm��R_������������ֱu>^8��u                ���`                  `�                   ��2�  ��^����L]�������[��?�˶�-����K��g��-�;y������	                �� �O�c{�f������q�$�6\��\�ֿ��.��n��.�+������u                �㛯�                  �,�  �RjNWf������s[/O�}]�?��i�vw]����W.                ��+�                   p�� �6퓒$��nSkwݾ�a��K��wr���v}����;                 �e�b                   70�.  l�>)9{(i�k�u���C�_=�                 h�b                   7`@                  ���F  H�}R�����e��k��o                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getclouds.php?time=2026-11-17-17-45&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=ucOv%2BAJYI%2Fh%2FC1MsCIYudUVCAjt2SBFe6FZfR16fmwSfOlQ4dHuSu0byUZ%2B%2BIW5PoLE3mvmkjCBaROGitLnjTLb6a9nw8iyAM8O00dvblBRI%2FEc1Chz2iA21t8r7gw8vs8n3T4eq6A%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:47:41 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:42:25 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=150","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb664e6-ATL","server":"cloudflare"}
+�PNG
+
+   IHDR     �   �#��   	pHYs  �  ��+    IDATx�̽�#I��)�an���*4��1�0�د�h��VgGy2���C-|��#=��
+$��T�r�B5���/��/����Uu������c{U������������_U���}�_n���ڬ�-�55F�k�_��=��YZGU���7�e���L��5|�p}��z�A�{U]4���o�f{ #�������O�O�Hc�0�=K��ƸV������%��5����"�7�S��ƺa|��U:�RU��k9,^o��/U�W�fb�jx{�^.���ܾ���������Cr\�\��M��p������"��AZ�}ل�I{#��K�1n8&�{��o���yA�W������RU����=���߹��ƿ�cſ�ܚ����oU��}�7лh������NC�F�p~nwZ��G�K	�����}��g�?�B	�kl�h��V8�����u��6d�1�8��|_>�����t�eep��i�.ֱ���3��
+<�>����7�[g���lW�_$?�m��S~�и�ތ�Cz����Hؙ�%�w���c���u>�^+F�r(O�o�������fl��̼c��{��){��h�G�+���ьE<6�i���q\�>�׻���:p�~<ٖ�Ix$��8��g�w<�G����Lۤ�_��I&%����,诣�l-q��3�k�Ӕ^����ki�38N0��뉬�c�:�G��;��
+>�>��4w�L���l��¼��
+�u;�D�g�|�`{���c��9v-]��s��G~��6���CM�ϼsLˏ��|��ؒ�l�u������Mk��y���[�lG��Kv��P�Q��h�g���ɹO1��]���q�U���o���q4̧���������϶)�v�p�uy����:v��6��+�;$9���GR@/��5���I�m�˲`���g�[�?'ICf�� I�^�}?�Srhk�U���b^a>;KӾݯ�.�NgFGWH��\q�����I�-��&]�);�']op�NBJ�Y�^0�Pa΁̶�'��nc��.Ʌť�d˾�f�k( �<�+�)��� i�Kf�`G������w[p0c���zꂅ���>�.|:Q�z�%k�!y%����uƁU)ab1x���kݿ;I+��9L��g5c��i!�뻘bh̳EV������\`��Ec�_�TD���Mr%����c����K~�1���jG���/���2�8���e��e<4λdw�,8� /��ԁ1��������-�Ζ�{����%�񜏥�m�*����[*�p>b��g/��R����S�i�����l��i������3z�=�1]����g>�� �gc[W����٘	�)���GЩ��qq4��|dz�!����u���ON��cA�[�u������g��m�k�s��-[������>[�c��|�1�k%뙼��\�-Ҙ�t�8?ps.UA���Hj[ཤ;�[���Tڰ��|]{�xm������u�*��N��v������^ <�
+�@�%ð��.ޔ�}�j�g��ǔ��w�	&M)�^�E��^ܹj��]�� PSX��M�����'v�+� �<H6��z:2����
+;����r_�8�vme^P���".DSb^*xq��/;����&p���&��{�[Е��m�:�?]�HX�u+;�U)�gs&{h��.�|���s��E���YJ@=?e�v��;S	�"�&^SBL:����O��k�v�R^%ٯ뮸vȟk���2�5G�ICץ�Pa�N��.nV�g�2?'>��t�>����ǟ(���Eru��1�y�5�/�Ȝqy S�8�L���u�����t�q�}^!�R��E��5p�-�m��l�9G*:n�3�w�!�H�Y|m�1���xu,�?��s��M2-��>5�>57�����>�kR���~�|#��&�汭z�74�Y�LK�8���ǩ���؟V���t���1.���s�}5����r1/֟՛�b��xcz�Xӵ����M�9w�a6�S�b���]Ǩ�Ϯ�g��[���s���\�|Ռ}ȧ�~:Y����ף<)�e]%܌&vXnݺ?�x�;\$d��xSc��C�p�y6�u��zqӺ&��<��y Ƿ��9�M9D�������d	�k���v����ɿ���h�X\��2)�J-%zS��`��AK��	C&� ̏���3����ڢCu�Q�L���kJ��K ��C�%gi�V��-�����9f
+Rl�['g6%{:��������ny��o�Ni�,��6�]�9�E�Ϥ�����[�|���Xp20D����z�]r��wk�Y*���AJJ9F���r������?�ȣu@��E��RF.2�"��,�Է�hv2U(?L���JNy�oca����n}>�S߆z�K6����n��T��x�ֱ���M����S�l %�)�v�i������E���X��n�����%�]6m[�l��C�WsA��Џ��o�y���~���*��K�`�-$��Wϝ�K���Ԧ0��<�1)�|�q���h=o�^�(GƓ�Oh��L~][O:��Y�2�h�0���S�',�F�p�Ì��ܥE��l�r�v�療���1�K���>����Q3ϴ���x�0�h���鸄�T��Q����I��h�g�1ŧy��Ϝ'ń��l�'+�g�-��cwK����	NF#�#�~����8VA�)�Rυ�I���M��n�a���m���J`n�I>��6��v�7����6����t�S�N<��k�-l�*��y���?0���ܘ��Mzp&V��g(�ӝ��s/��n�nx�[��Yb�y$�şmv�%���3�|+%w��q�LV�_ޫ��E�@�����|�>	|~֙�\\��dP�s�AL��'�^Dpw�''d~��Jʽ�xH��]n�6���@����M��Cv�hHN������qո���D�9F*�� �M;�s�^�lҲ�g��	Pҳ%�2&J]�u��t2E�&P��cW/8��w�}���⋰r����Z�q��O٨��l�4�~����1?;��h�H蘴x������?Ӗ�O�Oa�:��~�@����Β�G�#e�����ѱ���7��:ϖ�P�y��t(<{ik�E�v+�bt�74F�l�HV�I'���Ǣ��3��n���t�C��dI\�|��l�>�2��&c�&>HC�U�)��tu�}aa�5}�D��
+�90>�c����I]n籘O�$7��Mct�M�g	7	��������!���N��8��7})��1���<���-C��D��}��r_c�~�}�����x��1�\�4>3�s�TL�m�1��������Ы��
+�t�
+8+ў�eK��\�k�@��3,8���wK�uN��L��v=b�����#:َ���L�t�y�i������v���'�.�`�����ۦ~���x^��+���x�t�q�ބ��5�`I�>W�,���,m1� ?�;��qd�T8��Ax��4�G���n�����^�4>�+-�#Y���p�x��E ��#���b��I�`"�sSRo�E��!ȹ��I�_��#���Z'���{��x�r_ ��/��;��5���.<��z'm����7ɗ��`�e�%2��J>J��	'A)Y]K>��
+���\�t��ءݖ�s��;?�H�]���ܼ/<+ؙoY�ҩ��\`�bn�_Xxi����I�S�Lɦd#��LdhSϻ,�]�^q;51E,ܤ7�����B�@��.N��$�z�l��+�l5㊴v�L�l�����M����M<G�s��V�o^��v��L�l�-�~4Z��^��|��/�����9��ϊ��y�5C:���=z�y���+>Sֻ�݄�M~:�e6��і+�^�t�.��1_���#�s_����Mr��g���4������p�e��fy0>=�;�*�E[yT\��౭�jdB};o��M��'������|j��	�F?�(M2��S5�{$��-�ݜ�:�\̿�N�q����ϖ�q.������<��:�+���}�s��'їl�4���r�?2�y2��O�O��c�<�t> �����P�"���-�W}���s���'>��'�mj�kVc�d���k���`>
+=== 200 https://www.yanbuweather.com/pages/RainRadar/getclouds.php?time=2026-11-17-17-40&token=1794873600&sig=f54880e39729dc11043af6a079cf9539
+{"content-encoding":"gzip","cf-cache-status":"HIT","report-to":"{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=UGG6r7vIOonl%2ByJz4sOxrBRRsDA%2Bz87OVz9xdVJgZ9L5IISAof9ylQROqpnUdj7WrWeEtlrcBCHfgEd6CnxvnLEh03lpGZiO201UX2jj8rFP3vJSA7kcoJmyGPGxSlWzvO2i7t1xuA%3D%3D\"}]}","x-content-type-options":"nosniff","expires":"Wed, 18 Nov 2026 17:42:55 GMT","alt-svc":"h3=\":443\"; ma=86400","server-timing":"cfExtPri","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"image/png","last-modified":"Tue, 17 Nov 2026 17:42:25 GMT","vary":"Accept-Encoding,User-Agent","priority":"u=3,i","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=15552000; includeSubDomains; preload","cache-control":"max-age=86400","nel":"{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}","pragma":"public","referrer-policy":"no-referrer","cf-ray":"a5c08e221eb764e6-ATL","server":"cloudflare"}
+�PNG
+
+   IHDR     �   �#��   	pHYs  �  ��+    IDATx�̽�#I��)�an���*4��1�0�د�h��VgGy2���C-|��#=��
+$��T�r�B5���/��/����Uu������c{U������������_U���}�_n���ڬ�-�55F�k�_��=��YZGU���7�e���L��5|�p}��z�A�{U]4���o�f{ #�������O�O�Hc�0�=K��ƸV������%��5����"�7�S��ƺa|��U:�RU��k9,^o��/U�W�fb�jx{�^.���ܾ���������Cr\�\��M��p������"��AZ�}ل�I{#��K�1n8&�{��o���yA�W������RU����=���߹��ƿ�cſ�ܚ����oU��}�7лh������NC�F�p~nwZ��G�K	�����}��g�?�B	�kl�h��V8�����u��6d�1�8��|_>�����t�eep��i�.ֱ���3��
+<�>����7�[g���lW�_$?�m��S~�и�ތ�Cz����Hؙ�%�w���c���u>�^+F�r(O�o�������fl��̼c��{��){��h�G�+���ьE<6�i���q\�>�׻���:p�~<ٖ�Ix$��8��g�w<�G����Lۤ�_��I&%����,诣�l-q��3�k�Ӕ^����ki�38N0��뉬�c�:�G��;��
+>�>��4w�L���l��¼��
+�u;�D�g�|�`{���c��9v-]��s��G~��6���CM�ϼsLˏ��|��ؒ�l�u������Mk��y���[�lG��Kv��P�Q��h�g���ɹO1��]���q�U���o���q4̧���������϶)�v�p�uy����:v��6��+�;$9���GR@/��5���I�m�˲`���g�[�?'ICf�� I�^�}?�Srhk�U���b^a>;KӾݯ�.�NgFGWH��\q�����I�-��&]�);�']op�NBJ�Y�^0�Pa΁̶�'��nc��.Ʌť�d˾�f�k( �<�+�)��� i�Kf�`G������w[p0c���zꂅ���>�.|:Q�z�%k�!y%����uƁU)ab1x���kݿ;I+��9L��g5c��i!�뻘bh̳EV������\`��Ec�_�TD���Mr%����c����K~�1���jG���/���2�8���e��e<4λdw�,8� /��ԁ1��������-�Ζ�{����%�񜏥�m�*����[*�p>b��g/��R����S�i�����l��i������3z�=�1]����g>�� �gc[W����٘	�)���GЩ��qq4��|dz�!����u���ON��cA�[�u������g��m�k�s��-[������>[�c��|�1�k%뙼��\�-Ҙ�t�8?ps.UA���Hj[ཤ;�[���Tڰ��|]{�xm������u�*��N��v������^ <�
+�@�%ð��.ޔ�}�j�g��ǔ��w�	&M)�^�E��^ܹj��]�� PSX��M�����'v�+� �<H6��z:2����
+;����r_�8�vme^P���".DSb^*xq��/;����&p���&��{�[Е��m�:�?]�HX�u+;�U)�gs&{h��.�|���s��E���YJ@=?e�v��;S	�"�&^SBL:����O��k�v�R^%ٯ뮸vȟk���2�5G�ICץ�Pa�N��.nV�g�2?'>��t�>����ǟ(���Eru��1�y�5�/�Ȝqy S�8�L���u�����t�q�}^!�R��E��5p�-�m��l�9G*:n�3�w�!�H�Y|m�1���xu,�?��s��M2-��>5�>57�����>�kR���~�|#��&�汭z�74�Y�LK�8���ǩ���؟V���t���1.���s�}5����r1/֟՛�b��xcz�Xӵ����M�9w�a6�S�b���]Ǩ�Ϯ�g��[���s���\�|Ռ}ȧ�~:Y����ף<)�e]%܌&vXnݺ?�x�;\$d��xSc��C�p�y6�u��zqӺ&��<��y Ƿ��9�M9D�������d	�k���v����ɿ���h�X\��2)�J-%zS��`��AK��	C&� ̏���3����ڢCu�Q�L���kJ��K ��C�%gi�V��-�����9f
+Rl�['g6%{:��������ny��o�Ni�,��6�]�9�E�Ϥ�����[�|���Xp20D����z�]r��wk�Y*���AJJ9F���r������?�ȣu@��E��RF.2�"��,�Է�hv2U(?L���JNy�oca����n}>�S߆z�K6����n��T��x�ֱ���M����S�l %�)�v�i������E���X��n�����%�]6m[�l��C�WsA��Џ��o�y���~���*��K�`�-$��Wϝ�K���Ԧ0��<�1)�|�q���h=o�^�(GƓ�Oh��L~][O:��Y�2�h�0���S�',�F�p�Ì��ܥE��l�r�v�療���1�K���>����Q3ϴ���x�0�h���鸄�T��Q����I��h�g�1ŧy��Ϝ'ń��l�'+�g�-��cwK����	NF#�#�~����8VA�)�Rυ�I���M��n�a���m���J`n�I>��6��v�7����6����t�S�N<��k�-l�*��y���?0���ܘ��Mzp&V��g(�ӝ��s/��n�nx�[��Yb�y$�şmv�%���3�|+%w��q�LV�_ޫ��E�@�����|�>	|~֙�\\��dP�s�AL��'�^Dpw�''d~��Jʽ�xH��]n�6���@����M��Cv�hHN������qո���D�9F*�� �M;�s�^�lҲ�g��	Pҳ%�2&J]�u��t2E�&P��cW/8��w�}���⋰r����Z�q��O٨��l�4�~����1?;��h�H蘴x������?Ӗ�O�Oa�:��~�@����Β�G�#e�����ѱ���7��:ϖ�P�y��t(<{ik�E�v+�bt�74F�l�HV�I'���Ǣ��3��n���t�C��dI\�|��l�>�2��&c�&>HC�U�)��tu�}aa�5}�D��
+�90>�c����I]n籘O�$7��Mct�M�g	7	��������!���N��8��7})��1���<���-C��D��}��r_c�~�}�����x��1�\�4>3�s�TL�m�1��������Ы��
+�t�
+8+ў�eK��\�k�@��3,8���wK�uN��L��v=b�����#:َ���L�t�y�i������v���'�.�`�����ۦ~���x^��+���x�t�q�ބ��5�`I�>W�,���,m1� ?�;��qd�T8��Ax��4�G���n�����^�4>�+-�#Y���p�x��E ��#���b��I�`"�sSRo�E��!ȹ��I�_��#���Z'���{��x�r_ ��/��;��5���.<��z'm����7ɗ��`�e�%2��J>J��	'A)Y]K>��
+���\�t��ءݖ�s��;?�H�]���ܼ/<+ؙoY�ҩ��\`�bn�_Xxi����I�S�Lɦd#��LdhSϻ,�]�^q;51E,ܤ7�����B�@��.N��$�z�l��+�l5㊴v�L�l�����M����M<G�s��V�o^��v��L�l�-�~4Z��^��|��/�����9��ϊ��y�5C:���=z�y���+>Sֻ�݄�M~:�e6��і+�^�t�.��1_���#�s_����Mr��g���4������p�e��fy0>=�;�*�E[yT\��౭�jdB};o��M��'������|j��	�F?�(M2��S5�{$��-�ݜ�:�\̿�N�q����ϖ�q.������<��:�+���}�s��'їl�4���r�?2�y2��O�O��c�<�t> �����P�"���-�W}���s���'>��'�mj�kVc�d���k���`>
+=== 200 https://cm.g.doubleclick.net/partnerpixels?url=https%3A%2F%2Fwww.yanbuweather.com%2Fpages%2FRainRadar%2F
+{"alt-svc":"h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000","content-encoding":"gzip","content-length":"48","content-type":"text/html; charset=UTF-8","date":"Tue, 17 Nov 2026 17:46:30 GMT","referrer-policy":"origin","server":"HTTP server (unknown)","x-xss-protection":"0"}
+<!DOCTYPE html><html><body></body></html>
+=== 200 https://d5d5e5d43dde2293e7e7631ed30b8733.safeframe.googlesyndication.com/safeframe/1-0-45/html/container.html
+{"accept-ranges":"bytes","alt-svc":"h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000","cache-control":"private, max-age=300","content-encoding":"br","content-length":"3121","content-type":"text/html","cross-origin-opener-policy-report-only":"same-origin; report-to=\"ads-gpt-scs\"","cross-origin-resource-policy":"cross-origin","date":"Tue, 17 Nov 2026 17:46:30 GMT","expires":"Tue, 17 Nov 2026 17:46:30 GMT","last-modified":"Thu, 08 May 2025 23:15:48 GMT","report-to":"{\"group\":\"ads-gpt-scs\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/ads-gpt-scs\"}]}","server":"sffe","timing-allow-origin":"*","vary":"Accept-Encoding","x-content-type-options":"nosniff","x-xss-protection":"0"}
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8">
+    <title>SafeFrame Container</title>
+    <script>
+(function(){var aa=typeof Object.defineProperties=="function"?Object.defineProperty:function(a,b,c){if(a==Array.prototype||a==Object.prototype)return a;a[b]=c.value;return a},ba=function(a){a=["object"==typeof globalThis&&globalThis,a,"object"==typeof window&&window,"object"==typeof self&&self,"object"==typeof global&&global];for(var b=0;b<a.length;++b){var c=a[b];if(c&&c.Math==Math)return c}throw Error("Cannot find global object");},g=ba(this),ca=function(a,b){if(b)a:{var c=g;a=a.split(".");for(var d=0;d<a.length-1;d++){var e=a[d];if(!(e in c))break a;c=c[e]}a=a[a.length-1];d=c[a];b=b(d);b!=d&&b!=null&&aa(c,a,{configurable:!0,writable:!0,value:b})}},h=function(a){return da(a,a)},da=function(a,b){a.raw=b;Object.freeze&&(Object.freeze(a),Object.freeze(b));return a},ea=function(){for(var a=Number(this),b=[],c=a;c<arguments.length;c++)b[c-a]=arguments[c];return b};ca("globalThis",function(a){return a||g});/*
+
+ Copyright The Closure Library Authors.
+ SPDX-License-Identifier: Apache-2.0
+*/
+var l=this||self;function fa(a){var b=m;b instanceof p&&(m=void 0);if(!a){var c=Error;b instanceof p&&(b=b.msg);b=typeof b==="function"?b():b;throw c(b||String(a));}}var p=function(a){this.msg=a},m=void 0;var ia=function(){var a=q,b={message:ha(q)};var c=c===void 0?{}:c;this.error=a;this.meta=c;this.context=b.context;this.msg=b.message||"";this.id=b.id||"jserror"};var r=function(a){r[" "](a);return a};r[" "]=function(){};/*
+
+ Copyright Google LLC
+ SPDX-License-Identifier: Apache-2.0
+*/
+var ja=globalThis.trustedTypes,u;function ka(){var a=null;if(!ja)return a;try{var b=function(c){return c};a=ja.createPolicy("goog#html",{createHTML:b,createScript:b,createScriptURL:b})}catch(c){}return a}function la(){u===void 0&&(u=ka());return u};var ma=function(a){this.g=a};ma.prototype.toString=function(){return this.g+""};function na(a){var b=la();a=b?b.createScriptURL(a):a;return new ma(a)};var v=function(a){this.g=a};v.prototype.toString=function(){return this.g+""};var oa=RegExp("^(?:([^:/?#.]+):)?(?://(?:([^\\\\/?#]*)@)?([^\\\\/?#]*?)(?::([0-9]+))?(?=[\\\\/?#]|$))?([^?#]+)?(?:\\?([^#]*))?(?:#([\\s\\S]*))?$");function pa(a){var b=ea.apply(1,arguments);if(b.length===0)return na(a[0]);for(var c=a[0],d=0;d<b.length;d++)c+=encodeURIComponent(b[d])+a[d+1];return na(c)};var qa=function(a,b){if(a)for(var c in a)Object.prototype.hasOwnProperty.call(a,c)&&b(a[c],c,a)};function ha(a){var b=a.toString();a.name&&b.indexOf(a.name)==-1&&(b+=": "+a.name);a.message&&b.indexOf(a.message)==-1&&(b+=": "+a.message);if(a.stack)a:{a=a.stack;var c=b;try{a.indexOf(c)==-1&&(a=c+"\n"+a);for(var d;a!=d;)d=a,a=a.replace(RegExp("((https?:/..*/)[^/:]*:\\d+(?:.|\n)*)\\2"),"$1");b=a.replace(RegExp("\n *","g"),"\n");break a}catch(e){b=c;break a}b=void 0}return b};var ra=RegExp("^https?://(\\w|-)+\\.cdn\\.ampproject\\.(net|org)(\\?|/|$)"),ta=function(){var a=sa;this.g=w;this.h=a},ua=function(a,b){this.url=a;this.g=!!b;this.depth=null};var x=function(){this.i="&";this.h={};this.l=0;this.g=[]},y=function(a,b){var c={};c[a]=b;return[c]},wa=function(a,b,c,d,e){var k=[];qa(a,function(f,n){(f=va(f,b,c,d,e))&&k.push(n+"="+f)});return k.join(b)},va=function(a,b,c,d,e){if(a==null)return"";b=b||"&";c=c||",$";typeof c==="string"&&(c=c.split(""));if(a instanceof Array){if(d||(d=0),d<c.length){for(var k=[],f=0;f<a.length;f++)k.push(va(a[f],b,c,d+1,e));return k.join(c[d])}}else if(typeof a==="object")return e||(e=0),e<2?encodeURIComponent(wa(a,b,c,d,e+1)):"...";return encodeURIComponent(String(a))},ya=function(a,b,c){b="https://"+b+c;var d=xa(a)-c.length;if(d<0)return"";a.g.sort(function(Ka,La){return Ka-La});c=null;for(var e="",k=0;k<a.g.length;k++)for(var f=a.g[k],n=a.h[f],O=0;O<n.length;O++){if(!d){c=c==null?f:c;break}var t=wa(n[O],a.i,",$");if(t){t=e+t;if(d>=t.length){d-=t.length;b+=t;e=a.i;break}c=c==null?f:c}}a="";c!=null&&(a=""+e+"trn="+c);return b+a},xa=function(a){var b=1,c;for(c in a.h
+=== 200 https://securepubads.g.doubleclick.net/gampad/ads?pvsid=4846362936893544&correlator=3817005598132215&eid=95410185&output=ldjh&gdfp_req=1&vrg=202611120201&ptt=17&impl=fifs&iu_parts=21841097903%2Cad&enc_prev_ius=%2F0%2F1&prev_iu_szs=970x90%7C728x90%7C468x60%7C320x50%7C300x100%7C234x60&ifi=1&dids=div-gpt-ad-1565843300729-0&adfs=1827205759&sfv=1-0-45&sc=1&cookie_enabled=1&abxe=1&dt=1794937590400&lmt=1794873600&adxs=115&adys=0&biw=1200&bih=900&scr_x=0&scr_y=0&btvi=0&ucis=1&oid=2&u_his=2&u_h=900&u_w=1200&u_ah=900&u_aw=1200&u_cd=24&u_sd=1&dmc=8&bc=31&nvt=1&uach=WyJMaW51eCIsIjcuMC4wIiwieDg2IiwiIiwiMTMwLjAuNjcyMy4zMSIsbnVsbCwwLG51bGwsIjY0IixbWyJDaHJvbWl1bSIsIjEzMC4wLjY3MjMuMzEiXSxbIkhlYWRsZXNzQ2hyb21lIiwiMTMwLjAuNjcyMy4zMSJdLFsiTm90P0FfQnJhbmQiLCI5OS4wLjAuMCJdXSwwXQ..&url=https%3A%2F%2Fwww.yanbuweather.com%2Fpages%2FRainRadar%2F&vis=1&psz=1200x900&msz=1200x-1&fws=516&ohw=1200&dlt=1794937589364&idt=479&adks=3531244060&frm=20&eoidce=1
+{"access-control-expose-headers":"x-google-amp-ad-validated-version","content-encoding":"br","google-lineitem-id":"-1","x-content-type-options":"nosniff","expires":"Fri, 01 Jan 1990 00:00:00 GMT","alt-svc":"h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000","p3p":"policyref=\"https://googleads.g.doubleclick.net/pagead/gcn_p3p_.xml\", CP=\"CURa ADMa DEVa TAIo PSAo PSDo OUR IND UNI PUR INT DEM STA PRE COM NAV OTC NOI DSP COR\"","date":"Tue, 17 Nov 2026 17:46:30 GMT","content-type":"text/plain; charset=UTF-8","google-creative-id":"-1","cache-control":"no-cache, must-revalidate","timing-allow-origin":"*","pragma":"no-cache","cross-origin-resource-policy":"cross-origin","access-control-allow-credentials":"true","access-control-allow-origin":"https://www.yanbuweather.com","content-length":"20120","x-xss-protection":"0","server":"cafe"}
+{"/21841097903/ad":["html",0,null,null,1,90,970,0,1,null,null,null,1,[["ID=f25f38cdf36d7336:T=1794937590:RT=1794937590:S=ALNI_MbL9l1xZXbN_OC6whTM6nLoLRq_0A",1828633590,"/","yanbuweather.com",1],["UID=0000163bc2c2a19b:T=1794937590:RT=1794937590:S=ALNI_MbsWtG8z5n9cKXGXy7cbEItgxdVng",1828633590,"/","yanbuweather.com",2]],[0],[0],[0],[0],null,null,null,[5000],null,null,null,0,null,null,null,null,null,null,null,"COq55MvHj5gDFXNwKwMd6YM38A",null,null,null,null,null,null,null,null,["012607210106000"],null,null,null,null,null,"1",null,null,null,null,null,null,null,null,null,null,null,"AA-V4qPVr0VeKKE7zAMIS4REg6sSDVPOXcOU5YArmroW6OKHhmQw6sHHrVseycFmrlhbb0UZ4F2ZSUQjSh0tWUaYK5l8VjUHqVRYRJ_tv2umhQ",null,null,null,null,null,null,[["ID=9cf2a2d0c840f6ee:T=1794937590:RT=1794937590:S=AA-AfjYoPFC8seFcw3KnKG_Zo96D",1810489590,"/","yanbuweather.com"]],null,null,null,null,"https://adssettings.google.com/whythisad?source=display\u0026reasons=AWJ47B2CEQMaqgUMD19PbMq6UeneUHsGhlLkbdF3cYA5hpAjhyFSH0aHhgzTFDi47ynuelcDdrQxibM-xJlZ6fchOD0pVzcEMvhaFo7t3vFpCUVJYvk6Di3ghDJwkZNVZygvw2TFEzA_WO8linckTVyxGF2wXegiNUs1PSy4QLkh2V4Tk5YkzdytMB8MLsSngADkYP7t2iu4K_DnXW7D4zdA4hOJXC4Yuz1qN7XhDb0akTgT5qWack3NaBZlika76eOCdiH2i1PL78L4SiJY0MOvw2L6GusiOoMBp_3XOf88ZjPcx40psuuTIc1polIFb2jMz48eVFpWul8kyItd36w91ni3vllxVuBI15beA1c8WEWEyi8pDoA2zjV0tbrpZCdGeUkbrBFQd_5riLP8Ccl-gBAwcx68uFIXalNlV5g9K870FvJzg8SQbDLEq7YmkJAh3g4N90pE702McKaviBW5nmdDEzo-UKUHhbebGzTipvMiw4CJOmfIlGlvHt27dtDEL2NoFw3n_b94wduvGdum_FhrtT7vak9JlDCVkAhZHPn29RbsWLwzF8gFnPGMcGXfl8iq6HDch7_QBvhTSEvu2szGOV13iDZ51sYHx7CoIapz56f7B4BWloeYkZNEyYbetWpsQEE-kw5PjDCC4vkEL8zTbZcwl6i97KOPHGfVOwxV89ZjTOYONLp4vniPj175oRfJvhb1BDOXTYKVTcP3PGFT7Lif1Z5dGzehqdz6xYFnxJre2wpLmqOLPQPw7uuqLm8LkNqsaQyU23d_evk9VwyVjYjcFLN7homHj7PbseBBoZ4X8I63Fffvt_WGP2RUNcJhA_h8x1rU54ki43Pw2cNdAEQDKyAINSCp6jtOXbyt_VIKm3AbjDaY4L2YqV57pu8xfyPe9EGnDIXueXSE55AFMaW3xUsM238LDKJE5D4yt2TSsrEIHwL-K5mGQQPPPE4C_K3j_FhwkO0UMx-1O7NjBtZCKGOd1EDe9Ua34kA7sdCgxGQsCpWuMJqzoDY4a-CZk7i6HFvUTFTbuT3APXCJtaF9GwnUbl_QTQkyMusSSN87padAfQl_ijMG2kupjTcIqI2VrYBptc12qkVaBJXk5dJlCN5Ol4Smw1abSf7T9yM1-RKIky7z6_NMbrRhzecJOPi1vDGtV6VfuBjNmRfyRGgZqwl-FlF2DVWAWzHa_mA7do3sQZviba5xxxFTeD4vkq_LpGgvb9-4J02VBYVUYTDTtk68Mec6amTfJbjM-ay3jTOtjrf2S5Lqrdh0MrJuMSIcHV6s_sr-KI2c4vIpAIUj_BWziG12BF1yUx4h1NHuPSLAjwdClQF4zh64plriRHdwQ1gl0MRIC-jgjgSe3LZ3eSomXAN7AZLky0goLmArZWbvMU5cBulf39lT5GY-UKmKDbhVQF2KFtWXZczNMMoVhYXsBhdOJEaSBsd05JTADUPoxMxgbYTWDRNcUfBnik4EM2ZZNz5hyfotgpPnhl1mVbqD98mrLcoV5LVkx4DkKg5QQbOAVYvAcJFQjWrhUuMwGKtonz60tpXqx2JnGpiyDN_VMZ0j7KUWJmqNp1PejtQREFCLg9hGqkEqhIM01Tnz6GsRk8yifs5dcs8fSyAAZLm1aCgZ_JkKh3BkPxpK1BiBHYtqQPGrg1j0Jw5T_pEse-9VkhTlsm0HUkvn2bbtUrNGb48lwdkRxTLN-SoJIALhwZy_xh50jDMjipZNBNnbndF63fCkXPyVaiBDLVP6X-_POSZCgLdonZCZ_hvwMPpO0bY67jXetdTO44Xi2FPf19SjmQ_R_BjaWuEEsC99W6d2JwaOqux8sod_J2vloYuNSzajSqJwuz9RwXmnEv7DWp4d2bHN8UvECxfsv33ys2I6BAw-ycopoPAKt5pO4qswEfKpO08WPfdtotl-izFzhwmwOSK3PHZZg-MHDN8PYYnxKjKBJBN8NuFfQwLvKrmj_NJ9NPsL_05e571BZAuw1OBQ3iglZY7mB9hv6VI26gDxNXeGVO0Q7mwHSqjULI5RL-Ox-Vh2NRjc9brhGsb90YCA79I_VSgPoBR7nV2O5SYBSDQp_yxcgiwnYoSNdu1D-vVxyv8x93-t8Fi1aRBoqwibJ0A6ZrZmj9QwdQbFwndm3-C6iILmRcl1Nofk-Hjkqm4e4_k85VGR8INkg0KNgSxmzxRI_i47TJlmnjWd68FdGWVLSGnZ4FsScivDe-UB5ngujUPf7IWLFy17vOMaOApS_ng84-PnZjf1T1XKEl5bXLEbOoXzdog2wnQxhXkJbrFgA_QGdTR2cgXEWioo9v0aYtK7QgF1jtNaslo_CM4I1te8Z3tYAIowSRAq26iV2zLkX-WxR90jvCJJMqic0F9QeDR5nf8boCaUzgFyLNeUZvxpFpRRuGkNO1OGq7UrnVP4bmwGQ7dpwmi0L2cdRjk5dAy9-U9ltG1HkXGmD6xMRX-Gb-A9j-5xSfRR8mad5L-5iuAllasootCkPlZGWZ1Sv1DTXqg9UCrCxaL942yWJ5hJNryi6lTiMiVEHahH0qr8fwpzTf6fzbN3BMJN7S7_Qnt7qZ_Jq6rUFmPBAPuTd5XKTiXhWoVNDj0LcEGy0FXbBVilC3Q7TuiCC8wr6axhpElxVEv15HVwmvLKts8h4gCucKiNqbT_ahb22Pq9-7HaGTKFfGl3mqk_HqLlmSEpE2P5KOSPmPKOM9At7SjHywBacrSiFqh7YyBFe8Y7bcXv--hivU5Z-YxCPGSHE6f24cYp7p3J-JGB5QX4cOuk9fFpL63_bVoK_g-RLca6uhMB-PxcGYKpxzu60AepkdUGxHfXW-gmJc4KuLwqt2r-sghgh3ZHWuM6xbUkJwRaMxW2pDCiEdsqZrlWfLUYzZUxEPenQuy99851xHGrHvtRGfqwCDdZPzTK6W6PfEJE8_kVsieTjgCzTdYEdYCLM5eXmx_g1lztLIIHYioQIebrxggqDmmq2D8eGvmio6sH1bcW-UzKcUwg4P0BAu0Bo3qu1y5ccMh141vXnNg4s_f5YaDPqxkKy2MRIS1tjZIgkU
+=== 200 https://www.google.com/recaptcha/api2/aframe
+{"alt-svc":"h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000","cache-control":"private, max-age=300","content-encoding":"gzip","content-security-policy":"script-src 'report-sample' 'nonce-VzMQWFsFptBeHFIVTMi3Tg' 'unsafe-inline' 'strict-dynamic' https: http: 'unsafe-eval';object-src 'none';base-uri 'self';report-uri https://csp.withgoogle.com/csp/recaptcha/1","content-type":"text/html; charset=utf-8","cross-origin-embedder-policy":"require-corp","cross-origin-opener-policy-report-only":"same-origin; report-to=\"coop_38fac9d5b82543fc4729580d18ff2d3d\"","cross-origin-resource-policy":"cross-origin","date":"Tue, 17 Nov 2026 17:46:30 GMT","expires":"Tue, 17 Nov 2026 17:46:30 GMT","report-to":"{\"group\":\"recaptcha\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/recaptcha\"}]}\n{\"group\":\"coop_38fac9d5b82543fc4729580d18ff2d3d\",\"max_age\":2592000,\"endpoints\":[{\"url\":\"https://csp.withgoogle.com/csp/report-to/38fac9d5b82543fc4729580d18ff2d3d\"}]}","server":"ESF","x-content-type-options":"nosniff","x-xss-protection":"0"}
+<!DOCTYPE HTML><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8"></head><body><script nonce="VzMQWFsFptBeHFIVTMi3Tg">/** Anti-fraud and anti-abuse applications only. See google.com/recaptcha */ try{var clients={'sodar':'https://pagead2.googlesyndication.com/pagead/sodar?','sodar_atqg':'https://ep1.adtrafficquality.google/pagead/sodar?'};window.addEventListener("message",function(a){try{if(a.source===window.parent){var b=JSON.parse(a.data);var c=clients[b['id']];if(c){var d=document.createElement('img');d.src=c+b['params']+'&rc='+(localStorage.getItem("rc::a")?sessionStorage.getItem("rc::b"):"");window.document.body.appendChild(d);sessionStorage.setItem("rc::e",parseInt(sessionStorage.getItem("rc::e")||0)+1);localStorage.setItem("rc::h",'1794937590817');}}}catch(b){}});window.parent.postMessage("_grecaptcha_ready", "*");}catch(b){}</script></body></html>
+=== 200 https://fonts.googleapis.com/css?family=Open%20Sans%3A300%2C400%2C500
+{"content-encoding":"gzip","x-content-type-options":"nosniff","expires":"Tue, 17 Nov 2026 17:46:31 GMT","alt-svc":"h3=\":443\"; ma=2592000,h3-29=\":443\"; ma=2592000","date":"Tue, 17 Nov 2026 17:46:31 GMT","content-type":"text/css; charset=utf-8","vary":"Sec-Fetch-Dest, Sec-Fetch-Mode, Sec-Fetch-Site","last-modified":"Tue, 17 Nov 2026 15:47:26 GMT","x-frame-options":"SAMEORIGIN","strict-transport-security":"max-age=31536000","link":"<https://fonts.gstatic.com>; rel=preconnect; crossorigin","cache-control":"private, max-age=86400, stale-while-revalidate=604800","timing-allow-origin":"*","cross-origin-opener-policy":"same-origin-allow-popups","cross-origin-resource-policy":"cross-origin","access-control-allow-origin":"*","x-xss-protection":"0","server":"ESF"}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSKmu1aB.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSumu1aB.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSOmu1aB.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTSymu1aB.woff2) format('woff2');
+  unicode-range: U+0370-0377, U+037A-037F, U+0384-038A, U+038C, U+038E-03A1, U+03A3-03FF;
+}
+/* hebrew */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTS2mu1aB.woff2) format('woff2');
+  unicode-range: U+0307-0308, U+0590-05FF, U+200C-2010, U+20AA, U+25CC, U+FB1D-FB4F;
+}
+/* math */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTVOmu1aB.woff2) format('woff2');
+  unicode-range: U+0302-0303, U+0305, U+0307-0308, U+0310, U+0312, U+0315, U+031A, U+0326-0327, U+032C, U+032F-0330, U+0332-0333, U+0338, U+033A, U+0346, U+034D, U+0391-03A1, U+03A3-03A9, U+03B1-03C9, U+03D1, U+03D5-03D6, U+03F0-03F1, U+03F4-03F5, U+2016-2017, U+2034-2038, U+203C, U+2040, U+2043, U+2047, U+2050, U+2057, U+205F, U+2070-2071, U+2074-209F, U+20D0-20DC, U+20E1, U+20E5-20EF, U+2100-2112, U+2114-2115, U+2117-2121, U+2123-214F, U+2190, U+2192, U+2194-21AE, U+21B0-21E5, U+21F1-21F2, U+21F4-2211, U+2213-2214, U+2216-22FF, U+2308-230B, U+2310, U+2319, U+231C-2321, U+2336-237A, U+237C, U+2395, U+239B-23B7, U+23D0, U+23DC-23E1, U+2474-2475, U+25AF, U+25B3, U+25B7, U+25BD, U+25C1, U+25CA, U+25CC, U+25FB, U+266D-266F, U+27C0-27FF, U+2900-2AFF, U+2B0E-2B11, U+2B30-2B4C, U+2BFE, U+3030, U+FF5B, U+FF5D, U+1D400-1D7FF, U+1EE00-1EEFF;
+}
+/* symbols */
+@font-face {
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  font-stretch: 100%;
+  src: url(https://fonts.gstatic.com/s/opensans/v44/memvYaGs126MiZpBA-UvWbX2vVnXBbObj2OVTUGmu1aB.woff2) format('woff2');
+  unicode-range: U+0001-000C, U+000E-001F, U+007F-009F, U+20DD-20E0, U+20E2-20E4, U+2150-218F, U+2190, U+2192, U+2194-2199, U+21AF, U+21E6-21F0, U+21F3, U+2218-2219, U+2299, U+22C4-22C6, U+2300-243F, U+2440-244A, U+2460-24FF, U+25A0-27BF, U+2800-28FF, U+2921-2922, U+2981, U+29BF, U+29EB, U+2B00-2BFF, U+4DC0-4DFF, U+FFF9-FFFB, U+10140-1018E, U+10190-1019C, U+101A0, U+101D0-101FD, U+102E0-102FB, U+10E60-10E7E, U+1D2C0-1D2D3, U+1D2E0-1D37F, U+1F000-1F0FF, U+1F100-1F1AE, U+1F1E6-1F1FF, U+1F30D-1F30F, U+1F315, U+1F31C, U+1F31E, U+1F320-1F32C, U+1F336, U+1F378, U+1F37D, U+1F382, U+1F393-1F39F, U+1F3A7-1F3A8, U+1F3AC-1F3AF, U+1F3C2, U+1F3C4-1F3C6, U+1F3CA-1F3CE, U+1F3D4-1F3E0, U+1F3ED, U+1F3F1-1F3F3, U+1F3F5-1F3F7, U+1F408, U+1F415, U+1F41F, U+1F426, U+1F43F, U+1F441-1F442, U+1F444, U+1F446-1F449, U+1F44C-1F44E, U+1F453, U+1F46A, U+1F47D, U+1F4A3, U+1F4B0, U+1F4B3, U+1F4B9, U+1F4BB, U+1F4BF, U+1F4C8-1F4CB, U+1F4D6, U+1F4DA, U+1F4DF, U+1F4E3-1F4E6, U+1F4EA-1F4ED, U+1F4F7, U+1F4F9-1F4FB, U+1F4FD-1F4FE, U+1F503, U+1F507-1F50B, U+1F50D, U+1F512-1F513, U+1F53E-1F54A, U+1F54F-1F5FA, U+1F610
