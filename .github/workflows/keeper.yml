@@ -70,6 +70,14 @@ jobs:
                 post actions/workflows/saudi-model-ec.yml/dispatches "{\"ref\":\"main\",\"inputs\":{\"cycle\":\"${D}12\"}}" || echo "dispatch failed"
               fi
             fi
+            # the morning run over Makkah and Taif (GFS 00Z, Fahad 17 Nov 2026, the one daytime exception): from 03:40 UTC
+            if [ "$HM" -ge 0340 ] && [ "$HM" -le 0700 ]; then
+              st=$(raw model-data-am/runs.json | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='${D}00']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo unknown)
+              if [ "$st" = none ] && ! busy saudi-model-am.yml; then
+                echo "$(date -u +%H:%M) morning run ${D}00 missing: starting it"
+                post actions/workflows/saudi-model-am.yml/dispatches "{\"ref\":\"main\",\"inputs\":{\"cycle\":\"${D}00\"}}" || echo "dispatch failed"
+              fi
+            fi
             # the noon rain update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only one
             # the night climate run: from 21:00 UTC
             if [ "$HM" -ge 2100 ] && [ "$HM" -le 2359 ]; then
