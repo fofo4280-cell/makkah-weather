@@ -76,6 +76,13 @@ def fields(gfs_fields, cycle, fh, static=None):
     out["lat"], out["lon"] = lat, lon
     out["t5"] = out["t5"] - 273.15
     out["mslp"] = out["mslp"] / 100.0
+    # the sea-level pressure 12 hours later (3 AM Makkah): the Red Sea trough is judged on the mean of the two, since
+    # the afternoon heat lowers the pressure over Arabia and hides it at 12 UTC alone (24 Nov 2022, Jeddah floods)
+    try:
+        g = gfs_fields(cycle, fh + 12, res="0p25", fields=[("mslp", r":MSLET:mean sea level:")])
+        out["mslp2"] = cut(g["mslp"], la, lo)[0] / 100.0
+    except Exception as e:  # noqa: BLE001
+        print("pressure 12 h later unavailable", fh + 12, repr(e)[:100], flush=True)
     if static:
         out.update(static)
     out["conv"] = convergence(out["u10"], out["v10"], lat, abs(float(lon[1] - lon[0])))
@@ -167,7 +174,7 @@ def legend(kind):
             "stops": stops}
 
 
-def draw(path, kind, f, lws=(), width_px=1000):
+def draw(path, kind, f, lws=(), trough=None, width_px=1000):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -241,6 +248,19 @@ def draw(path, kind, f, lws=(), width_px=1000):
         lab = ax.clabel(cs, levels=lv[lv % 4 == 0], fmt=dig, fontsize=7, inline=True, inline_spacing=3)
         for t in lab:
             t.set_color("#e9edf1")
+        if trough:
+            xs = [q[1] for q in trough["pts"]]
+            ys = [q[0] for q in trough["pts"]]
+            ax.plot(xs, ys, color="#5fd4ff", linewidth=2.6, linestyle=(0, (6, 3.5)), transform=pc, zorder=5.5,
+                    path_effects=[pe.withStroke(linewidth=4.6, foreground="#10161d")], solid_capstyle="round")
+            ax.plot([xs[-1]], [ys[-1]], marker="^", markersize=8, color="#5fd4ff", markeredgecolor="#10161d",
+                    markeredgewidth=1.2, transform=pc, zorder=5.6)
+            # the name beside the line, west of it, south of Jeddah, where it fits inside the map
+            cand = [k for k in range(len(xs)) if ys[k] <= 20.5 and xs[k] >= w + 5.4]
+            m = cand[-1] if cand else len(xs) // 2
+            ax.text(xs[m] - 0.45, ys[m], "أخدود البحر الأحمر", transform=pc, ha="right", va="center",
+                    fontsize=9.5, fontfamily=fam, fontweight="bold", color="#5fd4ff",
+                    path_effects=[pe.withStroke(linewidth=3.2, foreground="#10161d")], zorder=6)
         for lw_ in lws:
             x, y = lw_["lon"], lw_["lat"]
             col = "#ff4d4d" if lw_["closed"] else "#ff9a7a"
@@ -265,6 +285,8 @@ def draw(path, kind, f, lws=(), width_px=1000):
     for name, y, x, kd in F.WAVE_PLACES:
         if not (w + 1.5 < x < e - 1.5 and s + 0.8 < y < n - 0.8):
             continue
+        if trough and name == "البحر الأحمر":   # the trough line runs over it and carries the sea's name
+            continue
         ax.text(x, y, F._rtl(name), transform=pc, ha="center", va="center", fontsize=8, fontfamily=fam,
                 fontweight="bold", color="#e3e7eb" if kd == "sea" else "#22272d", alpha=0.85,
                 path_effects=[pe.withStroke(linewidth=2, foreground="#3a3f45" if kd == "sea" else "#eef0f2")], zorder=5)
@@ -281,3 +303,59 @@ def draw(path, kind, f, lws=(), width_px=1000):
                 zorder=5)
     ax.spines["geo"].set_visible(False)
     F._save_png(fig, path)
+
+
+# ------------------------------------------------------------------ the Red Sea trough (Fahad, 17 Nov 2026)
+# The low pressure of Sudan and the southern Red Sea reaching north along the sea as a tongue (often not a closed low,
+# so the lows above miss it); it carries the southern moisture north toward Jeddah and Makkah. Every 0.5 deg of
+# latitude from 14 N, the lowest sea-level pressure over the sea (within 2.3 deg of its axis) is compared with the
+# land beside it: Arabia 3-7 deg east of the axis (ground < 1100 m, the Sarawat left out) and Africa 3-6.5 deg west
+# (ground < 800 m). The tongue runs north from 14 N while the sea stays at least RST_DP lower than Arabia (one
+# missing row allowed); it counts as the Red Sea trough when it reaches 18 N and in two rows or more the sea is
+# lower than Africa too (a real tongue, not only the Sudan low's flank). Its north end is how far it reaches.
+# Checked: 24 Nov 2022 (Jeddah floods) reaches the north of the sea; 16 Nov 2026 reaches Yanbu's latitude; 10 Nov
+# 2026 none.
+RST_DP = 0.5
+COAST = [(16.89, "جازان"), (18.2, "الشقيق"), (19.13, "القنفذة"), (20.15, "الليث"), (21.54, "جدة"), (22.8, "رابغ"),
+         (24.09, "ينبع"), (25.05, "أملج"), (26.23, "الوجه"), (27.35, "ضباء"), (28.5, "شمال البحر الأحمر")]
+
+
+def rst(f, log=None):
+    from scipy.ndimage import gaussian_filter
+    lat, lon = f["lat"], f["lon"]
+    p = gaussian_filter((f["mslp"] + f["mslp2"]) / 2 if "mslp2" in f else f["mslp"], 2.0)
+    rows = []
+    for la in np.arange(14.0, 29.01, 0.5):
+        j = int(np.argmin(np.abs(lat - la)))
+        axis = 34.0 + (27.5 - la) * (9.0 / 14.5)
+        land, hgt = f["land"][j], f["hgt"][j]
+        sea = [i for i in range(len(lon)) if land[i] < 0.5 and abs(lon[i] - axis) <= 2.3]
+        wl = [i for i in range(len(lon)) if land[i] >= 0.5 and axis - 6.5 <= lon[i] <= axis - 3.0 and hgt[i] < 800]
+        el = [i for i in range(len(lon)) if land[i] >= 0.5 and axis + 3.0 <= lon[i] <= axis + 7.0 and hgt[i] < 1100]
+        if not (sea and len(wl) >= 3 and len(el) >= 3):
+            rows.append((float(la), None, None, None))
+            continue
+        im = min(sea, key=lambda i: p[j, i])
+        dw, de = float(np.mean(p[j, wl]) - p[j, im]), float(np.mean(p[j, el]) - p[j, im])
+        if log:
+            log(f"rst {la:.1f} lon {lon[im]:.2f} p {p[j, im]:.1f} africa +{dw:.1f} arabia +{de:.1f}")
+        rows.append((float(la), float(np.mean(lon[sea])), dw, de))   # drawn along the middle of the sea
+    pts, tongue, miss = [], 0, 0
+    for la, lo, dw, de in rows:
+        if de is not None and de >= RST_DP:
+            pts.append([la, lo]); miss = 0
+            tongue += dw >= RST_DP
+        else:
+            miss += 1
+            if miss > 1:
+                break
+    if not pts or pts[-1][0] < 18.0 or tongue < 2:
+        return None
+    # a smooth line: the running mean of the longitudes
+    los = [x[1] for x in pts]
+    for k in range(len(pts)):
+        pts[k][1] = float(np.mean(los[max(0, k - 2):k + 3]))
+    north = pts[-1][0]
+    near = min(COAST, key=lambda c: abs(c[0] - north))
+    reach = near[1] if near[1].startswith("شمال") else f"محاذاة {near[1]}"
+    return {"pts": [[round(a, 2), round(b, 2)] for a, b in pts], "north": round(north, 1), "reach": reach}

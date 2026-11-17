@@ -613,7 +613,7 @@ def main():
 
     # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
     #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
-    ksa_out = {"days": [], "lows": []}
+    ksa_out = {"days": [], "lows": [], "rst": []}
     try:
         import ksa
         stat = None
@@ -623,14 +623,21 @@ def main():
                 if stat is None:
                     stat = {"hgt": f_["hgt"], "land": f_["land"]}
                 lw_ = ksa.lows(f_)
+                try:
+                    rs_ = ksa.rst(f_)
+                except Exception as e:  # noqa: BLE001
+                    print("red sea trough failed", k, repr(e)[:120], flush=True)
+                    rs_ = None
                 for kd in ksa.KINDS:
-                    ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_)
+                    ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_, rs_)
             except Exception as e:  # noqa: BLE001
                 print("kingdom maps failed", k, repr(e)[:160], flush=True)
-                lw_ = None
+                lw_, rs_ = None, None
             ksa_out["days"].append(dt.strftime("%Y-%m-%d"))
             ksa_out["lows"].append(lw_)
+            ksa_out["rst"].append({"north": rs_["north"], "reach": rs_["reach"]} if rs_ else (None if lw_ is None else False))
         print("kingdom surface lows:", [[(x["where"], x["p"]) for x in l] if l else l for l in ksa_out["lows"]], flush=True)
+        print("red sea trough reach:", [r["north"] if r else r for r in ksa_out["rst"]], flush=True)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
