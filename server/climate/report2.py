@@ -280,8 +280,28 @@ def makkah_section(st, rs, regs):
     return B
 
 
+SEC_NAMES = {"s1": "١. الخلاصة التنفيذية", "s2": "٢. توقعات الأمطار اليوم", "s3": "٣. منطقة مكة المكرمة وما حولها",
+             "s4": "٤. بقية المناطق المرشحة", "s5": "٥. القراءة الجوية", "s6": "٦. الموجات القادمة",
+             "s7": "٧. تطور المؤشرات المدارية", "s8": "٨. تحليل الموجة الأقرب", "s9": "٩. منهجية النموذج"}
+
+
 # ------------------------------------------------------------------ the whole report
 def build(rep, st):
+    """the new layout only (Fahad, 17 Nov 2026): a section that fails is replaced by a note, never by the old text"""
+    try:
+        return _build(rep, st)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("report2: build failed:", repr(e), flush=True)
+        new = {k: v for k, v in rep.items() if k != "sections"}
+        new.update({"v": 2, "brand": BRAND, "credit": CREDIT, "date": rep.get("title", "").removeprefix("تقرير "),
+                    "sections": [sec("تعذّر بناء التقرير", "error",
+                                     [{"p": "تعذّر بناء تقرير هذه الليلة بصيغته، وسيُعاد بناؤه في التحديث القادم."}])]})
+        return new
+
+
+def _build(rep, st):
     secs = rep.get("sections") or []
     day0 = date.fromisoformat(rep.get("day") or st["days"][0])
     rs = find(secs, kind="rain")
@@ -296,6 +316,8 @@ def build(rep, st):
             import traceback
             traceback.print_exc()
             print("report2:", f.__name__, "failed:", repr(e), flush=True)
+            out.append(sec(SEC_NAMES.get(f.__name__, ""), "error",
+                           [{"p": "تعذّر بناء هذا القسم الليلة، وسيُعاد بناؤه في التحديث القادم."}]))
     new = dict(rep)
     new.update({"v": 2, "brand": BRAND, "credit": CREDIT, "date": ar_date(day0), "sections": out})
     return new

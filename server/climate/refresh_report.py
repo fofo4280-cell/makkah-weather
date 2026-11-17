@@ -51,11 +51,10 @@ def main():
     # the summary first, then the rain table, then the rest (Fahad, 14 Nov 2026)
     rep["sections"] = [x for x in keep if x.get("kind") == "sum"] + rain + [x for x in keep if x.get("kind") != "sum"]
     rep["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
-    try:   # Fahad's layout (17 Nov 2026): nine sections, the Makkah edges study (report2.py)
-        import report2
-        rep = report2.build(rep, st)
-    except Exception as e:
-        print("report layout v2 failed, old layout kept:", repr(e), flush=True)
+    # Fahad's layout only (17 Nov 2026: "the old layout, I do not want it"): report2.build never returns the old
+    # sections; on a failure it publishes the layout with a note saying what failed
+    import report2
+    rep = report2.build(rep, st)
     st["report"] = rep
     json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
     rd = os.path.join(out, "reports")
