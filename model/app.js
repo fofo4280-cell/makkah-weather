@@ -1651,8 +1651,8 @@
   const TC_WHERE = { edge: "التصادم على حافة الهدا والشفا", east: "التصادم شرق الطائف وشماله الشرقي (السيل والهضبة)", weak: "التصادم ضعيف حول الطائف" };
   const TC_HINT = {
     line: "الأزرق حافة الهدا والشفا والبرتقالي شرق الطائف والسيل. الخط المتقطع هو اليوم، وما بعده توقع. حين تكون الرياح فوق الهضبة شرقية بأكثر من ٢ م/ث يقف هواء البحر عند الحافة فيكون التصادم والمطر على الهدا والشفا، وحين تضعف أو تصير جنوبية أو غربية يصعد هواء البحر فوق الحافة وينتقل التصادم شرق الطائف والسيل ورهاط.",
-    cape: "طاقة عدم الاستقرار السطحية عند ٣ عصرًا من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
-    day: "البرتقالي والأحمر تصادم الرياح السطحية ظهرًا وعصرًا، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته وأقرب مكان له.",
+    cape: "طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
+    day: "البرتقالي والأحمر تصادم الرياح السطحية في الساعة المختارة (١١ صباحًا وقت نشوء السحب على الحافة غالبًا، ثم ينزاح التصادم شرقًا مع العصر)، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته وأقرب مكان له.",
   };
 
   // zoom and tap on the Taif collision maps (Fahad, 17 Nov 2026): as the Kingdom map, and the tap also names the
@@ -1713,7 +1713,10 @@
     let lay = M.tcLayer || "day";
     const show = () => {
       const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
-      const name = lay === "line" ? "tconv_line" : lay === "cape" ? `tcape_${kk}` : `tconv_${kk}`;
+      const hh = M.tcHour || "11";
+      const name = lay === "line" ? "tconv_line" : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${hh}`;
+      $("tcHour").hidden = lay === "line";
+      document.querySelectorAll("#tcHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
       $("tcFig").src = `${CL}fig/${name}.png?v=${encodeURIComponent(st.updated)}`;
       $("tcTime").hidden = lay === "line";
       tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
@@ -1728,13 +1731,15 @@
         : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
       $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "" : "اليوم: "}${TC_WHERE[r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
-        <div>قوة التصادم: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
-        <div>طاقة عدم الاستقرار عصرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
+        <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
+        <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
     };
     document.querySelectorAll("#tcLayer button").forEach((b) => b.onclick = () => {
       document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x === b));
       lay = M.tcLayer = b.dataset.l; show();
     });
+    // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
+    document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
