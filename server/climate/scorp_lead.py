@@ -4,7 +4,7 @@
 Each issue day t is filtered as the live page does: the past 400 days only, then
   rt0  : nothing after day t (no forecast)            -> the pessimistic case
   rt15 : the next 15 real days as a 'perfect forecast' -> the optimistic case (GFS is worse than this)
-then the index at t+L (L = 0, 3, 6, 9) is set against the rain spread on t+L (Hijaz, Kingdom).
+then the index at t+L (L = 0, 2, 4, 6, 8; the rain rows are every other day) is set against the rain spread on t+L (Hijaz, Kingdom).
 Also the hindsight index (whole record) for reference. Prints only.
 
     scorp_lead.py LONG_JSON HIST_DIR
@@ -19,7 +19,7 @@ from method_test import load_hist, harmonic_clim, trailing_mean, LAT, LON  # noq
 
 NS = dict(cmin=0.0, cmax=1e9)
 FAM = {"ros": wkfilt.FAMILIES["ros"], "east47": dict(east=True, kmin=1, kmax=5, pmin=30, pmax=70, **NS)}
-LEADS = (0, 3, 6, 9)
+LEADS = (0, 2, 4, 6, 8)
 WIN = 400
 GR = ("الحجاز", "المملكة")
 
