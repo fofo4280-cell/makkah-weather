@@ -3,9 +3,9 @@
 name: Redraw Kelvin/Rossby frames
 
 on:
-  workflow_dispatch:
-    inputs:
-      cycle: {description: 'GFS cycle of the page data', default: '2026111612'}
+  push:
+    branches: [tw-redraw]
+    paths: ['.github/workflows/tw-redraw.yml']
 
 permissions:
   contents: write
@@ -30,7 +30,7 @@ jobs:
         run: |
           python3 - <<'PY'
           p = "code/server/climate/daily.py"; s = open(p).read()
-          s = s.replace("def latest_cycle():\n", "def latest_cycle():\n    return '${{ inputs.cycle }}'\n", 1)
+          s = s.replace("def latest_cycle():\n", "def latest_cycle():\n    return '2026111612'\n", 1)
           open(p, "w").write(s)
           PY
       - name: Compute into a scratch folder
