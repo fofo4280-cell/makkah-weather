@@ -1,6 +1,6 @@
 # Fahad's weather project — handoff for a new Claude session
 
-Last updated: 16 Nov 2026 (late evening). Written for Claude, to continue the work without the long history.
+Last updated: 17 Nov 2026 (morning). Written for Claude, to continue the work without the long history.
 
 ## 1. How to work with Fahad (hard rules)
 
@@ -101,6 +101,11 @@ Last updated: 16 Nov 2026 (late evening). Written for Claude, to continue the wo
   - `rainreport.plains_text` writes all named edges of a region in one sentence, then `EDGE_MECHANISM` (+ `HARRA_MECHANISM`), before the plains sentence; says whether our model shows it.
   - Test 1-16 Nov (GFS 12Z of the day before; reference ECMWF 09-21 UTC rain at 0.25): no edge named where ECMWF had < 1 mm; dry days 2-6 Nov silent; named 7 Nov Harrat Rahat (ECMWF 9-12 mm), 9-16 Nov the southern edges, 16 Nov Al-Hada. Misses: 8 Nov Makkah/Baha edges (GFS CAPE < 250), Harrat Kishb never named (ECMWF up to 7 mm, GFS CAPE low). saudi-wrf/-next ce3fc9a; first live: midnight report of 17 Nov.
   - **Season test (Fahad: the right test period is August, September and the first half of October; 2f1cd23).** Same reference, PW normal from GFS 12Z analyses 2021-2025 (±7 days; PSL is blocked from the cloud thread). The first rule named 144 edge-days with 21 under 1 mm (summer days passing on PW >= 35 mm with RH700 30-45 %, the October harrat at Td 0-5 C), so the gate got RH700 >= 50 % and Td >= 6 C and the count went to 4 of 6. Now: season 110 named, 68 with >= 2 mm, 10 under 1 mm (hits mostly Jazan 31, south Asir 19, north Asir 8); 1-16 Nov 60 named, 56 hits, 2 under 1 mm (7 Nov Al-Baha, 8 Nov Jazan); dry 2-6 Nov silent; 16 Nov names Al-Hada. The harrat had only 2 wet days each in the season and were not named. Then (Fahad: GFS catches convective behaviour better than ECMWF, the reference) GFS edge rain >= 1 mm waives the RH/Td gate: 25 of the 34 removed days had it; season 138 named, 77 with ECMWF >= 2 mm, 19 under 1 mm; November unchanged (saudi-wrf aa4dc6b). Test harness note: `daily.gfs_fields` writes `/tmp/gfs_<pid>.grb`, so parallel fetches must use processes, not threads.
+- **Oscillation page and report audit (17 Nov 2026, Fahad: "review the oscillation page, refresh stale maps, improve the report's Arabic"; saudi-wrf/-next 7dd4a34, page main).**
+  - Map place names were printed word-reversed (e.g. «الأحمر البحر»): `figures._rtl` reversed the words for old matplotlib, but the nightly run installs matplotlib 3.11, which orders Arabic itself. `_rtl` now reverses only below 3.11 (`_mpl_bidi`). The warm/cold, component and PW maps got Arabic axis labels (`ar_lon`, `ar_lat`) instead of 60°E / 30°N / EQ.
+  - The page named the run's first day (yesterday, the evening analysis) «اليوم» all day. Now every card labels days against today's date in Makkah (`dayLab`, `todayIdx` in `model/app.js`) and opens on today; the MJO box reads today's GFS estimate; phase 2 shows «داعم ضعيف» as in the report.
+  - Report: grade and trough depth judged on the printed number (1.8 was «ضعيفة»); the summary names the lesser helps (moisture 110-150 %, Rossby) instead of «عامل واحد»; main rain kind by amount; the region high is called «أعلى مجموع لليوم»; heading names the day; each mechanism paragraph once per report («وآلية ذلك كما في منطقة …»); a dry region no longer says our model shows rain on its edge; regions a failed grid leaves uncovered (`rainreport.uncovered`, < 60 % of their 0.5° points) are said so instead of «لا أمطار تُذكر»; diag treats a jump of 8°+ north as another disturbance.
+  - 16 Nov 12Z: the north 3 km grid (`r_n`) crashed at hour 2 (wrf exit 1, no message); re-run of the failed jobs dispatched 17 Nov ~06:40 UTC (run 43901480886 attempt 2).
 - `ourmodel.load`:
   - **3 km grids only** (dx > 5 km skipped).
   - For each grid, takes the newest run that covers ≥90 % of the hours of the best one.

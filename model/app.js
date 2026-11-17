@@ -1309,12 +1309,22 @@
   // ------------------------------------------------------------------ MJO and warm/cold events
   const CL = window.SWRF_CLIMATE || DATA0.replace("/model-data/", "/climate-data/");
   const M = { st: null, map: null, layer: "wc", day: 0, img: null, vec: null, vecs: null, loaded: 0 };
-  const AR_AREA = { 1: "غرب نصف الكرة الغربي وأفريقيا", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي", 4: "القارة البحرية (إندونيسيا)",
+  const AR_AREA = { 1: "أفريقيا ونصف الكرة الغربي", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي", 4: "القارة البحرية (إندونيسيا)",
                     5: "القارة البحرية (إندونيسيا)", 6: "غرب المحيط الهادئ", 7: "غرب المحيط الهادئ", 8: "نصف الكرة الغربي وأفريقيا" };
   const fmtDayD = new Intl.DateTimeFormat(LOC, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
   const fmtDM = new Intl.DateTimeFormat(LOC, { timeZone: "UTC", day: "numeric" });
   const dOf = (s) => new Date(s + "T00:00:00Z");
   const strength = (a) => (a < 1 ? "ضعيف" : a < 1.5 ? "متوسط" : a < 2.5 ? "قوي" : "قوي جدًا");
+  // the maps come from the evening run, so their first day is yesterday by the time the page is read (17 Nov 2026:
+  // the page called the 16th "today" all day of the 17th). Days are named against today's date in Makkah.
+  const todayISO = () => new Date(Date.now() + 3 * 3600e3).toISOString().slice(0, 10);
+  const dayDiff = (d) => Math.round((dOf(d) - dOf(todayISO())) / 86400e3);
+  function dayLab(d) {
+    const k = dayDiff(d);
+    const rel = k === 0 ? "اليوم" : k === -1 ? "أمس" : k < -1 ? (k === -2 ? "قبل يومين" : `قبل ${num(-k)} ${-k <= 10 ? "أيام" : "يومًا"}`) : after(k);
+    return `${rel}: ${fmtDayD.format(dOf(d))}`;
+  }
+  const todayIdx = (days) => Math.max(0, (days || []).indexOf(todayISO()));
 
   function scaleColor(lg, v) {
     const st = lg.stops, p = Math.max(0, Math.min(1, (v - lg.vmin) / (lg.vmax - lg.vmin)));
@@ -1335,7 +1345,9 @@
   }
 
   function mjoText() {
-    const st = M.st, obsNow = st.rmm_now, now = st.rmm_today || st.rmm_now;
+    const st = M.st, obsNow = st.rmm_now;
+    const fcToday = (st.rmm_fc || []).find((f) => f.d === todayISO());
+    const now = fcToday || st.rmm_today || st.rmm_now;
     const r = st.report;
     $("mjoReport").hidden = !r;
     const para = (l, i, sec) => /^(المصادر|الخلاصة)/.test(l) ? `<p class="${l.startsWith("المصادر") ? "src" : "sum"}">${l}</p>`
@@ -1369,18 +1381,21 @@
       `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، ومعه خرائط هذه الصفحة${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
-      const wet = [1, 2, 7, 8].includes(now.phase), season = st.wet_season;
+      // phase 2 is "weakly supportive" as in the report: the 25-season study found it near normal (16 Nov 2026)
+      const wet = [1, 7, 8].includes(now.phase), weak = now.phase === 2, season = st.wet_season;
       html += `<div class="mjo-big"><span>التذبذب الآن في <b>الطور ${num(now.phase)}</b></span><span>بشدة ${num(now.amp, 1)} (${strength(now.amp)})</span></div>
         <div class="mjo-row"><span>الحمل العميق المصاحب</span><span>${AR_AREA[now.phase]}</span></div>
-        <div class="mjo-row"><span>أثره على المملكة</span><span class="${season ? (wet ? "wet" : "dry") : ""}">${
-          now.amp < 1 ? "ضعيف التأثير لأن التذبذب ضعيف" : !season ? "خارج موسم الأمطار، تأثيره محدود" : wet ? "طور رطب: يدعم الأمطار" : "طور جاف: يكبت الأمطار"}</span></div>
-        <div class="mjo-row"><span>${st.rmm_today ? "اليوم (تقدير من جي إف إس)" : "آخر رصد"}</span><span>${fmtDayD.format(dOf(now.d))}</span></div>` +
+        <div class="mjo-row"><span>أثره على المملكة</span><span class="${season ? (wet || weak ? "wet" : "dry") : ""}">${
+          now.amp < 1 ? "ضعيف التأثير لأن التذبذب ضعيف" : !season ? "خارج موسم الأمطار، تأثيره محدود" : wet ? "طور رطب: يدعم الأمطار"
+          : weak ? "داعم ضعيف: أثر الطور ٢ قريب من المعتاد، والأقوى الطوران ٨ و١" : "طور جاف: يكبت الأمطار"}</span></div>
+        <div class="mjo-row"><span>${now === st.rmm_now ? "آخر رصد" : now.d === todayISO() ? "اليوم (تقدير من جي إف إس)" : "تقدير جي إف إس"}</span><span>${fmtDayD.format(dOf(now.d))}</span></div>` +
         (st.rmm_today && obsNow ? `<div class="mjo-row"><span>آخر رصد رسمي</span><span>${fmtDayD.format(dOf(obsNow.d))}: الطور ${num(obsNow.phase)} بشدة ${num(obsNow.amp, 1)}</span></div>` : "");
     }
     html += `<div class="mjo-row"><span>الحدث الدافئ الآن</span><span>${st.warm.region}</span></div>
       <div class="mjo-row"><span>الحدث البارد الآن</span><span>${st.cold.region}</span></div>`;
     if (st.rmm_fc && st.rmm_fc.length) {
-      const f = st.rmm_fc[Math.min(9, st.rmm_fc.length - 1)];
+      const i0 = Math.max(0, st.rmm_fc.findIndex((x) => x.d === now.d));
+      const f = st.rmm_fc[Math.min(i0 + 10, st.rmm_fc.length - 1)];
       html += `<div class="mjo-row"><span>بعد عشرة أيام تقريبًا</span><span>الطور ${num(f.phase)} بشدة ${num(f.amp, 1)}</span></div>`;
     }
     $("mjoNow").innerHTML = `<h3>التذبذب المداري (مادن-جوليان)</h3>` + html;
@@ -1459,6 +1474,7 @@
       $("mjoDay").oninput = (e) => { M.day = +e.target.value; mjoShow(); };
     }
     $("mjoDay").max = (M.st.days || []).length - 1;
+    if (!M.dayInit) { M.dayInit = true; M.day = todayIdx(M.st.days); $("mjoDay").value = M.day; }
     mjoShow();
   }
 
@@ -1472,7 +1488,7 @@
     $("mjoFig").src = url; $("mjoFigLink").href = url;
     $("mjoFigWrap").classList.toggle("fit", lay === "pw");
     const d = st.days[k];
-    $("mjoDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+    $("mjoDayLabel").textContent = d ? dayLab(d) : "";
     const lg = figs[lay];
     if (!lg) { $("mjoLegend").innerHTML = ""; return; }
     const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
@@ -1532,12 +1548,13 @@
       }
       $("waveLink").href = url;
       const d = rows[k] && rows[k].d;
-      $("waveDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+      $("waveDayLabel").textContent = d ? dayLab(d) : "";
     };
     $("waveDay").max = rows.length - 1;
+    if (!waveCard.done) { $("waveDay").value = todayIdx(rows.map((r) => r.d)); waveCard.done = true; }
     $("waveDay").oninput = (e) => show(+e.target.value);
     show(+$("waveDay").value || 0);
-    const items = rows.slice(0, 8).filter((r) => r.trough).map((r) =>
+    const items = rows.filter((r) => r.d >= todayISO()).slice(0, 8).filter((r) => r.trough).map((r) =>
       `<div class="wave-row"><span>${fmtDayD.format(dOf(r.d))}</span><span>أخدود فوق ${r.trough.area} بعمق <b>${num(Math.abs(r.trough.v))}</b> م</span></div>`);
     $("waveList").innerHTML = items.length ? `<h4 class="sub">الأخاديد القريبة من المملكة</h4>` + items.join("")
       : `<p class="muted">لا أخاديد واضحة قرب المملكة في الأيام السبعة القادمة.</p>`;
@@ -1555,7 +1572,7 @@
       const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
       $("mjofFig").src = url; $("mjofLink").href = url;
       const d = days[k];
-      $("mjofDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+      $("mjofDayLabel").textContent = d ? dayLab(d) : "";
       if (st.figs && st.figs[lay]) $("mjofLegend").innerHTML = legendHTML(st.figs[lay]);
     };
     document.querySelectorAll("#mjofLayer button").forEach((b) => b.onclick = () => {
@@ -1563,6 +1580,7 @@
       lay = M.mjofLayer = b.dataset.l; show();
     });
     $("mjofDay").max = Math.max(0, days.length - 1);
+    if (!mjofCard.done) { $("mjofDay").value = todayIdx(days); mjofCard.done = true; }
     $("mjofDay").oninput = show;
     show();
     // the line: last 60 days and the forecast; bars: share of the Kingdom with 5 mm or more (GFS first day)
@@ -1607,11 +1625,12 @@
         back.onload = () => { if (back.naturalWidth) sg.style.aspectRatio = `${back.naturalWidth} / ${back.naturalHeight}`; back.classList.add("on"); if (front) front.classList.remove("on"); };  // the stage takes the picture's own shape, so no empty strip at the side
         back.dataset.u = u; back.src = u;
       });
-      const lab = k < t.t0 ? "تحليل" : k === t.t0 ? "اليوم" : "توقع";
+      const dd = d ? dayDiff(d) : 0;
+      const lab = k <= t.t0 ? "تحليل" : dd === 0 ? "اليوم" : "توقع";   // t0 is the evening analysis of yesterday
       $("twDayLabel").textContent = d ? `${lab}: ${fmtDayD.format(dOf(d))}` : "";
     };
     $("twDay").max = n - 1;
-    if (!twCard.done) { $("twDay").value = t.t0; twCard.done = true; }
+    if (!twCard.done) { const ti = t.days.indexOf(todayISO()); $("twDay").value = ti >= 0 ? ti : t.t0; twCard.done = true; }
     $("twDay").oninput = show;
     show();
   }
@@ -1645,7 +1664,7 @@
         $(`belt_${p}`).src = url; $(`belt_${p}_a`).href = url;
       });
       const d = days[k];
-      $("beltDayLabel").textContent = d ? (k === 0 ? `اليوم: ${fmtDayD.format(dOf(d))}` : `${after(k)}: ${fmtDayD.format(dOf(d))}`) : "";
+      $("beltDayLabel").textContent = d ? dayLab(d) : "";
       const m = st.marks[k] || {};
       const chip = (c, t, x) => x == null ? "" : `<span><i style="background:${c}"></i>${t} ${lonTxt(x)}</span>`;
       $("beltMarks").innerHTML = chip("#d9775a", "مركز التذبذب", m.core) + chip("#a3202a", "الحدث الدافئ", m.warm) + chip("#2b4a7f", "الحدث البارد", m.cold);
@@ -1686,7 +1705,7 @@
 
 
   function mjoPwTable() {
-    const st = M.st, rows = (st.pw || []).slice(1, 11);
+    const st = M.st, rows = (st.pw || []).filter((r) => r.d >= todayISO()).slice(0, 10);
     if (!rows.length) return;
     const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
     let t = `<table class="pwt"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
