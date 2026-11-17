@@ -21,8 +21,8 @@ ORD = ["الأولى", "الثانية", "الثالثة", "الرابعة", "ا
 BOX_NAME = {"west": "الحجاز وغرب المملكة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
             "east": "شرق المملكة", "north": "شمال المملكة"}
 # the edges and plains of the Makkah section, in the order of the table (short names for a phone-wide table)
-MAKKAH_ZONES = [("hada", "الهدا والشفا"), ("sarawat", "سروات مكة"), ("rahat_s", "حرة رهط"),
-                ("kishb", "حرة كشب"), ("rahat_n", "رهط الشمالية")]
+MAKKAH_ZONES = [("hada", "الهدا والشفا"), ("sarawat", "سروات مكة"), ("rahat_s", "حرة رهاط"),
+                ("kishb", "حرة كشب"), ("rahat_n", "رهاط الشمالية")]
 YES, NO = "✓", "✗"
 
 
