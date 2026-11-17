@@ -1341,7 +1341,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
   }
 
   function mjoText() {
@@ -1562,6 +1562,45 @@
     $("ksaDay").max = Math.max(0, K.days.length - 1);
     if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
     $("ksaDay").oninput = show;
+    show();
+  }
+
+  // where the afternoon winds collide around Taif (Fahad, 17 Nov 2026): the Al-Hada / Ash-Shafa edge or east and
+  // north-east of Taif; 7 days before today, today and 7 after (taifconv.py on the nightly run)
+  const TC_WHERE = { edge: "التصادم على حافة الهدا والشفا", east: "التصادم شرق الطائف وشماله الشرقي (السيل والهضبة)", weak: "التصادم ضعيف حول الطائف" };
+  const TC_HINT = {
+    line: "الأزرق حافة الهدا والشفا والبرتقالي شرق الطائف والسيل. الخط المتقطع هو اليوم، وما بعده توقع. حين تكون الرياح فوق الهضبة شرقية بأكثر من ٢ م/ث يقف هواء البحر عند الحافة فيكون التصادم والمطر على الهدا والشفا، وحين تضعف أو تصير جنوبية أو غربية يصعد هواء البحر فوق الحافة وينتقل التصادم شرق الطائف والسيل ورهاط.",
+    day: "الأحمر والبرتقالي تصادم الرياح السطحية ظهرًا وعصرًا، والأزرق تباعد، والخطوط اتجاه الرياح. الكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. حرّك الشريط لتنتقل بين الأيام.",
+    past: "متوسط تصادم الرياح ظهرًا وعصرًا في الأيام السبعة الماضية: أين استقر خط التصادم.",
+    next: "متوسط تصادم الرياح المتوقع في الأيام السبعة القادمة: أين يُرجّح أن يستقر خط التصادم.",
+  };
+  function tcCard() {
+    const st = M.st, T = st.taifc;
+    $("tcCard").hidden = !(T && T.rows && T.rows.length);
+    if ($("tcCard").hidden) return;
+    let lay = M.tcLayer || "line";
+    const show = () => {
+      const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
+      const name = lay === "line" ? "tconv_line" : lay === "day" ? `tconv_${kk}` : `tconv_${lay}`;
+      $("tcFig").src = `${CL}fig/${name}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tcTime").hidden = lay !== "day";
+      $("tcHint").textContent = TC_HINT[lay];
+      const r = lay === "day" ? T.rows[k] : T.rows[Math.max(0, T.days.indexOf(todayISO()))];
+      $("tcDayLabel").textContent = r ? dayLab(r.d) : "";
+      if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
+      const u = r.u850, wind = u <= T.u_east ? `شرقية ${num(-u, 1)} م/ث تُوقف هواء البحر عند الحافة`
+        : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
+      $("tcNow").innerHTML = `<div><b>${lay === "day" ? dayLab(r.d) : "اليوم"}:</b> ${TC_WHERE[r.where]}${r.fc ? " (توقع)" : ""}.</div>
+        <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
+        <div>قوة التصادم: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>`;
+    };
+    document.querySelectorAll("#tcLayer button").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x === b));
+      lay = M.tcLayer = b.dataset.l; show();
+    });
+    $("tcDay").max = Math.max(0, T.rows.length - 1);
+    if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
+    $("tcDay").oninput = show;
     show();
   }
 

@@ -356,3 +356,6 @@ a { color: var(--sea); }
 .ksa-coord { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .88rem; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .ksa-coord b { color: #fff; }
 .ksa-coord button { flex: none; border: 1px solid var(--line); background: var(--surface-2); color: var(--ink); border-radius: 14px; padding: 4px 12px; font: inherit; font-size: .8rem; }
+
+.figwrap.tc-fig { background: #0c1118; }
+.figwrap.tc-fig img { width: 100%; height: auto; display: block; }

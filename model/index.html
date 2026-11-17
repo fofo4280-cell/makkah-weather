@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261117z1">
+<link rel="stylesheet" href="style.css?v=20261117tc1">
 </head>
 <body>
 <div class="app">
@@ -131,6 +131,19 @@
           </div>
           <p class="hint" id="ksaHint"></p>
         </div>
+        <div class="card" id="tcCard" hidden>
+          <h3>تصادم الرياح حول الطائف</h3>
+          <div class="seg" id="tcLayer">
+            <button data-l="line" class="on">الخط الزمني</button><button data-l="day">خريطة اليوم</button><button data-l="past">متوسط ٧ أيام مضت</button><button data-l="next">متوسط ٧ أيام قادمة</button>
+          </div>
+          <div class="figwrap fit tc-fig" dir="ltr"><img id="tcFig" alt="تصادم الرياح حول الطائف"></div>
+          <div id="tcNow" class="ksa-low"></div>
+          <div class="mjo-time" id="tcTime" hidden>
+            <input type="range" id="tcDay" min="0" max="14" value="7" dir="ltr" aria-label="اليوم">
+            <span id="tcDayLabel"></span>
+          </div>
+          <p class="hint" id="tcHint"></p>
+        </div>
         <div class="card" id="mjofCard" hidden>
           <h3>مكوّن التذبذب المعزول</h3>
           <div class="seg" id="mjofLayer">
@@ -195,6 +208,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261117z1"></script>
+<script src="app.js?v=20261117tc1"></script>
 </body>
 </html>
