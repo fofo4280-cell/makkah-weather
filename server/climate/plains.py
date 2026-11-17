@@ -145,7 +145,20 @@ def check_all(get, cycle, day, pct_of, log=print):
         return [], []
     prs, eds = plains_rows(hours, static, acc, grid, pct_of, log), edge_rows(hours, static, acc, grid, pct_of, log)
     try:
-        tz = taif_zone(hours, static, grid)
+        # the initiation window, 11 AM and 1 PM Makkah (08, 10 UTC): Fahad, 17 Nov 2026 (cells form on Al-Hada /
+        # Ash-Shafa from 10 AM-1 PM; by 3 PM the GFS line has drifted east over Taif). Falls back to noon + 3 PM.
+        early = {}
+        t0 = datetime.strptime(cycle, "%Y%m%d%H")
+        for uh in INIT_UTC:
+            fh = int((datetime(day.year, day.month, day.day, uh) - t0).total_seconds() // 3600)
+            try:
+                f = get(cycle, fh, [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")])
+                la = np.linspace(90, -90, f["u10"].shape[0])
+                lo = np.linspace(0, 360, f["u10"].shape[1], endpoint=False)
+                early[uh] = {k: cut(v, la, lo)[0] for k, v in f.items()}
+            except Exception as e:  # noqa: BLE001
+                log("plains: initiation-hour winds unavailable", fh, repr(e)[:120])
+        tz = taif_zone({**hours, **early}, static, grid)
         for e in eds:
             if e["key"] == "sail":
                 e["taif_conv"] = tz
@@ -330,6 +343,7 @@ TAIF = (21.27, 40.42)
 # the smoothed 10 m convergence over these heights runs 3-7e-5 /s on most afternoons (terrain), so the test is where
 # it is strongest; see PROJECT.md for the 1-17 Nov 2026 test.
 CONV_MIN, CONV_SHIFT = 3.0, 0.5
+INIT_UTC = (8, 10)                       # 11 AM and 1 PM Makkah: the Taif collision is judged here (17 Nov 2026)
 
 
 def nearest_place(la, lo, km=40):
@@ -350,7 +364,7 @@ def taif_zone(hours, static, grid):
     shifted when the east wins by CONV_SHIFT or more"""
     import collide
     lat, lon = grid
-    hs = [h for h in (9, 12) if h in hours]
+    hs = [h for h in INIT_UTC if h in hours] if all(h in hours for h in INIT_UTC) else [h for h in (9, 12) if h in hours]
     if not hs:
         return None
     c = np.mean([collide.convergence(hours[h]["u10"], hours[h]["v10"], lat, abs(lon[1] - lon[0])) for h in hs], axis=0)
