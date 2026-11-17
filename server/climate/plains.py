@@ -9,7 +9,7 @@ Maghrib and Isha. Weak steering keeps the cells in place, and the wadis bring th
 over the southwest, steering under 5 m/s, SE upslope flow at 850 hPa).
 
 For each plain, with its mountains just east of it, six enhancers are checked:
-  1. moisture:      PW >= 130 % of normal over the page's box (southwest / west), or >= 40 mm over the plain
+  1. moisture:      PW >= 130 % of normal over the page's box (Makkah 115, PCT_MIN), or >= 40 mm over the plain
   2. hot humid air: 2 m dew point over the plain >= 19 C at 15 Makkah (Al-Lith 18, Makkah 17; TD_MIN)
   3. instability:   most-unstable CAPE (180-0 hPa parcel) over the plain >= 1000 J/kg (75th percentile, 15 to 21 Makkah)
   4. mountain storms in the afternoon: GFS rain on the mountains >= 1 mm (90th percentile, 12-18 Makkah), or
@@ -47,6 +47,9 @@ PLAIN_HGT, MTN_HGT = 500.0, 1000.0          # m, GFS 0.25 terrain (smoothed)
 # the dew point that makes a plain "very humid": the Makkah plains sit farther from the sea and run drier at 2 m
 # (13 Nov 2026, plains storms over Makkah and Al-Jumum at 17 C), Tihama at 19-21 C on its storm days
 TD_MIN = {"makkah": 17.0, "lith": 18.0}
+# PW (% of normal, page box) that counts as the moisture enhancer; Makkah 115 (17 Nov 2026, Fahad: "do not neglect
+# PW"): storms on Arafat..Al-Hada with 116 %, 16 Nov with 119 %; test 1-17 Nov: no extra day named (1-9 Nov silent)
+PCT_MIN = {"makkah": 115}
 
 FIELDS = [("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
           ("cape", r":CAPE:180-0 mb above ground:"), ("rh700", r":RH:700 mb:"),
@@ -144,8 +147,17 @@ def check_all(get, cycle, day, pct_of, log=print):
     by = {r["key"]: r for r in prs}
     for e in eds:                          # the plain under the edge, for the evening outflow (OUTFLOW_PLAIN)
         pr = by.get(OUTFLOW_PLAIN.get(e["key"], ""))
-        if pr:
-            e["plain"] = {"key": pr["key"], "cape": pr["cape_plain"], "td": pr["td"], "steer": pr["steer"]}
+        if not pr:
+            continue
+        # 17 Nov 2026: a named Al-Hada edge is the plain's "mountain storms" (GFS rim CAPE 189 that day, while the
+        # cells reached 50-55 dBZ); test 1-17 Nov: Makkah plain named 10, 13, 14, 16 and now 17 Nov, 1-9 Nov silent
+        if edge_named(e)[0] and not pr["flags"]["mountain"]:
+            pr["flags"]["mountain"] = True
+            pr["mountain_from"] = e["key"]
+            pr["gate"] = bool(pr["cape_plain"] >= 500 and (pr["pct"] >= 115 or pr["flags"]["humid"]))
+            pr["score"] = int(sum(pr["flags"].values()))
+        e["plain"] = {"key": pr["key"], "cape": pr["cape_plain"], "td": pr["td"], "steer": pr["steer"],
+                      "pct": pr["pct"], "named": bool(named(pr)[0])}
     return prs, eds
 
 
@@ -177,7 +189,7 @@ def plains_rows(hours, static, acc, grid, pct_of, log=print):
         u10 = float(H("u10", 12)[pl].mean())
         u850 = float(H("u850", 12)[pl].mean())
         f = {
-            "moist": pct >= 130 or pw >= 40,
+            "moist": pct >= PCT_MIN.get(key, 130) or pw >= 40,
             "humid": td >= TD_MIN.get(key, 19.0),
             "unstable": cape_pl >= 1000,
             "mountain": r_mt >= 1 or (cape_mt >= 300 and rh_mt >= 60),
@@ -384,7 +396,8 @@ def sentence(row, model_mtn_rain=None, model_plain_rain=None):
     if f["unstable"]:
         why.append(f"وطاقة عدم الاستقرار نحو {n0(round(row['cape_plain'], -2))} جول/كغ")
     if f["mountain"]:
-        why.append("والسحب قائمة على الجبال المجاورة بعد الظهر")
+        why.append("والسحب قائمة على الجبال المجاورة بعد الظهر" if not row.get("mountain_from") else
+                   "والخلايا متوقعة على الحافة فوقه بعد الظهر")
     if f["steer"]:
         why.append(f"ورياح القيادة ضعيفة ({n0(row['steer'])} م/ث) فتبقى الخلايا في مكانها" if row["steer"] < 5 else
                    "ورياح القيادة تدفع الخلايا غربًا نحو السهل")
@@ -484,8 +497,11 @@ def edges_sentence(items):
     # the evening outflow down to the plain (Fahad 17 Nov 2026): hot unstable air below and slow cells above
     for r in rows:
         pl = r.get("plain")
-        if r["key"] == "hada" and pl and pl["cape"] >= OUT_CAPE and r["steer"] < OUT_STEER:
+        # (when the Makkah plain is itself named its own sentence says it, with the same ingredients)
+        if (r["key"] == "hada" and pl and not pl.get("named") and pl["cape"] >= OUT_CAPE
+                and r["steer"] < OUT_STEER):
             s += (" وقد تنحدر تيارات السحب الباردة من حافة الهدا والشفا نحو الشرائع والجعرانة وشرق مكة، والهواء "
-                  f"على السهل غير مستقر (نحو {n0(round(pl['cape'], -2))} جول/كغ)، فتنشأ خلايا جديدة بين المغرب والعشاء "
+                  f"على السهل غير مستقر (نحو {n0(round(pl['cape'], -2))} جول/كغ) والماء القابل للهطول "
+                  f"{n0(pl.get('pct', r['pct']))}٪ من معدله، فتنشأ خلايا جديدة بين المغرب والعشاء "
                   "قد تصل إلى الجموم ووادي فاطمة.")
     return s
