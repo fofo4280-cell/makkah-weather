@@ -191,12 +191,24 @@ def makkah_section(st, rs, regs):
     mk = next((r for r in regs if r["name"] == "مكة المكرمة"), None)
 
     def model_words(keys, label):
+        if pending(rs):
+            return f"تُضاف أمطار نموذجنا على {label} حين يكتمل تشغيله الليلي، قرابة الثانية فجرًا."
         if not mk:
             return f"لا تُظهر مخرجات نموذجنا أمطارًا تُذكر على {label}."
         hits = [w for w in mk["wins"] if any(k in towns_of(w) or k in w.get("at", "") for k in keys)]
         if not hits:
             return f"لا تُظهر مخرجات نموذجنا أمطارًا تُذكر على {label}."
-        return "يُظهر نموذجنا: " + "؛ ".join(f"{w['span']}، أمطار {w['type']}" for w in hits) + "."
+        # name the places of this area and their category, not only the window (18 Nov 2026: the Makkah and the
+        # Taif lines read the same, "from 2 PM to 8 PM, thunderstorms")
+        parts = []
+        for w in hits:
+            got = []
+            for key, word in (("heavy", "غزيرة"), ("moderate", "متوسطة"), ("light", "خفيفة")):
+                pl_ = [x for x in re.split(r"، | و(?=\S)", w.get(key, "")) if x and any(k in x for k in keys)]
+                if pl_:
+                    got.append(f"{word} على {jl(pl_)}")
+            parts.append(f"{w['span']}، أمطار {w['type']}" + ("، " + "، و".join(got) if got else ""))
+        return "يُظهر نموذجنا: " + "؛ ".join(parts) + "."
 
     # -------- the edges study first: the table, then a verdict per edge
     zones = [(k, nm) for k, nm in MAKKAH_ZONES if k in eds]
@@ -245,10 +257,22 @@ def makkah_section(st, rs, regs):
         B.append({"h": "منطقة تصادم الرياح حول الطائف"})
         pe, px = tz["edge"], tz["east"]
         nm = lambda z: z.get("place") or "المرتفعات"
+        edge_on = [nm_ for k, nm_ in zones if k in named and k in ("hada", "shafa")]
+        fuel = (lambda: f"طاقة عدم الاستقرار عند ١ ظهرًا نحو {ar(round(tz['cape_east'], -1))} جول/كغ شرق الطائف مقابل "
+                        f"{ar(round(tz['cape_edge'], -1))} على الحافة") if tz.get("cape_east") is not None else (lambda: "")
         if tz["shifted"]:
-            B.append({"p": f"ينتقل تصادم الرياح بعد الظهر شرق الطائف وشماله، وأقواه قرب {nm(px)} (على بعد نحو "
-                           f"{ar(px['km_taif'])} كم من الطائف، بقوة {n1(px['c'])}) مقابل {n1(pe['c'])} على الحافة قرب {nm(pe)}. "
-                           "فتنتقل فرص الخلايا إلى الهضبة هناك، بعيدًا عن حافة الهدا والشفا، ويقل ما ينزل منها إلى مكة."})
+            t = (f"ينتقل تصادم الرياح بعد الظهر شرق الطائف وشماله، وأقواه قرب {nm(px)} (على بعد نحو "
+                 f"{ar(px['km_taif'])} كم من الطائف، بقوة {n1(px['c'])}) مقابل {n1(pe['c'])} على الحافة قرب {nm(pe)}، "
+                 "وفي الهواء هناك طاقة كافية" + (f" ({fuel()})" if fuel() else "") + ". ")
+            if edge_on:   # the edge study still names Al-Hada / Ash-Shafa: both, not "away from the edge"
+                t += f"فتمتد فرص الخلايا إلى الهضبة هناك، مع بقائها على {jl(edge_on)} كما في الجدول أعلاه."
+            else:
+                t += "فتنتقل فرص الخلايا إلى الهضبة هناك، بعيدًا عن حافة الهدا والشفا، ويقل ما ينزل منها إلى مكة."
+            B.append({"p": t})
+        elif tz.get("east_dry"):
+            B.append({"p": f"أقوى تقارب للرياح بعد الظهر شرق الطائف قرب {nm(px)} (بقوة {n1(px['c'])}) مقابل {n1(pe['c'])} "
+                           f"على الحافة قرب {nm(pe)}، لكن الهواء هناك فقير بالطاقة ({fuel()})، والتصادم وحده لا يُنشئ سحبًا "
+                           "رعدية دون طاقة. فتبقى فرص الخلايا على حافة الهدا والشفا المطلة على مكة."})
         elif px["c"] >= pe["c"]:
             B.append({"p": f"يتقارب تصادم الرياح بعد الظهر بين الحافة قرب {nm(pe)} (بقوة {n1(pe['c'])}) وشرق الطائف "
                            f"وشماله قرب {nm(px)} (بقوة {n1(px['c'])})، فتبقى فرص الخلايا على حافة الهدا والشفا المطلة على مكة، "
@@ -257,7 +281,9 @@ def makkah_section(st, rs, regs):
             B.append({"p": f"يبقى تصادم الرياح بعد الظهر على الحافة، وأقواه قرب {nm(pe)} (بقوة {n1(pe['c'])}) مقابل "
                            f"{n1(px['c'])} شرق الطائف وشماله قرب {nm(px)}. فتبقى فرص الخلايا على حافة الهدا والشفا "
                            "المطلة على مكة."})
-        B.append({"note": "قوة التصادم: تقارب رياح ١٠ أمتار بعد تنعيمها نحو ٤٠ كم، متوسط ١٢ ظهرًا و٣ عصرًا، بوحدة ١٠⁻⁵ في الثانية."})
+        B.append({"note": "قوة التصادم: تقارب رياح ١٠ أمتار بعد تنعيمها نحو ٤٠ كم، متوسط ١١ صباحًا و١ ظهرًا وقت نشوء "
+                          "السحب، بوحدة ١٠⁻⁵ في الثانية. ولا يُحسب التصادم شرق الطائف ناقلًا للفرص إلا إذا بلغت طاقة عدم "
+                          f"الاستقرار هناك {ar(P.EAST_CAPE)} جول/كغ فأكثر."})
     # -------- Makkah and Al-Jumum: the plain under Al-Hada
     B.append({"h": "مكة المكرمة والجموم"})
     B.append({"p": model_words(["مكة", "الجموم", "بحرة", "الشرائع", "الجعرانة", "عرفة"], "مكة والجموم")})
@@ -287,7 +313,7 @@ def makkah_section(st, rs, regs):
     B.append({"p": model_words(["جدة", "رابغ", "خليص", "الكامل", "بحرة"], "جدة والسهل الساحلي")})
     # -------- Taif and the western heights
     B.append({"h": "الطائف والمرتفعات الغربية"})
-    B.append({"p": model_words(["الطائف", "الهدا", "الشفا", "ميسان", "أضم", "الليث"], "الطائف والمرتفعات")})
+    B.append({"p": model_words(["الطائف", "الهدا", "الشفا", "السيل", "الحوية", "ملكان", "العرفاء", "ميسان", "أضم", "الليث"], "الطائف والمرتفعات")})
     # -------- the verdict for the region
     B.append({"h": "التقييم العام لمنطقة مكة"})
     if named:
@@ -295,11 +321,15 @@ def makkah_section(st, rs, regs):
         t = f"الحمل الحراري مرجح بعد الظهر على {jl(names)}"
         if r and P.named(r, r.get("model_mtn"))[0]:
             t += "، ومنها قد ينزل المطر بين المغرب والعشاء إلى الشرائع وشرق مكة"
-        B.append({"p": t + "، دون إشارة واسعة داخل المدن." if not mk else t + "."})
+        B.append({"p": t + "، دون إشارة واسعة داخل المدن." if not mk and not pending(rs) else t + "."})
     else:
         B.append({"p": "لا تجتمع مكونات الحمل الحراري على حواف مكة ولا حراتها اليوم."})
     if tz and tz["shifted"]:
-        B.append({"p": f"وتصادم الرياح اليوم شرق الطائف وشماله (قرب {tz['east'].get('place') or 'الهضبة'})، فالفرص هناك أكبر منها على الحافة."})
+        where_ = tz["east"].get("place") or "الهضبة"
+        if any(k in named for k in ("hada", "shafa")):
+            B.append({"p": f"وتصادم الرياح اليوم أقوى شرق الطائف وشماله (قرب {where_})، فقد تنشأ خلايا هناك أيضًا إلى جانب الحافة."})
+        else:
+            B.append({"p": f"وتصادم الرياح اليوم شرق الطائف وشماله (قرب {where_})، فالفرص هناك أكبر منها على الحافة."})
     return B
 
 
@@ -394,10 +424,10 @@ def s1(st, secs, rs, regs, day0):
             continue
         import plains as P
         ul.append(f"{reg}: الحمل الحراري مرجح بعد الظهر على {jl([P.short(e['name']) for e in es])}، "
-                  "دون إشارة واضحة من نموذجنا.")
+                  + ("وتُضاف إشارة نموذجنا حين يكتمل تشغيله." if pending(rs) else "دون إشارة واضحة من نموذجنا."))
     ul.sort(key=lambda x: not x.startswith("مكة المكرمة"))          # Makkah first among the regions
     if not ul:
-        ul.append("لا أمطار تُذكر على المملكة في مخرجات نموذجنا.")
+        ul.append("تُضاف أمطار نموذجنا حين يكتمل تشغيله الليلي." if pending(rs) else "لا أمطار تُذكر على المملكة في مخرجات نموذجنا.")
     B.append({"ul": ul})
     ww = st.get("wave_watch") or {}
     if ww.get("waves"):
@@ -423,10 +453,15 @@ def named_edges(st):
     return out
 
 
+def pending(rs):
+    """the rain section written before our 12Z runs were complete (daily.py, RAIN_PENDING or a 3 km run still running)"""
+    return bool(rs and rs.get("pending"))
+
+
 def s2(st, secs, rs, regs, day0):
     B = [{"p": f"الفترة: من منتصف ليل {ar_date(day0).split()[0]} إلى منتصف ليل "
                f"{ar_date(day0 + timedelta(days=1)).split()[0]}، بتوقيت مكة المكرمة."}]
-    if rs and rs.get("lines"):
+    if rs and rs.get("lines") and not pending(rs):
         first = rs["lines"][0]
         if not first.startswith("منطقة "):
             B.append({"p": first.split(". الصورة")[0]})
@@ -434,16 +469,18 @@ def s2(st, secs, rs, regs, day0):
         B.append({"h": f"منطقة {r['name']}"})
         for i, w in enumerate(r["wins"]):
             lab = f"الفترة {ORD[i]}: " if len(r["wins"]) > 1 else ""
-            B.append({"p": f"{lab}{w['span']}، أمطار {w['type']}:"})
             ul = []
             for key, word in (("heavy", "غزيرة"), ("moderate", "متوسطة"), ("light", "خفيفة")):
                 if w.get(key):
                     ul.append(f"{word}: {w[key]}.")
+            B.append({"p": f"{lab}{w['span']}، أمطار {w['type']}" + (":" if ul else ".")})
             if ul:
                 B.append({"ul": ul})
             if w.get("max"):
                 B.append({"p": f"أعلى كمية متوقعة: {w['max']} ملم {w['at']}" + (f"، {w['extra']}" if w.get("extra") else "") + "."})
-    if not regs:
+    if pending(rs):
+        B.append({"p": "يُكتب تفصيل الأمطار حين يكتمل تشغيل نموذجنا الليلي (دورة ١٢ غرينتش)، قرابة الثانية فجرًا."})
+    elif not regs and not any(l.startswith("لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة") for l in (rs or {}).get("lines", [])[:1]):
         B.append({"p": "لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة اليوم."})
     return sec("٢. توقعات الأمطار اليوم", "rain", B)
 

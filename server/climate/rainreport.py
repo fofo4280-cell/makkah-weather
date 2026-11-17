@@ -381,6 +381,9 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
         seen = {}
         for name, ss in pw_.items():
             lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر داخل حدودها." + plains_text(ss, seen, name, dry=True))
+        unc = uncovered(doms, regs)      # (18 Nov 2026: this early return skipped the uncovered regions)
+        if unc:
+            lines.append(f"ولم يغطِّ نموذجنا هذه الليلة {jl(unc)} تغطية كافية، فلا يُحكم على أمطارها من هذا الجدول.")
         return {"heading": head, "lines": lines, "table": [], "data": {}}
     n = len(rows)
     extent = "واسعة" if n >= 8 else "متوسطة الانتشار" if n >= 4 else "محدودة"

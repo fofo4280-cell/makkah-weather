@@ -26,6 +26,10 @@ BOX = (19.0, 24.5, 36.5, 43.5)            # south, north, west, east of the data
 MAP = (37.8, 41.8, 20.2, 23.3)            # west, east, south, north of the map (Red Sea and Jeddah in, Fahad 17 Nov 2026)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
+# 18 Nov 2026 (Fahad: "contradictions"): a stronger meeting east of Taif moves the storms there only when the air
+# there has fuel; with surface CAPE (p75, 1 PM) under EAST_CAPE the cells stay on the edge (18 Nov: east 4.0 vs edge
+# 3.1 but CAPE 28 vs 184 and GFS rain 0.8 vs 6.1 mm). Same rule in plains.taif_zone.
+EAST_CAPE = 100
 HOURS = ("11", "13", "15")                # Makkah hours of the maps (08, 10, 12 UTC)
 AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
@@ -130,7 +134,7 @@ def measure(f):
     r_east = float(np.mean([rain[B(21.45, 21.85, 40.35, 40.7)].mean(), rain[B(20.9, 21.6, 40.6, 41.1)].mean(),
                             rain[B(22.2, 23.3, 39.8, 40.5)].mean()]))
     if cx >= CONV_MIN and cx >= ce + CONV_SHIFT:
-        where = "east"
+        where = "east" if cp_east >= EAST_CAPE else "eastdry"
     elif max(ce, cx) < CONV_MIN:
         where = "weak"
     else:
@@ -321,8 +325,8 @@ def draw_line(path, rows, today):
         ax.tick_params(colors=MUTED, length=0, labelsize=10)
         ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda v, p: ar(f"{v:g}")))
         for k, r in enumerate(rows):   # the day's verdict as a faint band
-            if r.get("where") in ("edge", "east"):
-                ax.axvspan(k - .5, k + .5, color=EDGE_C if r["where"] == "edge" else EAST_C, alpha=.05, lw=0)
+            if r.get("where") in ("edge", "east", "eastdry"):
+                ax.axvspan(k - .5, k + .5, color=EAST_C if r["where"] == "east" else EDGE_C, alpha=.05, lw=0)
         if ti is not None:
             ax.axvline(ti, color="#c9d1db", lw=.8, ls=(0, (3, 3)), alpha=.5)
     T = lambda ax, t: ax.set_title(t, loc="right", color="#c9d1db", fontsize=11.5, fontweight="semibold", pad=7)

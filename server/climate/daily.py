@@ -866,8 +866,18 @@ def main():
         ours = ([os.environ.get("SA_DATA"), os.environ.get("WEST_DATA"), os.environ.get("KM1_DATA")]
                 + os.environ.get("REGION_DATA", "").split())
         t_a = datetime(day0.year, day0.month, day0.day, tzinfo=timezone.utc) - timedelta(hours=3)
-        if os.environ.get("RAIN_PENDING"):
-            rain = {"heading": "الأمطار على المملكة", "table": [], "data": {},
+        # 18 Nov 2026: the first issue (about 00:20 Makkah) was written while the western 3 km run was still running,
+        # so its rain lines said "our model shows no rain" on Makkah and Taif; the climate step only flagged the
+        # Kingdom 9 km run. Any of our runs of this cycle still running now makes the rain section "pending".
+        def _running(d):
+            try:
+                rr = [x for x in json.load(open(os.path.join(d, "runs.json"))).get("runs", [])
+                      if str(x.get("run")) == str(status.get("cycle"))]
+                return bool(rr) and rr[0].get("status") != "complete"
+            except Exception:
+                return False
+        if os.environ.get("RAIN_PENDING") or any(_running(d) for d in ours if d):
+            rain = {"heading": "الأمطار على المملكة", "table": [], "data": {}, "pending": True,
                     "lines": ["يُكتب تقرير الأمطار حين يكتمل تشغيل نموذجنا الليلي (دورة ١٢ غرينتش) على المملكة، "
                               "قرابة الثانية فجرًا."]}
         else:
