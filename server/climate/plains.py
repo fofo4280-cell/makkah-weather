@@ -144,6 +144,20 @@ def check_all(get, cycle, day, pct_of, log=print):
     if static is None or not {12, 15}.issubset(hours):
         return [], []
     prs, eds = plains_rows(hours, static, acc, grid, pct_of, log), edge_rows(hours, static, acc, grid, pct_of, log)
+    try:
+        tz = taif_zone(hours, static, grid)
+        for e in eds:
+            if e["key"] == "sail":
+                e["taif_conv"] = tz
+                # on the plateau the lift is the meeting of the winds, not the sea breeze up a slope
+                e["flags"]["upslope"] = bool(tz and tz["c_sail"] >= CONV_MIN)
+                e["score"] = int(sum(e["flags"].values()))
+                e["gate"] = bool(e["flags"]["moist"] and e["cape"] >= EDGE_CAPE
+                                 and (e["flags"]["upslope"] or e["flags"]["south"])
+                                 and ((e["rh700"] >= EDGE_RH and e["td"] >= EDGE_TD) or e["rain_gfs"] >= 1.0))
+        log("plains: Taif convergence", tz)
+    except Exception as e:  # noqa: BLE001
+        log("plains: Taif convergence failed", repr(e)[:160])
     by = {r["key"]: r for r in prs}
     for e in eds:                          # the plain under the edge, for the evening outflow (OUTFLOW_PLAIN)
         pr = by.get(OUTFLOW_PLAIN.get(e["key"], ""))
@@ -222,9 +236,15 @@ EDGES = [
     ("asir_s", "حافة عسير الجنوبية (أبها والسودة ورجال ألمع)", "عسير", 17.6, 18.6, None),
     ("asir_n", "حافة عسير الشمالية (النماص وتنومة وبللسمر)", "عسير", 18.6, 19.5, None),
     ("baha", "حافة الباحة (بلجرشي والباحة والمندق)", "الباحة", 19.5, 20.4, None),
-    ("sarawat", "سروات مكة (ميسان وبني سعد فوق أضم والليث)", "مكة المكرمة", 20.4, 21.0, None),
-    ("hada", "حافة الهدا والشفا فوق الشرائع", "مكة المكرمة", 21.0, 21.8, None),
-    ("rahat_s", "حرة رهاط وحافتها شرق خليص والكامل", "مكة المكرمة", 21.8, 23.3, (22.0, 23.3, 39.9, 40.75, 800.0)),
+    ("sarawat", "سروات مكة (ميسان وبني سعد فوق أضم والليث)", "مكة المكرمة", 20.4, 20.9, None),
+    # Makkah's own zones (Fahad 17 Nov 2026: «ركز على حافة الهدا والشفا والسيل وحرة رهاط وحرة شمنصير»): boxes on the
+    # GFS 0.25 terrain (two cells each; Al-Hada 21.25 N 40.25 E 1512 m and 21.5 N 1177 m, Ash-Shafa 21.0 N 40.25/40.5 E
+    # 1157/1436 m, Al-Sail 21.5/21.75 N 40.5 E 1486/1208 m, Shamnasir 22.25/22.5 N 40.0 E 966/1076 m)
+    ("hada", "حافة الهدا فوق الشرائع وعرفة", "مكة المكرمة", None, None, (21.2, 21.6, 40.2, 40.3, 900.0), "edge"),
+    ("shafa", "حافة الشفا فوق وادي نعمان", "مكة المكرمة", None, None, (20.9, 21.1, 40.2, 40.55, 900.0), "edge"),
+    ("sail", "السيل الكبير وشمال الطائف", "مكة المكرمة", None, None, (21.45, 21.8, 40.4, 40.6, 900.0), "plateau"),
+    ("shamnasir", "حرة شمنصير شمال شرق مكة", "مكة المكرمة", None, None, (22.2, 22.55, 39.9, 40.1, 600.0), "harra"),
+    ("rahat_s", "حرة رهاط شرق خليص والكامل", "مكة المكرمة", None, None, (22.6, 23.3, 39.9, 40.75, 800.0), "harra"),
     ("rahat_n", "حرة رهاط الشمالية جنوب المدينة", "المدينة المنورة", 23.3, 24.6, (23.3, 24.6, 39.6, 40.4, 800.0)),
     ("kishb", "حرة كشب", "مكة المكرمة", None, None, (22.6, 23.4, 41.0, 41.75, 900.0)),
 ]
@@ -233,7 +253,7 @@ EDGE_HGT, EDGE_RISE = 600.0, 400.0
 
 def edge_masks(static, lat, lon, z):
     """(edge cells, their foot: the one or two cells west of them, lower down)"""
-    key, _, _, s, n, harra = z
+    key, _, _, s, n, harra = z[:6]
     hg, land = static["hgt"], static["land"] > 0.5
     LA, LO = np.meshgrid(lat, lon, indexing="ij")
     west = np.minimum(np.roll(hg, 1, 1), np.roll(hg, 2, 1))       # lon increases with the column
@@ -254,7 +274,7 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
     for z in EDGES:
         key, name, region = z[:3]
         ed, ft = edge_masks(static, lat, lon, z)
-        if ed.sum() < 3:
+        if ed.sum() < (1 if len(z) > 6 else 3):      # Makkah's boxes are one or two GFS cells
             continue
         H = lambda k, h: hours[h][k]
         aft = [h for h in (9, 12) if h in hours]
@@ -288,7 +308,7 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
         # than ECMWF, the test's reference; 25 of the 34 season days that gate removed had GFS rain >= 1 mm
         gate = (f["moist"] and cape >= EDGE_CAPE and (f["upslope"] or f["south"])
                 and ((rh >= EDGE_RH and td >= EDGE_TD) or r >= 1.0))
-        row = {"key": key, "name": name, "region": region, "kind": "harra" if z[5] else "edge",
+        row = {"key": key, "name": name, "region": region, "kind": z[6] if len(z) > 6 else "harra" if z[5] else "edge",
                "pw": round(pw, 1), "pct": pct, "td": round(td, 1), "cape": int(cape), "rh700": int(rh),
                "u_foot": round(u_ft, 1), "v_low": round(v_low, 1), "rain_gfs": round(r, 1), "steer": round(sp, 1),
                "flags": f, "gate": bool(gate), "score": int(sum(f.values())), "upper": up,
@@ -298,6 +318,62 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
             {k: v for k, v in row.items() if k not in ("flags", "name", "box", "region")})
         out.append(row)
     return out
+
+
+# ------------------------------------------------------------------ the meeting of the winds round Taif (17 Nov 2026)
+# Fahad, 17 Nov 2026: «أحيانًا تذهب رياح التصادم شرق الطائف وشماله وتنقل الفرص هناك بعيدًا عن الحافة». The 10 m
+# convergence (smoothed ~40 km as collide.py) at 12 and 15 Makkah, over the box round Taif: where its strongest
+# point lies, on the escarpment (Al-Hada / Ash-Shafa, west of 40.45 E) or east and north of Taif (Al-Sail, Al-Saddad,
+# the plateau), where the storm chances move away from the edge.
+TAIF_BOX = (20.85, 21.9, 40.1, 41.0)
+TAIF = (21.27, 40.42)
+# the smoothed 10 m convergence over these heights runs 3-7e-5 /s on most afternoons (terrain), so the test is where
+# it is strongest; see PROJECT.md for the 1-17 Nov 2026 test.
+CONV_MIN, CONV_SHIFT = 3.0, 0.5
+
+
+def nearest_place(la, lo, km=40):
+    import json, os
+    if not hasattr(nearest_place, "P"):
+        d = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "sa_osm.json")))
+        nearest_place.P = [p for p in d["places"] if p[3] in ("town", "city", "village") and p[4]]
+    best, bd = None, km
+    for p in nearest_place.P:
+        dd = math.hypot((p[1] - la) * 111, (p[2] - lo) * 111 * math.cos(math.radians(la)))
+        if dd < bd:
+            best, bd = p[0], dd
+    return best
+
+
+def taif_zone(hours, static, grid):
+    """the strongest 10 m convergence on the escarpment (Al-Hada / Ash-Shafa) and east and north of Taif;
+    shifted when the east wins by CONV_SHIFT or more"""
+    import collide
+    lat, lon = grid
+    hs = [h for h in (9, 12) if h in hours]
+    if not hs:
+        return None
+    c = np.mean([collide.convergence(hours[h]["u10"], hours[h]["v10"], lat, abs(lon[1] - lon[0])) for h in hs], axis=0)
+    LA, LO = np.meshgrid(lat, lon, indexing="ij")
+    s, n, w, e = TAIF_BOX
+    box = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e) & (static["land"] > 0.5) & (static["hgt"] >= 900)
+    edge = box & (LO < 40.45) & (LA < 21.45)                          # Al-Hada and Ash-Shafa
+    east = box & ((LO >= 40.6) | ((LA >= 21.45) & (LO >= 40.35)))     # east of Taif, and Al-Sail north of it
+    # (Taif's own cells, 40.5 E south of 21.45 N, belong to neither: a peak there is still at the edge's door)
+    sail = box & (LA >= 21.45) & (LA <= 21.8) & (LO >= 40.35) & (LO <= 40.65)
+    if not edge.any() or not east.any():
+        return None
+    def peak(m):
+        cc = np.where(m, c, -np.inf)
+        j, i = np.unravel_index(int(np.argmax(cc)), cc.shape)
+        la, lo = float(LA[j, i]), float(LO[j, i])
+        dk = math.hypot((la - TAIF[0]) * 111, (lo - TAIF[1]) * 111 * math.cos(math.radians(la)))
+        return {"lat": la, "lon": lo, "c": round(float(c[j, i]), 2), "place": nearest_place(la, lo),
+                "km_taif": int(round(dk))}
+    pe, px = peak(edge), peak(east)
+    shifted = bool(px["c"] >= CONV_MIN and px["c"] >= pe["c"] + CONV_SHIFT)
+    return {"edge": pe, "east": px, "shifted": shifted,
+            "c_sail": round(float(c[sail].max()), 2) if sail.any() else 0.0}
 
 
 # ------------------------------------------------------------------ the support from aloft (17 Nov 2026)
@@ -311,11 +387,11 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
 # day-before 12Z forecast for 17 Nov had only the height fall (-12 m on the Al-Hada edge; RH500 4 %, divergence
 # below zero), and so did 16 Nov (-12 m); the edge's own gate (moisture, CAPE >= 250, upslope) still decides whether
 # anything is written, so a dry day with falling heights stays silent (3 Nov: fall -8, CAPE 19, silent).
-UPPER_KEYS = {"hada", "rahat_s", "rahat_n", "kishb"}
+UPPER_KEYS = {"hada", "shafa", "sail", "shamnasir", "rahat_s", "rahat_n", "kishb"}
 UP_FALL, UP_RH500, UP_DIV, UP_W200, UP_T500, UP_N = -10.0, 10.0, 0.3, 25.0, -7.0, 1
 UP_BOX = 1.25                                 # deg round the edge for the 200 hPa divergence
 # the plain under an edge: the evening outflow of the edge's cells reaches it (Ash-Sharai, east Makkah, Al-Jumum)
-OUTFLOW_PLAIN = {"hada": "makkah"}
+OUTFLOW_PLAIN = {"hada": "makkah", "shafa": "makkah"}
 OUT_CAPE, OUT_STEER = 700, 5.0
 
 

@@ -21,8 +21,10 @@ ORD = ["الأولى", "الثانية", "الثالثة", "الرابعة", "ا
 BOX_NAME = {"west": "الحجاز وغرب المملكة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
             "east": "شرق المملكة", "north": "شمال المملكة"}
 # the edges and plains of the Makkah section, in the order of the table (short names for a phone-wide table)
-MAKKAH_ZONES = [("hada", "الهدا والشفا"), ("sarawat", "سروات مكة"), ("rahat_s", "حرة رهاط"),
-                ("kishb", "حرة كشب"), ("rahat_n", "رهاط الشمالية")]
+# Fahad 17 Nov 2026: «سروات مكة احذفها.. ركز على حافة الهدا والشفا والسيل وحرة رهاط وحرة شمنصير»
+MAKKAH_ZONES = [("hada", "حافة الهدا"), ("shafa", "حافة الشفا"), ("sail", "السيل"), ("rahat_s", "حرة رهاط"),
+                ("shamnasir", "حرة شمنصير")]
+MAKKAH_KEYS = {k for k, _ in MAKKAH_ZONES}
 YES, NO = "✓", "✗"
 
 
@@ -147,7 +149,7 @@ def edge_cells(e, model):
         f"{ar(round(e['cape'], -1))}" + mark(e["cape"] >= P.EDGE_CAPE),
         f"{ar(e['rh700'])}٪" + mark(f["midmoist"]),
         f"{ar(round(e['td']))}°" + mark(e["td"] >= P.EDGE_TD),
-        f"{n1(e['u_foot'])}" + mark(f["upslope"]),
+        (f"تصادم {n1(e['taif_conv']['c_sail'])}" if e.get("taif_conv") else f"{n1(e['u_foot'])} م/ث") + mark(f["upslope"]),
         f"{n1(e['v_low'])}" + mark(f["south"]),
         ("—" if up.get("fall") is None else f"{ar(up['fall'])} م" + mark(uf.get("fall"))) if up else "—",
         (f"{ar(up['rh500'])}٪" + mark(uf.get("rh500"))) if up else "—",
@@ -173,7 +175,7 @@ def edge_cells(e, model):
 
 
 ROWS = ["الماء القابل للهطول من معدله", "طاقة عدم الاستقرار (جول/كغ)", "الرطوبة عند ٧٠٠", "نقطة الندى على الحافة",
-        "نسيم البحر عند السفح (م/ث)", "الهواء الجنوبي (م/ث)", "تغير سطح ٥٠٠ خلال يوم", "الرطوبة عند ٥٠٠",
+        "نسيم البحر أو التصادم", "الهواء الجنوبي (م/ث)", "تغير سطح ٥٠٠ خلال يوم", "الرطوبة عند ٥٠٠",
         "رياح ٢٠٠ والتباعد", "حرارة ٥٠٠", "رياح القيادة", "مطر جي إف إس بعد الظهر", "مطر نموذجنا"]
 
 
@@ -237,6 +239,25 @@ def makkah_section(st, rs, regs):
             else:
                 ul.append(f"{nm}: غير مرجح اليوم، لأن {jl(why)}.")
         B.append({"ul": ul})
+    # -------- where the winds meet round Taif: on the edge, or east and north of Taif (Fahad 17 Nov 2026)
+    tz = (eds.get("sail") or {}).get("taif_conv")
+    if tz:
+        B.append({"h": "منطقة تصادم الرياح حول الطائف"})
+        pe, px = tz["edge"], tz["east"]
+        nm = lambda z: z.get("place") or "المرتفعات"
+        if tz["shifted"]:
+            B.append({"p": f"ينتقل تصادم الرياح بعد الظهر شرق الطائف وشماله، وأقواه قرب {nm(px)} (على بعد نحو "
+                           f"{ar(px['km_taif'])} كم من الطائف، بقوة {n1(px['c'])}) مقابل {n1(pe['c'])} على الحافة قرب {nm(pe)}. "
+                           "فتنتقل فرص الخلايا إلى الهضبة هناك، بعيدًا عن حافة الهدا والشفا، ويقل ما ينزل منها إلى مكة."})
+        elif px["c"] >= pe["c"]:
+            B.append({"p": f"يتقارب تصادم الرياح بعد الظهر بين الحافة قرب {nm(pe)} (بقوة {n1(pe['c'])}) وشرق الطائف "
+                           f"وشماله قرب {nm(px)} (بقوة {n1(px['c'])})، فتبقى فرص الخلايا على حافة الهدا والشفا المطلة على مكة، "
+                           "وقد تمتد إلى الهضبة شرق الطائف."})
+        else:
+            B.append({"p": f"يبقى تصادم الرياح بعد الظهر على الحافة، وأقواه قرب {nm(pe)} (بقوة {n1(pe['c'])}) مقابل "
+                           f"{n1(px['c'])} شرق الطائف وشماله قرب {nm(px)}. فتبقى فرص الخلايا على حافة الهدا والشفا "
+                           "المطلة على مكة."})
+        B.append({"note": "قوة التصادم: تقارب رياح ١٠ أمتار بعد تنعيمها نحو ٤٠ كم، متوسط ١٢ ظهرًا و٣ عصرًا، بوحدة ١٠⁻⁵ في الثانية."})
     # -------- Makkah and Al-Jumum: the plain under Al-Hada
     B.append({"h": "مكة المكرمة والجموم"})
     B.append({"p": model_words(["مكة", "الجموم", "بحرة", "الشرائع", "الجعرانة", "عرفة"], "مكة والجموم")})
@@ -255,8 +276,9 @@ def makkah_section(st, rs, regs):
         if ok:
             B.append({"p": f"الحكم: خلايا جديدة واردة بين المغرب والعشاء على الشرائع والجعرانة وشرق مكة، وقد تصل إلى "
                            f"الجموم ووادي فاطمة، مع جريان محتمل في الأودية؛ والثقة {P.confidence(score)}."})
-        elif h and h.get("plain") and named.get("hada") and h["plain"]["cape"] >= P.OUT_CAPE and h["steer"] < P.OUT_STEER:
-            B.append({"p": "الحكم: إن نشأت الخلايا على حافة الهدا والشفا فقد ينحدر هواؤها البارد نحو الشرائع وشرق مكة "
+        elif any(eds.get(k) and eds[k].get("plain") and named.get(k) and eds[k]["plain"]["cape"] >= P.OUT_CAPE
+                 and eds[k]["steer"] < P.OUT_STEER for k in ("hada", "shafa")):
+            B.append({"p": "الحكم: إن نشأت الخلايا على حافة الهدا أو الشفا فقد ينحدر هواؤها البارد نحو الشرائع وشرق مكة "
                            "فيطلق خلايا جديدة بين المغرب والعشاء؛ والثقة منخفضة."})
         else:
             B.append({"p": "الحكم: لا تتهيأ عوامل المطر المسائي على سهل مكة اليوم."})
@@ -271,12 +293,13 @@ def makkah_section(st, rs, regs):
     if named:
         names = [nm for k, nm in zones if k in named]
         t = f"الحمل الحراري مرجح بعد الظهر على {jl(names)}"
-        if r and (P.named(r, r.get("model_mtn"))[0] or (h and h.get("plain") and "hada" in named
-                                                       and h["plain"]["cape"] >= P.OUT_CAPE and h["steer"] < P.OUT_STEER)):
+        if r and P.named(r, r.get("model_mtn"))[0]:
             t += "، ومنها قد ينزل المطر بين المغرب والعشاء إلى الشرائع وشرق مكة"
         B.append({"p": t + "، دون إشارة واسعة داخل المدن." if not mk else t + "."})
     else:
         B.append({"p": "لا تجتمع مكونات الحمل الحراري على حواف مكة ولا حراتها اليوم."})
+    if tz and tz["shifted"]:
+        B.append({"p": f"وتصادم الرياح اليوم شرق الطائف وشماله (قرب {tz['east'].get('place') or 'الهضبة'})، فالفرص هناك أكبر منها على الحافة."})
     return B
 
 
@@ -307,7 +330,8 @@ def _build(rep, st):
     rs = find(secs, kind="rain")
     regs = rain_regions(rs)
     out = []
-    for f in (s1, s2, s3, s4, s5, s6, s7, s8, s9):
+    # Makkah first (Fahad lives in Al-Jumum, 17 Nov 2026), then the summary and the rest
+    for f in (s3, s1, s2, s4, s5, s6, s7, s8, s9):
         try:
             x = f(st, secs, rs, regs, day0)
             if x:
@@ -318,6 +342,9 @@ def _build(rep, st):
             print("report2:", f.__name__, "failed:", repr(e), flush=True)
             out.append(sec(SEC_NAMES.get(f.__name__, ""), "error",
                            [{"p": "تعذّر بناء هذا القسم الليلة، وسيُعاد بناؤه في التحديث القادم."}]))
+    D = "١٢٣٤٥٦٧٨٩"
+    for k, x in enumerate(out):
+        x["heading"] = D[k] + "." + x["heading"].split(".", 1)[1] if "." in x["heading"][:3] else x["heading"]
     new = dict(rep)
     new.update({"v": 2, "brand": BRAND, "credit": CREDIT, "date": ar_date(day0), "sections": out})
     return new
@@ -386,6 +413,8 @@ def named_edges(st):
     import plains as P
     out = []
     for e in (st.get("plains") or {}).get("edges") or []:
+        if e["region"] == "مكة المكرمة" and e["key"] not in MAKKAH_KEYS:
+            continue                       # (Fahad: the Makkah Sarawat out of the report)
         if P.edge_named(e, e.get("model_rain"))[0]:
             out.append(e)
     return out
@@ -455,7 +484,7 @@ def s4(st, secs, rs, regs, day0):
         else:
             B.append({"h": f"منطقة {reg}"})
         if reg in rain_names:
-            B.append({"p": "أمطارها في القسم الثاني أعلاه، وإلى جانبها:"})
+            B.append({"p": "أمطارها في قسم توقعات الأمطار أعلاه، وإلى جانبها:"})
         for l in ls:
             B.append({"p": l})
     if rs:
