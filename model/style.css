@@ -332,3 +332,13 @@ a { color: var(--sea); }
 .ksa-wrap { background: #0c1118; }
 .ksa-low { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .86rem; line-height: 1.7; }
 .ksa-low b { color: #fff; }
+
+/* the report in Fahad's layout (17 Nov 2026) */
+.report .rbrand { display: flex; flex-direction: column; gap: 2px; margin-bottom: 6px; }
+.report .rbrand b { font-size: 1.1em; color: #fff; }
+.report .rbrand span { opacity: .75; font-size: .85em; }
+.report ul.rlist { margin: 4px 0 8px; padding-inline-start: 1.2em; }
+.report ul.rlist li { margin: 2px 0; }
+.report table.rgen { width: 100%; border-collapse: collapse; font-size: .82em; }
+.report table.rgen th, .report table.rgen td { padding: 4px 6px; border-bottom: 1px solid rgba(127,127,127,.25); text-align: start; white-space: nowrap; }
+.report table.rgen thead th { color: var(--amber); }

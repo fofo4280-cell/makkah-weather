@@ -1366,7 +1366,13 @@
       });
       return t + "</tbody></table></div>";
     };
+    // the report in Fahad's layout (17 Nov 2026, report2.py): sub-headings, paragraphs, lists and small tables
+    const blocksHTML = (bs) => bs.map((b) => b.h ? `<h4 class="rsub">${b.h}</h4>` : b.p ? `<p>${b.p}</p>`
+      : b.note ? `<p class="src">${b.note}</p>` : b.ul ? `<ul class="rlist">${b.ul.map((x) => `<li>${x}</li>`).join("")}</ul>`
+      : b.table ? `<div class="rtab-wrap"><table class="rtab rgen"><thead><tr>${b.table.head.map((x) => `<th>${x}</th>`).join("")}</tr></thead><tbody>${
+          b.table.rows.map((r) => `<tr>${r.map((x, i) => i ? `<td>${x}</td>` : `<th scope="row">${x}</th>`).join("")}</tr>`).join("")}</tbody></table></div>` : "").join("");
     const secHTML = (s, k) => {
+      if (s.blocks) return blocksHTML(s.blocks);
       if (!s.table || !s.table.length) return s.lines.map((l, i) => para(l, i, k)).join("");
       // the summary first, then the table, then region by region in words
       const j = s.lines.findIndex((l) => l.startsWith("منطقة "));
@@ -1375,7 +1381,8 @@
         (rest.length ? `<h4 class="rsub">التفصيل منطقة منطقة</h4>` + rest.map((l) => para(l, 1, k)).join("") : "");
     };
     if (r && r.sections) r.sections = r.sections.filter((s) => s.kind !== "rain_noon");  // no noon update any more
-    if (r) $("mjoReport").innerHTML = `<h3>${r.title}</h3>` + (r.sections && r.sections.length
+    if (r) $("mjoReport").innerHTML = (r.v === 2 ? `<div class="rbrand"><b>${r.brand}</b><span dir="ltr">${r.credit}</span><span>${r.date}</span></div>`
+      : `<h3>${r.title}</h3>`) + (r.sections && r.sections.length
       ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" open><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
       : (r.lines || []).map((l) => `<p>${l}</p>`).join("")) +
       `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، ومعه خرائط هذه الصفحة${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
