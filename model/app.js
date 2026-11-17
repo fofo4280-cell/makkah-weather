@@ -36,7 +36,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const HOURLY = ["refl", "rain1h", "rh700", "cape"];   // 700 hPa humidity and instability energy since 16 Nov 2026 (older runs lack them and the list skips them)
+  const HOURLY = ["refl", "rain1h"];   // 700 hPa humidity and instability layers removed from the menu 17 Nov 2026 (Fahad); the runs still write them
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
   const DAILY = [];   // the daily max reflectivity map was removed from the list (Fahad, 16 Nov 2026)
@@ -920,6 +920,7 @@
     stop(); clearOverlay();
     S.rects.forEach((r) => map.removeLayer(r)); S.rects = [];
     $("domChips").hidden = true; $("mapEmpty").hidden = true;
+    $("ybRadar").hidden = false;   // the Yanbu rain radar opens on its own site (it cannot be shown inside our map: framing blocked, signed links)
     if (!LX.layer) LX.layer = new BoltLayer();
     LX.layer.addTo(map);
     if (!LX.raw) liCacheLoad();
@@ -933,7 +934,7 @@
     clearInterval(LX.timer); LX.timer = null;
     stop();
     if (LX.layer) map.removeLayer(LX.layer);
-    $("domChips").hidden = false;
+    $("domChips").hidden = false; $("ybRadar").hidden = true;
     $("mapEmpty").hidden = !!(S.man && Object.keys(S.man.domains).length);
   }
 
