@@ -26,6 +26,7 @@ BOX = (19.0, 24.5, 36.5, 43.5)            # south, north, west, east of the data
 MAP = (37.8, 41.8, 20.2, 23.3)            # west, east, south, north of the map (Red Sea and Jeddah in, Fahad 17 Nov 2026)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
+HOURS = ("11", "13", "15")                # Makkah hours of the maps (08, 10, 12 UTC)
 AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
 PAST, NEXT = 7, 7
@@ -34,7 +35,7 @@ UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("cape", r":CAPE:s
 # afternoon surface CAPE (Fahad, 17 Nov 2026: third view of the card), J/kg; calm sequential scale on the dark map
 CAPE_SCALE = {"vmin": 0, "vmax": 2500, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
                                                 (.4, "#a9cf6a"), (.6, "#e9cf55"), (.8, "#e58a4c"), (1, "#c2445a")],
-              "label": "طاقة عدم الاستقرار عند ٣ عصرًا (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
+              "label": "طاقة عدم الاستقرار السطحية (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 PLACES = [("جدة", 21.54, 39.17), ("رابغ", 22.80, 39.03), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
           ("السيل", 21.6, 40.43), ("حرة رهاط", 22.8, 40.1), ("الجموم", 21.62, 39.70)]
@@ -78,14 +79,27 @@ def _get(gfs_fields, cycle, fh, fl):
 
 
 def day_fields(gfs_fields, cycle, fh9, static=None):
-    """10 m wind at 09 and 12 UTC (12 and 3 PM Makkah), 850 hPa wind at 12 UTC, rain 09-21 UTC (noon to midnight)"""
-    a, lat, lon = _get(gfs_fields, cycle, fh9, WIND + [("ap1", rf":APCP:surface:0-{fh9} hour acc")] + ([] if static else STATIC))
-    b, _, _ = _get(gfs_fields, cycle, fh9 + 3, WIND + UP)
+    """the 10 m wind and surface CAPE at 11 AM, 1 PM and 3 PM Makkah (08, 10, 12 UTC), the 850 hPa wind at 3 PM, rain
+    09-21 UTC (noon to midnight). fh9 = the forecast hour of 09 UTC of the day.
+    Hours (Fahad, 17 Nov 2026): convective cells start on the rim between 10 AM and 1 PM; by 3 PM the GFS line has
+    already drifted east to Taif (16 and 17 Nov: peak 40.25 E at 11 AM, 40.5 at noon, 40.5-40.75 at 3 PM, while the
+    storms formed on Al-Hada / Ash-Shafa). GFS 0.25 is hourly to 120 h; beyond, 11 AM = mean of 9 AM and noon and
+    1 PM = noon."""
+    hourly = fh9 + 3 <= 120
+    W = WIND + [("cape", r":CAPE:surface:")]
+    def at(fhs):
+        got = [_get(gfs_fields, cycle, x, W)[0] for x in fhs]
+        return tuple(np.mean([g[k] for g in got], axis=0) for k in ("u10", "v10", "cape"))
+    a, lat, lon = _get(gfs_fields, cycle, fh9, [("ap1", rf":APCP:surface:0-{fh9} hour acc")] + ([] if static else STATIC))
+    b, _, _ = _get(gfs_fields, cycle, fh9 + 3, W + UP)
     c, _, _ = _get(gfs_fields, cycle, fh9 + 12, [("ap2", rf":APCP:surface:0-{fh9 + 12} hour acc")])
-    f = {"lat": lat, "lon": lon, "u9": a["u10"], "v9": a["v10"], "u12": b["u10"], "v12": b["v10"],
-         "u850": b["u850"], "v850": b["v850"], "cape": b["cape"], "rain": np.clip(c["ap2"] - a["ap1"], 0, None)}
+    H = {"11": at([fh9 - 1] if hourly else [fh9 - 3, fh9]), "13": at([fh9 + 1] if hourly else [fh9]),
+         "15": (b["u10"], b["v10"], b["cape"])}
+    f = {"lat": lat, "lon": lon, "H": H, "u12": b["u10"], "v12": b["v10"], "u850": b["u850"], "v850": b["v850"],
+         "cape": H["13"][2], "rain": np.clip(c["ap2"] - a["ap1"], 0, None)}
     f.update(static or {"hgt": a["hgt"], "land": a["land"]})
-    f["conv"] = np.mean([convergence(f["u9"], f["v9"], lat), convergence(f["u12"], f["v12"], lat)], axis=0)
+    # the day's collision (edge or east): the initiation window, 11 AM and 1 PM
+    f["conv"] = np.mean([convergence(H[h][0], H[h][1], lat) for h in ("11", "13")], axis=0)
     return f
 
 
@@ -148,8 +162,9 @@ def run(gfs_fields, cycle, out_fig):
     for k, d in enumerate(days):
         if d in flds:
             try:
-                draw_map(os.path.join(out_fig, f"tconv_{k:02d}.png"), flds[d])
-                draw_map(os.path.join(out_fig, f"tcape_{k:02d}.png"), flds[d], kind="cape")
+                for hh in HOURS:
+                    draw_map(os.path.join(out_fig, f"tconv_{k:02d}_{hh}.png"), flds[d], hour=hh)
+                    draw_map(os.path.join(out_fig, f"tcape_{k:02d}_{hh}.png"), flds[d], kind="cape", hour=hh)
             except Exception as e:  # noqa: BLE001
                 print("taif collision map failed", k, repr(e)[:160], flush=True)
     try:
@@ -159,7 +174,7 @@ def run(gfs_fields, cycle, out_fig):
         traceback.print_exc()
         print("taif collision timeline failed", repr(e)[:160], flush=True)
     print("taif collision:", [(r["d"][5:], r.get("where"), r.get("u850")) for r in rows], flush=True)
-    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST, "extent": list(MAP),
+    return {"days": [d.isoformat() for d in days], "today": today.isoformat(), "rows": rows, "u_east": U_EAST, "extent": list(MAP), "hours": list(HOURS),
             "cape_legend": {"label": CAPE_SCALE["label"], "unit": CAPE_SCALE["unit"], "vmin": CAPE_SCALE["vmin"],
                             "vmax": CAPE_SCALE["vmax"], "ticks": CAPE_SCALE["ticks"],
                             "stops": [{"p": p, "c": c[:7]} for p, c in CAPE_SCALE["cols"][2:]]}}
@@ -173,7 +188,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1000, kind="conv"):
+def draw_map(path, f, width_px=1000, kind="conv", hour="11"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -201,11 +216,12 @@ def draw_map(path, f, width_px=1000, kind="conv"):
     ax.imshow(base, extent=ext, cmap="gray", vmin=0, vmax=1, interpolation="bilinear", zorder=0)
     cmap = LinearSegmentedColormap.from_list("c", [(0, "#2f7fd0"), (.38, "#8fd0ea00"), (.5, "#00000000"), (.62, "#f6e27a00"),
                                                    (.72, "#f5a623"), (.86, "#e2532d"), (1, "#b3124a")], N=256)
-    cv = zoom(sub(f["conv"]), up, order=3)
+    uh, vh, caph = f["H"][hour]
+    cv = zoom(sub(convergence(uh, vh, lat)), up, order=3)
     if kind == "cape":
         from matplotlib.colors import to_rgba
         cm2 = LinearSegmentedColormap.from_list("cape", [(p, to_rgba(c)) for p, c in CAPE_SCALE["cols"]], N=256)
-        cp = np.clip(gaussian_filter(zoom(sub(f["cape"]), up, order=1), 3), 0, None)
+        cp = np.clip(gaussian_filter(zoom(sub(caph), up, order=1), 3), 0, None)
         ax.imshow(cp, extent=ext, cmap=cm2, vmin=CAPE_SCALE["vmin"], vmax=CAPE_SCALE["vmax"], alpha=.85,
                   interpolation="bilinear", zorder=1)
     else:
@@ -213,7 +229,7 @@ def draw_map(path, f, width_px=1000, kind="conv"):
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
     ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.6, .9], zorder=2)
     ax.contour(flo, fla, land.astype(float), levels=[.5], colors=["#5d6d7e"], linewidths=.8, zorder=2)
-    u, v = sub((f["u9"] + f["u12"]) / 2), sub((f["v9"] + f["v12"]) / 2)
+    u, v = sub(uh), sub(vh)
     spd = np.hypot(u, v)
     ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8 if kind == "conv" else 0.45), density=1.4,
                   linewidth=np.clip(0.4 + 0.12 * spd[::-1], 0.4, 1.5), arrowsize=0.8, zorder=3)
@@ -313,7 +329,7 @@ def draw_line(path, rows, today):
     ax = axs[0]
     ax.bar(x - .18, g("ce"), .32, color=EDGE_C, alpha=.85, label="حافة الهدا والشفا")
     ax.bar(x + .18, g("cx"), .32, color=EAST_C, alpha=.85, label="شرق الطائف والسيل")
-    T(ax, "قوة التصادم ظهرًا وعصرًا")
+    T(ax, "قوة التصادم من ١١ صباحًا إلى ١ ظهرًا")
     ax.legend(loc="upper left", frameon=False, fontsize=9.5, labelcolor="#c9d1db", ncol=2, bbox_to_anchor=(0, 1.0))
     ax.set_ylim(0, max(10, np.nanmax([g("ce"), g("cx")]) * 1.45))
     ax = axs[1]
