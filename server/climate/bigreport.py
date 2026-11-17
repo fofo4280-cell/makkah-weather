@@ -50,6 +50,7 @@ def mjo_word(m, wet_season=True):
 
 def trough_word(dam):
     """the depth of a 500 hPa trough (dam) in words: the strength index takes 6 dam as a full trough"""
+    dam = round(dam + 1e-9, 1)   # as printed
     return "عميق" if dam >= 6 else "متوسط العمق" if dam >= 4 else "ضحل"
 
 
@@ -134,7 +135,7 @@ def _today(st, day0):
                        "هكتوباسكال، أو رياح ١٠ أمتار فوق المرتفعات، حيث الماء القابل للهطول ٢٠ ملم فأكثر)، من الأقوى:")
             out += [f"• {x}." for x in zs["lines"]]
         else:
-            out.append("مناطق التصادم: لا يُظهر جي إف إس عصر اليوم منطقة تتصادم فيها الرياح في هواء رطب (٢٠ ملم فأكثر)، "
+            out.append("مناطق التصادم: لا يُظهر جي إف إس عصر اليوم منطقة تتصادم فيها الرياح في هواء رطب (ماء قابل للهطول ٢٠ ملم فأكثر)، "
                        "فالتضاريس وتسخين النهار هما ما يُنشئ السحب، ومواضعها في جدول الأمطار من نموذجنا.")
     return out
 
@@ -158,7 +159,7 @@ def _factors(st, day0):
         t = (f"التذبذب المداري (مادن-جوليان) في الطور {ar(m0['phase'])} بشدة {num(m0['amp'], 1)}{trend}، "
              f"وحمله النشط فوق {PHASE_AREA.get(m0['phase'], '')}: {mjo_word(m0, st.get('wet_season'))}")
         if m0["phase"] == 2 and m0["amp"] >= 1:
-            t += "، فأثر الطور ٢ في أمطار المملكة قريب من المعتاد في دراسة ٢٥ موسمًا، والأقوى أثرًا الطوران ٨ و١"
+            t += "، لأن أثر الطور ٢ في أمطار المملكة قريب من المعتاد في دراسة ٢٥ موسمًا، والأقوى أثرًا الطوران ٨ و١"
         add(t + ".")
     mf0 = _mf(st, day0)
     if mf0:
@@ -231,14 +232,27 @@ def report(st, day0):
                + (f" حين {jl(words[k] for k in ['surge', 'trough', 'warm', 'mjo'] if k in gone)}" if gone else "") + ".")
         cur_end = end
     else:
+        # the lesser helps of the day (moisture above normal, the Rossby family), named so the summary does not
+        # contradict the drivers section below (17 Nov 2026: "one factor only" while Rossby and 134 % moisture helped)
+        minor = []
+        row0 = next((r for r in st.get("pw", []) if r["d"] == day0.isoformat()), None)
+        if row0 and "surge" not in {k for k, _ in f0}:
+            wet_b = [k for k in BOX_NAME if k in row0 and 110 <= row0[k]["pct"] < 150]
+            if wet_b:
+                kb = max(wet_b, key=lambda k: row0[k]["pct"])
+                minor.append(f"رطوبة فوق المعدل ({ar(row0[kb]['pct'])}٪ فوق {BOX_NAME[kb]})")
+        rv = _tw(st, day0, "ros")
+        if rv and rv[0] <= -rv[1] / 3:
+            minor.append("عائلة روسبي الاستوائية")
+        need = "والحالة الواسعة تحتاج مدًا رطوبيًا (١٥٠٪ فأكثر) أو أخدودًا مع عامل آخر."
         if not f0:
-            cur = "لا موجة مطرية قائمة الآن، ولا عامل كبير يدعم المطر اليوم."
-        elif len(f0) == 1:
-            cur = (f"لا موجة مطرية قائمة الآن. الحاضر اليوم عامل واحد هو {f0[0][1]}، ولا يكفي وحده لحالة واسعة؛ "
-                   "فالحالة الواسعة تحتاج مدًا رطوبيًا أو أخدودًا مع عامل آخر.")
+            cur = ("لا موجة مطرية قائمة الآن، ولا عامل كبير يدعم المطر اليوم"
+                   + (f"؛ وما يسنده دعم ثانوي: {jl(minor)}. " if minor else ". ") + need)
         else:
-            cur = (f"لا موجة مطرية قائمة الآن. الحاضر اليوم {jl(w for _, w in f0)}، ولا تكفي لحالة واسعة؛ "
-                   "فالحالة الواسعة تحتاج مدًا رطوبيًا أو أخدودًا مع عامل آخر.")
+            big = (f"عامل كبير واحد هو {f0[0][1]}" if len(f0) == 1 else jl(w for _, w in f0))
+            cur = (f"لا موجة مطرية قائمة الآن. يسند المطر اليوم {big}"
+                   + (f"، ومعه دعم ثانوي من {jl(minor)}" if minor else "")
+                   + f"، وهذا لا يكفي لحالة واسعة؛ {need[1:]}")
         cur_end = day0 - timedelta(days=1)
     # ---------------------------------------------------------------- the waves to come
     lines, watch = next_wave(st, day0, days, fac, cur_end)
@@ -291,7 +305,7 @@ METHOD = ("المصادر والمنهج: تحاليل جي إف إس وتوقع
           "أطواره الداعمة، والحدث الدافئ في القطاع الداعم، والرطوبة فوق المعدل، وعمق الأخدود، ومكوّن التذبذب، وعائلة روسبي؛ "
           "لكل منها درجة واحدة، والمجموع لا يتجاوز ٥) مع انتشار الأمطار المتوقع، ويزيد وزن الانتشار كلما قرب اليوم؛ "
           "لذلك تنزل درجة الموجة عن درجة عواملها حين لا يُظهر التوقع مطرًا. والانتشار يجمع مطر جي إف إس ومؤشر مكونات الجو: "
-          "جي إف إس أدق حتى ٥ أيام، ويتعادلان حتى ٨، والمؤشر أدق بعدها. والموجة ضعيفة دون ١٫٨، ومتوسطة حتى ٢٫٥، "
+          "جي إف إس أدق حتى ٥ أيام، ويتقاربان حتى اليوم الثامن، والمؤشر أدق بعده. والموجة ضعيفة دون ١٫٨، ومتوسطة حتى ٢٫٥، "
           "وقوية من ٢٫٦، وقوية جدًا من ٣٫٥. وعمق الأخدود: ضحل دون ٤ ديكامتر، ومتوسط حتى ٦، وعميق من ٦.")
 
 
@@ -483,6 +497,7 @@ def wave_score(st, d, day0, drv, cover):
 
 
 def grade(x):
+    x = round(x + 1e-9, 1)   # grade the number as it is printed: 1.78 shows as 1.8, so it is "medium", not "weak"
     return "قوية جدًا" if x >= 3.5 else "قوية" if x >= 2.6 else "متوسطة" if x >= 1.8 else "ضعيفة"
 
 
@@ -724,7 +739,7 @@ def drivers_timeline(st, day0, days):
             t += f". أشد أيامه الداعمة {ar_date(pk[0])} (الطور {ar(pk[1]['phase'])} بشدة {n1(pk[1]['amp'])})"
         pk = max(ms, key=lambda x: x[1]["amp"])
         if not pw_ or not good(pk[1]):
-            t += (f"{'، وأشد' if pw_ else '. وأشد'} سعته {n1(pk[1]['amp'])} {ar_date(pk[0])} في الطور {ar(pk[1]['phase'])}"
+            t += (f"{'، وأقصى' if pw_ else '. وأقصى'} شدته {n1(pk[1]['amp'])} {ar_date(pk[0])} في الطور {ar(pk[1]['phase'])}"
                   + ("، وهو طور غير داعم" if not good(pk[1]) else ""))
         t += f". وفي آخر المدى {ar_date(ms[-1][0])} يكون في الطور {ar(ms[-1][1]['phase'])} بشدة {n1(ms[-1][1]['amp'])}."
         out.insert(0, t)

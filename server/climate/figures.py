@@ -85,6 +85,20 @@ def lat_label(y):
     return f"{int(abs(y))}°{'N' if y > 0 else 'S'}"
 
 
+def ar_lon(x):
+    """«٦٠° ش»، «١٢٠° غ»، «١٨٠°» for the map axes"""
+    x = ((x + 180) % 360) - 180
+    v = f"{int(abs(x))}°".translate(AR)
+    return v if x == 0 or abs(x) == 180 else _rtl(f"{v} {'ش' if x > 0 else 'غ'}")
+
+
+def ar_lat(y):
+    """«٣٠° ش»، «الاستواء»، «١٥° ج»"""
+    if y == 0:
+        return "الاستواء"
+    return _rtl(f"{int(abs(y))}°".translate(AR) + f" {'ش' if y > 0 else 'ج'}")
+
+
 def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
     """field on lat (descending) x lon (0..359 or a sub-range); extent = (west, east, south, north) in degrees."""
     import matplotlib
@@ -153,8 +167,14 @@ def draw(path, field, lat, lon, kind, extent, stream=None, width_px=1600):
     yt = np.arange(np.ceil(s / step_y) * step_y, n + 0.1, step_y)
     ax.set_xticks(xt, **({"crs": ccrs.PlateCarree()} if have_cartopy else {}))
     ax.set_yticks(yt, **({"crs": ccrs.PlateCarree()} if have_cartopy else {}))
-    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=7, color="#555555")
-    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=7, color="#555555")
+    # Arabic labels (the site shows no Latin text but the credit line; these maps still had 60°E, 30°N, EQ)
+    try:
+        fam_ = _ar_font()
+    except Exception:
+        fam_ = None
+    kw_ = {"fontfamily": fam_} if fam_ else {}
+    ax.set_xticklabels([ar_lon(x) for x in xt], fontsize=7, color="#555555", **kw_)
+    ax.set_yticklabels([ar_lat(y) for y in yt], fontsize=7, color="#555555", **kw_)
     ax.tick_params(length=2.5, color="#999999")
     for y in yt:
         ax.plot([w, e], [y, y], color="#000000", alpha=0.08 if y else 0.25, linewidth=0.5, **tr)
@@ -239,8 +259,14 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=1500):
     xt = np.arange(np.ceil(w / 10) * 10, e + 0.1, 10)
     yt = np.arange(np.ceil(s / 10) * 10, n + 0.1, 10)
     ax.set_xticks(xt, crs=pc); ax.set_yticks(yt, crs=pc)
-    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=7, color="#555555")
-    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=7, color="#555555")
+    # Arabic labels (the site shows no Latin text but the credit line; these maps still had 60°E, 30°N, EQ)
+    try:
+        fam_ = _ar_font()
+    except Exception:
+        fam_ = None
+    kw_ = {"fontfamily": fam_} if fam_ else {}
+    ax.set_xticklabels([ar_lon(x) for x in xt], fontsize=7, color="#555555", **kw_)
+    ax.set_yticklabels([ar_lat(y) for y in yt], fontsize=7, color="#555555", **kw_)
     ax.tick_params(length=2.5, color="#999999")
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
@@ -300,8 +326,14 @@ def draw_conv(path, conv, the, u, v, ground, lat, lon, extent, width_px=1300):
     xt = np.arange(np.ceil(w / 5) * 5, e + 0.1, 5)
     yt = np.arange(np.ceil(s / 5) * 5, n + 0.1, 5)
     ax.set_xticks(xt, crs=pc); ax.set_yticks(yt, crs=pc)
-    ax.set_xticklabels([lon_label(x) for x in xt], fontsize=7, color="#555555")
-    ax.set_yticklabels([lat_label(y) for y in yt], fontsize=7, color="#555555")
+    # Arabic labels (the site shows no Latin text but the credit line; these maps still had 60°E, 30°N, EQ)
+    try:
+        fam_ = _ar_font()
+    except Exception:
+        fam_ = None
+    kw_ = {"fontfamily": fam_} if fam_ else {}
+    ax.set_xticklabels([ar_lon(x) for x in xt], fontsize=7, color="#555555", **kw_)
+    ax.set_yticklabels([ar_lat(y) for y in yt], fontsize=7, color="#555555", **kw_)
     ax.tick_params(length=2.5, color="#999999")
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     fig.savefig(path, dpi=200, facecolor=fig.get_facecolor())
@@ -872,8 +904,21 @@ def _ar_font():
     return "IBM Plex Sans Arabic"
 
 
+def _mpl_bidi():
+    """True when this matplotlib lays out right-to-left text itself (3.11 and later, with libraqm)"""
+    try:
+        import matplotlib
+        return tuple(int(x) for x in matplotlib.__version__.split(".")[:2]) >= (3, 11)
+    except Exception:
+        return False
+
+
 def _rtl(text):
-    """matplotlib shapes the Arabic letters but lays the words left to right: give it the words in reverse"""
+    """Arabic words in the right order on the map. Older matplotlib shaped the letters but laid the words left to
+    right, so the words were given in reverse; matplotlib 3.11 (what the nightly run installs) orders them itself,
+    and the reversal then printed «الأحمر البحر» for «البحر الأحمر» (found 17 Nov 2026)."""
+    if _mpl_bidi():
+        return text
     return " ".join(reversed(text.split(" ")))
 
 

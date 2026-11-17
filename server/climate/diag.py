@@ -102,6 +102,11 @@ def text(rows, now, day0=None):
         s = f"الاضطراب العلوي (٥٠٠ هكتوباسكال): كان {what} فوق {TR.place(l0['lat'], l0['lon'])} {when(first['time'])}"
         if first is cur:
             s = f"الاضطراب العلوي (٥٠٠ هكتوباسكال): {what} فوق {TR.place(l0['lat'], l0['lon'])} في آخر تحليل ({when(cur['time'])})"
+        elif l1 and l1["lat"] - l0["lat"] >= 8 and not (20 <= bearing(l0["lat"], l0["lon"], l1["lat"], l1["lon"]) < 300):
+            # a jump of 8 degrees or more to the north or north-west is another disturbance, not this one moving
+            # (17 Nov 2026: the trough over central Arabia on the 15th was said to have "moved north" to Turkey)
+            s += (f"، ثم ضعف وخرج من المنطقة؛ وأقرب اضطراب في آخر تحليل ({when(cur['time'])}) "
+                  f"فوق {TR.place(l1['lat'], l1['lon'])}")
         elif l1 and (abs(l1["lat"] - l0["lat"]) + abs(l1["lon"] - l0["lon"])) >= 3:
             b = bearing(l0["lat"], l0["lon"], l1["lat"], l1["lon"])
             moved = DIRS_TO[int((b + 22.5) // 45) % 8]

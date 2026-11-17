@@ -39,7 +39,8 @@ def place(lat, lon):
     if lat >= 20:
         return ("الصحراء الكبرى" if lon < 25 else "مصر والسودان" if lon < 33 else "البحر الأحمر" if lon < 37.5 else "غرب المملكة" if lon < 41
                 else "وسط المملكة" if lon < 47 else "شرق المملكة والخليج" if lon < 56 else "عُمان وبحر العرب")
-    return "جنوب الجزيرة العربية" if 36 <= lon < 56 else "أفريقيا" if lon < 36 else "بحر العرب"
+    return ("جنوب الجزيرة العربية" if 36 <= lon < 56 else "السودان" if 22 <= lon < 36 and lat >= 10
+            else "أفريقيا" if lon < 36 else "بحر العرب")
 
 
 def kingdom_area(lon):

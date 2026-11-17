@@ -241,7 +241,7 @@ def jl(names):
     return " و".join(names) if len(names) <= 2 else "، و".join(names)
 
 
-def plains_text(items):
+def plains_text(items, seen=None, region=None, dry=False):
     """the afternoon mountain-edge cells and the evening plains storms of one region: a sentence for each edge or
     plain (its ingredients, confidence and what our model shows), then each mechanism once; items are (kind, sentence)
     for a plain and (kind, (row, our model's rain)) for an edge, all the edges of the region in one sentence"""
@@ -251,12 +251,52 @@ def plains_text(items):
     kinds = {k for k, _ in items}
     ed = [x for k, x in items if k != "plain"]          # the afternoon on the edges first, then the evening plains
     pl = [x for k, x in items if k == "plain"]
+    seen = {} if seen is None else seen
+
+    def mech(key, text):
+        # the mechanism is explained once in the report (Fahad, 17 Nov 2026: the same paragraph four times read badly);
+        # later regions point back to the first one
+        if key in seen:
+            return f"وآلية ذلك كما في منطقة {seen[key]}." if seen[key] != region else ""
+        seen[key] = region or ""
+        return text
+
     out = ""
     if ed:
-        out += " " + P.edges_sentence(ed) + " " + P.EDGE_MECHANISM + (" " + P.HARRA_MECHANISM if "harra" in kinds else "")
+        es = P.edges_sentence(ed) or ""
+        if dry:   # the edge box can reach over the region's border: our model's rain there is not inside this region
+            es = (es.replace("، ونموذجنا يُظهرها هناك أيضًا", "، ونموذجنا يُظهر مطرًا قريبًا منها خارج حدود المنطقة")
+                    .replace("، ونموذجنا يُظهرها على ", "، ونموذجنا يُظهر مطرًا قريبًا من "))
+        m_ = mech("edge", P.EDGE_MECHANISM)
+        if "harra" in kinds:
+            m_ = (m_ + " " + mech("harra", P.HARRA_MECHANISM)).strip()
+        out += " " + es + (" " + m_ if m_ else "")
     if pl:
-        out += " " + " ".join(pl) + " " + P.MECHANISM
+        ps = " ".join(pl)
+        if dry:
+            ps = ps.replace("، ونموذجنا يُظهره على السهل أيضًا", "")
+        m_ = mech("plain", P.MECHANISM)
+        out += " " + ps + (" " + m_ if m_ else "")
     return out
+
+
+def uncovered(doms, regs, need=0.6):
+    """the regions our grids of this run do not cover well (under 60 % of their 0.5 degree points): a grid that
+    failed that night (17 Nov 2026: the north grid stopped at hour 2 and its regions were called dry)"""
+    try:
+        la, lo, ri, _ = G.grid_points(regs, 0.5)
+        cov = np.zeros(len(la), bool)
+        for d in doms:
+            if d.get("dx", 0) < 9000 and "proj" in d:
+                cov |= O.covers(d, la, lo)
+        out = []
+        for k, r in enumerate(regs):
+            m = ri == k
+            if m.any() and cov[m].mean() < need:
+                out.append(r["name"])
+        return out
+    except Exception:
+        return []
 
 
 def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
@@ -268,6 +308,9 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     cells = O.composite(doms)
     head = (("تحديث الظهر: " if issue == "noon" else "") + f"الأمطار على المملكة من {ar(local(t_a).day)} {G.AR_MONTHS[local(t_a).month - 1]} الساعة {clock(t_a)}"
             f" إلى {ar(local(t_b).day)} {G.AR_MONTHS[local(t_b).month - 1]} الساعة {clock(t_b)}")
+    if local(t_a).hour == 0 and t_b - t_a == timedelta(hours=24):   # one whole Makkah day: name the day itself
+        la_ = local(t_a)
+        head = f"الأمطار على المملكة يوم {AR_DAYS[la_.weekday()]} {ar(la_.day)} {G.AR_MONTHS[la_.month - 1]} (من منتصف الليل إلى منتصف الليل بتوقيت مكة)"
     if cells is None:
         return {"heading": head, "lines": ["لم يكتمل تشغيل نموذجنا الذي يغطي هذه المدة عند كتابة التقرير."], "table": [], "data": {}}
     keys = cells["keys"]
@@ -333,16 +376,21 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     pw_ = plains_words(st, cells, t_a, log) if local(t_a).hour == 0 else {}
     if not rows:
         lines.append(f"لا يُظهر نموذجنا أمطارًا تُذكر على مناطق المملكة {span_words(t_a, t_b)}.")
+        seen = {}
         for name, ss in pw_.items():
-            lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر." + plains_text(ss))
+            lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر داخل حدودها." + plains_text(ss, seen, name, dry=True))
         return {"heading": head, "lines": lines, "table": [], "data": {}}
     n = len(rows)
     extent = "واسعة" if n >= 8 else "متوسطة الانتشار" if n >= 4 else "محدودة"
     count = "منطقة واحدة" if n == 1 else "منطقتين" if n == 2 else f"{ar(n)} {'مناطق' if n <= 10 else 'منطقة'}"
     a0 = min(w["a"] for x in rows for w in x["wins"]); b0 = max(w["b"] for x in rows for w in x["wins"])
     top = [x for x in rows if x["max"] >= HEAVY][:3] or rows[:2]
-    types = [w["type"] for x in rows for w in x["wins"]]
-    main_type = max(set(types), key=types.count)
+    # the main kind of rain: the kind that brings the most rain (a tie of one window each picked at random before)
+    wt = {}
+    for x in rows:
+        for w in x["wins"]:
+            wt[w["type"]] = wt.get(w["type"], 0.0) + w["max"]
+    main_type = max(wt, key=wt.get)
     hail_regs = [x["name"] for x in rows if any(w["hail"] for w in x["wins"])]
     hail_good = [x["name"] for x in rows if any(w["hail"] == 2 for w in x["wins"])]
     sc_regs = [x["name"] for x in rows if any(w["sc"] for w in x["wins"])]
@@ -354,7 +402,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     for x in top:
         best = max(x["wins"], key=lambda w: w["max"])
         # the most rain is named where it falls (not at the first heavy town, which can be elsewhere in the region)
-        tops.append(f"{x['name']} (أعلاها {num(x['max'])} ملم {x['at']} {ADVERB[part_of_day(best['a'], best['b'])]})")
+        tops.append(f"{x['name']} (أعلى مجموع لليوم {num(x['max'])} ملم {x['at']})")
     s += f"وتتركز الأمطار الأغزر على {jl(tops)}. "
     mids = [x["name"] for x in rows if x not in top and x["max"] >= MODERATE]
     lows = [x["name"] for x in rows if x["max"] < MODERATE]
@@ -381,6 +429,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
 
     # ---- region by region
     day0 = local(t_a).date()
+    seen = {}
     for x in rows:
         parts = []
         for w in x["wins"]:
@@ -411,13 +460,18 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
                 t += "، واحتمال ضعيف لخلايا عملاقة (سوبر سل)"
             parts.append(t)
         lines.append(f"منطقة {x['name']} ({amount_word(x['max'])}): " + "؛ ثم ".join(parts) + "."
-                     + plains_text(pw_.get(x["name"], [])))
+                     + plains_text(pw_.get(x["name"], []), seen, x["name"]))
     for r in regs:     # a dry region with plains enhancers: the model shows nothing there, the sentence says why to watch
         if r["name"] not in order and pw_.get(r["name"]):
-            lines.append(f"منطقة {r['name']}: لا يُظهر نموذجنا أمطارًا تُذكر." + plains_text(pw_[r["name"]]))
-    dry = [r["name"] for r in regs if r["name"] not in order and not pw_.get(r["name"])]
+            lines.append(f"منطقة {r['name']}: لا يُظهر نموذجنا أمطارًا تُذكر داخل حدودها."
+                         + plains_text(pw_[r["name"]], seen, r["name"], dry=True))
+    unc = uncovered(doms, regs)
+    dry = [r["name"] for r in regs if r["name"] not in order and not pw_.get(r["name"]) and r["name"] not in unc]
     if dry:
         lines.append(f"ولا أمطار تُذكر على {jl(dry)}.")
+    if unc:
+        lines.append(f"ولم يغطِّ نموذجنا هذه الليلة {jl(unc)} تغطية كافية، لتعذّر اكتمال إحدى شبكاته، "
+                     "فلا يُحكم على أمطارها من هذا الجدول.")
     by_res = {}
     for n_, r_, _ in cells["used"]:
         by_res.setdefault(r_, []).append(n_)
