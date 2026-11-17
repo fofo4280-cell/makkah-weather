@@ -53,7 +53,10 @@ FIELDS = [("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
           ("u700", r":UGRD:700 mb:"), ("v700", r":VGRD:700 mb:"), ("u500", r":UGRD:500 mb:"), ("v500", r":VGRD:500 mb:"),
           ("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"),
           ("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:"),
-          ("t2", r":TMP:2 m above ground:"), ("td2", r":DPT:2 m above ground:")]
+          ("t2", r":TMP:2 m above ground:"), ("td2", r":DPT:2 m above ground:"),
+          # the support from aloft (Fahad 17 Nov 2026, see UPPER below)
+          ("z500", r":HGT:500 mb:"), ("rh500", r":RH:500 mb:"), ("t500", r":TMP:500 mb:"),
+          ("u200", r":UGRD:200 mb:"), ("v200", r":VGRD:200 mb:")]
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 UTC = (9, 12, 15, 18)                       # 12, 15, 18 and 21 Makkah
 BOX = (15.5, 25.0, 38.5, 44.5)      # to 25 N for the harrat (edges below)
@@ -96,7 +99,18 @@ def fetch(get, cycle, day, log=print):
         acc[uh] = sub.pop("apcp")
         if uh in UTC:
             hours[uh] = sub
+        if uh == 12 and fh >= 24:          # the 500 hPa height a day earlier: has it fallen over the edge?
+            try:
+                g = get(cycle, fh - 24, [("z500", FIELDS_Z500)])["z500"]
+                la = np.linspace(90, -90, g.shape[0])
+                lo = np.linspace(0, 360, g.shape[1], endpoint=False)
+                hours[12]["z500_prev"] = cut(g, la, lo)[0]
+            except Exception as e:  # noqa: BLE001
+                log("plains: z500 a day earlier unavailable", fh - 24, repr(e)[:120])
     return hours, static, acc, grid
+
+
+FIELDS_Z500 = r":HGT:500 mb:"
 
 
 def masks(static, lat, lon, p):
@@ -126,7 +140,13 @@ def check_all(get, cycle, day, pct_of, log=print):
     hours, static, acc, grid = fetch(get, cycle, day, log)
     if static is None or not {12, 15}.issubset(hours):
         return [], []
-    return plains_rows(hours, static, acc, grid, pct_of, log), edge_rows(hours, static, acc, grid, pct_of, log)
+    prs, eds = plains_rows(hours, static, acc, grid, pct_of, log), edge_rows(hours, static, acc, grid, pct_of, log)
+    by = {r["key"]: r for r in prs}
+    for e in eds:                          # the plain under the edge, for the evening outflow (OUTFLOW_PLAIN)
+        pr = by.get(OUTFLOW_PLAIN.get(e["key"], ""))
+        if pr:
+            e["plain"] = {"key": pr["key"], "cape": pr["cape_plain"], "td": pr["td"], "steer": pr["steer"]}
+    return prs, eds
 
 
 def plains_rows(hours, static, acc, grid, pct_of, log=print):
@@ -241,6 +261,7 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
         us = float(np.mean([(H("u700", h)[ed] + H("u500", h)[ed]).mean() / 2 for h in aft]))
         vs = float(np.mean([(H("v700", h)[ed] + H("v500", h)[ed]).mean() / 2 for h in aft]))
         sp = math.hypot(us, vs)
+        up = upper(hours, ed, LA, LO, clat, clon, lat, lon)
         f = {
             "moist": pct >= EDGE_PCT or pw >= 35,
             "upslope": u_ft >= 1.0,
@@ -258,13 +279,66 @@ def edge_rows(hours, static, acc, grid, pct_of, log=print):
         row = {"key": key, "name": name, "region": region, "kind": "harra" if z[5] else "edge",
                "pw": round(pw, 1), "pct": pct, "td": round(td, 1), "cape": int(cape), "rh700": int(rh),
                "u_foot": round(u_ft, 1), "v_low": round(v_low, 1), "rain_gfs": round(r, 1), "steer": round(sp, 1),
-               "flags": f, "gate": bool(gate), "score": int(sum(f.values())),
+               "flags": f, "gate": bool(gate), "score": int(sum(f.values())), "upper": up,
                "box": [round(float(LA[ed].min()) - 0.125, 2), round(float(LA[ed].max()) + 0.125, 2),
                        round(float(LO[ed].min()) - 0.125, 2), round(float(LO[ed].max()) + 0.125, 2)]}
         log("edges:", key, row["score"], "gate" if gate else "-",
             {k: v for k, v in row.items() if k not in ("flags", "name", "box", "region")})
         out.append(row)
     return out
+
+
+# ------------------------------------------------------------------ the support from aloft (17 Nov 2026)
+# Fahad, 17 Nov 2026, after the second day running of storms on Al-Hada / Ash-Shafa / Arafat (50-55 dBZ at 17 Makkah,
+# stronger and lower down the slope than on 16 Nov): watch, every night, what changed aloft. Against the same hour
+# of 16 Nov (GFS 06Z f09): the 500 hPa height fell 15 m (5875 -> 5860, a trough's tip over Sinai), RH500 on the rim
+# rose from 3 % to 10-22 % (less dry air drawn into the cells), the 200 hPa wind over Makkah rose from 23 to
+# 30 m/s with weak divergence (+0.7e-5 /s over the box); T500 stayed near -6.5 C. CAPE over Arafat 900 -> 1150.
+# For the Al-Hada / Ash-Shafa edge and the harrat (UPPER_KEYS, Fahad: "حافة الهدا والشفا والحرات") two or more of
+# these add one ingredient to the score (a step of confidence) and are named in the sentence. One is enough: the
+# day-before 12Z forecast for 17 Nov had only the height fall (-12 m on the Al-Hada edge; RH500 4 %, divergence
+# below zero), and so did 16 Nov (-12 m); the edge's own gate (moisture, CAPE >= 250, upslope) still decides whether
+# anything is written, so a dry day with falling heights stays silent (3 Nov: fall -8, CAPE 19, silent).
+UPPER_KEYS = {"hada", "rahat_s", "rahat_n", "kishb"}
+UP_FALL, UP_RH500, UP_DIV, UP_W200, UP_T500, UP_N = -10.0, 10.0, 0.3, 25.0, -7.0, 1
+UP_BOX = 1.25                                 # deg round the edge for the 200 hPa divergence
+# the plain under an edge: the evening outflow of the edge's cells reaches it (Ash-Sharai, east Makkah, Al-Jumum)
+OUTFLOW_PLAIN = {"hada": "makkah"}
+OUT_CAPE, OUT_STEER = 700, 5.0
+
+
+def upper(hours, ed, LA, LO, clat, clon, lat, lon):
+    """the support from aloft over an edge at 12 and 15 Makkah: 500 hPa height fall in 24 h (m), RH500 (%), T500 (C),
+    the 200 hPa wind (m/s) and its divergence (1e-5 /s, box of +-UP_BOX deg round the edge)"""
+    aft = [h for h in (9, 12) if h in hours and "z500" in hours[h]]
+    if not aft:
+        return None
+    H = lambda k, h: hours[h][k]
+    rh5 = float(np.mean([H("rh500", h)[ed].mean() for h in aft]))
+    t5 = float(np.mean([H("t500", h)[ed].mean() for h in aft])) - 273.15
+    fall = None
+    if 12 in hours and "z500_prev" in hours[12]:
+        fall = float((hours[12]["z500"][ed] - hours[12]["z500_prev"][ed]).mean())
+    box = (np.abs(LA - clat) <= UP_BOX) & (np.abs(LO - clon) <= UP_BOX)
+    R = 6.371e6
+    dy = np.gradient(lat) * np.pi / 180 * R
+    dx = np.gradient(lon)[None, :] * np.pi / 180 * R * np.cos(np.radians(lat))[:, None]
+    div, w = [], []
+    for h in aft:
+        u, v = H("u200", h), H("v200", h)
+        d = np.gradient(u, axis=1) / dx + np.gradient(v, axis=0) / dy[:, None]
+        div.append(float(d[box].mean()) * 1e5)
+        w.append(float(np.hypot(u, v)[box].mean()))
+    dv, ww = float(np.mean(div)), float(np.mean(w))
+    f = {"fall": fall is not None and fall <= UP_FALL, "rh500": rh5 >= UP_RH500,
+         "jet": dv >= UP_DIV and ww >= UP_W200, "cold": t5 <= UP_T500}
+    return {"fall": None if fall is None else round(fall), "rh500": round(rh5), "t500": round(t5, 1),
+            "w200": round(ww), "div200": round(dv, 2), "flags": f, "n": int(sum(f.values()))}
+
+
+def upper_ok(row):
+    up = row.get("upper")
+    return bool(row.get("key") in UPPER_KEYS and up and up["n"] >= UP_N)
 
 
 EDGE_CAPE = 250                             # J/kg, 75th percentile on the front edge, 12-18 Makkah
@@ -336,6 +410,7 @@ def edge_named(row, model_rain=None):
     f = dict(row["flags"])
     if model_rain is not None and model_rain >= 5:
         f["gfs_rain"] = True
+    f["upper"] = upper_ok(row)              # 17 Nov 2026: Al-Hada / Ash-Shafa and the harrat only
     score = sum(f.values())
     return (row["gate"] and score >= EDGE_SCORE), score, f
 
@@ -373,6 +448,24 @@ def edges_sentence(items):
     if anyf("midmoist"):
         rh = [r["rh700"] for r, _, _, f in got if f["midmoist"]]
         why.append(f"والرطوبة عند ٧٠٠ هكتوباسكال {rng(min(rh), max(rh), '٪')}")
+    ups = [r for r in rows if upper_ok(r)]
+    if ups:
+        u = [r["upper"] for r in ups]
+        bits = []
+        if any(x["flags"]["fall"] for x in u):
+            bits.append(f"هبوط سطح ٥٠٠ هكتوباسكال نحو {n0(max(-x['fall'] for x in u if x['flags']['fall']))} مترًا خلال يوم")
+        if any(x["flags"]["rh500"] for x in u):
+            v = [x["rh500"] for x in u if x["flags"]["rh500"]]
+            bits.append(f"ورطوبة ٥٠٠ هكتوباسكال {rng(min(v), max(v), '٪')} فيقل الهواء الجاف الذي يُضعف السحب")
+        if any(x["flags"]["jet"] for x in u):
+            v = [x["w200"] for x in u if x["flags"]["jet"]]
+            bits.append(f"وتباعد علوي مع رياح ٢٠٠ هكتوباسكال {rng(min(v), max(v), ' م/ث')}")
+        if any(x["flags"]["cold"] for x in u):
+            v = [x["t500"] for x in u if x["flags"]["cold"]]
+            bits.append(f"وبرودة ٥٠٠ هكتوباسكال {n0(min(v))}°")
+        bits[0] = bits[0].removeprefix("و")
+        where = "" if len(ups) == len(rows) else f" على {jl([short(r['name']) for r in ups])}"
+        why.append(f"ويدعمها من الأعلى{where} {'، '.join(bits)}")
     conf = {}
     for r, _, sc, _ in got:
         conf.setdefault(confidence(sc), []).append(short(r["name"]))
@@ -387,4 +480,12 @@ def edges_sentence(items):
         s += "، ولا يُظهرها نموذجنا " + ("هناك" if len(no) == len(got) else f"على {jl(no)}")
     if yes:
         s += "، ونموذجنا يُظهرها " + ("هناك أيضًا" if len(yes) == len(got) else f"على {jl(yes)}")
-    return s + "."
+    s += "."
+    # the evening outflow down to the plain (Fahad 17 Nov 2026): hot unstable air below and slow cells above
+    for r in rows:
+        pl = r.get("plain")
+        if r["key"] == "hada" and pl and pl["cape"] >= OUT_CAPE and r["steer"] < OUT_STEER:
+            s += (" وقد تنحدر تيارات السحب الباردة من حافة الهدا والشفا نحو الشرائع والجعرانة وشرق مكة، والهواء "
+                  f"على السهل غير مستقر (نحو {n0(round(pl['cape'], -2))} جول/كغ)، فتنشأ خلايا جديدة بين المغرب والعشاء "
+                  "قد تصل إلى الجموم ووادي فاطمة.")
+    return s
