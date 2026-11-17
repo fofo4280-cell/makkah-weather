@@ -2,6 +2,8 @@ name: yanbu-probe
 on:
   push:
     branches: [yanbu-probe]
+permissions:
+  contents: write
 jobs:
   probe:
     runs-on: ubuntu-latest
@@ -12,5 +14,6 @@ jobs:
           cd .. && node work/yb.js
           curl -sS -A "Mozilla/5.0" https://www.yanbuweather.com/pages/RainRadar/ -o out/raw.html || true
           for f in $(grep -oE 'src="[^"]+\.js[^"]*"' out/raw.html | sed 's/src="//;s/"$//'); do case $f in http*) u=$f;; /*) u=https://www.yanbuweather.com$f;; *) u=https://www.yanbuweather.com/pages/RainRadar/$f;; esac; echo "$u" >> out/js.txt; curl -sS "$u" -o "out/js_$(echo $f | tr '/?:' '___' | tail -c 80)" || true; done
-      - uses: actions/upload-artifact@v4
-        with: { name: yb, path: out }
+      - run: |
+          git config user.name probe; git config user.email probe@users.noreply.github.com
+          git checkout -b yanbu-probe-out && git add -f out && git commit -qm "probe output [skip ci]" && git push -f origin yanbu-probe-out
