@@ -128,6 +128,48 @@ def read(st, pending=False):
         else:
             R["meet"] = ("edge", tz["edge"].get("place"))
         R["cape_edge"], R["cape_east"] = tz.get("cape_edge"), tz.get("cape_east")
+    # the regime the collision is telling (Fahad, 18 Nov 2026: «ارتفاع تصادم الرياح اليوم شمال الطائف دلالة على وجود
+    # اخدود داعم حتى لو كان ضحل وضعيف»). The meeting moves north and east of Taif when the plateau wind is no longer
+    # easterly enough to stop the sea air at the rim, which is what a trough to the north (westerlies, the jet over the
+    # Hijaz) does; the study of 17 Nov found it 26 of 30 days with troughs north (16 Oct-14 Nov). So the shift is read
+    # as a sign of support, confirmed by what the trough does aloft, not dismissed for the CAPE east of Taif.
+    # Fahad, a minute later: «ليس دائما علامة لكن يعطيك تصور ما الذي تغير في الغلاف الجوي لتتغير أماكن التصادم ثم
+    # تبحث عن السبب وتتأكد». So: compare with yesterday; if the meeting moved, look for the cause and call it a trough
+    # only when the air aloft confirms it (two signs or more), otherwise name what did change.
+    cues = []
+    tc = st.get("taifc") or {}
+    rows_ = tc.get("rows") or []
+    ti = next((i for i, r in enumerate(rows_) if r.get("d") == tc.get("today")), None)
+    trow = rows_[ti] if ti is not None else None
+    yrow = rows_[ti - 1] if ti else None
+    side = lambda r: None if not r or not r.get("where") else ("east" if r["where"] in ("east", "eastdry") else r["where"])
+    R["moved"] = (side(yrow), side(trow)) if side(yrow) and side(trow) and side(yrow) != side(trow) else None
+    wind = lambda u: (f"غربية {n1(u)} م/ث" if u >= 0.5 else "شبه ساكنة" if u > -0.5 else f"شرقية {n1(-u)} م/ث")
+    if trow and trow.get("u850") is not None:
+        if yrow and yrow.get("u850") is not None and abs(trow["u850"] - yrow["u850"]) >= 1.5:
+            cues.append(("u850", f"تحولت الرياح فوق هضبة الطائف عند ٨٥٠ من {wind(yrow['u850'])} أمس إلى {wind(trow['u850'])} اليوم"))
+        elif trow["u850"] > -2:
+            cues.append(("u850", f"الرياح فوق هضبة الطائف عند ٨٥٠ {wind(trow['u850'])} لا توقف هواء البحر عند الحافة"))
+    day0 = tc.get("today") or pl.get("day")
+    for t in st.get("troughs") or []:
+        x = next((x for x in t.get("days") or [] if x.get("d") == day0), None)
+        if x and x.get("tip") and x["tip"][0] <= 28 and 34 <= x["tip"][1] <= 44:
+            cues.append(("tip", f"وطرف أخدود يمتد إلى نحو {ar(int(x['tip'][0]))} شمالًا فوق الحجاز"))
+            break
+    up_ = (eds.get("hada") or {}).get("upper") or {}
+    if up_.get("fall") is not None and up_["fall"] <= -10:
+        cues.append(("fall", f"وهبط سطح ٥٠٠ هكتوباسكال نحو {ar(abs(round(up_['fall'])))} مترًا خلال يوم"))
+    if up_.get("t500") is not None and up_["t500"] <= -7:
+        cues.append(("cold", f"وبردت طبقة ٥٠٠ إلى ‎−{n1(abs(up_['t500']))}°"))
+    if up_.get("w200") is not None and up_["w200"] >= 30:
+        cues.append(("jet", f"والتيار النفاث فوق الحجاز {ar(round(up_['w200']))} م/ث"))
+    east_meet = bool(tz) and (tz.get("shifted") or tz.get("east_dry"))
+    aloft = [c for c in cues if c[0] != "u850"]
+    R["trough"] = len(aloft) >= 2            # confirmed aloft, not read from the collision alone
+    R["cues"] = [c[1] for c in cues]
+    R["cue_wind"] = next((c[1] for c in cues if c[0] == "u850"), None)
+    R["cue_aloft"] = [c[1].removeprefix("و") for c in aloft]
+    R["east_meet"] = east_meet
     hrs = (tr or {}).get("hours") or []
     day = [x for x in hrs if 10 <= x["h"] <= 21]
     if day:
@@ -187,6 +229,11 @@ def ar(x):
     return _ar(x)
 
 
+def n1(x):
+    from sa_geo import num
+    return num(x, 1)
+
+
 def clock(h):
     h = int(h) % 24
     if h == 0:
@@ -208,7 +255,28 @@ def story(R):
     # the start
     m = R.get("meet")
     t = ""
-    if m:
+    WH = {"edge": "حافة الهدا والشفا", "east": "شمال الطائف وشرقه", "weak": "ضعيفًا حول الطائف"}
+    mv = R.get("moved")
+    if mv:     # the meeting moved since yesterday: what changed, and is it confirmed aloft?
+        t0 = f"انتقل تصادم الرياح من {WH.get(mv[0], mv[0])} أمس إلى {WH.get(mv[1], mv[1])} اليوم" + (f" (قرب {m[1]})" if m else "") + "."
+        why = ([R["cue_wind"]] if R.get("cue_wind") else [])
+        if R.get("trough"):
+            t0 += (" وسبب ذلك: " + "، و".join(why + R["cue_aloft"]) + "؛ فهو أثر أخدود داعم وإن كان ضحلًا.")
+        elif why:
+            t0 += (" وسبب ذلك: " + why[0] + "، دون علامة علوية واضحة على أخدود"
+                   + (f" ({R['cue_aloft'][0]} فقط)" if R.get("cue_aloft") else "") + "، فهو تغير في رياح الهضبة، وأثره أضعف.")
+        else:
+            t0 += " ولا يظهر في رياح الهضبة ولا في الجو العلوي سبب واضح لذلك، فالثقة في هذا الانتقال أقل."
+        out.append(t0)
+    if m and R.get("east_meet") and (R.get("trough") or mv):
+        if not mv:
+            out.append(f"ويبقى تصادم الرياح شمال الطائف وشرقه (قرب {m[1]})"
+                       + ("، ويسنده من الأعلى " + "، و".join(R["cue_aloft"]) if R.get("trough") else "") + ".")
+        t = "فتنشأ السحب أول النهار على الهضبة شمال الطائف وشرقه، ثم تمتد إلى الحواف مع تقدم النهار"
+        if m[0] == "east_dry" and R.get("cape_east") is not None:
+            t += (f"، والطاقة على الحواف أعلى (نحو {ar(round(R.get('cape_edge') or 0, -1))} جول/كغ مقابل "
+                  f"{ar(round(R['cape_east'], -1))} شرق الطائف) فتكون أقوى الخلايا عليها")
+    elif m:
         if m[0] == "east":
             t = f"تتقارب الرياح أول النهار (١١ صباحًا إلى ١ ظهرًا) شرق الطائف قرب {m[1]}، وفي الهواء هناك طاقة كافية، فتنشأ السحب الأولى هناك"
         elif m[0] == "east_dry":
@@ -271,7 +339,7 @@ def story(R):
             out.append(f"وقد تنحدر خلايا الحافة غربًا إلى الشرائع وشرق مكة مساءً، {why}.")
     # aloft
     up = R.get("upper") or {}
-    if up.get("fall") is not None and up["fall"] <= -10:
+    if up.get("fall") is not None and up["fall"] <= -10 and not (R.get("trough") and (R.get("east_meet") or R.get("moved"))):
         out.append(f"ويدعم ذلك من الأعلى هبوط سطح ٥٠٠ هكتوباسكال نحو {ar(abs(round(up['fall'])))} مترًا خلال يوم"
                    + (f" وبرودته إلى ‎−{ar(abs(round(up['t500'])))}°" if up.get("t500") is not None and up["t500"] <= -7 else "")
                    + "، فتقوى الخلايا.")

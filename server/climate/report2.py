@@ -276,6 +276,10 @@ def makkah_section(st, rs, regs):
             else:
                 t += "فتنتقل فرص الخلايا إلى الهضبة هناك، بعيدًا عن حافة الهدا والشفا، ويقل ما ينزل منها إلى مكة."
             B.append({"p": t})
+        elif tz.get("east_dry") and RD.get("trough"):
+            B.append({"p": f"ارتفع تصادم الرياح بعد الظهر شمال الطائف وشرقه، وأقواه قرب {nm(px)} (بقوة {n1(px['c'])}) مقابل "
+                           f"{n1(pe['c'])} على الحافة قرب {nm(pe)}، ويسنده أخدود ضحل (انظر قراءة الحالة أعلاه). والطاقة هناك أقل ({fuel()})، "
+                           "فتبدأ السحب على الهضبة أول النهار، وتقوى على حافة الهدا والشفا والسيل مع تقدم النهار."})
         elif tz.get("east_dry"):
             B.append({"p": f"أقوى تقارب للرياح بعد الظهر شرق الطائف قرب {nm(px)} (بقوة {n1(px['c'])}) مقابل {n1(pe['c'])} "
                            f"على الحافة قرب {nm(pe)}، لكن الهواء هناك فقير بالطاقة ({fuel()})، والتصادم وحده لا يُنشئ سحبًا "
@@ -424,6 +428,12 @@ def s1(st, secs, rs, regs, day0):
         kinds = {v["kind"] for k, v in pt["boxes"].items() if k in ("west", "southwest")}
         kind = "upper" if "upper" in kinds else "mixed" if "mixed" in kinds else "thermal"
     word = {"thermal": "حمل حراري محلي", "mixed": "حمل حراري يعززه تبريد علوي", "upper": "اضطراب علوي يبرد الجو"}[kind]
+    try:     # the Makkah reading sees a shallow trough (Taif collision north and east + support aloft): say so
+        import makkah_story as MS
+        if kind == "thermal" and MS.read(st, pending(rs)).get("trough"):
+            word = "حمل حراري يعززه أخدود ضحل فوق الحجاز"
+    except Exception as e:  # noqa: BLE001
+        print("report2: Makkah reading (pattern) failed", repr(e), flush=True)
     edges = named_edges(st)
     t = f"تسود المملكة حالة {word}"
     if regs:
