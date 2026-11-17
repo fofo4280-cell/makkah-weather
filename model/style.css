@@ -361,3 +361,10 @@ a { color: var(--sea); }
 
 .figwrap.tc-fig { background: #0c1118; }
 .figwrap.tc-fig img { width: 100%; height: auto; display: block; }
+
+/* oscillation page section tabs (17 Nov 2026) */
+.mjo-tabs { position: sticky; top: 0; z-index: 5; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin: -14px -16px 12px; padding: 10px 16px; background: var(--bg); border-bottom: 1px solid var(--line); }
+.mjo-tabs::-webkit-scrollbar { display: none; }
+.mjo-tabs button { flex: 0 0 auto; white-space: nowrap; padding: 7px 13px; font-size: .82rem; }
+#p-mjo .sec-off { display: none !important; }
+@media (min-width: 700px) { .mjo-tabs button { padding: 7px 11px; font-size: .8rem; } }

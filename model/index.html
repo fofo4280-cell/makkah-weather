@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261117rv3">
+<link rel="stylesheet" href="style.css?v=20261117sec1">
 </head>
 <body>
 <div class="app">
@@ -70,14 +70,23 @@
     <!-- MJO and warm/cold events -->
     <section class="panel scroll" id="p-mjo" hidden>
       <div class="wrap">
-        <div class="card report" id="mjoReport" hidden></div>
-        <div class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
-        <div class="card">
+        <nav class="seg mjo-tabs" id="mjoTabs" aria-label="أقسام الصفحة">
+          <button type="button" data-s="report" class="on">التقرير</button>
+          <button type="button" data-s="phase">طور التذبذب</button>
+          <button type="button" data-s="pw">الرطوبة</button>
+          <button type="button" data-s="taif">الرياح حول الطائف</button>
+          <button type="button" data-s="ksa">خريطة المملكة</button>
+          <button type="button" data-s="waves">كلفن وروسبي</button>
+          <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
+        </nav>
+        <div data-sec="report" class="card report" id="mjoReport" hidden></div>
+        <div data-sec="phase" class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
+        <div data-sec="phase" class="card">
           <h3>مخطط أطوار التذبذب</h3>
           <div id="mjoPhase"></div>
           <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مكتب الأرصاد الأسترالي، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
         </div>
-        <div class="card" id="twCard" hidden>
+        <div data-sec="waves" class="card" id="twCard" hidden>
           <h3>موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال</h3>
           <div class="figwrap tw-scroll" dir="ltr">
             <div class="tw-panel"><h4>عائلة روسبي، متجهة غربًا</h4><div class="tw-stage" data-k="twr"><img alt="عائلة روسبي"><img alt=""></div></div>
@@ -90,7 +99,7 @@
           <div class="wv-key"><span><i class="ln lo"></i>أزرق: يدعم الأمطار</span><span><i class="ln red"></i>أحمر: يكبتها</span><span><i class="ar">➜</i>الرياح المتباعدة في الأعلى</span></div>
           <p class="hint">إذا كان الأزرق فوق المملكة في اليوم المختار فالموجة تساعد على الأمطار، وإذا كان الأحمر فهي تكبتها. روسبي تتحرك غربًا وكلفن شرقًا، فحرّك الشريط لترى متى يصل الأزرق أو يرحل. الأيام من أسبوع مضى إلى ١٥ يومًا قادمة، وآخرها أقل ثقة.</p>
         </div>
-        <div class="card" id="beltCard" hidden>
+        <div data-sec="warm" class="card" id="beltCard" hidden>
           <h3>اللوحة الاستوائية الشاملة</h3>
           <div id="beltMarks" class="belt-marks"></div>
           <div class="mjo-time">
@@ -101,7 +110,7 @@
           <div id="twChart"></div>
           <p class="hint">أربع خرائط بإطار واحد (من ٣٥ جنوبًا إلى ٣٥ شمالًا حول الأرض)، فتقع الأطوال تحت بعضها، وتمر بها الخطوط الثلاثة نفسها: مركز غلاف التذبذب (أدنى مكوّنه على خط الاستواء)، والحدث الدافئ والبارد. موجات كلفن وعائلة روسبي من جهد السرعة عند ٢٠٠ هكتوباسكال في تحاليل جي إف إس لأكثر من سنة مع توقعه، بعد التصفية في الرقم الموجي والدورة والسرعة: كلفن متجهة شرقًا (٢ إلى ٣٠ يومًا، ٨ إلى ٦٠ م/ث)، وروسبي متجهة غربًا (٥ إلى ٩٠ يومًا، ٠٫٥ إلى ٢٥ م/ث)، والأرقام الموجية ١ إلى ٩. الأزرق تباعد في الأعلى يرفع الهواء ويدعم الحمل، والأحمر تقارب يكبته، والأسهم البيضاء الرياح المتباعدة تخرج من مراكز الأزرق. المخطط: العائلتان فوق المملكة في آخر ستين يومًا والتوقع، والأعمدة مساحة الأمطار. المس أي خريطة لفتحها بحجم كامل.</p>
         </div>
-        <div class="card">
+        <div data-sec="warm" class="card">
           <h3>خريطة الحدث الدافئ والبارد</h3>
           <div class="seg" id="mjoLayer">
             <button data-l="wc" class="on">المؤشر</button><button data-l="pw">رطوبة الجزيرة العربية</button>
@@ -114,7 +123,7 @@
           </div>
           <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
         </div>
-        <div class="card" id="ksaCard" hidden>
+        <div data-sec="ksa" class="card" id="ksaCard" hidden>
           <h3>خريطة المملكة</h3>
           <div class="seg" id="ksaLayer">
             <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
@@ -132,7 +141,7 @@
           </div>
           <p class="hint" id="ksaHint"></p>
         </div>
-        <div class="card" id="tcCard" hidden>
+        <div data-sec="taif" class="card" id="tcCard" hidden>
           <h3>تصادم الرياح حول الطائف</h3>
           <div class="seg" id="tcLayer">
             <button data-l="day" class="on">تصادم الرياح</button><button data-l="cape">طاقة عدم الاستقرار</button><button data-l="line">الخط الزمني</button>
@@ -153,7 +162,7 @@
           </div>
           <p class="hint" id="tcHint"></p>
         </div>
-        <div class="card" id="mjofCard" hidden>
+        <div data-sec="phase" class="card" id="mjofCard" hidden>
           <h3>مكوّن التذبذب المعزول</h3>
           <div class="seg" id="mjofLayer">
             <button data-l="mjoz" class="on">عند ٨٠٠ هكتوباسكال</button><button data-l="mjop">الأمطار المرتبطة به</button>
@@ -167,7 +176,7 @@
           <div id="mjofChart" hidden></div>
           <p class="hint">الأزرق يدعم الأمطار والأحمر يكبتها. انظر إلى لون المملكة في اليوم المختار، وحرّك الشريط لترى تقدّم التذبذب شرقًا خلال الأيام القادمة. وفي «الأمطار المرتبطة به» الأخضر زيادة في الأمطار بسبب التذبذب والبني نقص. آخر أيام التوقع أقل ثقة.</p>
         </div>
-        <div class="card">
+        <div data-sec="waves" class="card">
           <h3>موجات روسبي في الطبقة الوسطى</h3>
           <div class="figwrap" id="waveWrap" dir="ltr"><a id="waveLink" target="_blank" rel="noopener"><div class="wv-stage"><img id="waveFig" alt="خريطة موجات روسبي"><img alt=""></div></a></div>
           <div class="mjo-time">
@@ -178,7 +187,7 @@
           <div id="waveList"></div>
           <p class="hint">ارتفاعات ٥٠٠ هكتوباسكال (٥٫٥ كم) بعد إبقاء الموجات السينوبتيكية فقط (الأرقام الموجية ٤ إلى ٨) من توقع جي إف إس. الخطوط الزرقاء منخفضات وأخاديد، والذهبية مرتفعات، كل خط عشرة أمتار وعليه قيمته، والخط الأبيض المتقطع خط الصفر. وتحت كل مركز قيمته بالمتر. الأسهم المنحنية تتبع دوران الرياح حول كل مركز: عكس عقارب الساعة حول المنخفض ومعها حول المرتفع. اسحب الخريطة يمينًا ويسارًا، أو المسها لفتحها بحجم كامل.</p>
         </div>
-        <div class="card">
+        <div data-sec="pw" class="card">
           <h3>الرطوبة فوق المملكة</h3>
           <div id="mjoPw"></div>
           <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
@@ -217,6 +226,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261117rv3"></script>
+<script src="app.js?v=20261117sec1"></script>
 </body>
 </html>

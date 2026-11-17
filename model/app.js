@@ -1421,7 +1421,20 @@
       mjoText(); mjoPhase(); mjoPwTable();
     }
     mjoMap(); ksaCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
+
+  // section tab bar (Fahad 17 Nov 2026): one section at a time instead of one long page
+  function mjoSec(k, keepScroll) {
+    const bar = $("mjoTabs"); if (!bar || !bar.querySelector(`[data-s="${k}"]`)) k = "report";
+    M.sec = k;
+    try { localStorage.setItem("mjoSec", k); } catch (e) {}
+    bar.querySelectorAll("button").forEach((b) => b.classList.toggle("on", b.dataset.s === k));
+    document.querySelectorAll("#p-mjo [data-sec]").forEach((c) => c.classList.toggle("sec-off", c.dataset.sec !== k));
+    const on = bar.querySelector("button.on"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "center" });
+    if (!keepScroll) $("p-mjo").scrollTop = 0;
+  }
+  if ($("mjoTabs")) $("mjoTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-s]"); if (b) mjoSec(b.dataset.s); });
 
   function mjoText() {
     const st = M.st, obsNow = st.rmm_now;
