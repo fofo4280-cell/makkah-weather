@@ -330,8 +330,10 @@ def _build(rep, st):
     rs = find(secs, kind="rain")
     regs = rain_regions(rs)
     out = []
-    # Makkah first (Fahad lives in Al-Jumum, 17 Nov 2026), then the summary and the rest
-    for f in (s3, s1, s2, s4, s5, s6, s7, s8, s9):
+    # the summary first, then the regions with Makkah first (Fahad lives in Al-Jumum, 17 Nov 2026: «أول شيء يبدأ
+    # بالخلاصة، وإذا دخلت للمناطق تفصّل فيها ابدأ بمنطقة مكة»)
+    regs.sort(key=lambda r: r["name"] != "مكة المكرمة")
+    for f in (s1, s3, s2, s4, s5, s6, s7, s8, s9):
         try:
             x = f(st, secs, rs, regs, day0)
             if x:
@@ -387,12 +389,13 @@ def s1(st, secs, rs, regs, day0):
     by_reg = {}
     for e in edges:
         by_reg.setdefault(e["region"], []).append(e)
-    for reg, es in by_reg.items():
+    for reg, es in sorted(by_reg.items(), key=lambda kv: kv[0] != "مكة المكرمة"):
         if any(r["name"] == reg for r in regs):
             continue
         import plains as P
         ul.append(f"{reg}: الحمل الحراري مرجح بعد الظهر على {jl([P.short(e['name']) for e in es])}، "
                   "دون إشارة واضحة من نموذجنا.")
+    ul.sort(key=lambda x: not x.startswith("مكة المكرمة"))          # Makkah first among the regions
     if not ul:
         ul.append("لا أمطار تُذكر على المملكة في مخرجات نموذجنا.")
     B.append({"ul": ul})
