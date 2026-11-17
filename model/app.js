@@ -1341,7 +1341,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); waveCard(); mjofCard(); twCard(); beltCard();
   }
 
   function mjoText() {
@@ -1476,6 +1476,46 @@
     $("mjoDay").max = (M.st.days || []).length - 1;
     if (!M.dayInit) { M.dayInit = true; M.day = todayIdx(M.st.days); $("mjoDay").value = M.day; }
     mjoShow();
+  }
+
+  // the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with the surface
+  // lows, and the 500 hPa temperature; GFS alone, 12 UTC (3 PM Makkah) of each day
+  const KSA_HINT = {
+    krh7: "الرطوبة النسبية عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. الأخضر رطوبة تكفي لنمو السحب الركامية (٦٠٪ فأكثر)، والبني هواء جاف يُضعف السحب أثناء نموها. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
+    krh5: "الرطوبة النسبية عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). رطوبة هذه الطبقة تسمح للسحاب بالنمو إلى ارتفاع كبير، وتُظهر السحب المتوسطة والعالية التي تصحب الأخاديد والمنخفضات. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
+    kconv: "الألوان مواضع تصادم الرياح السطحية (تقارب الرياح عند ١٠ أمتار بعد تنعيم نحو ٤٠ كم)، وفيها يُدفع الهواء إلى الصعود. الخطوط البيضاء اتجاه الرياح، والخطوط الداكنة الضغط عند سطح البحر كل هكتوباسكالين. «منخفض» تحيط به خطوط ضغط مغلقة، و«منخفض ضعيف» أقل من ذلك. لا يُعلَّم منخفض فوق أرض أعلى من ١٠٠٠ متر، لأن الضغط هناك محسوب لا مقاس.",
+    kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، وعليها القيمة كل درجتين.",
+  };
+  function ksaCard() {
+    const st = M.st, K = st.ksa;
+    $("ksaCard").hidden = !(K && K.days && K.days.length);
+    if ($("ksaCard").hidden) return;
+    let lay = M.ksaLayer || "krh7";
+    const show = () => {
+      const k = +$("ksaDay").value || 0, kk = String(k).padStart(2, "0");
+      const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+      $("ksaFig").src = url; $("ksaLink").href = url;
+      const d = K.days[k];
+      $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
+      $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
+      $("ksaHint").textContent = KSA_HINT[lay] + " المس الخريطة لفتحها بحجم كامل.";
+      const box = $("ksaLow");
+      box.hidden = lay !== "kconv";
+      if (lay === "kconv") {
+        const L = K.lows[k];
+        box.innerHTML = L == null ? "تحديد المنخفضات غير متاح لهذا اليوم."
+          : !L.length ? "لا يوجد منخفض سطحي فوق البحر الأحمر أو اليابسة في هذا اليوم."
+          : L.map((x) => `<div><b>${x.closed ? "منخفض سطحي" : "منخفض سطحي ضعيف"}</b> ${x.where} (${String(x.p).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c])} هكتوباسكال)</div>`).join("");
+      }
+    };
+    document.querySelectorAll("#ksaLayer button").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("#ksaLayer button").forEach((x) => x.classList.toggle("on", x === b));
+      lay = M.ksaLayer = b.dataset.l; show();
+    });
+    $("ksaDay").max = Math.max(0, K.days.length - 1);
+    if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
+    $("ksaDay").oninput = show;
+    show();
   }
 
   // "after 3 days" with the Arabic number agreement
