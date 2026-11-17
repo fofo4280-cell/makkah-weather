@@ -1,0 +1,16 @@
+name: yanbu-probe
+on:
+  push:
+    branches: [yanbu-probe]
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p out work && cp probe/yb.js work/ && cd work && npm init -y >/dev/null && npm i playwright@1.48.2 >/dev/null && npx playwright install --with-deps chromium >/dev/null
+          cd .. && node work/yb.js
+          curl -sS -A "Mozilla/5.0" https://www.yanbuweather.com/pages/RainRadar/ -o out/raw.html || true
+          for f in $(grep -oE 'src="[^"]+\.js[^"]*"' out/raw.html | sed 's/src="//;s/"$//'); do case $f in http*) u=$f;; /*) u=https://www.yanbuweather.com$f;; *) u=https://www.yanbuweather.com/pages/RainRadar/$f;; esac; echo "$u" >> out/js.txt; curl -sS "$u" -o "out/js_$(echo $f | tr '/?:' '___' | tail -c 80)" || true; done
+      - uses: actions/upload-artifact@v4
+        with: { name: yb, path: out }
