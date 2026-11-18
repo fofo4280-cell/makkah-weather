@@ -152,7 +152,8 @@ def check_all(get, cycle, day, pct_of, log=print):
         for uh in INIT_UTC:
             fh = int((datetime(day.year, day.month, day.day, uh) - t0).total_seconds() // 3600)
             try:
-                f = get(cycle, fh, [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")])
+                f = get(cycle, fh, [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:"),
+                                    ("cape_sfc", r":CAPE:surface:")])
                 la = np.linspace(90, -90, f["u10"].shape[0])
                 lo = np.linspace(0, 360, f["u10"].shape[1], endpoint=False)
                 early[uh] = {k: cut(v, la, lo)[0] for k, v in f.items()}
@@ -213,6 +214,7 @@ def plains_rows(hours, static, acc, grid, pct_of, log=print):
         us = float(np.mean([(H("u700", h)[both] + H("u500", h)[both]).mean() / 2 for h in (12, 15)]))
         vs = float(np.mean([(H("v700", h)[both] + H("v500", h)[both]).mean() / 2 for h in (12, 15)]))
         sp = math.hypot(us, vs)
+        u700 = float(np.mean([H("u700", h)[both].mean() for h in (12, 15)]))
         u10 = float(H("u10", 12)[pl].mean())
         u850 = float(H("u850", 12)[pl].mean())
         f = {
@@ -227,7 +229,7 @@ def plains_rows(hours, static, acc, grid, pct_of, log=print):
         row = {"key": key, "name": name, "region": region, "pw": round(pw, 1), "pct": pct, "td": round(td, 1),
                "t2": round(t2, 1), "cape_plain": int(cape_pl), "cape_mtn": int(cape_mt), "rh700_mtn": int(rh_mt),
                "rain_mtn_gfs": round(r_mt, 1), "rain_plain_gfs": None if r_pl is None else round(r_pl, 1),
-               "steer": round(sp, 1), "steer_u": round(us, 1), "u10": round(u10, 1), "u850": round(u850, 1),
+               "steer": round(sp, 1), "steer_u": round(us, 1), "steer_v": round(vs, 1), "u700": round(u700, 1), "u10": round(u10, 1), "u850": round(u850, 1),
                "flags": f, "gate": bool(gate), "score": int(sum(f.values())),
                "box": [p[3], p[4], p[5], p[6]], "mbox": list(MTN_BOX.get(key, (p[3], p[4], p[7], p[8])))}
         log("plains:", key, row["score"], "gate" if gate else "-", {k: v for k, v in row.items() if k not in ("flags", "name", "box", "mbox")})
@@ -344,6 +346,11 @@ TAIF = (21.27, 40.42)
 # it is strongest; see PROJECT.md for the 1-17 Nov 2026 test.
 CONV_MIN, CONV_SHIFT = 3.0, 0.5
 INIT_UTC = (8, 10)                       # 11 AM and 1 PM Makkah: the Taif collision is judged here (17 Nov 2026)
+# 18 Nov 2026 (Fahad: "contradictions"): the report said the collision moved east of Taif (near Qiya, 4.0 vs 3.1 on the
+# edge) while the edge had the CAPE (184 vs 28 J/kg at 1 PM) and the rain (GFS 6.1 vs 0.8 mm, our run 57 mm on
+# Al-Hada). A meeting of winds over air without fuel makes no storm: the shift needs surface CAPE (p75, 1 PM) of
+# EAST_CAPE or more east of Taif; otherwise "east_dry" and the edge stays favoured. Same rule in taifconv.measure.
+EAST_CAPE = 100
 
 
 def nearest_place(la, lo, km=40):
@@ -385,8 +392,15 @@ def taif_zone(hours, static, grid):
         return {"lat": la, "lon": lo, "c": round(float(c[j, i]), 2), "place": nearest_place(la, lo),
                 "km_taif": int(round(dk))}
     pe, px = peak(edge), peak(east)
-    shifted = bool(px["c"] >= CONV_MIN and px["c"] >= pe["c"] + CONV_SHIFT)
-    return {"edge": pe, "east": px, "shifted": shifted,
+    wins = bool(px["c"] >= CONV_MIN and px["c"] >= pe["c"] + CONV_SHIFT)
+    cape = hours.get(10, {}).get("cape_sfc")
+    if cape is None:
+        cape = hours.get(12, {}).get("cape")          # (fallback: MUCAPE 180-0 at 3 PM)
+    cp_e = float(np.percentile(cape[edge], 75)) if cape is not None else None
+    cp_x = float(np.percentile(cape[east], 75)) if cape is not None else None
+    fuel = cp_x is None or cp_x >= EAST_CAPE
+    return {"edge": pe, "east": px, "shifted": bool(wins and fuel), "east_dry": bool(wins and not fuel),
+            "cape_edge": None if cp_e is None else int(round(cp_e)), "cape_east": None if cp_x is None else int(round(cp_x)),
             "c_sail": round(float(c[sail].max()), 2) if sail.any() else 0.0}
 
 
