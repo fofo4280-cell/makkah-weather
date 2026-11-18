@@ -36,7 +36,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const LIVE = (p) => p === "lightning" || p === "radar";   // live observations (lightning; rain radar with lightning)
+  const LIVE = (p) => p === "lightning" || p === "radar";   // live observations: the rain radar and lightning, separate entries (Fahad 18 Nov 2026)
   const HOURLY = ["refl", "rain1h"];   // 700 hPa humidity and instability layers removed from the menu 17 Nov 2026 (Fahad); the runs still write them
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
@@ -55,7 +55,7 @@
   };
 
   const S = { runs: [], run: null, man: null, meteo: null, dom: "k3",  // always the whole Kingdom; the regions list was removed (Fahad, 16 Nov 2026)
-    prod: store.get("prod") === "lightning" ? "radar" : (store.get("prod") || "refl"),   // lightning alone was merged into the radar entry (17 Nov 2026)
+    prod: store.get("prod") || "refl",
               frames: [], idx: 0, playing: null, overlay: null, rects: [], cityLayer: null };
 
   async function getJSON(url) {
@@ -717,7 +717,7 @@
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${lab(k) || P[k].label}</option>` : "");
     // one flat list, live lightning first
-    sel.innerHTML = `<option value="radar">الرادار</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
+    sel.innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
     if ((!P[S.prod] || !listed) && !LIVE(S.prod)) S.prod = "refl";
     sel.value = S.prod;
@@ -803,7 +803,7 @@
       L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
       const ctx = c.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
-      const f = LX.on && S.frames[S.idx];
+      const f = LX.on && S.prod !== "radar" && S.frames[S.idx];   // the radar entry shows the radar alone
       LX.shown = 0;
       if (!f) return;
       const end = f.t, start = end - LI_WIN, cell = 16, grid = new Map();
@@ -949,15 +949,16 @@
     const f = S.frames[S.idx];
     $("timeRange").max = Math.max(0, S.frames.length - 1);
     $("timeRange").value = S.idx;
-    $("timeLabel").textContent = f ? (S.prod === "radar" ? `الرادار والبرق ${fmtClock.format(f.t)}` : `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`)
+    $("timeLabel").textContent = f ? (S.prod === "radar" ? `الرادار ${fmtClock.format(f.t)}` : `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`)
       : S.prod === "radar" ? "جارٍ جلب صور الرادار…"
       : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
     if (LX.layer) LX.layer.redraw();
     rvSync();
-    const n = $("liCount"); if (n) n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
+    const n = $("liCount"); if (n && S.prod !== "radar") n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
   }
 
   function liLegend() {
+    if (S.prod === "radar") return rvLegend();
     const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
     const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
     setMini(`linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})`);
@@ -985,11 +986,80 @@
     } catch (e) { /* offline or service down: keep what we have */ }
     if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
+  // The free service sends one colour scheme ("Universal Blue"); each pixel is turned back into its
+  // reflectivity (dBZ) and repainted in the classic radar colours used by the Saudi met service.
+  const RV_UB = [[15, 0x88ddee], [16, 0x6cd1eb], [17, 0x51c5e8], [18, 0x36bae5], [19, 0x1baee2], [20, 0x00a3e0], [21, 0x009ad5], [22, 0x0091ca],
+    [23, 0x0088bf], [24, 0x007fb4], [25, 0x0077aa], [26, 0x0070a3], [27, 0x00699c], [28, 0x006295], [29, 0x005b8e], [30, 0x005588],
+    [31, 0x005180], [32, 0x004e78], [33, 0x004a70], [34, 0x004768], [35, 0xffee00], [36, 0xffe000], [37, 0xffd200], [38, 0xffc500],
+    [39, 0xffb700], [40, 0xffaa00], [41, 0xff9f00], [42, 0xff9500], [43, 0xff8b00], [44, 0xff8100], [45, 0xff4400], [46, 0xf23600],
+    [47, 0xe62800], [48, 0xd91b00], [49, 0xcd0d00], [50, 0xc10000], [51, 0xa80000], [52, 0x8f0000], [53, 0x760000], [54, 0x5d0000],
+    [55, 0xffaaff], [56, 0xff9fff], [57, 0xff95ff], [58, 0xff8bff], [59, 0xff81ff], [60, 0xff77ff], [61, 0xff6cff], [62, 0xff62ff],
+    [63, 0xff58ff], [64, 0xff4eff], [65, 0xffffff]];
+  // classic radar colours, by the lowest dBZ of each step (drizzle, light, moderate, heavy rain, hail)
+  const RV_PAL = [[10, "#9fe8ff"], [15, "#4fc3f7"], [20, "#1e7bff"], [25, "#00d000"], [30, "#008f00"], [35, "#ffff00"], [40, "#ffc000"],
+    [45, "#ff8000"], [50, "#ff0000"], [55, "#c00000"], [60, "#ff00ff"], [65, "#9b30d9"]];
+  const RV_RGB = RV_PAL.map(([d, c]) => [d, parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+  const rvMemo = new Map();
+  function rvDbz(r, g, b, a) {
+    // the weak echoes (below 15 dBZ) are a see-through beige whose opacity grows with dBZ
+    if (r > 0x60 && Math.abs(r - g) < 0x18 && b < g && b > 0x50) return a < 0x96 ? -99 : 10 + (a - 0x96) / 0x0a;
+    const k = (r << 16) | (g << 8) | b;
+    let d = rvMemo.get(k);
+    if (d === undefined) {
+      let best = 1e9;
+      for (const [z, c] of RV_UB) {
+        const dr = r - (c >> 16), dg = g - ((c >> 8) & 255), db = b - (c & 255), e = dr * dr + dg * dg + db * db;
+        if (e < best) { best = e; d = z; }
+      }
+      if (rvMemo.size < 50000) rvMemo.set(k, d);
+    }
+    return d;
+  }
+  function rvPaint(cx, n) {
+    const im = cx.getImageData(0, 0, n, n), p = im.data;
+    for (let i = 0; i < p.length; i += 4) {
+      if (p[i + 3] < 8) { p[i + 3] = 0; continue; }
+      const d = rvDbz(p[i], p[i + 1], p[i + 2], p[i + 3]);
+      if (d < 10) { p[i + 3] = 0; continue; }
+      let c = RV_RGB[0];
+      for (const x of RV_RGB) if (d >= x[0]) c = x;
+      p[i] = c[1]; p[i + 1] = c[2]; p[i + 2] = c[3]; p[i + 3] = Math.max(p[i + 3], d >= 15 ? 235 : 170);
+    }
+    cx.putImageData(im, 0, 0);
+  }
+  const RadarTiles = L.GridLayer.extend({
+    createTile(c, done) {
+      const n = 256, cv = document.createElement("canvas"); cv.width = cv.height = n;
+      const url = `${RV.host}${this.options.path}/256/${c.z}/${c.x}/${c.y}/2/1_0.png`;
+      const load = (cors) => {
+        const img = new Image();
+        if (cors) img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const cx = cv.getContext("2d", { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, n, n);
+          if (cors) { try { rvPaint(cx, n); } catch (e) { RV.cors = false; } }
+          done(null, cv);
+        };
+        img.onerror = () => { if (cors) { RV.cors = false; load(false); } else done(null, cv); };   // without permission to read pixels: the service's own colours
+        img.src = url;
+      };
+      load(RV.cors !== false);
+      return cv;
+    },
+  });
+  function rvLegend() {
+    setMini(`linear-gradient(to right, ${RV_PAL.map((x) => x[1]).join(", ")})`);
+    const w = 100 / RV_PAL.length;
+    $("legend").innerHTML = `<div class="legend-title"><span>رادارات المركز الوطني للأرصاد، صورة كل ١٠ دقائق</span><span>ديسيبل</span></div>
+      <div class="legend-bar" style="background:linear-gradient(to right, ${RV_PAL.map((x, i) => `${x[1]} ${(i * w).toFixed(1)}% ${((i + 1) * w).toFixed(1)}%`).join(", ")})"></div>
+      <div class="legend-ticks">${RV_PAL.map((x, i) => `<span style="left:${(i * w).toFixed(1)}%">${num(x[0])}</span>`).join("")}</div>
+      <div class="legend-title" style="margin-top:2px"><span>رذاذ</span><span>خفيف</span><span>متوسط</span><span>غزير</span><span>برد</span></div>`;
+  }
   function rvLayer(f) {
     let l = RV.layers.get(f.path);
     if (!l) {
-      l = L.tileLayer(`${RV.host}${f.path}/256/{z}/{x}/{y}/2/1_0.png`, {
-        pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 19, tileSize: 256,
+      l = new RadarTiles({
+        path: f.path, pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 19, tileSize: 256,
         attribution: '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>',
       });
       RV.layers.set(f.path, l);
@@ -1023,7 +1093,7 @@
     if (RV.cur === f.path) return;
     const l = rvLayer(f), old = RV.cur && RV.layers.get(RV.cur);
     RV.cur = f.path;
-    const show = () => { l.setOpacity(0.85); if (old && old !== l) old.setOpacity(0); };
+    const show = () => { l.setOpacity(0.9); if (old && old !== l) old.setOpacity(0); };
     if (!l.isLoading()) show(); else { l.once("load", show); setTimeout(show, 1500); }
     // keep the neighbours ready so sliding through time does not flash
     const i = RV.frames.indexOf(f);
@@ -2060,7 +2130,7 @@
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
     if (LIVE(S.prod)) {  // show lightning / radar straight away; the model data loads behind it
-      $("prodSelect").innerHTML = `<option value="radar">الرادار</option>`; $("prodSelect").value = S.prod;
+      $("prodSelect").innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>`; $("prodSelect").value = S.prod;
       liEnter();
     } else {
       setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant
