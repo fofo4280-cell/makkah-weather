@@ -613,7 +613,8 @@ def main():
 
     # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
     #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
-    ksa_out = {"days": [], "lows": [], "rst": []}
+    ksa_out = {"days": [], "lows": [], "rst": [], "extent": [33.0, 57.5, 14.0, 33.5]}
+    wind_days, wmeta_ = {}, None
     try:
         import ksa
         stat = None
@@ -630,12 +631,25 @@ def main():
                     rs_ = None
                 for kd in ksa.KINDS:
                     ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_, rs_)
+                try:
+                    wp_, wmeta_ = ksa.wind_pack(f_)
+                    wind_days[k] = wp_
+                except Exception as e:  # noqa: BLE001
+                    print("kingdom winds failed", k, repr(e)[:120], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("kingdom maps failed", k, repr(e)[:160], flush=True)
                 lw_, rs_ = None, None
             ksa_out["days"].append(dt.strftime("%Y-%m-%d"))
             ksa_out["lows"].append(lw_)
             ksa_out["rst"].append({"north": rs_["north"], "reach": rs_["reach"]} if rs_ else (None if lw_ is None else False))
+        # the winds at 700 and 500 hPa for the page's arrows: one file, day after day, zeros for a missing day
+        if wind_days:
+            blank = np.zeros_like(next(iter(wind_days.values())))
+            with open(os.path.join(out, "ksa_wind.bin"), "wb") as fh_:
+                for k in range(len(days)):
+                    fh_.write(wind_days.get(k, blank).tobytes())
+            ksa_out["wind"] = {**wmeta_, "file": "ksa_wind.bin", "days": len(days),
+                               "missing": [k for k in range(len(days)) if k not in wind_days]}
         print("kingdom surface lows:", [[(x["where"], x["p"]) for x in l] if l else l for l in ksa_out["lows"]], flush=True)
         print("red sea trough reach:", [r["north"] if r else r for r in ksa_out["rst"]], flush=True)
     except Exception as e:  # noqa: BLE001
@@ -800,7 +814,7 @@ def main():
         "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
         "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
-                 **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5")}},
+                 **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
         "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:

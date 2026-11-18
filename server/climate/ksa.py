@@ -16,11 +16,12 @@ import numpy as np
 
 FIELDS = [("rh7", r":RH:700 mb:"), ("rh5", r":RH:500 mb:"), ("t5", r":TMP:500 mb:"),
           ("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:"),
-          ("mslp", r":MSLET:mean sea level:")]
+          ("mslp", r":MSLET:mean sea level:"),
+          ("u7", r":UGRD:700 mb:"), ("v7", r":VGRD:700 mb:"), ("u5", r":UGRD:500 mb:"), ("v5", r":VGRD:500 mb:")]
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 BOX = (8.0, 38.0, 28.0, 62.0)            # south, north, west, east of the data (margin around the map)
 EXTENT = (33.0, 57.5, 14.0, 33.5)        # west, east, south, north of the map
-KINDS = ("krh7", "krh5", "kt5")            # kconv dropped 17 Nov 2026 (Fahad): convergence has its own card (taifconv)
+KINDS = ("krh7", "krh5", "kt5", "kw7", "kw5")   # kw7/kw5: wind speed under the page's own arrows (18 Nov 2026)            # kconv dropped 17 Nov 2026 (Fahad): convergence has its own card (taifconv)
 SMOOTH = 1.5                             # convergence smoothing, grid lengths (about 40 km, as collide.py)
 
 SCALES = {
@@ -41,6 +42,12 @@ SCALES = {
                                               (1, "#7a0f12")],
             "label": "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم)", "unit": "°م",
             "ticks": [-26, -22, -18, -14, -10, -6, -2]},
+    "kw7": {"vmin": 0, "vmax": 30, "cols": [(0, "#2b3f5c"), (.15, "#2f6f9e"), (.3, "#35a3a8"), (.45, "#7cc87a"),
+                                            (.6, "#e9d65a"), (.75, "#f29a3c"), (.88, "#d9472f"), (1, "#8e1f5a")],
+            "label": "سرعة الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم)", "unit": "م/ث", "ticks": [0, 5, 10, 15, 20, 25, 30]},
+    "kw5": {"vmin": 0, "vmax": 50, "cols": [(0, "#2b3f5c"), (.15, "#2f6f9e"), (.3, "#35a3a8"), (.45, "#7cc87a"),
+                                            (.6, "#e9d65a"), (.75, "#f29a3c"), (.88, "#d9472f"), (1, "#8e1f5a")],
+            "label": "سرعة الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم)", "unit": "م/ث", "ticks": [0, 10, 20, 30, 40, 50]},
 }
 
 # reference places for naming a low (name, lat, lon)
@@ -211,8 +218,11 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
         ax.add_feature(cfeature.OCEAN.with_scale("50m"), facecolor="#4f4f4f")
     cmap = LinearSegmentedColormap.from_list("k", [(p, to_rgba(c)) for p, c in sc["cols"]], N=512)
     up = 4
-    field = {"krh7": "rh7", "krh5": "rh5", "kconv": "conv", "kt5": "t5"}[kind]
-    a = f[field]
+    if kind in ("kw7", "kw5"):
+        lv_ = kind[2]
+        a = np.hypot(f["u" + lv_], f["v" + lv_])
+    else:
+        a = f[{"krh7": "rh7", "krh5": "rh5", "kconv": "conv", "kt5": "t5"}[kind]]
     if kind == "kconv":
         a = np.clip(a, 0, None)
     fine = zoom(a, up, order=3)
@@ -229,6 +239,12 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
         cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=[50, 70, 90], colors=["#f4efe2", "#d8f3dc", "#ffffff"],
                         linewidths=[0.7, 0.9, 1.1], transform=pc, zorder=3)
         lab = ax.clabel(cs, fmt=lambda x: dig(x) + "٪", fontsize=7, inline=True, inline_spacing=3)
+    elif kind in ("kw7", "kw5"):
+        # isotachs every 5 m/s, labelled every 10; the arrows are drawn by the page, denser as it zooms in
+        lv = np.arange(5, 80, 5)
+        cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=lv, colors="#f4f6f8",
+                        linewidths=[0.8 if x % 10 == 0 else 0.35 for x in lv], alpha=0.8, transform=pc, zorder=3)
+        lab = ax.clabel(cs, levels=lv[lv % 10 == 0], fmt=dig, fontsize=7, inline=True, inline_spacing=3)
     elif kind == "kt5":
         lv = np.arange(-40, 6, 1)
         cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=lv, colors="#f4f6f8",
@@ -359,3 +375,26 @@ def rst(f, log=None):
     near = min(COAST, key=lambda c: abs(c[0] - north))
     reach = near[1] if near[1].startswith("شمال") else f"محاذاة {near[1]}"
     return {"pts": [[round(a, 2), round(b, 2)] for a, b in pts], "north": round(north, 1), "reach": reach}
+
+
+# ------------------------------------------------------------------ the winds for the page's arrows (Fahad, 18 Nov 2026)
+WIND_STEP = 0.5     # deg; the page interpolates between points, so arrows can be as dense as the zoom wants
+
+
+def wind_pack(f):
+    """u, v at 700 and 500 hPa on a WIND_STEP grid over EXTENT (north row first, west column first), lightly
+    smoothed: int16 in 0.1 m/s, order u7, v7, u5, v5"""
+    from scipy.ndimage import gaussian_filter
+    from scipy.interpolate import RegularGridInterpolator
+    w, e, s, n = EXTENT
+    la_out = np.arange(n, s - 1e-6, -WIND_STEP)
+    lo_out = np.arange(w, e + 1e-6, WIND_STEP)
+    LA, LO = np.meshgrid(la_out, lo_out, indexing="ij")
+    lat, lon = f["lat"], f["lon"]
+    out = []
+    for k in ("u7", "v7", "u5", "v5"):
+        a = gaussian_filter(f[k], 1.0)
+        it = RegularGridInterpolator((lat[::-1], lon), a[::-1], bounds_error=False, fill_value=None)
+        out.append(np.clip(np.round(it((LA, LO)) * 10), -32000, 32000).astype("<i2"))
+    return np.stack(out), {"lat0": float(n), "lon0": float(w), "d": WIND_STEP, "ny": len(la_out), "nx": len(lo_out),
+                           "scale": 0.1, "order": ["u7", "v7", "u5", "v5"]}
