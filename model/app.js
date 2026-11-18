@@ -969,7 +969,7 @@
   function liFrames() {
     if (!LX.on) return;
     const atEnd = S.idx >= S.frames.length - 1;
-    if (S.prod === "radar") S.frames = RV.frames.map((f) => ({ t: f.t }));   // the radar's last two hours, every 10 minutes
+    if (S.prod === "radar") S.frames = RV.frames.map((f) => ({ t: f.t }));   // the radar's last 12 hours (our archive) then the live 2 hours, every 10 minutes
     else {
       const times = [...LX.got.keys()].sort((a, b) => a - b);
       const newest = times.length ? times[times.length - 1] : 0;
@@ -1060,6 +1060,7 @@
   // with the source named. In lightning mode the radar follows the lightning time; over the model
   // maps it shows the latest picture. A pill turns it on and off (remembered in this browser).
   const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
+  const RV_ARCH = (window.SWRF_DATA || "").replace("/model-data/", "/radar-archive/");
   var RV = { on: false, host: "", frames: [], layers: new Map(), cur: null, timer: null, got: 0 };
   map.createPane("radar"); map.getPane("radar").style.zIndex = 620; map.getPane("radar").style.pointerEvents = "none";
   async function rvLoad() {
@@ -1068,9 +1069,17 @@
       if (!r.ok) throw new Error(r.status);
       const j = await r.json();
       RV.host = j.host || "https://tilecache.rainviewer.com";
-      RV.frames = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path }));
+      RV.live = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path, key: f.path }));
       RV.got = Date.now();
     } catch (e) { /* offline or service down: keep what we have */ }
+    // our own archive keeps 12 hours (the free service only 2): older pictures come from it (Fahad 18 Nov 2026)
+    try {
+      const r = await fetch(`${RV_ARCH}index.json?t=${Math.floor(Date.now() / 300e3)}`);
+      if (r.ok) RV.arch = await r.json();
+    } catch (e) { /* no archive yet */ }
+    const live = RV.live || [], first = live.length ? live[0].t : Infinity;
+    const old = ((RV.arch && RV.arch.frames) || []).map((f) => ({ t: f.t * 1000, arch: true, key: "a" + f.t })).filter((f) => f.t < first - 60e3);
+    RV.frames = [...old, ...live];
     if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
   // The free service sends one colour scheme ("Universal Blue"); each pixel is turned back into its
@@ -1119,6 +1128,30 @@
   // edges), then every map tile is drawn at the map's zoom by bilinear blending of dBZ, so the echoes stay
   // smooth when zoomed in instead of showing the 1 km squares.
   const RV_SRC = new Map();
+  const RV_AC = new Map();   // decoded archive pictures, the last few only (each is a few MB)
+  function rvArch(t) {
+    const key = "a" + t;
+    if (RV_AC.has(key)) { const p = RV_AC.get(key); RV_AC.delete(key); RV_AC.set(key, p); return p; }
+    const pr = new Promise((res) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+          const cx = cv.getContext("2d", { willReadFrequently: true });
+          cx.drawImage(img, 0, 0);
+          const p = cx.getImageData(0, 0, img.width, img.height).data, v = new Uint8Array(img.width * img.height);
+          for (let k = 0; k < v.length; k++) v[k] = p[4 * k];
+          res({ v, w: img.width, h: img.height });
+        } catch (e) { res(null); }
+      };
+      img.onerror = () => res(null);
+      img.src = `${RV_ARCH}f/${t}.png`;
+    });
+    RV_AC.set(key, pr);
+    while (RV_AC.size > 6) RV_AC.delete(RV_AC.keys().next().value);
+    return pr;
+  }
   function rvSource(path, z, x, y) {
     const key = `${path}/${z}/${x}/${y}`;
     if (RV_SRC.has(key)) return RV_SRC.get(key);
@@ -1160,18 +1193,20 @@
       this.redraw();
     },
     onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
-    setPath(path) { this.path = path; this.redraw(); },
+    setFrame(f) { this.f = f; this.path = f.key; this.redraw(); },
     getAttribution() { return '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>'; },
     async redraw() {
-      const m = this._map; if (!m || !this.path) return;
-      const tok = this._tok = (this._tok || 0) + 1, path = this.path;
-      const size = m.getSize(), zoom = m.getZoom(), z = Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
+      const m = this._map; if (!m || !this.f) return;
+      const tok = this._tok = (this._tok || 0) + 1, fr = this.f, path = fr.path, A = fr.arch && RV.arch;
+      const size = m.getSize(), zoom = m.getZoom(), z = A ? 7 : Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
       const tl = m.containerPointToLayerPoint([0, 0]), org = tl.add(m.getPixelOrigin());
       const gx0 = org.x * sc, gy0 = org.y * sc;
       const tx0 = Math.floor((gx0 - 1) / 256), tx1 = Math.floor((gx0 + size.x * sc + 1) / 256);
       const ty0 = Math.max(0, Math.floor((gy0 - 1) / 256)), ty1 = Math.min(n - 1, Math.floor((gy0 + size.y * sc + 1) / 256));
       const T = new Map(), jobs = [];
-      for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+      let AV = null;
+      if (A) jobs.push(rvArch(fr.t / 1000).then((x) => { AV = x; }));
+      else for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
         const wx = ((tx % n) + n) % n;
         jobs.push(rvSource(path, z, wx, ty).then((src) => { if (src) T.set(tx * 4096 + ty, src); }));
       }
@@ -1182,7 +1217,13 @@
       L.DomUtil.setPosition(c, tl);
       const cx = c.getContext("2d"), im = cx.createImageData(W, H), q = im.data;
       let lastK = -1e9, src = null;
-      const at = (X, Y, out) => {   // dBZ*weight and weight of one radar pixel (global pixel numbers at zoom z)
+      const ax0 = A ? A.x0 : 0, ay0 = A ? A.y0 : 0, aw = A ? A.w : 0, ah = A ? A.h : 0;
+      const at = A ? (X, Y, out) => {   // archive picture: one grey image, v = (dBZ + 10) * 3
+        const x = X - ax0, y = Y - ay0;
+        const v = AV && x >= 0 && y >= 0 && x < aw && y < ah ? AV.v[y * aw + x] : 0;
+        if (!v) { out[0] = 0; out[1] = 0; return; }
+        out[0] = v / 3 - 10; out[1] = 1;
+      } : (X, Y, out) => {   // dBZ*weight and weight of one radar pixel (global pixel numbers at zoom z)
         const tx = Math.floor(X / 256), ty = Math.floor(Y / 256), k = tx * 4096 + ty;
         if (k !== lastK) { lastK = k; src = T.get(k) || null; }
         if (!src) { out[0] = 0; out[1] = 0; return; }
@@ -1248,14 +1289,15 @@
     if (!f) { if (btn) btn.textContent = "الرادار…"; return; }
     if (btn) btn.textContent = `الرادار ${fmtClock.format(f.t)}`;
     const l = rvLayer();
-    if (RV.cur === f.path && l.path === f.path) return;
-    RV.cur = f.path;
-    l.setPath(f.path);   // the previous picture stays until the new one is drawn
+    if (RV.cur === f.key && l.path === f.key) return;
+    RV.cur = f.key;
+    l.setFrame(f);   // the previous picture stays until the new one is drawn
     // fetch the neighbours so sliding through time does not wait
     const i = RV.frames.indexOf(f), zoom = map.getZoom(), z = Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
     const pb = map.getPixelBounds(), x0 = Math.floor(pb.min.x * sc / 256), x1 = Math.floor(pb.max.x * sc / 256);
     const y0 = Math.max(0, Math.floor(pb.min.y * sc / 256)), y1 = Math.min(n - 1, Math.floor(pb.max.y * sc / 256));
-    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k]) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) rvSource(RV.frames[k].path, z, ((x % n) + n) % n, y);
+    for (const k of [i - 1, i + 1]) if (RV.frames[k] && RV.frames[k].arch) rvArch(RV.frames[k].t / 1000);
+    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k] && !RV.frames[k].arch) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) rvSource(RV.frames[k].path, z, ((x % n) + n) % n, y);
   }
   function rvToggle() {
     RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
