@@ -387,3 +387,7 @@ a { color: var(--sea); }
 .map-menu { max-height: calc(100vh - 200px); overflow-y: auto; }
 #mmBase .leaflet-control-layers-separator { border-top-color: var(--glass-line); }
 .map-bottom > .lg-mini-ctl { align-self: flex-end; margin: 0; float: none; }
+/* Leaflet lights its buttons on hover/focus; on a phone that state sticks after a tap, so keep them dark (Fahad 18 Nov 2026) */
+.leaflet-bar a:hover, .leaflet-bar a:focus, .leaflet-bar a:active { background-color: var(--glass) !important; color: var(--glass-ink) !important; outline: none; }
+@media (hover: hover) { .leaflet-bar a:hover { background-color: rgba(255,255,255,.12) !important; } }
+.leaflet-bar a.leaflet-disabled { background-color: var(--glass) !important; color: var(--glass-muted) !important; }
