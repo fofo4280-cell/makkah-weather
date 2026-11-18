@@ -646,6 +646,16 @@ def others(st, rs, regs, day0):
         B.append({"p": "لا أمطار تُذكر على بقية المناطق."})
     else:
         dry = [n for n in BOX_OF if n not in names and n != "مكة المكرمة"]
+        # the same reading as the summary: moist regions under the upper cold wave may get showers the models miss
+        try:
+            W = cold_wave(st, day0)
+            maybe = [n for n in dry if W and n in W["regions"] and (pw_of(st, day0, n) or 0) >= 110]
+        except Exception:  # noqa: BLE001
+            maybe = []
+        if maybe:
+            B.append({"p": f"وتُحتمل زخات متفرقة على {jl(maybe)} تحت الموجة العلوية الباردة فوق هواء رطب، "
+                           "والنموذجان لا يُظهرانها، فالثقة متوسطة."})
+            dry = [n for n in dry if n not in maybe]
         if dry:
             B.append({"p": "ولا أمطار تُذكر على " + jl(dry) + "."})
     return sec("المناطق الأخرى", "regions", B)
