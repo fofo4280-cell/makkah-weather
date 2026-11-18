@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261118sn">
+<link rel="stylesheet" href="style.css?v=20261118w1">
 </head>
 <body>
 <div class="app">
@@ -78,7 +78,7 @@
           <button type="button" data-s="phase">طور التذبذب</button>
           <button type="button" data-s="pw">الرطوبة</button>
           <button type="button" data-s="taif">الرياح حول الطائف</button>
-          <button type="button" data-s="ksa">خريطة المملكة</button>
+          <button type="button" data-s="ksa">الرياح</button>
           <button type="button" data-s="waves">كلفن وروسبي</button>
           <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
         </nav>
@@ -126,23 +126,22 @@
           </div>
           <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
         </div>
-        <div data-sec="ksa" class="card" id="ksaCard" hidden>
-          <h3>خريطة المملكة</h3>
-          <div class="seg" id="ksaLayer">
-            <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
+        <div data-sec="ksa" class="card" id="kwCard" hidden>
+          <h3>الرياح</h3>
+          <div class="seg" id="kwLayer">
+            <button data-l="7" class="on">٧٠٠ هكتوباسكال</button><button data-l="5">٥٠٠ هكتوباسكال</button>
           </div>
           <div class="ksa-map" dir="ltr">
-            <div class="ksa-scroll" id="ksaScroll"><div class="ksa-inner" id="ksaInner"><img id="ksaFig" alt="خريطة المملكة" draggable="false"><i id="ksaPin" class="ksa-pin" hidden></i></div></div>
-            <div class="ksa-zoom"><button id="ksaIn" aria-label="تكبير">+</button><button id="ksaOut" aria-label="تصغير" disabled>−</button></div>
+            <div class="ksa-scroll" id="kwScroll"><div class="ksa-inner" id="kwInner"><img id="kwFig" alt="الرياح فوق المملكة" draggable="false"><canvas id="kwArrows" class="kw-arrows"></canvas><i id="kwPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="kwIn" aria-label="تكبير">+</button><button id="kwOut" aria-label="تصغير" disabled>−</button></div>
           </div>
-          <div id="ksaCoord" class="ksa-coord" hidden></div>
-          <div class="legend mjo-legend" id="ksaLegend"></div>
-          <div id="ksaLow" class="ksa-low" hidden></div>
+          <div id="kwCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="kwLegend"></div>
           <div class="mjo-time">
-            <input type="range" id="ksaDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
-            <span id="ksaDayLabel"></span>
+            <input type="range" id="kwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="kwDayLabel"></span>
           </div>
-          <p class="hint" id="ksaHint"></p>
+          <p class="hint" id="kwHint"></p>
         </div>
         <div data-sec="taif" class="card" id="tcCard" hidden>
           <h3>تصادم الرياح حول الطائف</h3>
@@ -195,6 +194,24 @@
           <div id="mjoPw"></div>
           <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
         </div>
+        <div data-sec="pw" class="card" id="ksaCard" hidden>
+          <h3>خرائط الرطوبة والحرارة فوق المملكة</h3>
+          <div class="seg" id="ksaLayer">
+            <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="ksaScroll"><div class="ksa-inner" id="ksaInner"><img id="ksaFig" alt="خريطة المملكة" draggable="false"><i id="ksaPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="ksaIn" aria-label="تكبير">+</button><button id="ksaOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="ksaCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="ksaLegend"></div>
+          <div id="ksaLow" class="ksa-low" hidden></div>
+          <div class="mjo-time">
+            <input type="range" id="ksaDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="ksaDayLabel"></span>
+          </div>
+          <p class="hint" id="ksaHint"></p>
+        </div>
         <p class="hint" id="mjoUpdated"></p>
       </div>
     </section>
@@ -229,6 +246,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261118sn"></script>
+<script src="app.js?v=20261118w1"></script>
 </body>
 </html>

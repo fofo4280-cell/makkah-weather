@@ -1662,7 +1662,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); kwCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1899,6 +1899,117 @@
     if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
     $("ksaDay").oninput = show;
     show();
+  }
+
+  // the winds at 700 and 500 hPa over the Kingdom (Fahad, 18 Nov 2026): the speed map comes from the nightly run, the
+  // arrows are drawn here from ksa_wind.bin (0.5 deg, u and v), one every ~34 screen pixels, so zooming in shows more
+  const KW = { lay: "7", z: 0, pt: null, data: null };
+  const KW_DIRS = ["شمالية", "شمالية شرقية", "شرقية", "جنوبية شرقية", "جنوبية", "جنوبية غربية", "غربية", "شمالية غربية"];
+  function kwAt(k, lev, lat, lon) {
+    const W = M.st.ksa.wind, D = KW.data; if (!D) return null;
+    const fy = (W.lat0 - lat) / W.d, fx = (lon - W.lon0) / W.d;
+    if (fy < 0 || fx < 0 || fy > W.ny - 1 || fx > W.nx - 1) return null;
+    const j = Math.min(W.ny - 2, Math.floor(fy)), i = Math.min(W.nx - 2, Math.floor(fx)), ty = fy - j, tx = fx - i;
+    const c0 = lev === "7" ? 0 : 2, at = (c, jj, ii) => D[((k * 4 + c) * W.ny + jj) * W.nx + ii] * W.scale;
+    const bil = (c) => (at(c, j, i) * (1 - tx) + at(c, j, i + 1) * tx) * (1 - ty) + (at(c, j + 1, i) * (1 - tx) + at(c, j + 1, i + 1) * tx) * ty;
+    return [bil(c0), bil(c0 + 1)];
+  }
+  function kwDraw() {
+    const cv = $("kwArrows"), inner = $("kwInner"), K = M.st && M.st.ksa;
+    if (!K || !K.wind || !KW.data) return;
+    const Wd = inner.clientWidth, Hd = $("kwFig").clientHeight || inner.clientHeight; if (!Wd || !Hd) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(Wd * dpr); cv.height = Math.round(Hd * dpr); cv.style.height = Hd + "px";
+    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, Wd, Hd);
+    const [w, e, s, n] = K.extent || [33, 57.5, 14, 33.5], k = +$("kwDay").value || 0, top = KW.lay === "7" ? 20 : 35;
+    const S = 34;
+    c.lineCap = "round"; c.lineJoin = "round";
+    for (let y = S / 2; y < Hd; y += S) for (let x = S / 2; x < Wd; x += S) {
+      const lat = n - (y / Hd) * (n - s), lon = w + (x / Wd) * (e - w), uv = kwAt(k, KW.lay, lat, lon); if (!uv) continue;
+      const sp = Math.hypot(uv[0], uv[1]); if (sp < 0.5) continue;
+      const dx = uv[0] / Math.cos(lat * Math.PI / 180), dy = -uv[1], m = Math.hypot(dx, dy);
+      const L = S * (0.38 + 0.42 * Math.min(1, sp / top)), ux = dx / m, uy = dy / m;
+      const x0 = x - ux * L / 2, y0 = y - uy * L / 2, x1 = x + ux * L / 2, y1 = y + uy * L / 2, h = 5.5;
+      const path = () => { c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1);
+        c.moveTo(x1 - ux * h - uy * h * 0.6, y1 - uy * h + ux * h * 0.6); c.lineTo(x1, y1); c.lineTo(x1 - ux * h + uy * h * 0.6, y1 - uy * h - ux * h * 0.6); };
+      path(); c.strokeStyle = "rgba(10,14,20,.75)"; c.lineWidth = 3.4; c.stroke();
+      path(); c.strokeStyle = "#ffffff"; c.lineWidth = 1.5; c.stroke();
+    }
+  }
+  function kwTapText() {
+    if (!KW.pt) return;
+    const K = M.st.ksa, [w, e, s, n] = K.extent || [33, 57.5, 14, 33.5], [fx, fy] = KW.pt;
+    const lon = w + fx * (e - w), lat = n - fy * (n - s), k = +$("kwDay").value || 0;
+    const r = (a) => AR_DIG(Math.round(a));
+    let wind = "";
+    for (const lev of ["7", "5"]) {
+      const uv = kwAt(k, lev, lat, lon); if (!uv) continue;
+      const sp = Math.hypot(uv[0], uv[1]), from = KW_DIRS[Math.round((((Math.atan2(-uv[0], -uv[1]) * 180 / Math.PI) + 360) % 360) / 45) % 8];
+      wind += `<div>الرياح عند ${lev === "7" ? "٧٠٠" : "٥٠٠"}: <b>${sp < 1 ? "هادئة" : `${from} ${r(sp)} م/ث`}</b></div>`;
+    }
+    const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("kwCoord"); box.hidden = false;
+    box.innerHTML = `<span><div>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</div>${wind}</span><button type="button">نسخ</button>`;
+    box.querySelector("button").onclick = async (e2) => {
+      try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+      setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+    };
+  }
+  function kwSetup() {
+    if (kwSetup.done) return; kwSetup.done = true;
+    const LV = [1, 1.5, 2, 3], sc = $("kwScroll"), inner = $("kwInner"), img = $("kwFig");
+    const zoom = (d) => {
+      const nz = Math.max(0, Math.min(LV.length - 1, KW.z + d)); if (nz === KW.z) return;
+      const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+      if (KW.z === 0) sc.style.height = sc.clientHeight + "px";
+      KW.z = nz; inner.style.width = LV[KW.z] * 100 + "%";
+      if (KW.z === 0) sc.style.height = "";
+      const fx = KW.pt ? KW.pt[0] : cx, fy = KW.pt ? KW.pt[1] : cy;
+      sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+      $("kwIn").disabled = KW.z === LV.length - 1; $("kwOut").disabled = KW.z === 0;
+      kwDraw();
+    };
+    $("kwIn").onclick = () => zoom(1); $("kwOut").onclick = () => zoom(-1);
+    img.addEventListener("load", kwDraw);
+    if (window.ResizeObserver) new ResizeObserver(() => kwDraw()).observe(inner);
+    img.addEventListener("click", (ev) => {
+      const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+      KW.pt = [fx, fy];
+      const pin = $("kwPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+      kwTapText();
+    });
+    document.querySelectorAll("#kwLayer button").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("#kwLayer button").forEach((x) => x.classList.toggle("on", x === b));
+      KW.lay = b.dataset.l; kwShow();
+    });
+    $("kwDay").oninput = kwShow;
+  }
+  function kwShow() {
+    const st = M.st, K = st.ksa, k = +$("kwDay").value || 0, kd = "kw" + KW.lay;
+    $("kwFig").src = `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    const d = K.days[k];
+    $("kwDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
+    $("kwLegend").innerHTML = st.figs && st.figs[kd] ? legendHTML(st.figs[kd]) : "";
+    $("kwHint").textContent = (KW.lay === "7"
+      ? "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. هذه الطبقة توجّه السحب الركامية وتنقل الرطوبة إلى المرتفعات."
+      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.")
+      + " الأسهم تشير إلى الجهة التي تهب نحوها الرياح، وطولها يزيد مع سرعتها، والألوان والخطوط سرعة الرياح كل ٥ م/ث. كبّر الخريطة فتظهر أسهم أكثر في المنطقة التي تنظر إليها، والمس أي موضع لترى إحداثياته واتجاه الرياح وسرعتها فيه.";
+    kwDraw(); kwTapText();
+  }
+  async function kwCard() {
+    const st = M.st, K = st.ksa;
+    $("kwCard").hidden = !(K && K.wind && K.days && K.days.length);
+    if ($("kwCard").hidden) return;
+    kwSetup();
+    $("kwDay").max = Math.max(0, K.days.length - 1);
+    if (!kwCard.done) { $("kwDay").value = todayIdx(K.days); kwCard.done = true; }
+    if (!KW.data || KW.v !== st.updated) {
+      try {
+        const r = await fetch(`${CL}${K.wind.file}?v=${encodeURIComponent(st.updated)}`);
+        KW.data = new Int16Array(await r.arrayBuffer()); KW.v = st.updated;
+      } catch (e) { KW.data = null; }
+    }
+    kwShow();
   }
 
   // where the afternoon winds collide around Taif (Fahad, 17 Nov 2026): the Al-Hada / Ash-Shafa edge or east and
