@@ -29,7 +29,7 @@ SAUDI_CITIES = [("مكة", 21.42, 39.83, "e", True), ("جدة", 21.54, 39.17, "w
 
 def draw_cities(ax, transform, fontsize=6.0, wide=False):
     from matplotlib import patheffects as pe
-    halo = [pe.withStroke(linewidth=2.2, foreground="white")]
+    halo = [pe.withStroke(linewidth=1.2, foreground=(1, 1, 1, 0.6))]   # soft (Fahad, 18 Nov 2026)
     gap = 0.45 if wide else 0.3
     for name, la, lo, where, on_wide in SAUDI_CITIES:
         if wide and not on_wide:
@@ -840,9 +840,10 @@ def draw_wave(path, field, lat, lon, kind, vectors, vec_ref, width_px=2400):
                                         mutation_scale=9, shrinkA=0, shrinkB=0,
                                         path_effects=[pe.withStroke(linewidth=2.0, foreground="#2c333b")]), zorder=4.2)
     for name, y, x in BELT_PLACES:
+        # soft names (Fahad, 18 Nov 2026): regular weight, thin halo
         ax.text(x, y, _rtl(name), transform=pc, ha="center", va="center", fontsize=6.5, fontfamily=fam,
-                fontweight="bold", color="#d9dde2", alpha=0.85,
-                path_effects=[pe.withStroke(linewidth=1.8, foreground="#3a3f45")], zorder=5)
+                fontweight="normal", color="#d9dde2", alpha=0.75,
+                path_effects=[pe.withStroke(linewidth=1.0, foreground=(0.23, 0.25, 0.27, 0.6))], zorder=5)
     ax.plot([39.83], [21.42], marker="o", markersize=2.8, color="#ffffff", markeredgecolor="#111111",
             markeredgewidth=0.7, transform=pc, zorder=5)
     for kd, y, x, val in marks:
@@ -897,7 +898,7 @@ WAVE_PLACES = [  # (name, lat, lon, kind) kind: sea or land
 
 def _ar_font():
     from matplotlib import font_manager as fm
-    for f in ("IBMPlexSansArabic-Bold.ttf", "IBMPlexSansArabic-SemiBold.ttf"):
+    for f in ("IBMPlexSansArabic-Bold.ttf", "IBMPlexSansArabic-SemiBold.ttf", "IBMPlexSansArabic-Regular.ttf"):
         p = os.path.join(FONT_DIR, f)
         if os.path.exists(p) and p not in [x.fname for x in fm.fontManager.ttflist]:
             fm.fontManager.addfont(p)
@@ -1045,13 +1046,14 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=2000):
         if not (w + 2 < x < e - 2 and s + 1 < y < n - 1):
             continue
         ax.text(x, y, _rtl(name), transform=pc, ha="center", va="center", fontsize=7 if kd == "sea" else 7.5,
-                fontfamily=fam, fontweight="bold", color="#d9dde2" if kd == "sea" else "#22272d", alpha=0.9,
-                path_effects=[pe.withStroke(linewidth=2, foreground="#3a3f45" if kd == "sea" else "#eef0f2")],
+                fontfamily=fam, fontweight="normal", color="#d9dde2" if kd == "sea" else "#2a3036", alpha=0.75,
+                path_effects=[pe.withStroke(linewidth=1.1, foreground=(0.23, 0.25, 0.27, 0.5) if kd == "sea"
+                                            else (0.93, 0.94, 0.95, 0.5))],
                 zorder=5)
     ax.plot([39.83], [21.42], marker="o", markersize=3.5, color="#ffffff", markeredgecolor="#111111",
             markeredgewidth=0.8, transform=pc, zorder=5)
-    ax.text(40.35, 21.42, "مكة", transform=pc, ha="left", va="center", fontsize=7, fontfamily=fam, fontweight="bold",
-            color="#111111", path_effects=[pe.withStroke(linewidth=2, foreground="#ffffff")], zorder=5)
+    ax.text(40.35, 21.42, "مكة", transform=pc, ha="left", va="center", fontsize=7, fontfamily=fam, fontweight="normal",
+            color="#1b1f24", path_effects=[pe.withStroke(linewidth=1.2, foreground=(1, 1, 1, 0.6))], zorder=5)
     # the centres
     for kind, y, x, val in marks:
         if not (w + 1 < x < e - 1 and s + 1 < y < n - 1):

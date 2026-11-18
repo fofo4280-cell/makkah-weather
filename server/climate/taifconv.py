@@ -22,8 +22,10 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-BOX = (19.0, 24.5, 36.5, 43.5)            # south, north, west, east of the data cut
-MAP = (37.8, 41.8, 20.2, 23.3)            # west, east, south, north of the map (Red Sea and Jeddah in, Fahad 17 Nov 2026)
+BOX = (13.0, 34.5, 32.0, 58.5)            # south, north, west, east of the data cut
+# the whole Kingdom (Fahad, 18 Nov 2026: «خلها على عموم المملكة»; he zooms in on the page to look at the collisions);
+# the same frame as the Kingdom maps of ksa.py. Was (37.8, 41.8, 20.2, 23.3) around Taif.
+MAP = (33.0, 57.5, 14.0, 33.5)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
 HOURS = ("11", "13", "15")                # Makkah hours of the maps (08, 10, 12 UTC)
@@ -188,7 +190,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1000, kind="conv", hour="11"):
+def draw_map(path, f, width_px=1400, kind="conv", hour="11"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -227,30 +229,47 @@ def draw_map(path, f, width_px=1000, kind="conv", hour="11"):
     else:
         ax.imshow(cv, extent=ext, cmap=cmap, vmin=-8, vmax=8, alpha=.85, interpolation="bilinear", zorder=1)
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
-    ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.6, .9], zorder=2)
-    ax.contour(flo, fla, land.astype(float), levels=[.5], colors=["#5d6d7e"], linewidths=.8, zorder=2)
+    ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.35, .55], zorder=2)
     u, v = sub(uh), sub(vh)
     spd = np.hypot(u, v)
-    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8 if kind == "conv" else 0.45), density=1.4,
-                  linewidth=np.clip(0.4 + 0.12 * spd[::-1], 0.4, 1.5), arrowsize=0.8, zorder=3)
+    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.7 if kind == "conv" else 0.4), density=2.4,
+                  linewidth=np.clip(0.25 + 0.06 * spd[::-1], 0.25, 0.9), arrowsize=0.5, zorder=3)
     # the axis of each collision zone (Fahad, 17 Nov 2026: «حط لي خط عليه زي خط الكنتور، منقط أو مقطع»)
     for xs, ys in conv_axes(cv, fla, flo, land):
-        ax.plot(xs, ys, color="#fff6d8", lw=2.0, ls=(0, (5, 3.5)), solid_capstyle="round", zorder=4,
-                path_effects=[pe.withStroke(linewidth=3.6, foreground="#3a1606")])
+        ax.plot(xs, ys, color="#fff6d8", lw=1.3, ls=(0, (4, 3)), solid_capstyle="round", zorder=4,
+                path_effects=[pe.withStroke(linewidth=2.6, foreground="#3a1606")])
     halo = [pe.withStroke(linewidth=3, foreground=BG)]
-    for name, y, x in PLACES:
+    # place names are written by the page at a constant size (Fahad, 18 Nov 2026: soft names, right next to their dots)
+    for name, y, x in []:
         if not (w < x < e and s < y < n):
             continue
         ax.plot(x, y, "o", ms=4.5, color="#ffffff", mec=BG, mew=1, zorder=5)
         left = name in ("الهدا", "الشفا", "مكة", "الجموم", "جدة", "رابغ")
         ax.text(x + (-0.05 if left else 0.05), y + 0.03, name, ha="right" if left else "left", va="bottom", fontsize=10,
                 color=INK, family=fam, fontweight="bold", path_effects=halo, zorder=6)
+    # coast and borders (Natural Earth 1:50m), thin, as the other Kingdom maps
+    try:
+        import cartopy.feature as cfeature
+        for feat, col, lw in ((cfeature.NaturalEarthFeature("physical", "coastline", "50m"), "#5d6d7e", .6),
+                              (cfeature.NaturalEarthFeature("cultural", "admin_0_boundary_lines_land", "50m"), "#4a5562", .5)):
+            for g in feat.intersecting_geometries([w - 1, e + 1, s - 1, n + 1]):
+                for ln in getattr(g, "geoms", [g]):
+                    xy = np.asarray(ln.coords)
+                    ax.plot(xy[:, 0], xy[:, 1], color=col, lw=lw, zorder=2.5)
+    except Exception as ex:  # noqa: BLE001
+        print("borders unavailable:", str(ex)[:80])
     ax.set_xlim(w, e)
     ax.set_ylim(s, n)
     ax.set_aspect(1 / math.cos(math.radians((s + n) / 2)))
     ax.axis("off")
     fig.savefig(path, dpi=200, facecolor=BG)
     plt.close(fig)
+    try:   # keep the files small: 90 maps a night
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def conv_axes(cv, lat, lon, land, thr=AXIS_MIN, min_len=0.6):
