@@ -1747,7 +1747,7 @@
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
       const u = r.u850, wind = u <= T.u_east ? `شرقية ${num(-u, 1)} م/ث تُوقف هواء البحر عند الحافة`
         : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
-      $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "" : "اليوم: "}${TC_WHERE[r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
+      $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "" : "اليوم: "}${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
         <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
         <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
