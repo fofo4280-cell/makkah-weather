@@ -357,7 +357,11 @@ def region_reading(st, rs, regs, day0, W):
         ne = [e for e in eds if e["region"] == nm and P.edge_named(e, e.get("model_rain"))[0]]
         np_ = [r for r in prs if r["region"] == nm and P.named(r, r.get("model_mtn"))[0]]
         o, g = ours.get(nm), gfs.get(nm)
-        wet = (o or 0) >= 0.001 or (g or 0) >= 0.005 or rr or ne or np_
+        pw = pw_of(st, day0, nm)
+        # cold aloft over moist air lifts by itself (18 Nov 2026: south of Hail and around Al-Madinah had moderate
+        # rain under the trough axis, PW 118-131 %, while both models were dry): a possible shower, not "no rain"
+        aloft_moist = nm in wregs and (pw or 0) >= 110
+        wet = (o or 0) >= 0.001 or (g or 0) >= 0.005 or rr or ne or np_ or aloft_moist
         if not wet and nm not in wregs:
             continue
         places = []
@@ -373,6 +377,8 @@ def region_reading(st, rs, regs, day0, W):
                     places += [x.strip() for x in w[key].replace(" و", "، ").split("، ")]
         places += [P.short(e["name"]) for e in ne] + [P.short(r["name"]) for r in np_]
         places = list(dict.fromkeys(x for x in places if x))[:3]
+        if not places and aloft_moist:
+            places = ["زخات متفرقة تحت الموجة الباردة"]
         # the cause
         lift = bool(ne or np_ or rr or (o or 0) >= 0.001)
         trough = None
@@ -390,9 +396,8 @@ def region_reading(st, rs, regs, day0, W):
         else:
             cause = "حمل حراري"
         # the success: how many of five parts agree (shown, so the number is open)
-        pw = pw_of(st, day0, nm)
         parts = {"الرطوبة": 1.0 if (pw or 0) >= 110 else 0.5 if (pw or 0) >= 95 else 0.0,
-                 "الرفع": 1.0 if (ne or np_) else 0.5 if lift else 0.0,
+                 "الرفع": 1.0 if (ne or np_) else 0.5 if (lift or aloft_moist) else 0.0,
                  "الدعم العلوي": 1.0 if trough else 0.0,
                  "نموذجنا": 1.0 if (o or 0) >= 0.005 else 0.5 if (o or 0) >= 0.001 else 0.0,
                  "جي إف إس": 1.0 if (g or 0) >= 0.005 else 0.5 if (g or 0) >= 0.001 else 0.0}
@@ -406,8 +411,10 @@ def region_reading(st, rs, regs, day0, W):
             capped = False
         pct = min(pct, 95)              # nothing is certain
         rain = (o or 0) >= 0.001 or (g or 0) >= 0.005
+        if trough and not lift:
+            cause = f"{trough} (رفع من البرودة العلوية فوق هواء رطب)"
         out.append({"name": nm, "places": places, "cause": cause, "ours": o, "gfs": g, "pw": pw, "parts": parts,
-                    "pct": pct, "level": level4(pct), "rain": rain, "capped": capped, "cold": nm in wregs})
+                    "pct": pct, "level": level4(pct), "rain": rain, "capped": capped, "models_dry": (o or 0) < 0.001 and (g or 0) < 0.001, "cold": nm in wregs})
     return out
 
 
@@ -459,11 +466,11 @@ def summary(st, rs, regs, day0):
                             "rows": [[r["name"], "، ".join(r["places"]) or "متفرقة",
                                       r["cause"], f"{_cov(r['ours'])} (جي إف إس {_cov(r['gfs'])})",
                                       f"{ar(r['pct'])}٪ ({r['level']})"] for r in wet]}})
-        for r in wet[:4]:
+        for r in wet[:6]:
             ok = [k for k, v in r["parts"].items() if v >= 1]
             half = [k for k, v in r["parts"].items() if v == 0.5]
             no = [k for k, v in r["parts"].items() if v == 0]
-            t = f"{r['name']}: {ar(r['pct'])}٪ لأن " + (f"{jl(ok)} {'تتوافق' if len(ok) > 1 else 'يتوافق'}" if ok else "لا مكون مكتمل")
+            t = f"{r['name']}: {ar(r['pct'])}٪ لأن " + (f"{jl(ok)} {'يتوافقان' if len(ok) == 2 else 'تتوافق' if len(ok) > 2 else 'يتوافق'}" if ok else "لا مكون مكتمل")
             if half:
                 t += f"، و{jl(half)} {'جزئيان' if len(half) == 2 else 'جزئية' if len(half) > 2 else 'جزئي'}"
             if no:
@@ -471,7 +478,7 @@ def summary(st, rs, regs, day0):
             if r["pw"]:
                 t += f" (الماء القابل للهطول {ar(r['pw'])}٪ من معدله)"
             if r.get("capped"):
-                t += "، وخُفضت إلى ٤٥٪ لأن النموذجين لا يُظهران مطرًا"
+                t += "، وخُفضت إلى ٤٥٪ لأن النموذجين لا يُظهران مطرًا، وقد يفوتانه"
             B.append({"p": t + "."})
     else:
         B.append({"p": "لا أمطار تُذكر على مناطق المملكة اليوم."})
@@ -480,17 +487,18 @@ def summary(st, rs, regs, day0):
         B += cold_wave_blocks(st, day0, effect=False, W=W)
         under = [r for r in rows if r["cold"]]
         wn = {r["name"] for r in wet}
-        yes = [f"{r['name']} ({r['level']})" for r in under if r["name"] in wn]
+        yes = [f"{r['name']} ({r['level']}" + ("، والنموذجان لا يُظهرانه)" if r.get("models_dry") else ")")
+               for r in under if r["name"] in wn]
         no = [r for r in under if r["name"] not in wn]
         t = []
         if yes:
-            t.append(f"تمطر تحتها: {jl(yes)}")
+            t.append(f"يُحتمل المطر تحتها على {jl(yes)}")
         if no:
             why_no = []
             for r in no:
-                w = "لجفاف الهواء" if (r["pw"] or 0) < 110 else "لغياب الرفع"
+                w = "لجفاف الهواء"
                 why_no.append(f"{r['name']} ({w})")
-            t.append(f"ولا تمطر تحتها: {jl(why_no)}، فأثرها هناك برودة ورياح")
+            t.append(f"ولا يُتوقع مطر تحتها على {jl(why_no)}، فأثرها هناك برودة ورياح")
         if t:
             B.insert(len(B) - 1, {"p": "المناطق تحت الموجة: " + "، ".join(t) + "."})
     B += spread_table(st, day0)
