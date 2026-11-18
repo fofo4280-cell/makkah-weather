@@ -36,7 +36,7 @@
   const fmtDayShort = new Intl.DateTimeFormat(LOC, { timeZone: TZ, weekday: "short" });
   const fmtStamp = new Intl.DateTimeFormat(LOC, { timeZone: TZ, day: "numeric", month: "long", hour: "numeric", minute: "2-digit" });
   const arDigits = (t) => String(t ?? "").replace(/[0-9]/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]).replace(/\b(\d{10})\b/g, "$1");
-  const LIVE = (p) => p === "lightning" || p === "radar";   // live observations (lightning; rain radar with lightning)
+  const LIVE = (p) => p === "lightning" || p === "radar";   // live observations: the rain radar and lightning, separate entries (Fahad 18 Nov 2026)
   const HOURLY = ["refl", "rain1h"];   // 700 hPa humidity and instability layers removed from the menu 17 Nov 2026 (Fahad); the runs still write them
   // products drawn with wind arrows on top: folder of the arrow files and the speed of a full-length arrow
   const VEC = { ivt: { dir: "ivt_vec", ref: 700 } };   // (the 925 hPa convergence map was removed on 14 Nov 2026: the report names the meeting zones)
@@ -55,7 +55,7 @@
   };
 
   const S = { runs: [], run: null, man: null, meteo: null, dom: "k3",  // always the whole Kingdom; the regions list was removed (Fahad, 16 Nov 2026)
-    prod: store.get("prod") === "lightning" ? "radar" : (store.get("prod") || "refl"),   // lightning alone was merged into the radar entry (17 Nov 2026)
+    prod: store.get("prod") || "refl",
               frames: [], idx: 0, playing: null, overlay: null, rects: [], cityLayer: null };
 
   async function getJSON(url) {
@@ -151,7 +151,9 @@
   fetch("sa_regions.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
   // the other countries' borders (Natural Earth 1:50m, the Saudi point of view)
   fetch("borders.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
-  L.control.layers(bases, { "الحدود": regions, "ظلال التضاريس": shade, "الأسماء": names }, { position: "topleft" }).addTo(map);
+  // the basemap / overlay choices live inside the map options panel (Fahad 18 Nov 2026), not on the map's left
+  const layersCtl = L.control.layers(bases, { "الحدود": regions, "ظلال التضاريس": shade, "الأسماء": names }, { position: "topleft", collapsed: false }).addTo(map);
+  $("mmBase").appendChild(layersCtl.getContainer());
   const setMapKind = (name) => {
     document.body.classList.toggle("light-map", !DARK_BASES.has(name));
     document.body.classList.toggle("sat-map", name === "تضاريس (صور فضائية)");
@@ -173,8 +175,62 @@
       if (hit && nameRank(k)) el.classList.add("hid"); else placed.push(r);
     }
   }
+  // Towns, villages and hamlets (OpenStreetMap, Arabic names, about 10 000), drawn on one canvas under the main names and
+  // revealed with zoom: towns from 7, villages from 8.25, hamlets from 9.5, districts from 10.5; a name that would touch
+  // another is left out (Fahad 18 Nov 2026)
+  const PLACE_ZOOM = [7, 8.25, 9.5, 10.5];
+  const PlaceNames = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide place-canvas");
+      m.getPane("labels").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    getAttribution() { return "© OSM"; },
+    redraw() {
+      const m = this._map; if (!m) return;
+      const z = m.getZoom(), size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+      c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + "px"; c.style.height = size.y + "px";
+      L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
+      const cx = c.getContext("2d"); cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, size.x, size.y);
+      if (z < PLACE_ZOOM[0] || (document.body.classList.contains("light-map") && !document.body.classList.contains("sat-map"))) return;
+      if (!this._p) {
+        if (!this._loading) this._loading = fetch("places.json?v=1").then((r) => r.json()).then((j) => { this._p = j.p; this.redraw(); }).catch(() => {});
+        return;
+      }
+      // the main names already on the map keep their place
+      const box = m.getContainer().getBoundingClientRect(), placed = [];
+      m.getContainer().querySelectorAll(".map-name:not(.hid) span").forEach((sp) => {
+        if (!sp.offsetParent) return;
+        const r = sp.getBoundingClientRect();
+        placed.push([r.left - box.left, r.top - box.top, r.right - box.left, r.bottom - box.top]);
+      });
+      const fam = getComputedStyle(document.body).fontFamily;
+      const b = m.getBounds().pad(0.05);
+      cx.textAlign = "right"; cx.textBaseline = "middle"; cx.direction = "rtl"; cx.lineJoin = "round";
+      let shown = 0;
+      for (const [n, la, lo, t] of this._p) {
+        if (z < PLACE_ZOOM[t] || !b.contains([la, lo])) continue;
+        const pt = m.latLngToContainerPoint([la, lo]), fs = t === 0 ? 11 : 10.5;
+        cx.font = `400 ${fs}px ${fam}`;   // soft like the main names (Taif): regular weight, blurred halo, no outline
+        const w = cx.measureText(n).width, r = [pt.x - w - 8, pt.y - fs * 0.7, pt.x + 3, pt.y + fs * 0.7];
+        if (placed.some((q) => r[0] < q[2] + 3 && r[2] > q[0] - 3 && r[1] < q[3] + 1 && r[3] > q[1] - 1)) continue;
+        placed.push(r);
+        cx.shadowColor = "rgba(0,0,0,.85)"; cx.shadowBlur = 3;
+        cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(pt.x, pt.y, t === 0 ? 2 : 1.5, 0, 2 * Math.PI); cx.fill();
+        cx.fillStyle = t === 0 ? "rgba(255,255,255,.92)" : t === 1 ? "rgba(255,255,255,.85)" : "rgba(236,240,245,.75)";
+        cx.fillText(n, pt.x - 5, pt.y);
+        cx.shadowBlur = 0;
+        if (++shown > 600) break;
+      }
+    },
+  });
+  const places = new PlaceNames();
+  names.addLayer(places);   // shown and hidden with the «الأسماء» choice
+  map.on("baselayerchange", () => places.redraw());
   map.on("zoomend", nameZoom); nameZoom();
-  map.on("zoomend overlayadd", () => requestAnimationFrame(declutter));
+  map.on("zoomend overlayadd", () => requestAnimationFrame(() => { declutter(); places.redraw(); }));
   if (document.fonts) document.fonts.ready.then(() => requestAnimationFrame(declutter)); else setTimeout(declutter, 1000);
   map.on("overlayadd overlayremove", (e) => {
     const on = e.type === "overlayadd" ? "1" : "0";
@@ -191,8 +247,40 @@
       return d;
     },
   });
-  new MiniLg({ position: "topleft" }).addTo(map);
+  const miniCtl = new MiniLg({ position: "topleft" }).addTo(map);
+  // the folded colour key sits at the bottom, just above the time bar (Fahad 18 Nov 2026)
+  $("legend").parentNode.insertBefore(miniCtl.getContainer(), $("legend"));
   L.control.zoom({ position: "topleft" }).addTo(map);
+  // "my location": a small button under the zoom buttons; a blue dot (with its accuracy ring) that follows the phone (Fahad 18 Nov 2026)
+  map.createPane("me"); map.getPane("me").style.zIndex = 660; map.getPane("me").style.pointerEvents = "none";
+  const ME = { dot: null, ring: null, watch: null, first: true };
+  function meShow(pos) {
+    const ll = [pos.coords.latitude, pos.coords.longitude], acc = Math.min(pos.coords.accuracy || 0, 5000);
+    if (!ME.dot) {
+      ME.ring = L.circle(ll, { radius: acc, pane: "me", color: "#4a86f5", weight: 1, opacity: 0.5, fillColor: "#4a86f5", fillOpacity: 0.12, interactive: false }).addTo(map);
+      ME.dot = L.circleMarker(ll, { radius: 7, pane: "me", color: "#fff", weight: 2.5, fillColor: "#2f6ff0", fillOpacity: 1, interactive: false }).addTo(map);
+    } else { ME.dot.setLatLng(ll); ME.ring.setLatLng(ll).setRadius(acc); }
+    if (ME.first) { ME.first = false; map.flyTo(ll, Math.max(map.getZoom(), 9), { duration: 0.8 }); }
+  }
+  const Locate = L.Control.extend({
+    onAdd() {
+      const d = L.DomUtil.create("div", "leaflet-bar leaflet-control me-ctl");
+      d.innerHTML = `<a href="#" role="button" id="meBtn" aria-label="موقعي" title="موقعي"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></a>`;
+      L.DomEvent.disableClickPropagation(d);
+      d.firstChild.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (!navigator.geolocation) return;
+        const btn = $("meBtn");
+        if (ME.dot) { map.flyTo(ME.dot.getLatLng(), Math.max(map.getZoom(), 9), { duration: 0.8 }); return; }
+        btn.classList.add("busy");
+        ME.watch = navigator.geolocation.watchPosition((pos) => { btn.classList.remove("busy"); btn.classList.add("on"); meShow(pos); },
+          () => { btn.classList.remove("busy"); if (ME.watch != null) { navigator.geolocation.clearWatch(ME.watch); ME.watch = null; } ME.first = true; },
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 });
+      });
+      return d;
+    },
+  });
+  new Locate({ position: "topleft" }).addTo(map);
   map.attributionControl.setPrefix(false);
   map.on("zoomend", () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7));
 
@@ -717,7 +805,7 @@
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${lab(k) || P[k].label}</option>` : "");
     // one flat list, live lightning first
-    sel.innerHTML = `<option value="radar">الرادار</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
+    sel.innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
     if ((!P[S.prod] || !listed) && !LIVE(S.prod)) S.prod = "refl";
     sel.value = S.prod;
@@ -803,7 +891,7 @@
       L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
       const ctx = c.getContext("2d");
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
-      const f = LX.on && S.frames[S.idx];
+      const f = LX.on && S.prod !== "radar" && S.frames[S.idx];   // the radar entry shows the radar alone
       LX.shown = 0;
       if (!f) return;
       const end = f.t, start = end - LI_WIN, cell = 16, grid = new Map();
@@ -881,7 +969,7 @@
   function liFrames() {
     if (!LX.on) return;
     const atEnd = S.idx >= S.frames.length - 1;
-    if (S.prod === "radar") S.frames = RV.frames.map((f) => ({ t: f.t }));   // the radar's last two hours, every 10 minutes
+    if (S.prod === "radar") S.frames = RV.frames.map((f) => ({ t: f.t }));   // the radar's last 12 hours (our archive) then the live 2 hours, every 10 minutes
     else {
       const times = [...LX.got.keys()].sort((a, b) => a - b);
       const newest = times.length ? times[times.length - 1] : 0;
@@ -933,6 +1021,7 @@
     S.frames = []; S.idx = 0;
     liFrames();
     liLoad();
+    if (Date.now() - RV.got > 2 * 60e3) rvLoad();   // the radar list is fresh every time this mode opens
     clearInterval(LX.timer); LX.timer = setInterval(liLoad, 2.5 * 60e3);
   }
   function liExit() {
@@ -949,15 +1038,16 @@
     const f = S.frames[S.idx];
     $("timeRange").max = Math.max(0, S.frames.length - 1);
     $("timeRange").value = S.idx;
-    $("timeLabel").textContent = f ? (S.prod === "radar" ? `الرادار والبرق ${fmtClock.format(f.t)}` : `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`)
+    $("timeLabel").textContent = f ? (S.prod === "radar" ? `الرادار ${fmtClock.format(f.t)}` : `البرق في الساعة المنتهية ${fmtClock.format(f.t)}`)
       : S.prod === "radar" ? "جارٍ جلب صور الرادار…"
       : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
     if (LX.layer) LX.layer.redraw();
     rvSync();
-    const n = $("liCount"); if (n) n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
+    const n = $("liCount"); if (n && S.prod !== "radar") n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
   }
 
   function liLegend() {
+    if (S.prod === "radar") return rvLegend();
     const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
     const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
     setMini(`linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})`);
@@ -971,6 +1061,7 @@
   // with the source named. In lightning mode the radar follows the lightning time; over the model
   // maps it shows the latest picture. A pill turns it on and off (remembered in this browser).
   const RV_API = "https://api.rainviewer.com/public/weather-maps.json";
+  const RV_ARCH = (window.SWRF_DATA || "").replace("/model-data/", "/radar-archive/");
   var RV = { on: false, host: "", frames: [], layers: new Map(), cur: null, timer: null, got: 0 };
   map.createPane("radar"); map.getPane("radar").style.zIndex = 620; map.getPane("radar").style.pointerEvents = "none";
   async function rvLoad() {
@@ -979,23 +1070,204 @@
       if (!r.ok) throw new Error(r.status);
       const j = await r.json();
       RV.host = j.host || "https://tilecache.rainviewer.com";
-      RV.frames = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path }));
+      RV.live = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path, key: f.path }));
       RV.got = Date.now();
-      for (const [k, l] of RV.layers) if (!RV.frames.some((f) => f.path === k)) { map.removeLayer(l); RV.layers.delete(k); }
     } catch (e) { /* offline or service down: keep what we have */ }
+    // our own archive keeps 12 hours (the free service only 2): older pictures come from it (Fahad 18 Nov 2026)
+    try {
+      const r = await fetch(`${RV_ARCH}index.json?t=${Math.floor(Date.now() / 300e3)}`);
+      if (r.ok) RV.arch = await r.json();
+    } catch (e) { /* no archive yet */ }
+    // join both lists by time (the newest picture always last, whichever source has it); the free
+    // service's pictures disappear after about 2 hours, so older times are drawn from our archive
+    const now = Date.now(), by = new Map();
+    for (const f of (RV.arch && RV.arch.frames) || []) by.set(f.t * 1000, { t: f.t * 1000, arch: true, key: "a" + f.t });
+    for (const f of RV.live || []) if (now - f.t < 100 * 60e3 || !by.has(f.t)) by.set(f.t, f);
+    RV.frames = [...by.values()].filter((f) => now - f.t < 12.2 * 3600e3).sort((a, b) => a.t - b.t);
     if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
-  function rvLayer(f) {
-    let l = RV.layers.get(f.path);
-    if (!l) {
-      l = L.tileLayer(`${RV.host}${f.path}/256/{z}/{x}/{y}/2/1_0.png`, {
-        pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 19, tileSize: 256,
-        attribution: '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>',
-      });
-      RV.layers.set(f.path, l);
+  // The free service sends one colour scheme ("Universal Blue"); each pixel is turned back into its
+  // reflectivity (dBZ) and repainted in the classic radar colours used by the Saudi met service.
+  const RV_UB = [[15, 0x88ddee], [16, 0x6cd1eb], [17, 0x51c5e8], [18, 0x36bae5], [19, 0x1baee2], [20, 0x00a3e0], [21, 0x009ad5], [22, 0x0091ca],
+    [23, 0x0088bf], [24, 0x007fb4], [25, 0x0077aa], [26, 0x0070a3], [27, 0x00699c], [28, 0x006295], [29, 0x005b8e], [30, 0x005588],
+    [31, 0x005180], [32, 0x004e78], [33, 0x004a70], [34, 0x004768], [35, 0xffee00], [36, 0xffe000], [37, 0xffd200], [38, 0xffc500],
+    [39, 0xffb700], [40, 0xffaa00], [41, 0xff9f00], [42, 0xff9500], [43, 0xff8b00], [44, 0xff8100], [45, 0xff4400], [46, 0xf23600],
+    [47, 0xe62800], [48, 0xd91b00], [49, 0xcd0d00], [50, 0xc10000], [51, 0xa80000], [52, 0x8f0000], [53, 0x760000], [54, 0x5d0000],
+    [55, 0xffaaff], [56, 0xff9fff], [57, 0xff95ff], [58, 0xff8bff], [59, 0xff81ff], [60, 0xff77ff], [61, 0xff6cff], [62, 0xff62ff],
+    [63, 0xff58ff], [64, 0xff4eff], [65, 0xffffff]];
+  // the colours Fahad chose (18 Nov 2026, like the Yanbu radar page): light rain green, then blue, purple, pink,
+  // yellow, orange and red for the heaviest cores; blended smoothly between these dBZ points
+  // colours after the Yanbu radar page (Fahad 18 Nov 2026): weak echoes green, then blue, violet, magenta, pink,
+  // yellow cores, orange and red for the strongest; blended smoothly between these dBZ points
+  const RV_PAL = [[5, "#4cae4c"], [9, "#45a845"], [11, "#3a8be0"], [15, "#5367c9"], [17.5, "#8043c9"], [20, "#9c3ab5"], [22.5, "#c23fa4"],
+    [25, "#c95197"], [27.5, "#cb6f98"], [30, "#ca878e"], [32.5, "#d49471"], [35, "#d9a35e"], [37.5, "#eaba57"], [40, "#f6ce56"],
+    [42.5, "#fae144"], [45, "#f9ef3e"], [47.5, "#fbd650"], [50, "#f8b469"], [52, "#fa995d"], [54, "#e87d42"], [56, "#e96b38"],
+    [58, "#e16145"], [60, "#de695f"], [62, "#c79796"], [66, "#c0c7cd"]];   // read off the Yanbu radar legend (Fahad's screenshots, 18 Nov 2026)
+  const RV_RGB = RV_PAL.map(([d, c]) => [d, parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+  function rvColor(d) {
+    if (d <= RV_RGB[0][0]) return RV_RGB[0];
+    for (let k = 1; k < RV_RGB.length; k++) {
+      const b = RV_RGB[k];
+      if (d <= b[0]) { const a = RV_RGB[k - 1], t = (d - a[0]) / (b[0] - a[0]); return [d, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]; }
     }
-    if (!map.hasLayer(l)) l.addTo(map);
-    return l;
+    return RV_RGB[RV_RGB.length - 1];
+  }
+  const rvMemo = new Map();
+  function rvDbz(r, g, b, a) {
+    // the weak echoes (below 15 dBZ) are a see-through beige whose opacity grows with dBZ
+    if (r > 0x60 && Math.abs(r - g) < 0x18 && b < g && b > 0x50) return a < 0x64 ? -10 + (a - 0x14) / 5.3 : 5 + (a - 0x64) / 10;
+    const k = (r << 16) | (g << 8) | b;
+    let d = rvMemo.get(k);
+    if (d === undefined) {
+      let best = 1e9;
+      for (const [z, c] of RV_UB) {
+        const dr = r - (c >> 16), dg = g - ((c >> 8) & 255), db = b - (c & 255), e = dr * dr + dg * dg + db * db;
+        if (e < best) { best = e; d = z; }
+      }
+      if (rvMemo.size < 50000) rvMemo.set(k, d);
+    }
+    return d;
+  }
+  // Each picture is read once at its own resolution (zoom 7 at most) as dBZ plus a weight (the see-through
+  // edges), then every map tile is drawn at the map's zoom by bilinear blending of dBZ, so the echoes stay
+  // smooth when zoomed in instead of showing the 1 km squares.
+  const RV_SRC = new Map();
+  const RV_AC = new Map();   // decoded archive pictures, the last few only (each is a few MB)
+  function rvArch(t) {
+    const key = "a" + t;
+    if (RV_AC.has(key)) { const p = RV_AC.get(key); RV_AC.delete(key); RV_AC.set(key, p); return p; }
+    const pr = new Promise((res) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas"); cv.width = img.width; cv.height = img.height;
+          const cx = cv.getContext("2d", { willReadFrequently: true });
+          cx.drawImage(img, 0, 0);
+          const p = cx.getImageData(0, 0, img.width, img.height).data, v = new Uint8Array(img.width * img.height);
+          for (let k = 0; k < v.length; k++) v[k] = p[4 * k];
+          res({ v, w: img.width, h: img.height });
+        } catch (e) { res(null); }
+      };
+      img.onerror = () => res(null);
+      img.src = `${RV_ARCH}f/${t}.png`;
+    });
+    RV_AC.set(key, pr);
+    while (RV_AC.size > 6) RV_AC.delete(RV_AC.keys().next().value);
+    return pr;
+  }
+  function rvSource(path, z, x, y) {
+    const key = `${path}/${z}/${x}/${y}`;
+    if (RV_SRC.has(key)) return RV_SRC.get(key);
+    const pr = new Promise((res) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas"); cv.width = cv.height = 256;
+          const cx = cv.getContext("2d", { willReadFrequently: true });
+          cx.drawImage(img, 0, 0, 256, 256);
+          const p = cx.getImageData(0, 0, 256, 256).data, D = new Float32Array(65536), W = new Float32Array(65536);
+          for (let k = 0; k < 65536; k++) {
+            const a = p[4 * k + 3];
+            if (a < 6) continue;
+            const d = rvDbz(p[4 * k], p[4 * k + 1], p[4 * k + 2], a);
+            if (d < 0) continue;
+            const opaque = !(p[4 * k] > 0x60 && Math.abs(p[4 * k] - p[4 * k + 1]) < 0x18 && p[4 * k + 2] < p[4 * k + 1] && p[4 * k + 2] > 0x50);
+            const w = opaque ? a / 255 : 1;
+            D[k] = d * w; W[k] = w;
+          }
+          res({ D, W });
+        } catch (e) { RV.cors = false; res(null); }
+      };
+      img.onerror = () => res(null);
+      img.src = `${RV.host}${path}/256/${z}/${x}/${y}/2/1_0.png`;
+    });
+    RV_SRC.set(key, pr);
+    if (RV_SRC.size > 400) RV_SRC.delete(RV_SRC.keys().next().value);
+    return pr;
+  }
+  // One canvas over the whole map view (no tiles, so no seams): every screen pixel takes its dBZ by bilinear
+  // blending of the four nearest radar pixels, then its colour.
+  const RadarCanvas = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
+      m.getPane("radar").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    setFrame(f) { this.f = f; this.path = f.key; this.redraw(); },
+    getAttribution() { return '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>'; },
+    async redraw() {
+      const m = this._map; if (!m || !this.f) return;
+      const tok = this._tok = (this._tok || 0) + 1, fr = this.f, path = fr.path, A = fr.arch && RV.arch;
+      const size = m.getSize(), zoom = m.getZoom(), z = A ? 7 : Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
+      const tl = m.containerPointToLayerPoint([0, 0]), org = tl.add(m.getPixelOrigin());
+      const gx0 = org.x * sc, gy0 = org.y * sc;
+      const tx0 = Math.floor((gx0 - 1) / 256), tx1 = Math.floor((gx0 + size.x * sc + 1) / 256);
+      const ty0 = Math.max(0, Math.floor((gy0 - 1) / 256)), ty1 = Math.min(n - 1, Math.floor((gy0 + size.y * sc + 1) / 256));
+      const T = new Map(), jobs = [];
+      let AV = null;
+      if (A) jobs.push(rvArch(fr.t / 1000).then((x) => { AV = x; }));
+      else for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+        const wx = ((tx % n) + n) % n;
+        jobs.push(rvSource(path, z, wx, ty).then((src) => { if (src) T.set(tx * 4096 + ty, src); }));
+      }
+      await Promise.all(jobs);
+      if (tok !== this._tok || !this._map) return;
+      const W = size.x, H = size.y, c = this._c;
+      c.width = W; c.height = H; c.style.width = W + "px"; c.style.height = H + "px";
+      L.DomUtil.setPosition(c, tl);
+      const cx = c.getContext("2d"), im = cx.createImageData(W, H), q = im.data;
+      let lastK = -1e9, src = null;
+      const ax0 = A ? A.x0 : 0, ay0 = A ? A.y0 : 0, aw = A ? A.w : 0, ah = A ? A.h : 0;
+      const at = A ? (X, Y, out) => {   // archive picture: one grey image, v = (dBZ + 10) * 3
+        const x = X - ax0, y = Y - ay0;
+        const v = AV && x >= 0 && y >= 0 && x < aw && y < ah ? AV.v[y * aw + x] : 0;
+        if (!v) { out[0] = 0; out[1] = 0; return; }
+        out[0] = v / 3 - 10; out[1] = 1;
+      } : (X, Y, out) => {   // dBZ*weight and weight of one radar pixel (global pixel numbers at zoom z)
+        const tx = Math.floor(X / 256), ty = Math.floor(Y / 256), k = tx * 4096 + ty;
+        if (k !== lastK) { lastK = k; src = T.get(k) || null; }
+        if (!src) { out[0] = 0; out[1] = 0; return; }
+        const o = (Y - ty * 256) * 256 + (X - tx * 256);
+        out[0] = src.D[o]; out[1] = src.W[o];
+      };
+      const a = [0, 0], b = [0, 0], e = [0, 0], f = [0, 0];
+      for (let j = 0; j < H; j++) {
+        const gy = gy0 + (j + 0.5) * sc - 0.5, Y0 = Math.floor(gy), ty = gy - Y0;
+        if (Y0 < 0 || Y0 + 1 >= n * 256) continue;
+        for (let i = 0; i < W; i++) {
+          const gx = gx0 + (i + 0.5) * sc - 0.5, X0 = Math.floor(gx), tx = gx - X0;
+          at(X0, Y0, a); at(X0 + 1, Y0, b); at(X0, Y0 + 1, e); at(X0 + 1, Y0 + 1, f);
+          const k0 = (1 - tx) * (1 - ty), k1 = tx * (1 - ty), k2 = (1 - tx) * ty, k3 = tx * ty;
+          const w = a[1] * k0 + b[1] * k1 + e[1] * k2 + f[1] * k3;
+          if (w < 0.04) continue;
+          const d = (a[0] * k0 + b[0] * k1 + e[0] * k2 + f[0] * k3) / w;
+          if (d < 5) continue;
+          const col = rvColor(d), o = 4 * (j * W + i);
+          // weak (green) echoes see-through so the ground shows, rain from blue upward nearly solid
+          const al = d < 10 ? 105 + (d - 5) * 9 : d < 12 ? 150 + (d - 10) * 25 : 205;
+          q[o] = col[1]; q[o + 1] = col[2]; q[o + 2] = col[3]; q[o + 3] = al * Math.min(1, w * 1.6);
+        }
+      }
+      cx.putImageData(im, 0, 0);
+    },
+  });
+  function rvLegend() {
+    const lo = RV_PAL[0][0], hi = RV_PAL[RV_PAL.length - 1][0], at = (d) => ((d - lo) / (hi - lo) * 100).toFixed(1);
+    const grad = `linear-gradient(to right, ${RV_PAL.map(([d, c]) => `${c} ${at(d)}%`).join(", ")})`;
+    setMini(grad);
+    $("legend").innerHTML = `<div class="legend-title"><span>رادارات المركز الوطني للأرصاد، صورة كل ١٠ دقائق</span><span>ديسيبل</span></div>
+      <div class="legend-bar" style="background:${grad}"></div>
+      <div class="legend-ticks">${[10, 20, 30, 40, 50, 60].map((d) => `<span style="left:${at(d)}%">${num(d)}</span>`).join("")}</div>
+      <div class="legend-title" style="margin-top:2px;direction:ltr"><span>رذاذ</span><span>خفيف</span><span>متوسط</span><span>غزير</span><span>برد</span></div>`;
+  }
+  function rvLayer() {
+    if (!RV.canvas) RV.canvas = new RadarCanvas({ pane: "radar" });
+    if (!map.hasLayer(RV.canvas)) RV.canvas.addTo(map);
+    return RV.canvas;
   }
   function rvPick() {
     if (!RV.frames.length) return null;
@@ -1011,8 +1283,8 @@
     const btn = $("rvBtn"), forced = S.prod === "radar";
     if (btn) btn.hidden = forced;   // in the radar entry the radar is always on
     if (!RV.on && !forced) {
-      for (const l of RV.layers.values()) map.removeLayer(l);
-      RV.layers.clear(); RV.cur = null;
+      if (RV.canvas) map.removeLayer(RV.canvas);
+      RV.cur = null;
       if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-pressed", "false"); btn.textContent = "الرادار"; }
       return;
     }
@@ -1020,21 +1292,28 @@
     const f = rvPick();
     if (!f) { if (btn) btn.textContent = "الرادار…"; return; }
     if (btn) btn.textContent = `الرادار ${fmtClock.format(f.t)}`;
-    if (RV.cur === f.path) return;
-    const l = rvLayer(f), old = RV.cur && RV.layers.get(RV.cur);
-    RV.cur = f.path;
-    const show = () => { l.setOpacity(0.85); if (old && old !== l) old.setOpacity(0); };
-    if (!l.isLoading()) show(); else { l.once("load", show); setTimeout(show, 1500); }
-    // keep the neighbours ready so sliding through time does not flash
-    const i = RV.frames.indexOf(f);
-    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k] && LX.on) rvLayer(RV.frames[k]);
+    const l = rvLayer();
+    if (RV.cur === f.key && l.path === f.key) return;
+    RV.cur = f.key;
+    l.setFrame(f);   // the previous picture stays until the new one is drawn
+    // fetch the neighbours so sliding through time does not wait
+    const i = RV.frames.indexOf(f), zoom = map.getZoom(), z = Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
+    const pb = map.getPixelBounds(), x0 = Math.floor(pb.min.x * sc / 256), x1 = Math.floor(pb.max.x * sc / 256);
+    const y0 = Math.max(0, Math.floor(pb.min.y * sc / 256)), y1 = Math.min(n - 1, Math.floor(pb.max.y * sc / 256));
+    for (const k of [i - 1, i + 1]) if (RV.frames[k] && RV.frames[k].arch) rvArch(RV.frames[k].t / 1000);
+    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k] && !RV.frames[k].arch) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) rvSource(RV.frames[k].path, z, ((x % n) + n) % n, y);
   }
   function rvToggle() {
     RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
     if (RV.on && (!RV.frames.length || Date.now() - RV.got > 5 * 60e3)) rvLoad(); else rvSync();
   }
   rvLoad();
-  RV.timer = setInterval(() => { if (RV.on && !document.hidden) rvLoad(); }, 5 * 60e3);
+  // refresh every 2.5 minutes while the radar is on screen (also in the radar entry itself), and at once
+  // when the phone comes back to the page, so a page left open never stays on an old picture
+  const rvWanted = () => RV.on || S.prod === "radar" || LX.on;
+  RV.timer = setInterval(() => { if (rvWanted() && !document.hidden) rvLoad(); }, 2.5 * 60e3);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && rvWanted() && Date.now() - RV.got > 60e3) rvLoad(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted && rvWanted()) rvLoad(); });
 
   // ------------------------------------------------------------------ time controls
   function stop() { if (S.playing) { clearInterval(S.playing); S.playing = null; $("btnPlay").textContent = "▶"; } }
@@ -1302,6 +1581,15 @@
     }
   }
   $("runSelect").onchange = (e) => { stop(); loadRun(e.target.value, true); };
+  // the map options panel: one button, three choices; closes after a choice or a tap elsewhere
+  function mapMenu(open) {
+    $("mapMenu").hidden = !open; $("mapMenuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  $("mapMenuBtn").addEventListener("click", (e) => { e.stopPropagation(); mapMenu($("mapMenu").hidden); });
+  $("mapMenu").addEventListener("click", (e) => e.stopPropagation());
+  for (const id of ["runSelect", "prodSelect", "modelSelect"]) $(id).addEventListener("change", () => setTimeout(() => mapMenu(false), 150));
+  document.addEventListener("click", () => { if (!$("mapMenu").hidden) mapMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") mapMenu(false); });
 
   // GFS / ECMWF: the same model and grids, driven by either; switching reloads the newest run of the chosen one
   function drawModelTabs() {
@@ -1425,7 +1713,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1588,8 +1876,36 @@
     krh7: "الرطوبة النسبية عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. الأخضر رطوبة تكفي لنمو السحب الركامية (٦٠٪ فأكثر)، والبني هواء جاف يُضعف السحب أثناء نموها. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
     krh5: "الرطوبة النسبية عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). رطوبة هذه الطبقة تسمح للسحاب بالنمو إلى ارتفاع كبير، وتُظهر السحب المتوسطة والعالية التي تصحب الأخاديد والمنخفضات. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
     kconv: "الألوان مواضع تصادم الرياح السطحية (تقارب الرياح عند ١٠ أمتار بعد تنعيم نحو ٤٠ كم)، وفيها يُدفع الهواء إلى الصعود. الخطوط البيضاء اتجاه الرياح، والخطوط الداكنة الضغط عند سطح البحر كل هكتوباسكالين. «منخفض» تحيط به خطوط ضغط مغلقة، و«منخفض ضعيف» أقل من ذلك. لا يُعلَّم منخفض فوق أرض أعلى من ١٠٠٠ متر، لأن الضغط هناك محسوب لا مقاس. الخط الأزرق المتقطع أخدود البحر الأحمر: لسان الضغط المنخفض الممتد من السودان وجنوب البحر شمالًا، يحمل الرطوبة الجنوبية نحو جدة ومكة، والمثلث آخر امتداده. يُحكم عليه بمتوسط ضغط الثالثة عصرًا والثالثة فجرًا، لأن حرارة العصر تخفض الضغط فوق اليابسة فتخفيه.",
-    kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، وعليها القيمة كل درجتين.",
+    kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، والأعرض كل درجتين.",
   };
+  // names over the Kingdom maps, written by the page at a constant small size (Fahad, 18 Nov 2026: the names drawn in the
+  // pictures grew big and heavy when zoomed, and some sat away from their dots). [name, lat, lon, side, tier]; tier 2
+  // shows from zoom 1.5, tier 3 from zoom 2. Seas and countries are faint and dotless.
+  const KMAP_NAMES = [
+    ["الرياض", 24.71, 46.68, "n", 1], ["جدة", 21.54, 39.17, "w", 1], ["مكة", 21.42, 39.83, "n", 1], ["المدينة", 24.47, 39.61, "n", 1],
+    ["الدمام", 26.43, 50.10, "w", 1], ["أبها", 18.22, 42.50, "e", 1], ["جازان", 16.89, 42.55, "w", 1], ["تبوك", 28.38, 36.57, "n", 1],
+    ["حائل", 27.52, 41.69, "n", 1], ["سكاكا", 29.97, 40.21, "n", 1],
+    ["الطائف", 21.27, 40.42, "e", 2], ["بريدة", 26.33, 43.97, "n", 2], ["نجران", 17.49, 44.13, "e", 2], ["الباحة", 20.01, 41.47, "e", 2],
+    ["ينبع", 24.09, 38.06, "w", 2], ["الأحساء", 25.38, 49.59, "s", 2], ["وادي الدواسر", 20.47, 44.78, "e", 2], ["عرعر", 30.98, 41.04, "n", 2],
+    ["القنفذة", 19.13, 41.08, "w", 3], ["الليث", 20.15, 40.27, "w", 3], ["رابغ", 22.80, 39.03, "w", 3], ["العلا", 26.60, 37.92, "e", 3],
+    ["الوجه", 26.23, 36.47, "w", 3], ["أملج", 25.05, 37.27, "w", 3], ["بيشة", 19.98, 42.60, "e", 3], ["شرورة", 17.47, 47.11, "n", 3],
+    ["الخرج", 24.15, 47.30, "s", 3], ["الدوادمي", 24.50, 44.39, "n", 3], ["حفر الباطن", 28.43, 45.97, "n", 3], ["الجبيل", 27.00, 49.66, "w", 3],
+    ["القريات", 31.33, 37.34, "n", 3], ["خميس مشيط", 18.30, 42.73, "s", 3],
+    ["البحر الأحمر", 19.6, 38.5, "c", 0], ["الخليج العربي", 27.3, 51.4, "c", 0], ["اليمن", 15.6, 46.5, "c", 0], ["السودان", 16.5, 34.6, "c", 0],
+    ["العراق", 32.4, 44.2, "c", 0], ["الأردن", 31.0, 36.4, "c", 0], ["الإمارات", 23.5, 54.3, "c", 0], ["إيران", 31.5, 53.0, "c", 0],
+  ];
+  function kmapNames(inner, ext) {
+    if (inner.querySelector(".kmap-names")) return;
+    const [w, e, s, n] = ext, box = document.createElement("div"); box.className = "kmap-names";
+    for (const [name, lat, lon, side, tier] of KMAP_NAMES) {
+      if (lon < w || lon > e || lat < s || lat > n) continue;
+      const el = document.createElement("span");
+      el.className = `kn kn-${side} t${tier}`; el.style.left = ((lon - w) / (e - w) * 100).toFixed(3) + "%"; el.style.top = ((n - lat) / (n - s) * 100).toFixed(3) + "%";
+      el.innerHTML = (side === "c" ? "" : "<i></i>") + `<b>${name}</b>`;
+      box.appendChild(el);
+    }
+    inner.appendChild(box); inner.dataset.z = 0;
+  }
   // zoom buttons, and the coordinates of a tapped point (Fahad, 17 Nov 2026). The map is a plain latitude-longitude
   // picture of the extent [west, east, south, north], edge to edge, so a point's place in the picture gives its position.
   const AR_DIG = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
@@ -1604,7 +1920,7 @@
       const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
       // the box keeps the map's height at zoom 1, so a zoomed map scrolls both ways inside it
       if (z === 0) sc.style.height = sc.clientHeight + "px";
-      z = nz; inner.style.width = LV[z] * 100 + "%";
+      z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
       if (z === 0) sc.style.height = "";
       // keep the tapped point (or the middle) in view
       const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
@@ -1616,17 +1932,36 @@
       const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
       if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
       pt = [fx, fy];
-      const [w, e, s, n] = ksaZoomSetup.ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
       const pin = $("ksaPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
-      const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-      const box = $("ksaCoord"); box.hidden = false;
-      box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
-      box.querySelector("button").onclick = async (e2) => {
-        try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
-        setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
-      };
+      ksaZoomSetup.pt = pt; ksaTapText();
     });
   }
+  // a value of the 0.5 deg grids (ksa_vals.bin, ksa_wind.bin) at a point, bilinear
+  function kGridAt(G, D, k, c, lat, lon) {
+    if (!G || !D) return null;
+    const fy = (G.lat0 - lat) / G.d, fx = (lon - G.lon0) / G.d, nc = G.order.length;
+    if (fy < 0 || fx < 0 || fy > G.ny - 1 || fx > G.nx - 1) return null;
+    const j = Math.min(G.ny - 2, Math.floor(fy)), i = Math.min(G.nx - 2, Math.floor(fx)), ty = fy - j, tx = fx - i;
+    const at = (jj, ii) => D[((k * nc + c) * G.ny + jj) * G.nx + ii] * G.scale;
+    return (at(j, i) * (1 - tx) + at(j, i + 1) * tx) * (1 - ty) + (at(j + 1, i) * (1 - tx) + at(j + 1, i + 1) * tx) * ty;
+  }
+  function ksaTapText() {
+    const pt = ksaZoomSetup.pt; if (!pt) return;
+    const [w, e, s, n] = ksaZoomSetup.ext, lon = w + pt[0] * (e - w), lat = n - pt[1] * (n - s);
+    const K = M.st.ksa, k = +$("ksaDay").value || 0, G = K && K.vals;
+    const v = (key) => G ? kGridAt(G, KSAV.data, k, G.order.indexOf(key), lat, lon) : null;
+    const rh7 = v("rh7"), rh5 = v("rh5"), t5 = v("t5");
+    const pc = (x) => AR_DIG(Math.round(Math.max(0, Math.min(100, x)))) + "٪";
+    const vals = rh7 == null ? "" : `<div>الرطوبة: <b>${pc(rh7)}</b> عند ٧٠٠، و<b>${pc(rh5)}</b> عند ٥٠٠</div>
+      <div>الحرارة عند ٥٠٠: <b>${t5 < 0 ? "−" : ""}${AR_DIG(Math.abs(Math.round(t5)))}° م</b></div>`;
+    const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("ksaCoord"); box.hidden = false;
+    box.innerHTML = `<span><div>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</div>${vals}</span><button type="button">نسخ</button>`;
+    box.querySelector("button").onclick = async (e2) => {
+      try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+      setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+    };
+  }
+  const KSAV = { data: null, v: null };
   function ksaCard() {
     const st = M.st, K = st.ksa;
     $("ksaCard").hidden = !(K && K.days && K.days.length);
@@ -1639,7 +1974,8 @@
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
-      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته.";
+      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
+      ksaTapText();
       const box = $("ksaLow");
       // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
       // surface lows stay under every layer
@@ -1658,19 +1994,137 @@
       lay = M.ksaLayer = b.dataset.l; show();
     });
     ksaZoomSetup(K.extent || [33, 57.5, 14, 33.5]);
+    kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (K.vals && KSAV.v !== st.updated) {
+      KSAV.v = st.updated;
+      fetch(`${CL}${K.vals.file}?v=${encodeURIComponent(st.updated)}`).then((r) => r.arrayBuffer())
+        .then((b) => { KSAV.data = new Int16Array(b); ksaTapText(); }).catch(() => { KSAV.data = null; });
+    }
     $("ksaDay").max = Math.max(0, K.days.length - 1);
     if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
     $("ksaDay").oninput = show;
     show();
   }
 
+  // the winds at 700 and 500 hPa over the Kingdom (Fahad, 18 Nov 2026): the speed map comes from the nightly run, the
+  // arrows are drawn here from ksa_wind.bin (0.5 deg, u and v), one every ~34 screen pixels, so zooming in shows more
+  const KW = { lay: "7", z: 0, pt: null, data: null };
+  const KW_DIRS = ["شمالية", "شمالية شرقية", "شرقية", "جنوبية شرقية", "جنوبية", "جنوبية غربية", "غربية", "شمالية غربية"];
+  function kwAt(k, lev, lat, lon) {
+    const W = M.st.ksa.wind, D = KW.data; if (!D) return null;
+    const fy = (W.lat0 - lat) / W.d, fx = (lon - W.lon0) / W.d;
+    if (fy < 0 || fx < 0 || fy > W.ny - 1 || fx > W.nx - 1) return null;
+    const j = Math.min(W.ny - 2, Math.floor(fy)), i = Math.min(W.nx - 2, Math.floor(fx)), ty = fy - j, tx = fx - i;
+    const c0 = lev === "7" ? 0 : 2, at = (c, jj, ii) => D[((k * 4 + c) * W.ny + jj) * W.nx + ii] * W.scale;
+    const bil = (c) => (at(c, j, i) * (1 - tx) + at(c, j, i + 1) * tx) * (1 - ty) + (at(c, j + 1, i) * (1 - tx) + at(c, j + 1, i + 1) * tx) * ty;
+    return [bil(c0), bil(c0 + 1)];
+  }
+  function kwDraw() {
+    const cv = $("kwArrows"), inner = $("kwInner"), K = M.st && M.st.ksa;
+    if (!K || !K.wind || !KW.data) return;
+    const Wd = inner.clientWidth, Hd = $("kwFig").clientHeight || inner.clientHeight; if (!Wd || !Hd) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    cv.width = Math.round(Wd * dpr); cv.height = Math.round(Hd * dpr); cv.style.height = Hd + "px";
+    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0); c.clearRect(0, 0, Wd, Hd);
+    const [w, e, s, n] = K.extent || [33, 57.5, 14, 33.5], k = +$("kwDay").value || 0, top = KW.lay === "7" ? 20 : 35;
+    const S = 34;
+    c.lineCap = "round"; c.lineJoin = "round";
+    for (let y = S / 2; y < Hd; y += S) for (let x = S / 2; x < Wd; x += S) {
+      const lat = n - (y / Hd) * (n - s), lon = w + (x / Wd) * (e - w), uv = kwAt(k, KW.lay, lat, lon); if (!uv) continue;
+      const sp = Math.hypot(uv[0], uv[1]); if (sp < 0.5) continue;
+      const dx = uv[0] / Math.cos(lat * Math.PI / 180), dy = -uv[1], m = Math.hypot(dx, dy);
+      const L = S * (0.38 + 0.42 * Math.min(1, sp / top)), ux = dx / m, uy = dy / m;
+      const x0 = x - ux * L / 2, y0 = y - uy * L / 2, x1 = x + ux * L / 2, y1 = y + uy * L / 2, h = 5.5;
+      const path = () => { c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1);
+        c.moveTo(x1 - ux * h - uy * h * 0.6, y1 - uy * h + ux * h * 0.6); c.lineTo(x1, y1); c.lineTo(x1 - ux * h + uy * h * 0.6, y1 - uy * h - ux * h * 0.6); };
+      path(); c.strokeStyle = "rgba(10,14,20,.75)"; c.lineWidth = 3.4; c.stroke();
+      path(); c.strokeStyle = "#ffffff"; c.lineWidth = 1.5; c.stroke();
+    }
+  }
+  function kwTapText() {
+    if (!KW.pt) return;
+    const K = M.st.ksa, [w, e, s, n] = K.extent || [33, 57.5, 14, 33.5], [fx, fy] = KW.pt;
+    const lon = w + fx * (e - w), lat = n - fy * (n - s), k = +$("kwDay").value || 0;
+    const r = (a) => AR_DIG(Math.round(a));
+    let wind = "";
+    for (const lev of ["7", "5"]) {
+      const uv = kwAt(k, lev, lat, lon); if (!uv) continue;
+      const sp = Math.hypot(uv[0], uv[1]), from = KW_DIRS[Math.round((((Math.atan2(-uv[0], -uv[1]) * 180 / Math.PI) + 360) % 360) / 45) % 8];
+      wind += `<div>الرياح عند ${lev === "7" ? "٧٠٠" : "٥٠٠"}: <b>${sp < 1 ? "هادئة" : `${from} ${r(sp)} م/ث`}</b></div>`;
+    }
+    const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("kwCoord"); box.hidden = false;
+    box.innerHTML = `<span><div>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</div>${wind}</span><button type="button">نسخ</button>`;
+    box.querySelector("button").onclick = async (e2) => {
+      try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+      setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+    };
+  }
+  function kwSetup() {
+    if (kwSetup.done) return; kwSetup.done = true;
+    const LV = [1, 1.5, 2, 3], sc = $("kwScroll"), inner = $("kwInner"), img = $("kwFig");
+    const zoom = (d) => {
+      const nz = Math.max(0, Math.min(LV.length - 1, KW.z + d)); if (nz === KW.z) return;
+      const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+      if (KW.z === 0) sc.style.height = sc.clientHeight + "px";
+      KW.z = nz; inner.style.width = LV[KW.z] * 100 + "%"; inner.dataset.z = KW.z;
+      if (KW.z === 0) sc.style.height = "";
+      const fx = KW.pt ? KW.pt[0] : cx, fy = KW.pt ? KW.pt[1] : cy;
+      sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+      $("kwIn").disabled = KW.z === LV.length - 1; $("kwOut").disabled = KW.z === 0;
+      kwDraw();
+    };
+    $("kwIn").onclick = () => zoom(1); $("kwOut").onclick = () => zoom(-1);
+    img.addEventListener("load", kwDraw);
+    if (window.ResizeObserver) new ResizeObserver(() => kwDraw()).observe(inner);
+    img.addEventListener("click", (ev) => {
+      const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+      if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+      KW.pt = [fx, fy];
+      const pin = $("kwPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+      kwTapText();
+    });
+    document.querySelectorAll("#kwLayer button").forEach((b) => b.onclick = () => {
+      document.querySelectorAll("#kwLayer button").forEach((x) => x.classList.toggle("on", x === b));
+      KW.lay = b.dataset.l; kwShow();
+    });
+    $("kwDay").oninput = kwShow;
+  }
+  function kwShow() {
+    const st = M.st, K = st.ksa, k = +$("kwDay").value || 0, kd = "kw" + KW.lay;
+    $("kwFig").src = `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    const d = K.days[k];
+    $("kwDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
+    $("kwLegend").innerHTML = st.figs && st.figs[kd] ? legendHTML(st.figs[kd]) : "";
+    $("kwHint").textContent = (KW.lay === "7"
+      ? "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. هذه الطبقة توجّه السحب الركامية وتنقل الرطوبة إلى المرتفعات."
+      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.")
+      + " الأسهم تشير إلى الجهة التي تهب نحوها الرياح، وطولها يزيد مع سرعتها، والألوان والخطوط سرعة الرياح كل ٥ م/ث. كبّر الخريطة فتظهر أسهم أكثر في المنطقة التي تنظر إليها، والمس أي موضع لترى إحداثياته واتجاه الرياح وسرعتها فيه.";
+    kwDraw(); kwTapText();
+  }
+  async function kwCard() {
+    const st = M.st, K = st.ksa;
+    $("kwCard").hidden = !(K && K.wind && K.days && K.days.length);
+    if ($("kwCard").hidden) return;
+    kwSetup();
+    kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
+    $("kwDay").max = Math.max(0, K.days.length - 1);
+    if (!kwCard.done) { $("kwDay").value = todayIdx(K.days); kwCard.done = true; }
+    if (!KW.data || KW.v !== st.updated) {
+      try {
+        const r = await fetch(`${CL}${K.wind.file}?v=${encodeURIComponent(st.updated)}`);
+        KW.data = new Int16Array(await r.arrayBuffer()); KW.v = st.updated;
+      } catch (e) { KW.data = null; }
+    }
+    kwShow();
+  }
+
   // where the afternoon winds collide around Taif (Fahad, 17 Nov 2026): the Al-Hada / Ash-Shafa edge or east and
   // north-east of Taif; 7 days before today, today and 7 after (taifconv.py on the nightly run)
   const TC_WHERE = { edge: "التصادم على حافة الهدا والشفا", east: "التصادم شرق الطائف وشماله الشرقي (السيل والهضبة)", weak: "التصادم ضعيف حول الطائف", eastdry: "التصادم شمال الطائف وشرقه، والطاقة أعلى على الحواف فتقوى السحب عليها مع تقدم النهار" };
   const TC_HINT = {
-    line: "الأزرق حافة الهدا والشفا والبرتقالي شرق الطائف والسيل. الخط المتقطع هو اليوم، وما بعده توقع. حين تكون الرياح فوق الهضبة شرقية بأكثر من ٢ م/ث يقف هواء البحر عند الحافة فيكون التصادم والمطر على الهدا والشفا، وحين تضعف أو تصير جنوبية أو غربية يصعد هواء البحر فوق الحافة وينتقل التصادم شرق الطائف والسيل ورهاط.",
+    line: "مؤشر واحد للمنطقة الغربية (الطائف ومكة وجدة والجموم والحرات وجنوب مكة والبحر الأحمر المجاور): أين أقوى تصادم للرياح السطحية بين ١١ صباحًا و١ ظهرًا. الموجب البرتقالي: التصادم على الطائف نفسه وهضبته وشماله الشرقي والحرات، فالسحب تنشأ فوق الهضبة ولا تنزل على الحافة. السالب الأزرق: التصادم على الحافة والجبال (الهدا والشفا وجبال جنوب مكة) وما تحتها من السهول (مكة والجموم). الفيروزي المموّج: التصادم فوق البحر نفسه، فالسحب بحرية تنشأ فوق البحر وقد تدخل على الساحل. النقطة الرمادية: لا تصادم يُذكر. الرقم فوق العمود قوة التصادم، والخط المتقطع اليوم وما بعده توقع من النموذج الأمريكي.",
     cape: "طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
-    day: "البرتقالي والأحمر تصادم الرياح السطحية في الساعة المختارة (١١ صباحًا وقت نشوء السحب على الحافة غالبًا، ثم ينزاح التصادم شرقًا مع العصر)، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته وأقرب مكان له.",
+    day: "البرتقالي والأحمر تصادم الرياح السطحية فوق المملكة في الساعة المختارة (١١ صباحًا وقت نشوء السحب على الحافة غالبًا، ثم ينزاح التصادم مع العصر)، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة على أي منطقة لترى أماكن التصادم فيها، والمس أي موضع لترى إحداثياته. والسطر تحت الخريطة قراءة حول الطائف.",
   };
 
   // zoom and tap on the Taif collision maps (Fahad, 17 Nov 2026): as the Kingdom map, and the tap also names the
@@ -1682,7 +2136,7 @@
     let best = null, bd = 1e9, near = null, nd = 1e9;
     P.forEach((p) => { const d = km(p); if (p[3] && d < bd) { bd = d; best = p; } if (d < nd) { nd = d; near = p; } });
     if (near && nd <= 3 && (!best || bd > 3)) return `قرب ${near[0]}`;
-    if (!best) return "";
+    if (!best || bd > 60) return "";   // the map is the whole Kingdom now; the places list covers the Taif area
     if (bd <= 3) return `في ${best[0]} أو قربها`;
     const ang = Math.atan2((lon - best[2]) * Math.cos(lat * Math.PI / 180), lat - best[1]) * 180 / Math.PI;
     const dir = DIR8[Math.round(((ang + 360) % 360) / 45) % 8];
@@ -1700,7 +2154,7 @@
       const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
       const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
       if (z === 0) sc.style.height = sc.clientHeight + "px";
-      z = nz; inner.style.width = LV[z] * 100 + "%";
+      z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
       if (z === 0) sc.style.height = "";
       const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
       sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
@@ -1728,7 +2182,7 @@
     const st = M.st, T = st.taifc;
     $("tcCard").hidden = !(T && T.rows && T.rows.length);
     if ($("tcCard").hidden) return;
-    let lay = M.tcLayer || "day";
+    let lay = M.tcLayer === "line" ? "line" : "day";   // the CAPE view moved to the humidity tab (18 Nov 2026)
     const show = () => {
       const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
       const hh = M.tcHour || "11";
@@ -1739,6 +2193,7 @@
       $("tcTime").hidden = lay === "line";
       tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
       if (lay === "line") { if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true; }
+      const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = lay === "line";   // names belong to the map only
       $("tcLegend").hidden = !(lay === "cape" && T.cape_legend);
       if (lay === "cape" && T.cape_legend) $("tcLegend").innerHTML = legendHTML(T.cape_legend);
       $("tcHint").textContent = TC_HINT[lay];
@@ -1747,7 +2202,14 @@
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
       const u = r.u850, wind = u <= T.u_east ? `شرقية ${num(-u, 1)} م/ث تُوقف هواء البحر عند الحافة`
         : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
-      $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "" : "اليوم: "}${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
+      if (lay === "line" && r.wz) {
+        const W = { taif: "على الطائف وهضبته (موجب)", edge: "على الحافة والجبال وما تحتها (سالب)", sea: "فوق البحر الأحمر (بحري)", weak: "ضعيف في المنطقة الغربية" };
+        const at = r.wat && r.wz !== "weak" ? tcWhere(r.wat[0], r.wat[1]) : "";
+        $("tcNow").innerHTML = `<div><b>اليوم: التصادم ${W[r.wz]}${r.fc ? " (توقع)" : ""}${r.wz === "weak" ? "" : `، المؤشر ${num(r.wi, 1)}`}.</b></div>
+        ${at ? `<div>أقوى نقطة: ${at}.</div>` : ""}<div>قوة التصادم: الطائف ${num(r.wt, 1)}، الحافة ${num(r.wg, 1)}، البحر ${num(r.ws, 1)}.</div>`;
+        return;
+      }
+      $("tcNow").innerHTML = `<div><b>حول الطائف: ${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
         <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
         <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
@@ -1759,9 +2221,60 @@
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
     document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
+    kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
     $("tcDay").oninput = show;
+    show();
+  }
+
+  // the afternoon instability map (moved from the Taif card to the humidity tab, Fahad 18 Nov 2026): the same frames
+  // tcape_KK_HH.png of the whole Kingdom; 7 days back, today, 7 ahead
+  function tpCard() {
+    const st = M.st, T = st.taifc;
+    $("tpCard").hidden = !(T && T.rows && T.rows.length);
+    if ($("tpCard").hidden) return;
+    const ext = T.extent || [33, 57.5, 14, 33.5];
+    const show = () => {
+      const k = +$("tpDay").value || 0, hh = M.tpHour || "13";
+      document.querySelectorAll("#tpHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
+      $("tpFig").src = `${CL}fig/tcape_${String(k).padStart(2, "0")}_${hh}.png?v=${encodeURIComponent(st.updated)}`;
+      const r = T.rows[k]; $("tpDayLabel").textContent = r ? dayLab(r.d) : "";
+      if (T.cape_legend) $("tpLegend").innerHTML = legendHTML(T.cape_legend);
+    };
+    if (!tpCard.done) {
+      tpCard.done = true;
+      document.querySelectorAll("#tpHour button").forEach((b) => b.onclick = () => { M.tpHour = b.dataset.h; show(); });
+      $("tpDay").oninput = show;
+      $("tpDay").max = Math.max(0, T.rows.length - 1); $("tpDay").value = todayIdx(T.days);
+      kmapNames($("tpInner"), ext);
+      const LV = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
+      let z = 0, pt = null;
+      const zoom = (d) => {
+        const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
+        const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+        if (z === 0) sc.style.height = sc.clientHeight + "px";
+        z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
+        if (z === 0) sc.style.height = "";
+        const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
+        sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+        $("tpIn").disabled = z === LV.length - 1; $("tpOut").disabled = z === 0;
+      };
+      $("tpIn").onclick = () => zoom(1); $("tpOut").onclick = () => zoom(-1);
+      img.addEventListener("click", (ev) => {
+        const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+        if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+        pt = [fx, fy];
+        const [w, e, s, n] = ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
+        const pin = $("tpPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+        const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("tpCoord"); box.hidden = false;
+        box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
+        box.querySelector("button").onclick = async (e2) => {
+          try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+          setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+        };
+      });
+    }
     show();
   }
 
@@ -2060,7 +2573,7 @@
   (async function start() {
     map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7);
     if (LIVE(S.prod)) {  // show lightning / radar straight away; the model data loads behind it
-      $("prodSelect").innerHTML = `<option value="radar">الرادار</option>`; $("prodSelect").value = S.prod;
+      $("prodSelect").innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>`; $("prodSelect").value = S.prod;
       liEnter();
     } else {
       setTimeout(liLoad, 2000);  // fetch quietly so switching to lightning is instant

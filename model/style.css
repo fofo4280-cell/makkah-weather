@@ -368,3 +368,42 @@ a { color: var(--sea); }
 .mjo-tabs button { flex: 0 0 auto; white-space: nowrap; padding: 7px 13px; font-size: .82rem; }
 #p-mjo .sec-off { display: none !important; }
 @media (min-width: 700px) { .mjo-tabs button { padding: 7px 11px; font-size: .8rem; } }
+.me-ctl a { display: grid !important; place-items: center; }
+.me-ctl a.busy { animation: mePulse 1s infinite; }
+.me-ctl a.on { color: var(--sea) !important; }
+@keyframes mePulse { 50% { opacity: .4; } }
+/* one compact button on the map opens the run / layer / model choices (Fahad 18 Nov 2026) */
+.map-menu-btn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--glass-line); background: var(--glass); color: var(--glass-ink);
+  display: grid; place-items: center; cursor: pointer; padding: 0; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.map-menu-btn[aria-expanded="true"] { background: var(--sea); border-color: transparent; color: #fff; }
+.map-menu { width: min(300px, calc(100vw - 80px)); background: rgba(17,17,17,.94); border: 1px solid var(--glass-line); border-radius: 14px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+.mm-row { display: flex; flex-direction: column; gap: 4px; }
+.mm-row:has(> select[hidden]) { display: none; }
+.mm-lbl { font-size: .72rem; color: var(--glass-muted); }
+.map-menu .mpill, .map-menu .run-select { width: 100%; max-width: none; height: 36px; font-size: .84rem; }
+#mmBase .leaflet-control-layers { position: static; margin: 0; width: 100%; box-sizing: border-box; box-shadow: none; border: 1px solid var(--glass-line); border-radius: 10px; background: transparent; padding: 6px 8px; font-size: .82rem; }
+#mmBase .leaflet-control-layers label { margin: 3px 0; }
+.map-menu { max-height: calc(100vh - 200px); overflow-y: auto; }
+#mmBase .leaflet-control-layers-separator { border-top-color: var(--glass-line); }
+.map-bottom > .lg-mini-ctl { align-self: flex-end; margin: 0; float: none; }
+/* Leaflet lights its buttons on hover/focus; on a phone that state sticks after a tap, so keep them dark (Fahad 18 Nov 2026) */
+.leaflet-bar a:hover, .leaflet-bar a:focus, .leaflet-bar a:active { background-color: var(--glass) !important; color: var(--glass-ink) !important; outline: none; }
+@media (hover: hover) { .leaflet-bar a:hover { background-color: rgba(255,255,255,.12) !important; } }
+.leaflet-bar a.leaflet-disabled { background-color: var(--glass) !important; color: var(--glass-muted) !important; }
+
+/* the winds card: arrows drawn by the page over the speed map, denser as it zooms (18 Nov 2026) */
+.kw-arrows { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+
+/* names over the Kingdom maps: small, light, constant size at any zoom (18 Nov 2026) */
+.kmap-names { position: absolute; inset: 0; pointer-events: none; }
+.kn { position: absolute; width: 0; height: 0; }
+.kn i { position: absolute; width: 5px; height: 5px; margin: -2.5px 0 0 -2.5px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.65); }
+.kn b { position: absolute; white-space: nowrap; direction: rtl; font-weight: 500; font-size: 11px; line-height: 1; color: rgba(255,255,255,.93);
+  text-shadow: 0 0 3px rgba(0,0,0,.85), 0 0 1px rgba(0,0,0,.9); }
+.kn-n b { transform: translate(-50%, calc(-100% - 5px)); }
+.kn-s b { transform: translate(-50%, 5px); }
+.kn-e b { transform: translate(6px, -50%); }
+.kn-w b { transform: translate(calc(-100% - 6px), -50%); }
+.kn-c b { transform: translate(-50%, -50%); font-size: 10.5px; font-weight: 400; color: rgba(255,255,255,.55); }
+[data-z="0"] .kn.t2, [data-z="0"] .kn.t3, [data-z="1"] .kn.t3 { display: none; }

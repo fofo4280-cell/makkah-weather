@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261117mt2">
+<link rel="stylesheet" href="style.css?v=20261118w4">
 </head>
 <body>
 <div class="app">
@@ -33,9 +33,13 @@
       <div id="map" dir="ltr"></div>
       <div class="map-top">
         <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
-        <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
-        <label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label>
-        <label class="mpill" id="modelTabs"><span class="mpill-txt" id="modelTxt">GFS</span><span class="mpill-caret">▾</span><select id="modelSelect" class="prod-select" aria-label="التشغيل"><option value="gfs">GFS</option><option value="ec">ECMWF</option><option value="am">GFS صباحي</option></select></label>
+        <button type="button" class="map-menu-btn" id="mapMenuBtn" aria-label="خيارات الخريطة" aria-expanded="false" aria-controls="mapMenu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+        <div class="map-menu" id="mapMenu" hidden>
+          <div class="mm-row"><span class="mm-lbl">التشغيل</span><select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select></div>
+          <div class="mm-row"><span class="mm-lbl">الرادار والتوقعات</span><label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label></div>
+          <div class="mm-row"><span class="mm-lbl">النموذج</span><label class="mpill" id="modelTabs"><span class="mpill-txt" id="modelTxt">GFS</span><span class="mpill-caret">▾</span><select id="modelSelect" class="prod-select" aria-label="التشغيل"><option value="gfs">GFS</option><option value="ec">ECMWF</option><option value="am">GFS صباحي</option></select></label></div>
+          <div class="mm-row"><span class="mm-lbl">التضاريس والخريطة</span><div id="mmBase"></div></div>
+        </div>
       </div>
       <div class="map-empty" id="mapEmpty" hidden>
         <div class="map-empty-box">
@@ -73,8 +77,7 @@
           <button type="button" data-s="report" class="on">التقرير</button>
           <button type="button" data-s="phase">طور التذبذب</button>
           <button type="button" data-s="pw">الرطوبة</button>
-          <button type="button" data-s="taif">الرياح حول الطائف</button>
-          <button type="button" data-s="ksa">خريطة المملكة</button>
+          <button type="button" data-s="ksa">الرياح</button>
           <button type="button" data-s="waves">كلفن وروسبي</button>
           <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
         </nav>
@@ -122,34 +125,33 @@
           </div>
           <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
         </div>
-        <div data-sec="ksa" class="card" id="ksaCard" hidden>
-          <h3>خريطة المملكة</h3>
-          <div class="seg" id="ksaLayer">
-            <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
+        <div data-sec="ksa" class="card" id="kwCard" hidden>
+          <h3>الرياح</h3>
+          <div class="seg" id="kwLayer">
+            <button data-l="7" class="on">٧٠٠ هكتوباسكال</button><button data-l="5">٥٠٠ هكتوباسكال</button>
           </div>
           <div class="ksa-map" dir="ltr">
-            <div class="ksa-scroll" id="ksaScroll"><div class="ksa-inner" id="ksaInner"><img id="ksaFig" alt="خريطة المملكة" draggable="false"><i id="ksaPin" class="ksa-pin" hidden></i></div></div>
-            <div class="ksa-zoom"><button id="ksaIn" aria-label="تكبير">+</button><button id="ksaOut" aria-label="تصغير" disabled>−</button></div>
+            <div class="ksa-scroll" id="kwScroll"><div class="ksa-inner" id="kwInner"><img id="kwFig" alt="الرياح فوق المملكة" draggable="false"><canvas id="kwArrows" class="kw-arrows"></canvas><i id="kwPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="kwIn" aria-label="تكبير">+</button><button id="kwOut" aria-label="تصغير" disabled>−</button></div>
           </div>
-          <div id="ksaCoord" class="ksa-coord" hidden></div>
-          <div class="legend mjo-legend" id="ksaLegend"></div>
-          <div id="ksaLow" class="ksa-low" hidden></div>
+          <div id="kwCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="kwLegend"></div>
           <div class="mjo-time">
-            <input type="range" id="ksaDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
-            <span id="ksaDayLabel"></span>
+            <input type="range" id="kwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="kwDayLabel"></span>
           </div>
-          <p class="hint" id="ksaHint"></p>
+          <p class="hint" id="kwHint"></p>
         </div>
-        <div data-sec="taif" class="card" id="tcCard" hidden>
-          <h3>تصادم الرياح حول الطائف</h3>
+        <div data-sec="ksa" class="card" id="tcCard" hidden>
+          <h3>تصادم الرياح السطحية</h3>
           <div class="seg" id="tcLayer">
-            <button data-l="day" class="on">تصادم الرياح</button><button data-l="cape">طاقة عدم الاستقرار</button><button data-l="line">الخط الزمني</button>
+            <button data-l="day" class="on">تصادم الرياح</button><button data-l="line">الخط الزمني</button>
           </div>
           <div class="seg tc-hour" id="tcHour">
             <button data-h="11" class="on">١١ صباحًا</button><button data-h="13">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
           </div>
           <div class="ksa-map" dir="ltr">
-            <div class="ksa-scroll" id="tcScroll"><div class="ksa-inner" id="tcInner"><img id="tcFig" alt="تصادم الرياح حول الطائف" draggable="false"><i id="tcPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-scroll" id="tcScroll"><div class="ksa-inner" id="tcInner"><img id="tcFig" alt="تصادم الرياح السطحية" draggable="false"><i id="tcPin" class="ksa-pin" hidden></i></div></div>
             <div class="ksa-zoom" id="tcZoom"><button id="tcIn" aria-label="تكبير">+</button><button id="tcOut" aria-label="تصغير" disabled>−</button></div>
           </div>
           <div id="tcCoord" class="ksa-coord" hidden></div>
@@ -191,6 +193,41 @@
           <div id="mjoPw"></div>
           <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
         </div>
+        <div data-sec="pw" class="card" id="ksaCard" hidden>
+          <h3>خرائط الرطوبة والحرارة فوق المملكة</h3>
+          <div class="seg" id="ksaLayer">
+            <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="ksaScroll"><div class="ksa-inner" id="ksaInner"><img id="ksaFig" alt="خريطة المملكة" draggable="false"><i id="ksaPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="ksaIn" aria-label="تكبير">+</button><button id="ksaOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="ksaCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="ksaLegend"></div>
+          <div id="ksaLow" class="ksa-low" hidden></div>
+          <div class="mjo-time">
+            <input type="range" id="ksaDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="ksaDayLabel"></span>
+          </div>
+          <p class="hint" id="ksaHint"></p>
+        </div>
+        <div data-sec="pw" class="card" id="tpCard" hidden>
+          <h3>طاقة عدم الاستقرار</h3>
+          <div class="seg tc-hour" id="tpHour">
+            <button data-h="11">١١ صباحًا</button><button data-h="13" class="on">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img id="tpFig" alt="طاقة عدم الاستقرار" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="tpIn" aria-label="تكبير">+</button><button id="tpOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="tpCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="tpLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="tpDay" min="0" max="14" value="7" dir="ltr" aria-label="اليوم">
+            <span id="tpDayLabel"></span>
+          </div>
+          <p class="hint">طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. ٧ أيام مضت واليوم و٧ قادمة. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته.</p>
+        </div>
         <p class="hint" id="mjoUpdated"></p>
       </div>
     </section>
@@ -225,6 +262,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261118tz1"></script>
+<script src="app.js?v=20261118w5"></script>
 </body>
 </html>
