@@ -28,6 +28,10 @@ BOX = (13.0, 34.5, 32.0, 58.5)            # south, north, west, east of the data
 MAP = (33.0, 57.5, 14.0, 33.5)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
+# 18 Nov 2026 (Fahad: "contradictions"): a stronger meeting east of Taif moves the storms there only when the air
+# there has fuel; with surface CAPE (p75, 1 PM) under EAST_CAPE the cells stay on the edge (18 Nov: east 4.0 vs edge
+# 3.1 but CAPE 28 vs 184 and GFS rain 0.8 vs 6.1 mm). Same rule in plains.taif_zone.
+EAST_CAPE = 100
 HOURS = ("11", "13", "15")                # Makkah hours of the maps (08, 10, 12 UTC)
 AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
@@ -183,12 +187,12 @@ def measure(f):
     r_east = float(np.mean([rain[B(21.45, 21.85, 40.35, 40.7)].mean(), rain[B(20.9, 21.6, 40.6, 41.1)].mean(),
                             rain[B(22.2, 23.3, 39.8, 40.5)].mean()]))
     if cx >= CONV_MIN and cx >= ce + CONV_SHIFT:
-        where = "east"
+        where = "east"     # (with fuel False the page says the cells still grow strongest on the edges)
     elif max(ce, cx) < CONV_MIN:
         where = "weak"
     else:
         where = "edge"
-    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
+    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "fuel": bool(cp_east >= EAST_CAPE), "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
             "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1), **west_index(f)}
 
 

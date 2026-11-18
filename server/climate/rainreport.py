@@ -282,6 +282,9 @@ def plains_text(items, seen=None, region=None, dry=False):
     return out
 
 
+COVER_MM = 1.0          # a point "gets rain" when its day total reaches 1 mm
+
+
 def uncovered(doms, regs, need=0.6):
     """the regions our grids of this run do not cover well (under 60 % of their 0.5 degree points): a grid that
     failed that night (17 Nov 2026: the north grid stopped at hour 2 and its regions were called dry)"""
@@ -308,6 +311,12 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
     # the 9 km grid is the Kingdom run's alone (the 9 km parents of the 3 km runs are not used)
     doms = [d for d in doms if d["dx"] < 9000 or d["name"] == "السعودية"]
     cells = O.composite(doms)
+    if isinstance(st, dict):        # one reading of the Makkah day (makkah_story, 18 Nov 2026)
+        try:
+            import makkah_story
+            st["mstory"] = makkah_story.track(doms, t_a)
+        except Exception as e:  # noqa: BLE001
+            log("rain report: Makkah track failed", repr(e)[:160])
     head = (("تحديث الظهر: " if issue == "noon" else "") + f"الأمطار على المملكة من {ar(local(t_a).day)} {G.AR_MONTHS[local(t_a).month - 1]} الساعة {clock(t_a)}"
             f" إلى {ar(local(t_b).day)} {G.AR_MONTHS[local(t_b).month - 1]} الساعة {clock(t_b)}")
     if local(t_a).hour == 0 and t_b - t_a == timedelta(hours=24):   # one whole Makkah day: name the day itself
@@ -326,6 +335,17 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
         log(f"rain report: storm environment unavailable: {e!r}")
         glat = glon = gri = None
     res_used = sorted({r for _, r, _ in cells["used"]})
+    # the share of the area that gets rain (day total >= 1 mm), for the Kingdom and each region (Fahad, 18 Nov 2026:
+    # «نسبة تغطية المطر من الحالة كاملة … ولكل منطقة»: to compare the strength of the cases between waves)
+    tot_all = cells["rain"].sum(0)
+    wet_all = tot_all >= COVER_MM
+    inside = kri >= 0
+    cover_ksa = float((wet_all * cells["w"])[inside].sum() / max(cells["w"][inside].sum(), 1e-9))
+    cover_reg = {}
+    for k, r in enumerate(regs):
+        m_ = kri == k
+        if m_.any():
+            cover_reg[r["name"]] = float((wet_all[m_] * cells["w"][m_]).sum() / cells["w"][m_].sum())
     rows, table = [], []
     for k, r in enumerate(regs):
         m = kri == k
@@ -341,7 +361,8 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
         if not wins:
             continue
         towns = sorted(r["_towns"])
-        reg = {"k": k, "name": r["name"], "mean": area, "max": float(tot.max()), "wins": []}
+        reg = {"k": k, "name": r["name"], "mean": area, "max": float(tot.max()), "wins": [],
+               "cover": cover_reg.get(r["name"], 0.0)}
         j = int(np.argmax(tot))
         reg["at"] = G.describe(float(cells["lat"][m][j]), float(cells["lon"][m][j]), r)   # where the most falls, exactly
         for a, b in wins:
@@ -381,7 +402,10 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
         seen = {}
         for name, ss in pw_.items():
             lines.append(f"منطقة {name}: لا يُظهر نموذجنا أمطارًا تُذكر داخل حدودها." + plains_text(ss, seen, name, dry=True))
-        return {"heading": head, "lines": lines, "table": [], "data": {}}
+        unc = uncovered(doms, regs)      # (18 Nov 2026: this early return skipped the uncovered regions)
+        if unc:
+            lines.append(f"ولم يغطِّ نموذجنا هذه الليلة {jl(unc)} تغطية كافية، فلا يُحكم على أمطارها من هذا الجدول.")
+        return {"heading": head, "lines": lines, "table": [], "data": {"cover_ksa": round(cover_ksa, 4), "cover_regions": {k: round(v, 4) for k, v in cover_reg.items()}}}
     n = len(rows)
     extent = "واسعة" if n >= 8 else "متوسطة الانتشار" if n >= 4 else "محدودة"
     count = "منطقة واحدة" if n == 1 else "منطقتين" if n == 2 else f"{ar(n)} {'مناطق' if n <= 10 else 'منطقة'}"
@@ -482,5 +506,7 @@ def rain_report(t_a, t_b, dirs, st=None, om=None, log=print, issue="midnight"):
                  "غزير ٢٠ ملم فأكثر أو ١٠ ملم في ساعة، ومتوسط من ٥ إلى ٢٠، وخفيف دون ٥. وفرص البَرَد والخلايا العملاقة "
                  "من صدى الرادار في نموذجنا مع طاقة عدم الاستقرار وقص الرياح ومستوى التجمد.")
     data = {"t_a": t_a.isoformat(), "t_b": t_b.isoformat(), "issue": issue, "res": res_used,
-            "regions": [{"name": x["name"], "mean": round(x["mean"], 2), "max": round(x["max"], 1)} for x in rows]}
+            "regions": [{"name": x["name"], "mean": round(x["mean"], 2), "max": round(x["max"], 1),
+                         "cover": round(x["cover"], 4)} for x in rows],
+            "cover_ksa": round(cover_ksa, 4), "cover_regions": {k: round(v, 4) for k, v in cover_reg.items()}}
     return {"heading": head, "lines": lines, "table": table, "data": data}
