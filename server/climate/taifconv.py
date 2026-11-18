@@ -22,8 +22,10 @@ from datetime import datetime, timedelta, timezone
 
 import numpy as np
 
-BOX = (19.0, 24.5, 36.5, 43.5)            # south, north, west, east of the data cut
-MAP = (37.8, 41.8, 20.2, 23.3)            # west, east, south, north of the map (Red Sea and Jeddah in, Fahad 17 Nov 2026)
+BOX = (13.0, 34.5, 32.0, 58.5)            # south, north, west, east of the data cut
+# the whole Kingdom (Fahad, 18 Nov 2026: «خلها على عموم المملكة»; he zooms in on the page to look at the collisions);
+# the same frame as the Kingdom maps of ksa.py. Was (37.8, 41.8, 20.2, 23.3) around Taif.
+MAP = (33.0, 57.5, 14.0, 33.5)
 SMOOTH = 1.5                              # as collide.py / plains.taif_zone (about 40 km)
 CONV_MIN, CONV_SHIFT = 3.0, 0.5           # as plains.taif_zone
 # 18 Nov 2026 (Fahad: "contradictions"): a stronger meeting east of Taif moves the storms there only when the air
@@ -107,6 +109,57 @@ def day_fields(gfs_fields, cycle, fh9, static=None):
     return f
 
 
+# the western region's collision index (Fahad, 18 Nov 2026: one signal for Taif, Jeddah, Makkah, Al-Jumum, the harrat,
+# south of Makkah and the Red Sea beside them). Zones on the 0.25 grid, 20.25-23.3 N, 38.3-41.6 E:
+#   edge  = the escarpment rim (first land cell >= 900 m from the west in each row) and the slopes 300-900 m below it,
+#           plus the plains under it (Makkah, Al-Jumum, Jeddah, the Tihama south of Makkah): the collision "came down"
+#   taif  = the plateau (>= 900 m) east of the rim (Taif itself, Al-Sail, its north-east and east, the harrat)
+#           (the first plateau cell east of the rim is left out: with ~40 km smoothing an edge peak leaks into it)
+#   edge stops at 21.9 N (Makkah, Al-Jumum, Al-Hada, Ash-Shafa, south of Makkah)
+#   sea   = the Red Sea beside the coast
+# The day's index is the strongest zone (peak convergence 11 AM-1 PM, 1e-5 /s): taif +peak, edge -peak, sea (its own
+# colour, drawn below zero, west of the edge); weak when every peak is under CONV_MIN.
+WREG = (20.25, 23.3, 38.3, 41.6)
+EDGE_N = 21.9                            # the edge zone (Makkah-Taif mountains and south of Makkah) stops here
+
+
+def west_zones(lat, lon, hgt, land):
+    LA, LO = np.meshgrid(lat, lon, indexing="ij")
+    s, n, w, e = WREG
+    reg = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
+    land = land > 0.5
+    rim = np.zeros_like(land)
+    door = np.zeros_like(land)
+    for j in range(len(lat)):
+        ii = np.where(land[j] & (hgt[j] >= 900) & (lon >= 39.5) & (lon <= e))[0]
+        if len(ii):
+            rim[j, ii[0]] = True
+            door[j, ii[0] + 1:ii[0] + 2] = True       # the first plateau cell: with ~40 km smoothing an edge peak leaks here
+            rim[j, :ii[0]] |= land[j, :ii[0]]       # everything on land west of the rim: slopes and plains
+    south = LA <= EDGE_N
+    edge = reg & land & rim & south
+    # north of EDGE_N only the harrat plateau counts (with Taif's side): the plains under the harrat hold a sea-breeze
+    # line nearly every day (39.5-40 E, 22.2-23 N) that would otherwise always win
+    taif = reg & land & ~rim & ~door & (hgt >= 900)
+    return {"taif": taif, "edge": edge, "sea": reg & ~land}
+
+
+def west_index(f):
+    Z = west_zones(f["lat"], f["lon"], f["hgt"], f["land"])
+    c = f["conv"]
+    pk = {k: float(np.where(m, c, -np.inf).max()) for k, m in Z.items()}
+    at = {}
+    for k, m in Z.items():
+        j, i = np.unravel_index(np.where(m, c, -np.inf).argmax(), c.shape)
+        at[k] = [round(float(f["lat"][j]), 2), round(float(f["lon"][i]), 2)]
+    k = max(pk, key=pk.get)
+    if pk[k] < CONV_MIN:
+        k = "weak"
+    wi = {"taif": pk["taif"], "edge": -pk["edge"], "sea": -pk["sea"]}.get(k, 0.0)
+    return {"wz": k, "wi": round(wi, 1), "wt": round(pk["taif"], 1), "wg": round(pk["edge"], 1), "ws": round(pk["sea"], 1),
+            "wat": at.get(k)}
+
+
 def measure(f):
     """the numbers of one day (the boxes of plains.taif_zone)"""
     lat, lon, c = f["lat"], f["lon"], f["conv"]
@@ -140,7 +193,7 @@ def measure(f):
     else:
         where = "edge"
     return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "fuel": bool(cp_east >= EAST_CAPE), "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
-            "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1)}
+            "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1), **west_index(f)}
 
 
 def run(gfs_fields, cycle, out_fig):
@@ -192,7 +245,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1000, kind="conv", hour="11"):
+def draw_map(path, f, width_px=1400, kind="conv", hour="11"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -231,30 +284,47 @@ def draw_map(path, f, width_px=1000, kind="conv", hour="11"):
     else:
         ax.imshow(cv, extent=ext, cmap=cmap, vmin=-8, vmax=8, alpha=.85, interpolation="bilinear", zorder=1)
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
-    ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.6, .9], zorder=2)
-    ax.contour(flo, fla, land.astype(float), levels=[.5], colors=["#5d6d7e"], linewidths=.8, zorder=2)
+    ax.contour(flo, fla, h, levels=[900, 1500], colors=["#6b7480", "#aab3bd"], linewidths=[.35, .55], zorder=2)
     u, v = sub(uh), sub(vh)
     spd = np.hypot(u, v)
-    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.8 if kind == "conv" else 0.45), density=1.4,
-                  linewidth=np.clip(0.4 + 0.12 * spd[::-1], 0.4, 1.5), arrowsize=0.8, zorder=3)
+    ax.streamplot(lo, la[::-1], u[::-1], v[::-1], color=(0.93, 0.95, 0.97, 0.7 if kind == "conv" else 0.4), density=2.4,
+                  linewidth=np.clip(0.25 + 0.06 * spd[::-1], 0.25, 0.9), arrowsize=0.5, zorder=3)
     # the axis of each collision zone (Fahad, 17 Nov 2026: «حط لي خط عليه زي خط الكنتور، منقط أو مقطع»)
     for xs, ys in conv_axes(cv, fla, flo, land):
-        ax.plot(xs, ys, color="#fff6d8", lw=2.0, ls=(0, (5, 3.5)), solid_capstyle="round", zorder=4,
-                path_effects=[pe.withStroke(linewidth=3.6, foreground="#3a1606")])
+        ax.plot(xs, ys, color="#fff6d8", lw=1.3, ls=(0, (4, 3)), solid_capstyle="round", zorder=4,
+                path_effects=[pe.withStroke(linewidth=2.6, foreground="#3a1606")])
     halo = [pe.withStroke(linewidth=3, foreground=BG)]
-    for name, y, x in PLACES:
+    # place names are written by the page at a constant size (Fahad, 18 Nov 2026: soft names, right next to their dots)
+    for name, y, x in []:
         if not (w < x < e and s < y < n):
             continue
         ax.plot(x, y, "o", ms=4.5, color="#ffffff", mec=BG, mew=1, zorder=5)
         left = name in ("الهدا", "الشفا", "مكة", "الجموم", "جدة", "رابغ")
         ax.text(x + (-0.05 if left else 0.05), y + 0.03, name, ha="right" if left else "left", va="bottom", fontsize=10,
                 color=INK, family=fam, fontweight="bold", path_effects=halo, zorder=6)
+    # coast and borders (Natural Earth 1:50m), thin, as the other Kingdom maps
+    try:
+        import cartopy.feature as cfeature
+        for feat, col, lw in ((cfeature.NaturalEarthFeature("physical", "coastline", "50m"), "#5d6d7e", .6),
+                              (cfeature.NaturalEarthFeature("cultural", "admin_0_boundary_lines_land", "50m"), "#4a5562", .5)):
+            for g in feat.intersecting_geometries([w - 1, e + 1, s - 1, n + 1]):
+                for ln in getattr(g, "geoms", [g]):
+                    xy = np.asarray(ln.coords)
+                    ax.plot(xy[:, 0], xy[:, 1], color=col, lw=lw, zorder=2.5)
+    except Exception as ex:  # noqa: BLE001
+        print("borders unavailable:", str(ex)[:80])
     ax.set_xlim(w, e)
     ax.set_ylim(s, n)
     ax.set_aspect(1 / math.cos(math.radians((s + n) / 2)))
     ax.axis("off")
     fig.savefig(path, dpi=200, facecolor=BG)
     plt.close(fig)
+    try:   # keep the files small: 90 maps a night
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=200, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def conv_axes(cv, lat, lon, land, thr=AXIS_MIN, min_len=0.6):
@@ -302,72 +372,60 @@ def _day_label(d):
     return f"{ar(d.day)}/{ar(d.month)}"
 
 
+WEST_C = {"taif": "#e0895a", "edge": "#6f9fd8", "sea": "#3fb8a6"}
+
+
 def draw_line(path, rows, today):
+    """one signal: the western region's collision index, past week, today and the week ahead"""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     import matplotlib.ticker as mt
+    from matplotlib.patches import Patch
     fam = _font()
     plt.rcParams.update({"font.family": fam, "axes.unicode_minus": False})
     x = np.arange(len(rows))
-    g = lambda k: np.array([np.nan if r.get(k) is None else r[k] for r in rows], float)
     ds = [datetime.strptime(r["d"], "%Y-%m-%d").date() for r in rows]
     ti = ds.index(today) if today in ds else None
-    fig, axs = plt.subplots(4, 1, figsize=(6.0, 9.4), sharex=True, dpi=180,
-                            gridspec_kw={"height_ratios": [1, 1, .9, .9], "hspace": .55})
+    fig, ax = plt.subplots(figsize=(6.0, 3.9), dpi=180)
     fig.patch.set_facecolor(BG)
-    for ax in axs:
-        ax.set_facecolor(BG)
-        for sp in ("top", "right", "left"):
-            ax.spines[sp].set_visible(False)
-        ax.spines["bottom"].set_color("#2a3440")
-        ax.grid(axis="y", color=GRID, lw=.6)
-        ax.tick_params(colors=MUTED, length=0, labelsize=10)
-        ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda v, p: ar(f"{v:g}")))
-        for k, r in enumerate(rows):   # the day's verdict as a faint band
-            if r.get("where") in ("edge", "east"):
-                ax.axvspan(k - .5, k + .5, color=EDGE_C if r["where"] == "edge" else EAST_C, alpha=.05, lw=0)
-        if ti is not None:
-            ax.axvline(ti, color="#c9d1db", lw=.8, ls=(0, (3, 3)), alpha=.5)
-    T = lambda ax, t: ax.set_title(t, loc="right", color="#c9d1db", fontsize=11.5, fontweight="semibold", pad=7)
-    ax = axs[0]
-    ax.bar(x - .18, g("ce"), .32, color=EDGE_C, alpha=.85, label="حافة الهدا والشفا")
-    ax.bar(x + .18, g("cx"), .32, color=EAST_C, alpha=.85, label="شرق الطائف والسيل")
-    T(ax, "قوة التصادم من ١١ صباحًا إلى ١ ظهرًا")
-    ax.legend(loc="upper left", frameon=False, fontsize=9.5, labelcolor="#c9d1db", ncol=2, bbox_to_anchor=(0, 1.0))
-    ax.set_ylim(0, max(10, np.nanmax([g("ce"), g("cx")]) * 1.45))
-    ax = axs[1]
-    u = g("u850")
-    ax.bar(x, u, .55, alpha=.85, color=[EDGE_C if (np.isfinite(v) and v <= U_EAST) else ("#5d6773" if (np.isfinite(v) and v < 0) else EAST_C) for v in u])
-    ax.axhline(0, color="#56616e", lw=.8)
-    ax.axhline(U_EAST, color=MUTED, lw=.8, ls=(0, (4, 3)))
-    lim = max(6, np.nanmax(np.abs(u)) * 1.15)
+    ax.set_facecolor(BG)
+    for sp in ("top", "right", "left"):
+        ax.spines[sp].set_visible(False)
+    ax.spines["bottom"].set_visible(False)
+    ax.grid(axis="y", color=GRID, lw=.6)
+    ax.tick_params(colors=MUTED, length=0, labelsize=10)
+    ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda v, p: ar(f"{v:g}")))
+    wi = np.array([r.get("wi") if r.get("wz") else np.nan for r in rows], float)
+    lim = max(8, np.nanmax(np.abs(wi)) * 1.25 if np.isfinite(wi).any() else 8)
+    for k, r in enumerate(rows):
+        z = r.get("wz")
+        if z in WEST_C:
+            ax.bar(k, wi[k], .62, color=WEST_C[z], alpha=.9 if not r.get("fc") else .75, hatch="~~~" if z == "sea" else None,
+                   edgecolor=BG if z != "sea" else "#0c1118", lw=0)
+            ax.text(k, wi[k] + (lim * .03 if wi[k] > 0 else -lim * .03), ar(f"{abs(wi[k]):.0f}"), ha="center",
+                    va="bottom" if wi[k] > 0 else "top", color=WEST_C[z], fontsize=8)
+        elif z == "weak":
+            ax.plot(k, 0, "o", color="#5d6773", ms=4)
+    ax.axhline(0, color="#56616e", lw=.9)
+    if ti is not None:
+        ax.axvline(ti, color="#c9d1db", lw=.8, ls=(0, (3, 3)), alpha=.5)
+        ax.axvspan(ti + .5, len(rows) - .4, color="#ffffff", alpha=.025, lw=0)
     ax.set_ylim(-lim, lim)
-    T(ax, "الرياح فوق هضبة الطائف عند ٨٥٠ (م/ث)")
-    ax.text(len(rows) - .5, -lim * .93, "سالب = شرقية تُوقف هواء البحر عند الحافة", ha="right", color=EDGE_C, fontsize=9)
-    ax.text(len(rows) - .5, lim * .82, "موجب = غربية تدفعه شرقًا", ha="right", color=EAST_C, fontsize=9)
-    ax = axs[2]
-    fr = g("front")
-    ax.plot(x, fr, "-o", color="#c9d1db", lw=1.3, ms=3)
-    places = ((40.3, "الهدا"), (40.75, "شرق الطائف"), (41.5, "عمق الهضبة"), (42.3, "شرقًا أبعد"))
-    for v, _ in places:
-        ax.axhline(v, color="#3a4552", lw=.6, ls=(0, (4, 3)))
-    ax.set_ylim(42.6, 39.9)
-    ax.set_yticks([v for v, _ in places])
-    ax.set_yticklabels([t for _, t in places], fontsize=9)
-    T(ax, "أبعد ما يصله هواء البحر عصرًا (خط طول)")
-    ax = axs[3]
-    b1 = ax.bar(x - .18, g("r_edge"), .32, color=EDGE_C, alpha=.85)
-    b2 = ax.bar(x + .18, g("r_east"), .32, color=EAST_C, alpha=.85)
-    ax.set_ylim(0, max(3, np.nanmax([g("r_edge"), g("r_east")]) * 1.45))
-    ax.legend([b1, b2], ["حافة الهدا والشفا", "السيل وشرق الطائف ورهاط"], loc="upper left", frameon=False, fontsize=9.5, labelcolor="#c9d1db", ncol=2)
-    T(ax, "متوسط المطر من الظهر إلى منتصف الليل (ملم)")
+    ax.text(len(rows) - .5, lim * .9, "موجب: التصادم على الطائف وهضبته", ha="right", va="top", color=WEST_C["taif"], fontsize=9.5)
+    ax.text(len(rows) - .5, -lim * .9, "سالب: على الحافة والجبال وما تحتها", ha="right", va="bottom", color=WEST_C["edge"], fontsize=9.5)
+    ax.legend(handles=[Patch(color=WEST_C["taif"], label="الطائف"), Patch(color=WEST_C["edge"], label="الحافة"),
+                       Patch(facecolor=WEST_C["sea"], hatch="~~~", edgecolor=BG, label="فوق البحر"),
+                       plt.Line2D([], [], marker="o", ls="", color="#5d6773", label="ضعيف")],
+              loc="upper left", frameon=False, fontsize=9, labelcolor="#c9d1db", ncol=4, bbox_to_anchor=(0, 1.13), handlelength=1.2,
+              columnspacing=1.0)
+    ax.set_title("مؤشر مكان التصادم في المنطقة الغربية", loc="right", color="#c9d1db", fontsize=11.5, fontweight="semibold", pad=24)
     ax.set_xticks(x)
     ax.set_xticklabels([("اليوم" if d == today else _day_label(d)) for d in ds], rotation=0, fontsize=8.5, color=MUTED)
     for lab, d in zip(ax.get_xticklabels(), ds):
         if d == today:
             lab.set_color("#c9d1db")
     ax.set_xlim(-.6, len(rows) - .4)
-    fig.subplots_adjust(left=.16, right=.98, top=.96, bottom=.045)
+    fig.subplots_adjust(left=.08, right=.98, top=.84, bottom=.08)
     fig.savefig(path, dpi=180, facecolor=BG)
     plt.close(fig)
