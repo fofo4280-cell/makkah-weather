@@ -787,6 +787,9 @@ def _strength_word(w):
 
 
 def waves(st, rs, regs, day0):
+    """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
+    أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
+    التي تتأثر بها»)"""
     import bigreport as BR
     from datetime import timedelta
     days = [day0 + timedelta(days=k) for k in range(16)]
@@ -801,9 +804,11 @@ def waves(st, rs, regs, day0):
                 break
     _, last = BR.drivers_timeline(st, day0, days)
     days = [d for d in days if d <= last]
+    score = {}
+    for d in days:
+        c = BR.combined(st, d, day0)
+        score[d] = BR.wave_score(st, d, day0, BR.strength(st, d), None if c is None else c["ksa"])["score"]
     wl = BR.wave_list(st, day0, days, fac, cur_end)
-    B = []
-    rows = []
     # weak signs outside the waves: a trough over the Red Sea or the Kingdom (15 m or deeper)
     inw = lambda d: any(w["start"] <= d <= w["end"] for w in wl)
     sig = []
@@ -816,39 +821,59 @@ def waves(st, rs, regs, day0):
                 sig[-1][3] = min(sig[-1][3], tr["v"])
             else:
                 sig.append([d, d, tr["area"], tr["v"]])
-    if not wl and not sig:
-        B.append({"p": f"لا تظهر موجة مطرية حتى {ar_date(days[-1])}، وهو أقصى تاريخ متاح في التوقع."})
-        return sec("الموجات القادمة", "waves", B)
-    tr_v = {(a, b): v for a, b, _, v in sig}
-    for a, b, area, _ in sig:
+    for a, b, area, v in sig:
         c = [BR.combined(st, d, day0) for d in days if a <= d <= b]
-        cov = max([x["ksa"] for x in c if x] or [0])
-        wl.append({"start": a, "end": b, "peak": a, "top": 0.0, "cover": cov, "kind": "troughs",
-                   "regions": [area], "pro": [], "sign": BR.trough_word(-tr_v[(a, b)] / 10)})
+        pk = max([d for d in days if a <= d <= b], key=lambda d: score[d])
+        wl.append({"start": a, "end": b, "peak": pk, "top": score[pk], "cover": max([x["ksa"] for x in c if x] or [0]),
+                   "kind": "troughs", "regions": [area], "pro": [f"أخدود {BR.trough_word(-v / 10)} فوق {area}"], "con": [],
+                   "sign": BR.trough_word(-v / 10)})
     wl.sort(key=lambda w: w["start"])
-    for w in wl:
-        span = R2.ar_span(w["start"], w["end"]).removeprefix("من ") if w["start"] != w["end"] else ar_date(w["start"])
+    KIND = {"mixed": "مدارية أخدودية", "tropical": "مدارية", "troughs": "أخدودية"}
+    B = []
+    span_of = lambda w: (ar_date(w["start"]) if w["start"] == w["end"] else R2.ar_span(w["start"], w["end"]).removeprefix("من "))
+    spread_of = lambda w: ((R2.cover_pct(w["cover"]) + " من المملكة") if w.get("cover") and w["cover"] >= 0.01 else "أقل من ١٪ من المملكة")
+    full = [w for w in wl if not w.get("sign")]
+    B.append({"p": f"نرصد حتى {ar_date(days[-1])}، وهو أقصى ما يغطيه التوقع، "
+                   + (f"{ar(len(full))} {'موجة' if len(full) == 1 else 'موجات'} مطرية" if full else "لا موجة مطرية واسعة")
+                   + (f" و{ar(len(wl) - len(full))} {'إشارة' if len(wl) - len(full) == 1 else 'إشارات'} أخدود ضعيفة" if len(wl) > len(full) else "")
+                   + "."})
+    if wl:
+        rows = []
+        for w in wl:
+            lead = (w["peak"] - day0).days
+            rows.append([span_of(w), KIND[w["kind"]] + (f" ({w['sign']})" if w.get("sign") else ""),
+                         f"{ar(round(20 * w['top']))}٪", spread_of(w), jl(w["regions"]), BR.confidence(lead)])
+        B.append({"table": {"head": ["الفترة", "النوع", "القوة", "الانتشار", "المناطق", "الثقة"], "rows": rows}})
+        # the nearest
+        w = wl[0]
         lead = (w["peak"] - day0).days
-        cov = w.get("cover")
-        spread = ((R2.cover_pct(cov) + " من المملكة") if cov is not None and cov >= 0.01 else
-                  "أقل من ١٪ من المملكة" if cov is not None else "لا يظهر انتشارها بعد")
-        if w.get("sign"):
-            span += f" (إشارة أخدود {w['sign']})"
-        rows.append([span, BR.confidence(lead), spread, jl(w["regions"]), _strength_word(w)])
-    B.append({"p": (f"الموجات حتى {ar_date(days[-1])}، وهو أقصى تاريخ متاح:" if any(not w.get("sign") for w in wl) else
-                    f"لا موجة مطرية واسعة حتى {ar_date(days[-1])}، وهو أقصى تاريخ متاح؛ وما يظهر إشارات ضعيفة:")})
-    B.append({"table": {"head": ["الفترة", "الثقة", "انتشار المطر", "المناطق", "الشدة"], "rows": rows}})
-    # a wide fertile spell: tropical and trough support together, several days, strong
-    for w in wl:
-        n = (w["end"] - w["start"]).days + 1
-        if w["kind"] == "mixed" and n >= 3 and w["top"] >= 2.6:
-            span = R2.ar_span(w["start"], w["end"])
-            if w["top"] >= 3.5 and BR.confidence((w["start"] - day0).days) == "عالية":
-                B.append({"p": f"أمامنا موجة خصب واسعة على الجزيرة العربية {span}، وتطول لفترة طويلة، تتوافق عليها {jl(w['pro'])}."})
-            else:
-                B.append({"p": f"ألمح {span} ملامح موجة خصب واسعة على الجزيرة العربية، تتوافق عليها {jl(w['pro'])}، وتُتابع كل ليلة."})
-            break
-    B.append({"note": "الثقة عالية حتى ٥ أيام، ومتوسطة حتى ١٠ أيام، ومنخفضة بعدها."})
+        t = (f"{'أقرب إشارة' if w.get('sign') else 'أقرب موجة'}: {span_of(w)}، {KIND[w['kind']]}، قوتها {n1(w['top'])} من ٥ ({ar(round(20 * w['top']))}٪، "
+             f"{BR.grade(w['top'])})، وانتشارها المتوقع {spread_of(w)}، وتتأثر بها {jl(w['regions'])}. "
+             f"الثقة في توقيتها {BR.confidence(lead)} لأنها " + ("غدًا" if lead <= 1 else f"بعد {ar(lead)} أيام"))
+        if w.get("pro"):
+            t += f"؛ يسندها {jl(w['pro'])}"
+        if w.get("con"):
+            t += f"، ويكبحها {jl(w['con'])}"
+        B.append({"p": t + "."})
+    # the next very wide fertile spell over Arabia: tropical and trough support together, several days, strong
+    fert = next((w for w in wl if w["kind"] == "mixed" and (w["end"] - w["start"]).days >= 2 and w["top"] >= 2.6), None)
+    if fert:
+        conf = BR.confidence((fert["start"] - day0).days)
+        B.append({"p": f"أقرب فترة خصب واسعة على الجزيرة العربية: {R2.ar_span(fert['start'], fert['end'])}، قوتها "
+                       f"{n1(fert['top'])} من ٥، تتوافق عليها {jl(fert['pro'])}، والثقة {conf}."})
+    else:
+        # where the support comes back: the MJO in a supportive phase with its component supportive
+        ref = (st.get("mjof") or {}).get("z_ref") or 10
+        back = [d for d in days[1:] if "mjo" in {k for k, _ in fac[d]} and (BR._mf(st, d) or [0])[0] <= -ref / 3]
+        t = f"لا تظهر فترة خصب واسعة على الجزيرة العربية حتى {ar_date(days[-1])}"
+        if back:
+            pk = max(back, key=lambda d: score[d])
+            t += (f"؛ وأول ملامح عودة الدعم المداري {R2.ar_span(back[0], back[-1]) if len(back) > 1 else ar_date(back[0])}: "
+                  f"التذبذب في طور داعم ومكوّنه داعم، وقوة الأيام {n1(score[pk])} من ٥ في أحسنها، فهي بداية دورة جديدة "
+                  f"لا موجة خصب بعد، والثقة {BR.confidence((back[0] - day0).days)}")
+        B.append({"p": t + "."})
+    B.append({"note": "القوة من ٥ (والنسبة ٢٠٪ لكل درجة) تجمع العوامل الكبرى وانتشار المطر المتوقع. "
+                      "الثقة عالية حتى ٥ أيام، ومتوسطة حتى ١٠ أيام، ومنخفضة بعدها. وتُحدّث كل ليلة."})
     return sec("الموجات القادمة", "waves", B)
 
 
@@ -864,7 +889,7 @@ def build(rep, st):
             if e["key"] in em:
                 e["model_rain"] = em[e["key"]]
     out = []
-    for f in (summary, makkah, others, big_picture, waves):
+    for f in (summary, waves):   # Fahad, 18 Nov 2026 evening: «خلاصة عن اليوم ودراسة عن الموجات المستقبلية»
         try:
             out.append(f(st, rs, regs, day0))
         except Exception as e:  # noqa: BLE001
