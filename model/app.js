@@ -175,8 +175,61 @@
       if (hit && nameRank(k)) el.classList.add("hid"); else placed.push(r);
     }
   }
+  // Towns, villages and hamlets (OpenStreetMap, Arabic names, about 10 000), drawn on one canvas under the main names and
+  // revealed with zoom: towns from 7, villages from 8.25, hamlets from 9.5, districts from 10.5; a name that would touch
+  // another is left out (Fahad 18 Nov 2026)
+  const PLACE_ZOOM = [7, 8.25, 9.5, 10.5];
+  const PlaceNames = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide place-canvas");
+      m.getPane("labels").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    getAttribution() { return "أسماء القرى: © OpenStreetMap"; },
+    redraw() {
+      const m = this._map; if (!m) return;
+      const z = m.getZoom(), size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+      c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + "px"; c.style.height = size.y + "px";
+      L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0]));
+      const cx = c.getContext("2d"); cx.setTransform(dpr, 0, 0, dpr, 0, 0); cx.clearRect(0, 0, size.x, size.y);
+      if (z < PLACE_ZOOM[0] || (document.body.classList.contains("light-map") && !document.body.classList.contains("sat-map"))) return;
+      if (!this._p) {
+        if (!this._loading) this._loading = fetch("places.json?v=1").then((r) => r.json()).then((j) => { this._p = j.p; this.redraw(); }).catch(() => {});
+        return;
+      }
+      // the main names already on the map keep their place
+      const box = m.getContainer().getBoundingClientRect(), placed = [];
+      m.getContainer().querySelectorAll(".map-name:not(.hid) span").forEach((sp) => {
+        if (!sp.offsetParent) return;
+        const r = sp.getBoundingClientRect();
+        placed.push([r.left - box.left, r.top - box.top, r.right - box.left, r.bottom - box.top]);
+      });
+      const fam = getComputedStyle(document.body).fontFamily;
+      const b = m.getBounds().pad(0.05);
+      cx.textAlign = "right"; cx.textBaseline = "middle"; cx.direction = "rtl"; cx.lineJoin = "round";
+      let shown = 0;
+      for (const [n, la, lo, t] of this._p) {
+        if (z < PLACE_ZOOM[t] || !b.contains([la, lo])) continue;
+        const pt = m.latLngToContainerPoint([la, lo]), fs = t === 0 ? 11 : 10;
+        cx.font = `${t === 0 ? 600 : 500} ${fs}px ${fam}`;
+        const w = cx.measureText(n).width, r = [pt.x - w - 8, pt.y - fs * 0.7, pt.x + 3, pt.y + fs * 0.7];
+        if (placed.some((q) => r[0] < q[2] + 3 && r[2] > q[0] - 3 && r[1] < q[3] + 1 && r[3] > q[1] - 1)) continue;
+        placed.push(r);
+        cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(pt.x, pt.y, t === 0 ? 2 : 1.6, 0, 2 * Math.PI); cx.fill();
+        cx.strokeStyle = "rgba(0,0,0,.7)"; cx.lineWidth = 3; cx.strokeText(n, pt.x - 5, pt.y);
+        cx.fillStyle = t === 0 ? "rgba(255,255,255,.92)" : t === 1 ? "rgba(255,255,255,.82)" : "rgba(225,232,240,.72)";
+        cx.fillText(n, pt.x - 5, pt.y);
+        if (++shown > 600) break;
+      }
+    },
+  });
+  const places = new PlaceNames();
+  names.addLayer(places);   // shown and hidden with the «الأسماء» choice
+  map.on("baselayerchange", () => places.redraw());
   map.on("zoomend", nameZoom); nameZoom();
-  map.on("zoomend overlayadd", () => requestAnimationFrame(declutter));
+  map.on("zoomend overlayadd", () => requestAnimationFrame(() => { declutter(); places.redraw(); }));
   if (document.fonts) document.fonts.ready.then(() => requestAnimationFrame(declutter)); else setTimeout(declutter, 1000);
   map.on("overlayadd overlayremove", (e) => {
     const on = e.type === "overlayadd" ? "1" : "0";
