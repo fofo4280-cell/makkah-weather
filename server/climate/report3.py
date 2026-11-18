@@ -104,6 +104,197 @@ def spread_table(st, day0, region=None):
     return B
 
 
+# ------------------------------------------------------------------ the upper cold wave (Fahad, 18 Nov 2026)
+# «اي ملامح لموجة علوية باردة اذكرها في الخلاصة ووضح مناطقها وسبب الموجة الباردة ان كان اخدود ضحل ام متعمق وتأثيره
+# على اي المناطق لكي نأخذ أماكن المطر من الأوروبي ونتابع العاصفة من الأمريكي». Read from the 500 hPa trough tracks
+# (axis anomaly in m, centre depth in dam), the 24 h height fall and T500 over the edges, and the T500 anomaly of the
+# boxes. Silent when no sign aloft. The trust rule (15-16 Nov 2026): with a trough, the rain area from the
+# ECMWF-driven run, the storm spots and their strength from the GFS-driven run.
+ORDER = ("مكة المكرمة", "المدينة المنورة", "الباحة", "عسير", "جازان", "نجران", "تبوك", "الجوف", "الحدود الشمالية",
+         "حائل", "القصيم", "الرياض", "الشرقية")
+BOX_REGS = {"west": ("مكة المكرمة", "المدينة المنورة"), "southwest": ("الباحة", "عسير", "جازان", "نجران"),
+            "north": ("تبوك", "الجوف", "الحدود الشمالية", "حائل"), "central": ("القصيم", "الرياض"), "east": ("الشرقية",)}
+EDGE_AT = {"hada": "حافة الهدا", "shafa": "حافة الشفا", "sail": "السيل الكبير", "shamnasir": "حرة شمنصير",
+           "rahat_s": "حرة رهاط", "rahat_n": "حرة رهاط الشمالية", "kishb": "حرة كشب", "baha": "حافة الباحة",
+           "asir_n": "حافة عسير الشمالية", "asir_s": "حافة عسير الجنوبية", "jazan_h": "مرتفعات جازان"}
+
+
+def _axis_dense(axis, step=0.25):
+    """the trough axis [(lat, lon, anomaly m)] sampled every ~step degrees"""
+    out = []
+    for (a1, b1, v1), (a2, b2, v2) in zip(axis, axis[1:]):
+        n = max(1, int(max(abs(a2 - a1), abs(b2 - b1)) / step))
+        for k in range(n):
+            f = k / n
+            out.append((a1 + f * (a2 - a1), b1 + f * (b2 - b1), v1 + f * (v2 - v1)))
+    if axis:
+        out.append(tuple(axis[-1]))
+    return out
+
+
+_REGS = []
+
+
+def _in_kingdom(pts):
+    """[(lat, lon, v, region name)] of the points that fall inside the Kingdom"""
+    import sa_geo as G
+    if not _REGS:
+        _REGS.extend(G.regions())
+    if not pts:
+        return []
+    idx = G.region_of_points(_REGS, [p[0] for p in pts], [p[1] for p in pts])
+    return [(p[0], p[1], p[2], _REGS[k]["name"]) for p, k in zip(pts, idx) if k >= 0]
+
+
+def _kingdom_part(x):
+    """the part of one day's trough over the Kingdom: (deepest anomaly m, its lat, regions along the axis, tip lat)"""
+    kp = [p for p in _in_kingdom(_axis_dense(x.get("axis") or [])) if p[2] <= -15]
+    if not kp:
+        return None
+    deep = min(kp, key=lambda p: p[2])
+    regs = list(dict.fromkeys(p[3] for p in kp))
+    return {"v": deep[2], "lat": deep[0], "regions": regs, "tip": min(p[0] for p in kp),
+            "tip_v": max(kp, key=lambda p: -p[0])[2]}
+
+
+def cold_wave(st, day0):
+    """the upper cold wave of the report day, or None: {trough, next, falls, colds, regions, ...}"""
+    from datetime import timedelta
+    d0, d1, dm = day0.isoformat(), (day0 + timedelta(days=1)).isoformat(), (day0 - timedelta(days=1)).isoformat()
+    best = None
+    for t in st.get("troughs") or []:
+        x = next((x for x in t.get("days") or [] if x.get("d") == d0), None)
+        if not x:
+            continue
+        kp = _kingdom_part(x)
+        if kp and (best is None or kp["v"] < best[1]["v"]):
+            best = (t, kp, x)
+    W = {}
+    if best:
+        t, kp, x = best
+        nx = next((y for y in t["days"] if y.get("d") == d1), None)
+        pv = next((y for y in t["days"] if y.get("d") == dm), None)
+        W["trough"] = {"centre": (x["lat"], x["lon"]), "depth": x["depth"], "k": kp,
+                       "next": None if not nx else {"depth": nx["depth"], "k": _kingdom_part(nx)},
+                       "prev": None if not pv else {"depth": pv["depth"], "k": _kingdom_part(pv)}}
+    # the height fall and the cold over the edges, region by region (GFS at 3 PM Makkah)
+    falls, colds = {}, {}
+    pl = st.get("plains") or {}
+    if pl.get("day") == d0:
+        for e in pl.get("edges") or []:
+            up = e.get("upper") or {}
+            if up.get("fall") is not None and up["fall"] <= -10:
+                r = falls.setdefault(e["region"], [0, []])
+                r[0] = min(r[0], up["fall"])
+                r[1].append(EDGE_AT.get(e["key"], e["key"]))
+            if up.get("t500") is not None and (up.get("flags") or {}).get("cold"):
+                colds[e["region"]] = min(colds.get(e["region"], 0), up["t500"])
+    W["falls"], W["colds"] = falls, colds
+    pt = st.get("pattern") or {}
+    W["anom"] = {}
+    if pt.get("day") == d0:
+        for k, b in (pt.get("boxes") or {}).items():
+            if b.get("anom") is not None and b["anom"] <= -0.5:
+                W["anom"][k] = (b["name"], b["anom"], b["t"])
+    if not (W.get("trough") or falls or W["anom"]):
+        return None
+    regs = set(W["trough"]["k"]["regions"]) if W.get("trough") else set()
+    regs |= set(falls)
+    for k in W["anom"]:
+        regs |= set(BOX_REGS.get(k, ()))
+    W["regions"] = [r for r in ORDER if r in regs]
+    return W
+
+
+def _dam(v_m):
+    return n1(abs(v_m) / 10)
+
+
+def _span(vals):
+    a, b = min(vals), max(vals)
+    return f"{ar(a)}٪" if a == b else f"{ar(a)} إلى {ar(b)}٪"
+
+
+def cold_wave_blocks(st, day0):
+    """the summary's paragraph on the upper cold wave (empty when there is none)"""
+    import bigreport as BR
+    import troughs as TR
+    W = cold_wave(st, day0)
+    if not W:
+        return []
+    B = [{"h": "الموجة العلوية الباردة"}]
+    T = W.get("trough")
+    if T:
+        k = T["k"]
+        kw = BR.trough_word(abs(k["v"]) / 10)
+        nx = T.get("next")
+        dc = None if not nx else nx["depth"] - T["depth"]          # dam, negative = deeper tomorrow
+        trend = ("يتعمق" if dc is not None and dc <= -1 else "يضعف" if dc is not None and dc >= 1 else
+                 "ثابت العمق" if dc is not None else None)
+        head = f"تظهر ملامح موجة علوية باردة: أخدود {kw} فوق المملكة"
+        if trend:
+            head += f"، {trend} في مركزه"
+        if k["tip"] <= 27 and abs(k["tip_v"]) < 40:
+            head += "، ويصل طرفه الضحل إلى الحجاز"
+        B.append({"p": head + "."})
+        t = (f"السبب: أخدود عند ٥٠٠ هكتوباسكال مركزه فوق {TR.place(*T['centre'])} بعمق {n1(abs(T['depth']))} ديكامتر، "
+             f"يمتد محوره جنوبًا فوق {jl(k['regions'])} حتى نحو {ar(int(round(k['tip'])))} شمالًا؛ "
+             f"وأعمق جزء منه داخل المملكة {_dam(k['v'])} ديكامتر دون المعدل عند {ar(int(round(k['lat'])))} شمالًا")
+        if k["tip"] <= 27 and abs(k["tip_v"]) < 40:
+            t += f"، و{_dam(k['tip_v'])} فقط عند طرفه الجنوبي"
+        B.append({"p": t + "."})
+        if nx and nx.get("k"):
+            q = nx["k"]
+            t = (f"وغدًا {'يتعمق مركزه' if trend == 'يتعمق' else 'يضعف مركزه' if trend == 'يضعف' else 'يبقى مركزه'} "
+                 f"({n1(abs(T['depth']))} ثم {n1(abs(nx['depth']))} ديكامتر)، ويمتد محوره فوق {jl(q['regions'])}")
+            if q["tip"] <= k["tip"] - 1:
+                t += f" حتى نحو {ar(int(round(q['tip'])))} شمالًا"
+            t += f"، بعمق {_dam(q['v'])} ديكامتر فوق المملكة."
+            B.append({"p": t})
+        elif nx:
+            B.append({"p": "ويخرج محوره من المملكة غدًا، فهي موجة عابرة ليوم واحد."})
+    else:
+        B.append({"p": "تظهر ملامح تبريد علوي ضعيف: هبوط وبرودة في الطبقات العليا دون أخدود واضح المحور فوق المملكة."})
+    signs = []
+    fl = [(W["falls"][r][0], r, W["falls"][r][1]) for r in ORDER if r in W["falls"]]
+    if fl:
+        parts = []
+        for i, (f, r, at) in enumerate(fl):
+            at = list(dict.fromkeys(at))
+            x = f"{'' if i == 0 else 'و'}{ar(abs(round(f)))} مترًا فوق {r}" + (f" ({jl(at[:3])})" if r == "مكة المكرمة" else "")
+            parts.append(x)
+        signs.append("هبط سطح ٥٠٠ هكتوباسكال خلال يوم نحو " + "، ".join(parts))
+    for k, (nm, a, tt) in W["anom"].items():
+        signs.append(f"وحرارة ٥٠٠ فوق {nm} ‎−{n1(abs(tt))}°، أبرد من معدلها بـ{n1(abs(a))}°")
+    if signs:
+        signs[0] = signs[0].removeprefix("و")
+        B.append({"p": "العلامات: " + "، ".join(signs) + "."})
+    # the effect, region by region: cold aloft over moist air helps the storms; over dry air it is wind and cold only
+    hij, nor, dry = [], [], []
+    for r in W["regions"]:
+        pw = pw_of(st, day0, r)
+        if pw is None or pw < 110:
+            dry.append(r)
+        elif r in HIJAZ:
+            hij.append((r, pw))
+        else:
+            nor.append((r, pw))
+    eff = []
+    if hij:
+        eff.append(f"على {jl([r for r, _ in hij])} (الماء القابل للهطول {_span([p for _, p in hij])} من معدله) "
+                   "يبرّد الطبقات العليا فوق هواء رطب، فيقوي الخلايا الرعدية بعد الظهر على الحواف والحرات")
+    if nor:
+        eff.append(f"وعلى {jl([r for r, _ in nor])} ({_span([p for _, p in nor])}) برودة ورياح مع فرص زخات متفرقة")
+    if dry:
+        eff.append(f"وعلى {jl(dry)} برودة ورياح دون مطر يُذكر، لأن الهواء دون رطوبة كافية")
+    if eff:
+        eff[0] = eff[0].removeprefix("و")
+        B.append({"p": "الأثر: " + "، ".join(eff) + "."})
+    B.append({"p": "التوجيه: تؤخذ أماكن المطر واتساعه من تشغيل نموذجنا بالأوروبي (يكتمل قرابة السادسة صباحًا)، "
+                   "وتُتابع مواضع العواصف الرعدية وشدتها من تشغيل نموذجنا بالأمريكي الذي بُني عليه هذا التقرير."})
+    return B
+
+
 # ------------------------------------------------------------------ 1. the summary
 def summary(st, rs, regs, day0):
     import bigreport as BR
@@ -130,6 +321,12 @@ def summary(st, rs, regs, day0):
         B.append({"p": f"تصنيف الحالة: {label}، بفعل {sup}. وجدول الصورة الكبرى في القسم الرابع."})
     else:
         B.append({"p": "تصنيف الحالة: حمل حراري محلي لا يسنده نظام مداري ولا أخدود. وجدول الصورة الكبرى في القسم الرابع."})
+    try:
+        B += cold_wave_blocks(st, day0)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("report3: cold wave paragraph failed:", repr(e), flush=True)
     B.append({"p": "أما الحجاز والمناطق الجنوبية فلا تعتمد على الصورة الكبرى، ويكفيها الرطوبة والرفع والرياح، وتفصيلها في المناطق أدناه."})
     return sec("الخلاصة", "sum", B)
 
