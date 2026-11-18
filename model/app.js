@@ -995,10 +995,19 @@
     [47, 0xe62800], [48, 0xd91b00], [49, 0xcd0d00], [50, 0xc10000], [51, 0xa80000], [52, 0x8f0000], [53, 0x760000], [54, 0x5d0000],
     [55, 0xffaaff], [56, 0xff9fff], [57, 0xff95ff], [58, 0xff8bff], [59, 0xff81ff], [60, 0xff77ff], [61, 0xff6cff], [62, 0xff62ff],
     [63, 0xff58ff], [64, 0xff4eff], [65, 0xffffff]];
-  // classic radar colours, by the lowest dBZ of each step (drizzle, light, moderate, heavy rain, hail)
-  const RV_PAL = [[10, "#9fe8ff"], [15, "#4fc3f7"], [20, "#1e7bff"], [25, "#00d000"], [30, "#008f00"], [35, "#ffff00"], [40, "#ffc000"],
-    [45, "#ff8000"], [50, "#ff0000"], [55, "#c00000"], [60, "#ff00ff"], [65, "#9b30d9"]];
+  // the colours Fahad chose (18 Nov 2026, like the Yanbu radar page): light rain green, then blue, purple, pink,
+  // yellow, orange and red for the heaviest cores; blended smoothly between these dBZ points
+  const RV_PAL = [[10, "#2f9e44"], [16, "#3cb371"], [19, "#2f7fe0"], [23, "#4b4fe6"], [27, "#8e44d8"], [31, "#c944c8"], [35, "#f06bb0"],
+    [38, "#f7a989"], [41, "#f6e04a"], [46, "#ffd21a"], [50, "#ff9a1a"], [54, "#ff5a1a"], [58, "#e01a1a"], [62, "#ff7ab0"], [66, "#ffffff"]];
   const RV_RGB = RV_PAL.map(([d, c]) => [d, parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
+  function rvColor(d) {
+    if (d <= RV_RGB[0][0]) return RV_RGB[0];
+    for (let k = 1; k < RV_RGB.length; k++) {
+      const b = RV_RGB[k];
+      if (d <= b[0]) { const a = RV_RGB[k - 1], t = (d - a[0]) / (b[0] - a[0]); return [d, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t, a[3] + (b[3] - a[3]) * t]; }
+    }
+    return RV_RGB[RV_RGB.length - 1];
+  }
   const rvMemo = new Map();
   function rvDbz(r, g, b, a) {
     // the weak echoes (below 15 dBZ) are a see-through beige whose opacity grows with dBZ
@@ -1021,9 +1030,8 @@
       if (p[i + 3] < 8) { p[i + 3] = 0; continue; }
       const d = rvDbz(p[i], p[i + 1], p[i + 2], p[i + 3]);
       if (d < 10) { p[i + 3] = 0; continue; }
-      let c = RV_RGB[0];
-      for (const x of RV_RGB) if (d >= x[0]) c = x;
-      p[i] = c[1]; p[i + 1] = c[2]; p[i + 2] = c[3]; p[i + 3] = Math.max(p[i + 3], d >= 15 ? 235 : 170);
+      const c = rvColor(d);
+      p[i] = c[1]; p[i + 1] = c[2]; p[i + 2] = c[3]; p[i + 3] = Math.max(p[i + 3], d >= 19 ? 225 : 175);
     }
     cx.putImageData(im, 0, 0);
   }
@@ -1048,12 +1056,13 @@
     },
   });
   function rvLegend() {
-    setMini(`linear-gradient(to right, ${RV_PAL.map((x) => x[1]).join(", ")})`);
-    const w = 100 / RV_PAL.length;
+    const lo = RV_PAL[0][0], hi = RV_PAL[RV_PAL.length - 1][0], at = (d) => ((d - lo) / (hi - lo) * 100).toFixed(1);
+    const grad = `linear-gradient(to right, ${RV_PAL.map(([d, c]) => `${c} ${at(d)}%`).join(", ")})`;
+    setMini(grad);
     $("legend").innerHTML = `<div class="legend-title"><span>رادارات المركز الوطني للأرصاد، صورة كل ١٠ دقائق</span><span>ديسيبل</span></div>
-      <div class="legend-bar" style="background:linear-gradient(to right, ${RV_PAL.map((x, i) => `${x[1]} ${(i * w).toFixed(1)}% ${((i + 1) * w).toFixed(1)}%`).join(", ")})"></div>
-      <div class="legend-ticks">${RV_PAL.map((x, i) => `<span style="left:${(i * w).toFixed(1)}%">${num(x[0])}</span>`).join("")}</div>
-      <div class="legend-title" style="margin-top:2px"><span>رذاذ</span><span>خفيف</span><span>متوسط</span><span>غزير</span><span>برد</span></div>`;
+      <div class="legend-bar" style="background:${grad}"></div>
+      <div class="legend-ticks">${[10, 20, 30, 40, 50, 60].map((d) => `<span style="left:${at(d)}%">${num(d)}</span>`).join("")}</div>
+      <div class="legend-title" style="margin-top:2px;direction:ltr"><span>رذاذ</span><span>خفيف</span><span>متوسط</span><span>غزير</span><span>برد</span></div>`;
   }
   function rvLayer(f) {
     let l = RV.layers.get(f.path);
