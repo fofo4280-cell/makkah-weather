@@ -982,7 +982,6 @@
       RV.host = j.host || "https://tilecache.rainviewer.com";
       RV.frames = ((j.radar && j.radar.past) || []).map((f) => ({ t: f.time * 1000, path: f.path }));
       RV.got = Date.now();
-      for (const [k, l] of RV.layers) if (!RV.frames.some((f) => f.path === k)) { map.removeLayer(l); RV.layers.delete(k); }
     } catch (e) { /* offline or service down: keep what we have */ }
     if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
@@ -997,8 +996,10 @@
     [63, 0xff58ff], [64, 0xff4eff], [65, 0xffffff]];
   // the colours Fahad chose (18 Nov 2026, like the Yanbu radar page): light rain green, then blue, purple, pink,
   // yellow, orange and red for the heaviest cores; blended smoothly between these dBZ points
-  const RV_PAL = [[10, "#2f9e44"], [16, "#3cb371"], [19, "#2f7fe0"], [23, "#4b4fe6"], [27, "#8e44d8"], [31, "#c944c8"], [35, "#f06bb0"],
-    [38, "#f7a989"], [41, "#f6e04a"], [46, "#ffd21a"], [50, "#ff9a1a"], [54, "#ff5a1a"], [58, "#e01a1a"], [62, "#ff7ab0"], [66, "#ffffff"]];
+  // colours after the Yanbu radar page (Fahad 18 Nov 2026): weak echoes green, then blue, violet, magenta, pink,
+  // yellow cores, orange and red for the strongest; blended smoothly between these dBZ points
+  const RV_PAL = [[8, "#3fa34d"], [14, "#4caf50"], [17, "#3a6df0"], [21, "#6a48e6"], [25, "#a53fd8"], [29, "#d24cc8"], [33, "#ee78bf"],
+    [37, "#f6a5a0"], [41, "#f8e15a"], [46, "#ffd11a"], [50, "#ff9a1a"], [54, "#ff5a1a"], [58, "#e21c1c"], [62, "#b8123c"], [66, "#e8e8e8"]];
   const RV_RGB = RV_PAL.map(([d, c]) => [d, parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
   function rvColor(d) {
     if (d <= RV_RGB[0][0]) return RV_RGB[0];
@@ -1011,7 +1012,7 @@
   const rvMemo = new Map();
   function rvDbz(r, g, b, a) {
     // the weak echoes (below 15 dBZ) are a see-through beige whose opacity grows with dBZ
-    if (r > 0x60 && Math.abs(r - g) < 0x18 && b < g && b > 0x50) return a < 0x96 ? -99 : 10 + (a - 0x96) / 0x0a;
+    if (r > 0x60 && Math.abs(r - g) < 0x18 && b < g && b > 0x50) return a < 0x64 ? -10 + (a - 0x14) / 5.3 : 5 + (a - 0x64) / 10;
     const k = (r << 16) | (g << 8) | b;
     let d = rvMemo.get(k);
     if (d === undefined) {
@@ -1024,35 +1025,99 @@
     }
     return d;
   }
-  function rvPaint(cx, n) {
-    const im = cx.getImageData(0, 0, n, n), p = im.data;
-    for (let i = 0; i < p.length; i += 4) {
-      if (p[i + 3] < 8) { p[i + 3] = 0; continue; }
-      const d = rvDbz(p[i], p[i + 1], p[i + 2], p[i + 3]);
-      if (d < 10) { p[i + 3] = 0; continue; }
-      const c = rvColor(d);
-      p[i] = c[1]; p[i + 1] = c[2]; p[i + 2] = c[3]; p[i + 3] = Math.max(p[i + 3], d >= 19 ? 225 : 175);
-    }
-    cx.putImageData(im, 0, 0);
-  }
-  const RadarTiles = L.GridLayer.extend({
-    createTile(c, done) {
-      const n = 256, cv = document.createElement("canvas"); cv.width = cv.height = n;
-      const url = `${RV.host}${this.options.path}/256/${c.z}/${c.x}/${c.y}/2/1_0.png`;
-      const load = (cors) => {
-        const img = new Image();
-        if (cors) img.crossOrigin = "anonymous";
-        img.onload = () => {
+  // Each picture is read once at its own resolution (zoom 7 at most) as dBZ plus a weight (the see-through
+  // edges), then every map tile is drawn at the map's zoom by bilinear blending of dBZ, so the echoes stay
+  // smooth when zoomed in instead of showing the 1 km squares.
+  const RV_SRC = new Map();
+  function rvSource(path, z, x, y) {
+    const key = `${path}/${z}/${x}/${y}`;
+    if (RV_SRC.has(key)) return RV_SRC.get(key);
+    const pr = new Promise((res) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => {
+        try {
+          const cv = document.createElement("canvas"); cv.width = cv.height = 256;
           const cx = cv.getContext("2d", { willReadFrequently: true });
-          cx.drawImage(img, 0, 0, n, n);
-          if (cors) { try { rvPaint(cx, n); } catch (e) { RV.cors = false; } }
-          done(null, cv);
-        };
-        img.onerror = () => { if (cors) { RV.cors = false; load(false); } else done(null, cv); };   // without permission to read pixels: the service's own colours
-        img.src = url;
+          cx.drawImage(img, 0, 0, 256, 256);
+          const p = cx.getImageData(0, 0, 256, 256).data, D = new Float32Array(65536), W = new Float32Array(65536);
+          for (let k = 0; k < 65536; k++) {
+            const a = p[4 * k + 3];
+            if (a < 6) continue;
+            const d = rvDbz(p[4 * k], p[4 * k + 1], p[4 * k + 2], a);
+            if (d < 0) continue;
+            const opaque = !(p[4 * k] > 0x60 && Math.abs(p[4 * k] - p[4 * k + 1]) < 0x18 && p[4 * k + 2] < p[4 * k + 1] && p[4 * k + 2] > 0x50);
+            const w = opaque ? a / 255 : 1;
+            D[k] = d * w; W[k] = w;
+          }
+          res({ D, W });
+        } catch (e) { RV.cors = false; res(null); }
       };
-      load(RV.cors !== false);
-      return cv;
+      img.onerror = () => res(null);
+      img.src = `${RV.host}${path}/256/${z}/${x}/${y}/2/1_0.png`;
+    });
+    RV_SRC.set(key, pr);
+    if (RV_SRC.size > 400) RV_SRC.delete(RV_SRC.keys().next().value);
+    return pr;
+  }
+  // One canvas over the whole map view (no tiles, so no seams): every screen pixel takes its dBZ by bilinear
+  // blending of the four nearest radar pixels, then its colour.
+  const RadarCanvas = L.Layer.extend({
+    onAdd(m) {
+      this._c = L.DomUtil.create("canvas", "leaflet-zoom-hide");
+      m.getPane("radar").appendChild(this._c);
+      m.on("moveend zoomend resize", this.redraw, this);
+      this.redraw();
+    },
+    onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
+    setPath(path) { this.path = path; this.redraw(); },
+    getAttribution() { return '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>'; },
+    async redraw() {
+      const m = this._map; if (!m || !this.path) return;
+      const tok = this._tok = (this._tok || 0) + 1, path = this.path;
+      const size = m.getSize(), zoom = m.getZoom(), z = Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
+      const tl = m.containerPointToLayerPoint([0, 0]), org = tl.add(m.getPixelOrigin());
+      const gx0 = org.x * sc, gy0 = org.y * sc;
+      const tx0 = Math.floor((gx0 - 1) / 256), tx1 = Math.floor((gx0 + size.x * sc + 1) / 256);
+      const ty0 = Math.max(0, Math.floor((gy0 - 1) / 256)), ty1 = Math.min(n - 1, Math.floor((gy0 + size.y * sc + 1) / 256));
+      const T = new Map(), jobs = [];
+      for (let tx = tx0; tx <= tx1; tx++) for (let ty = ty0; ty <= ty1; ty++) {
+        const wx = ((tx % n) + n) % n;
+        jobs.push(rvSource(path, z, wx, ty).then((src) => { if (src) T.set(tx * 4096 + ty, src); }));
+      }
+      await Promise.all(jobs);
+      if (tok !== this._tok || !this._map) return;
+      const W = size.x, H = size.y, c = this._c;
+      c.width = W; c.height = H; c.style.width = W + "px"; c.style.height = H + "px";
+      L.DomUtil.setPosition(c, tl);
+      const cx = c.getContext("2d"), im = cx.createImageData(W, H), q = im.data;
+      let lastK = -1e9, src = null;
+      const at = (X, Y, out) => {   // dBZ*weight and weight of one radar pixel (global pixel numbers at zoom z)
+        const tx = Math.floor(X / 256), ty = Math.floor(Y / 256), k = tx * 4096 + ty;
+        if (k !== lastK) { lastK = k; src = T.get(k) || null; }
+        if (!src) { out[0] = 0; out[1] = 0; return; }
+        const o = (Y - ty * 256) * 256 + (X - tx * 256);
+        out[0] = src.D[o]; out[1] = src.W[o];
+      };
+      const a = [0, 0], b = [0, 0], e = [0, 0], f = [0, 0];
+      for (let j = 0; j < H; j++) {
+        const gy = gy0 + (j + 0.5) * sc - 0.5, Y0 = Math.floor(gy), ty = gy - Y0;
+        if (Y0 < 0 || Y0 + 1 >= n * 256) continue;
+        for (let i = 0; i < W; i++) {
+          const gx = gx0 + (i + 0.5) * sc - 0.5, X0 = Math.floor(gx), tx = gx - X0;
+          at(X0, Y0, a); at(X0 + 1, Y0, b); at(X0, Y0 + 1, e); at(X0 + 1, Y0 + 1, f);
+          const k0 = (1 - tx) * (1 - ty), k1 = tx * (1 - ty), k2 = (1 - tx) * ty, k3 = tx * ty;
+          const w = a[1] * k0 + b[1] * k1 + e[1] * k2 + f[1] * k3;
+          if (w < 0.04) continue;
+          const d = (a[0] * k0 + b[0] * k1 + e[0] * k2 + f[0] * k3) / w;
+          if (d < 8) continue;
+          const col = rvColor(d), o = 4 * (j * W + i);
+          // weak echoes faint so the ground shows through, cores nearly solid
+          const al = d < 14 ? 70 + (d - 8) * 12 : d < 20 ? 140 + (d - 14) * 10 : 200;
+          q[o] = col[1]; q[o + 1] = col[2]; q[o + 2] = col[3]; q[o + 3] = al * Math.min(1, w * 1.6);
+        }
+      }
+      cx.putImageData(im, 0, 0);
     },
   });
   function rvLegend() {
@@ -1064,17 +1129,10 @@
       <div class="legend-ticks">${[10, 20, 30, 40, 50, 60].map((d) => `<span style="left:${at(d)}%">${num(d)}</span>`).join("")}</div>
       <div class="legend-title" style="margin-top:2px;direction:ltr"><span>رذاذ</span><span>خفيف</span><span>متوسط</span><span>غزير</span><span>برد</span></div>`;
   }
-  function rvLayer(f) {
-    let l = RV.layers.get(f.path);
-    if (!l) {
-      l = new RadarTiles({
-        path: f.path, pane: "radar", opacity: 0, maxNativeZoom: 7, maxZoom: 19, tileSize: 256,
-        attribution: '<a href="https://www.rainviewer.com/" target="_blank" rel="noopener">RainViewer</a>',
-      });
-      RV.layers.set(f.path, l);
-    }
-    if (!map.hasLayer(l)) l.addTo(map);
-    return l;
+  function rvLayer() {
+    if (!RV.canvas) RV.canvas = new RadarCanvas({ pane: "radar" });
+    if (!map.hasLayer(RV.canvas)) RV.canvas.addTo(map);
+    return RV.canvas;
   }
   function rvPick() {
     if (!RV.frames.length) return null;
@@ -1090,8 +1148,8 @@
     const btn = $("rvBtn"), forced = S.prod === "radar";
     if (btn) btn.hidden = forced;   // in the radar entry the radar is always on
     if (!RV.on && !forced) {
-      for (const l of RV.layers.values()) map.removeLayer(l);
-      RV.layers.clear(); RV.cur = null;
+      if (RV.canvas) map.removeLayer(RV.canvas);
+      RV.cur = null;
       if (btn) { btn.classList.remove("active"); btn.setAttribute("aria-pressed", "false"); btn.textContent = "الرادار"; }
       return;
     }
@@ -1099,14 +1157,15 @@
     const f = rvPick();
     if (!f) { if (btn) btn.textContent = "الرادار…"; return; }
     if (btn) btn.textContent = `الرادار ${fmtClock.format(f.t)}`;
-    if (RV.cur === f.path) return;
-    const l = rvLayer(f), old = RV.cur && RV.layers.get(RV.cur);
+    const l = rvLayer();
+    if (RV.cur === f.path && l.path === f.path) return;
     RV.cur = f.path;
-    const show = () => { l.setOpacity(0.9); if (old && old !== l) old.setOpacity(0); };
-    if (!l.isLoading()) show(); else { l.once("load", show); setTimeout(show, 1500); }
-    // keep the neighbours ready so sliding through time does not flash
-    const i = RV.frames.indexOf(f);
-    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k] && LX.on) rvLayer(RV.frames[k]);
+    l.setPath(f.path);   // the previous picture stays until the new one is drawn
+    // fetch the neighbours so sliding through time does not wait
+    const i = RV.frames.indexOf(f), zoom = map.getZoom(), z = Math.max(0, Math.min(7, Math.ceil(zoom))), sc = 2 ** (z - zoom), n = 2 ** z;
+    const pb = map.getPixelBounds(), x0 = Math.floor(pb.min.x * sc / 256), x1 = Math.floor(pb.max.x * sc / 256);
+    const y0 = Math.max(0, Math.floor(pb.min.y * sc / 256)), y1 = Math.min(n - 1, Math.floor(pb.max.y * sc / 256));
+    for (const k of [i - 1, i + 1, i + 2]) if (RV.frames[k]) for (let x = x0; x <= x1; x++) for (let y = y0; y <= y1; y++) rvSource(RV.frames[k].path, z, ((x % n) + n) % n, y);
   }
   function rvToggle() {
     RV.on = !RV.on; store.set("rv", RV.on ? "1" : "0");
