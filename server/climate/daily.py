@@ -614,7 +614,7 @@ def main():
     # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
     #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
     ksa_out = {"days": [], "lows": [], "rst": [], "extent": [33.0, 57.5, 14.0, 33.5]}
-    wind_days, wmeta_ = {}, None
+    wind_days, wmeta_, vals_days, vmeta_ = {}, None, {}, None
     try:
         import ksa
         stat = None
@@ -634,6 +634,7 @@ def main():
                 try:
                     wp_, wmeta_ = ksa.wind_pack(f_)
                     wind_days[k] = wp_
+                    vals_days[k], vmeta_ = ksa.vals_pack(f_)
                 except Exception as e:  # noqa: BLE001
                     print("kingdom winds failed", k, repr(e)[:120], flush=True)
             except Exception as e:  # noqa: BLE001
@@ -650,6 +651,13 @@ def main():
                     fh_.write(wind_days.get(k, blank).tobytes())
             ksa_out["wind"] = {**wmeta_, "file": "ksa_wind.bin", "days": len(days),
                                "missing": [k for k in range(len(days)) if k not in wind_days]}
+        if vals_days:
+            blank = np.zeros_like(next(iter(vals_days.values())))
+            with open(os.path.join(out, "ksa_vals.bin"), "wb") as fh_:
+                for k in range(len(days)):
+                    fh_.write(vals_days.get(k, blank).tobytes())
+            ksa_out["vals"] = {**vmeta_, "file": "ksa_vals.bin", "days": len(days),
+                               "missing": [k for k in range(len(days)) if k not in vals_days]}
         print("kingdom surface lows:", [[(x["where"], x["p"]) for x in l] if l else l for l in ksa_out["lows"]], flush=True)
         print("red sea trough reach:", [r["north"] if r else r for r in ksa_out["rst"]], flush=True)
     except Exception as e:  # noqa: BLE001

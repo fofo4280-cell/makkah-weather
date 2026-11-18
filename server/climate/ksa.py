@@ -238,18 +238,18 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
     if kind in ("krh7", "krh5"):
         cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=[50, 70, 90], colors=["#f4efe2", "#d8f3dc", "#ffffff"],
                         linewidths=[0.7, 0.9, 1.1], transform=pc, zorder=3)
-        lab = ax.clabel(cs, fmt=lambda x: dig(x) + "٪", fontsize=7, inline=True, inline_spacing=3)
+        lab = []   # the page writes the values (tap) and the names itself, at a constant size (Fahad, 18 Nov 2026)
     elif kind in ("kw7", "kw5"):
         # isotachs every 5 m/s, labelled every 10; the arrows are drawn by the page, denser as it zooms in
         lv = np.arange(5, 80, 5)
         cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=lv, colors="#f4f6f8",
                         linewidths=[0.8 if x % 10 == 0 else 0.35 for x in lv], alpha=0.8, transform=pc, zorder=3)
-        lab = ax.clabel(cs, levels=lv[lv % 10 == 0], fmt=dig, fontsize=7, inline=True, inline_spacing=3)
+        lab = []
     elif kind == "kt5":
         lv = np.arange(-40, 6, 1)
         cs = ax.contour(flo, fla, gaussian_filter(fine, 3), levels=lv, colors="#f4f6f8",
                         linewidths=[0.95 if x % 2 == 0 else 0.4 for x in lv], linestyles="solid", transform=pc, zorder=3)
-        lab = ax.clabel(cs, levels=lv[lv % 2 == 0], fmt=dig, fontsize=7.5, inline=True, inline_spacing=3)
+        lab = []
     else:
         lab = []
         # the 10 m wind (thin dark streamlines) and the sea-level isobars every 2 hPa
@@ -297,8 +297,8 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
         if kind != "kconv":
             t.set_color("#ffffff")
         t.set_path_effects(halo)
-    # places
-    for name, y, x, kd in F.WAVE_PLACES:
+    # places (only on the old surface map; the page maps get their names from the page, Fahad 18 Nov 2026)
+    for name, y, x, kd in (F.WAVE_PLACES if kind == "kconv" else []):
         if not (w + 1.5 < x < e - 1.5 and s + 0.8 < y < n - 0.8):
             continue
         if trough and name == "البحر الأحمر":   # the trough line runs over it and carries the sea's name
@@ -306,7 +306,7 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
         ax.text(x, y, F._rtl(name), transform=pc, ha="center", va="center", fontsize=8, fontfamily=fam,
                 fontweight="bold", color="#e3e7eb" if kd == "sea" else "#22272d", alpha=0.85,
                 path_effects=[pe.withStroke(linewidth=2, foreground="#3a3f45" if kd == "sea" else "#eef0f2")], zorder=5)
-    for name, y, x, where, big in F.SAUDI_CITIES:
+    for name, y, x, where, big in (F.SAUDI_CITIES if kind == "kconv" else []):
         if not big and name not in ("الطائف", "نجران", "الباحة", "بريدة", "ينبع"):
             continue
         ax.plot([x], [y], marker="o", markersize=3.2, color="#ffffff", markeredgecolor="#111111", markeredgewidth=0.8,
@@ -381,7 +381,12 @@ def rst(f, log=None):
 WIND_STEP = 0.5     # deg; the page interpolates between points, so arrows can be as dense as the zoom wants
 
 
-def wind_pack(f):
+def vals_pack(f):
+    """rh7, rh5 (%) and t5 (C) on the same grid as wind_pack, int16 in 0.1, for the page's tap readout"""
+    return wind_pack(f, ("rh7", "rh5", "t5"))
+
+
+def wind_pack(f, keys=("u7", "v7", "u5", "v5")):
     """u, v at 700 and 500 hPa on a WIND_STEP grid over EXTENT (north row first, west column first), lightly
     smoothed: int16 in 0.1 m/s, order u7, v7, u5, v5"""
     from scipy.ndimage import gaussian_filter
@@ -392,9 +397,9 @@ def wind_pack(f):
     LA, LO = np.meshgrid(la_out, lo_out, indexing="ij")
     lat, lon = f["lat"], f["lon"]
     out = []
-    for k in ("u7", "v7", "u5", "v5"):
+    for k in keys:
         a = gaussian_filter(f[k], 1.0)
         it = RegularGridInterpolator((lat[::-1], lon), a[::-1], bounds_error=False, fill_value=None)
         out.append(np.clip(np.round(it((LA, LO)) * 10), -32000, 32000).astype("<i2"))
     return np.stack(out), {"lat0": float(n), "lon0": float(w), "d": WIND_STEP, "ny": len(la_out), "nx": len(lo_out),
-                           "scale": 0.1, "order": ["u7", "v7", "u5", "v5"]}
+                           "scale": 0.1, "order": list(keys)}
