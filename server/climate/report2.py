@@ -196,6 +196,10 @@ def makkah_section(st, rs, regs):
     if para:
         B.append({"h": "قراءة الحالة اليوم"})
         B.append({"p": " ".join(para)})
+    cmk = (((rs or {}).get("data") or {}).get("cover_regions") or {}).get("مكة المكرمة")
+    if cmk is not None and not pending(rs):
+        B.append({"p": f"نسبة تغطية المطر في منطقة مكة المكرمة: {cover_pct(cmk)} من مساحتها. "
+                       + kind_sentence(st, day0_of(st), "مكة المكرمة")})
 
     def model_words(keys, label):
         if pending(rs):
@@ -441,6 +445,12 @@ def s1(st, secs, rs, regs, day0):
     if edges:
         t += f"، مع تهيؤ الحمل الحراري بعد الظهر على حواف {jl(list(dict.fromkeys(e['region'] for e in edges)))}"
     B.append({"p": t + "."})
+    dat = (rs or {}).get("data") or {}
+    if not pending(rs) and dat.get("cover_ksa") is not None:
+        B.append({"p": f"نسبة تغطية المطر للحالة: {cover_pct(dat['cover_ksa'])} من مساحة المملكة في نموذجنا "
+                       "(النقاط التي يبلغ مجموع مطرها في اليوم ١ ملم فأكثر). " + kind_sentence(st, day0)})
+    elif pending(rs):
+        B.append({"p": "تُحسب نسبة تغطية المطر حين يكتمل تشغيل نموذجنا الليلي. " + kind_sentence(st, day0)})
     sm = find(secs, kind="sum")
     if sm:
         cur = next((l for l in sm["lines"] if "موجة" in l and ("قائمة" in l or "لا موجة" in l)), None)
@@ -517,8 +527,12 @@ def s2(st, secs, rs, regs, day0):
         first = rs["lines"][0]
         if not first.startswith("منطقة "):
             B.append({"p": first.split(". الصورة")[0]})
+    covr = ((rs or {}).get("data") or {}).get("cover_regions") or {}
     for r in regs:
         B.append({"h": f"منطقة {r['name']}"})
+        if r["name"] in covr:
+            B.append({"p": f"نسبة تغطية المطر في المنطقة: {cover_pct(covr[r['name']])} من مساحتها. "
+                           + kind_sentence(st, day0, r["name"])})
         for i, w in enumerate(r["wins"]):
             lab = f"الفترة {ORD[i]}: " if len(r["wins"]) > 1 else ""
             ul = []
@@ -820,3 +834,74 @@ def to_markdown(rep):
                 out += ["| " + " | ".join(t["head"]) + " |", "|" + "---|" * len(t["head"])]
                 out += ["| " + " | ".join(r) + " |" for r in t["rows"]] + [""]
     return "\n".join(out)
+
+
+# ------------------------------------------------------------------ coverage and the kind of the case (18 Nov 2026)
+# Fahad: «نسبة تغطية المطر من الحالة كاملة في السعودية، هذه في الخلاصة … ولكل منطقة … وتحدد هل الحالة معتمدة بشكل
+# كامل على النظام المداري أم مداري أخدودي أم أخدودي». Coverage = share of the area whose day total in our run
+# reaches 1 mm (rainreport.COVER_MM). The kind is read from the drivers of the day (bigreport.strength): tropical =
+# the MJO in a supportive phase, the warm event in its sector, the Rossby family, a moisture surge (>= 150 %);
+# trough = a trough over the Kingdom at 500 hPa, or, for the Makkah region, the shallow trough the Makkah reading
+# confirms aloft (makkah_story: two signs or more).
+NORTH_REGS = {"تبوك", "الجوف", "الحدود الشمالية", "حائل", "القصيم", "المدينة المنورة", "الرياض", "الشرقية"}
+
+
+def case_kind(st, day0, region=None):
+    """(label, tropical words, trough words) for the Kingdom or one region"""
+    import bigreport as BR
+    c = BR.strength(st, day0)
+    fac = dict(BR._day_factors(st, day0))
+    T, R = [], []
+    m = BR.B.rmm_on(st, day0)
+    if c.get("mjo", 0) > 0 and m:
+        T.append(f"التذبذب المداري في الطور {ar(m['phase'])}" + (" (دعم ضعيف)" if m["phase"] == 2 else ""))
+    if c.get("warm", 0) > 0:
+        T.append("الحدث الدافئ في القطاع الداعم")
+    if c.get("ros", 0) >= 0.3:
+        T.append("عائلة روسبي الاستوائية")
+    if "surge" in fac:
+        T.append(fac["surge"])
+    trough_k = "trough" in fac
+    mk_trough = False
+    try:
+        import makkah_story as MS
+        mk_trough = bool(MS.read(st).get("trough"))
+    except Exception:  # noqa: BLE001
+        pass
+    if region is None:
+        if trough_k:
+            R.append(fac["trough"])
+        elif mk_trough:
+            R.append("أخدود ضحل فوق الحجاز")
+    elif region == "مكة المكرمة":
+        if mk_trough:
+            R.append("أخدود ضحل فوق الحجاز يؤكده هبوط سطح ٥٠٠ وبرودته")
+        elif trough_k:
+            R.append(fac["trough"])
+    elif region in NORTH_REGS and trough_k:
+        R.append(fac["trough"])
+    label = ("مدارية أخدودية" if T and R else "مدارية بالكامل" if T else "أخدودية" if R
+             else "حمل حراري محلي لا يسنده نظام مداري ولا أخدود")
+    return label, T, R
+
+
+def kind_sentence(st, day0, region=None):
+    label, T, R = case_kind(st, day0, region)
+    t = f"تصنيف الحالة{'' if region is None else ' فيها'}: {label}"
+    parts = []
+    if T:
+        parts.append("يسندها من المداريات " + jl(T))
+    if R:
+        parts.append(("ومن العروض الوسطى " if T else "يسندها ") + jl(R))
+    return t + ("، " + "، ".join(parts) if parts else "") + "."
+
+
+def day0_of(st):
+    tc = (st.get("taifc") or {}).get("today") or (st.get("plains") or {}).get("day") or st["days"][0]
+    return date.fromisoformat(tc)
+
+
+def cover_pct(x):
+    """a share as Arabic percent words: under 1 % says so"""
+    v = 100 * (x or 0)
+    return "أقل من ٠٫١٪" if v < 0.1 else f"نحو {num(v, 1)}٪" if v < 10 else f"نحو {ar(round(v))}٪"
