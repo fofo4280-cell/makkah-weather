@@ -372,3 +372,17 @@ a { color: var(--sea); }
 .me-ctl a.busy { animation: mePulse 1s infinite; }
 .me-ctl a.on { color: var(--sea) !important; }
 @keyframes mePulse { 50% { opacity: .4; } }
+/* one compact button on the map opens the run / layer / model choices (Fahad 18 Nov 2026) */
+.map-menu-btn { width: 40px; height: 40px; border-radius: 12px; border: 1px solid var(--glass-line); background: var(--glass); color: var(--glass-ink);
+  display: grid; place-items: center; cursor: pointer; padding: 0; box-shadow: 0 1px 6px rgba(0,0,0,.35); }
+.map-menu-btn[aria-expanded="true"] { background: var(--sea); border-color: transparent; color: #fff; }
+.map-menu { width: min(300px, calc(100vw - 80px)); background: rgba(17,17,17,.94); border: 1px solid var(--glass-line); border-radius: 14px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 6px 24px rgba(0,0,0,.5); }
+.mm-row { display: flex; flex-direction: column; gap: 4px; }
+.mm-row:has(> select[hidden]) { display: none; }
+.mm-lbl { font-size: .72rem; color: var(--glass-muted); }
+.map-menu .mpill, .map-menu .run-select { width: 100%; max-width: none; height: 36px; font-size: .84rem; }
+#mmBase .leaflet-control-layers { position: static; margin: 0; width: 100%; box-sizing: border-box; box-shadow: none; border: 1px solid var(--glass-line); border-radius: 10px; background: transparent; padding: 6px 8px; font-size: .82rem; }
+#mmBase .leaflet-control-layers label { margin: 3px 0; }
+.map-menu { max-height: calc(100vh - 200px); overflow-y: auto; }
+#mmBase .leaflet-control-layers-separator { border-top-color: var(--glass-line); }

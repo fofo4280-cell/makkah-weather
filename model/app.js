@@ -151,7 +151,9 @@
   fetch("sa_regions.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
   // the other countries' borders (Natural Earth 1:50m, the Saudi point of view)
   fetch("borders.json?v=1").then((r) => r.json()).then((g) => regions.addData(g)).catch(() => {});
-  L.control.layers(bases, { "الحدود": regions, "ظلال التضاريس": shade, "الأسماء": names }, { position: "topleft" }).addTo(map);
+  // the basemap / overlay choices live inside the map options panel (Fahad 18 Nov 2026), not on the map's left
+  const layersCtl = L.control.layers(bases, { "الحدود": regions, "ظلال التضاريس": shade, "الأسماء": names }, { position: "topleft", collapsed: false }).addTo(map);
+  $("mmBase").appendChild(layersCtl.getContainer());
   const setMapKind = (name) => {
     document.body.classList.toggle("light-map", !DARK_BASES.has(name));
     document.body.classList.toggle("sat-map", name === "تضاريس (صور فضائية)");
@@ -1472,6 +1474,15 @@
     }
   }
   $("runSelect").onchange = (e) => { stop(); loadRun(e.target.value, true); };
+  // the map options panel: one button, three choices; closes after a choice or a tap elsewhere
+  function mapMenu(open) {
+    $("mapMenu").hidden = !open; $("mapMenuBtn").setAttribute("aria-expanded", open ? "true" : "false");
+  }
+  $("mapMenuBtn").addEventListener("click", (e) => { e.stopPropagation(); mapMenu($("mapMenu").hidden); });
+  $("mapMenu").addEventListener("click", (e) => e.stopPropagation());
+  for (const id of ["runSelect", "prodSelect", "modelSelect"]) $(id).addEventListener("change", () => setTimeout(() => mapMenu(false), 150));
+  document.addEventListener("click", () => { if (!$("mapMenu").hidden) mapMenu(false); });
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") mapMenu(false); });
 
   // GFS / ECMWF: the same model and grids, driven by either; switching reloads the newest run of the chosen one
   function drawModelTabs() {
