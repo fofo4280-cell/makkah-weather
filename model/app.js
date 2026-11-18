@@ -187,7 +187,7 @@
       this.redraw();
     },
     onRemove(m) { m.off("moveend zoomend resize", this.redraw, this); L.DomUtil.remove(this._c); },
-    getAttribution() { return "أسماء القرى: © OpenStreetMap"; },
+    getAttribution() { return "© OSM"; },
     redraw() {
       const m = this._map; if (!m) return;
       const z = m.getZoom(), size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
@@ -212,15 +212,16 @@
       let shown = 0;
       for (const [n, la, lo, t] of this._p) {
         if (z < PLACE_ZOOM[t] || !b.contains([la, lo])) continue;
-        const pt = m.latLngToContainerPoint([la, lo]), fs = t === 0 ? 11 : 10;
-        cx.font = `${t === 0 ? 600 : 500} ${fs}px ${fam}`;
+        const pt = m.latLngToContainerPoint([la, lo]), fs = t === 0 ? 11 : 10.5;
+        cx.font = `400 ${fs}px ${fam}`;   // soft like the main names (Taif): regular weight, blurred halo, no outline
         const w = cx.measureText(n).width, r = [pt.x - w - 8, pt.y - fs * 0.7, pt.x + 3, pt.y + fs * 0.7];
         if (placed.some((q) => r[0] < q[2] + 3 && r[2] > q[0] - 3 && r[1] < q[3] + 1 && r[3] > q[1] - 1)) continue;
         placed.push(r);
-        cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(pt.x, pt.y, t === 0 ? 2 : 1.6, 0, 2 * Math.PI); cx.fill();
-        cx.strokeStyle = "rgba(0,0,0,.7)"; cx.lineWidth = 3; cx.strokeText(n, pt.x - 5, pt.y);
-        cx.fillStyle = t === 0 ? "rgba(255,255,255,.92)" : t === 1 ? "rgba(255,255,255,.82)" : "rgba(225,232,240,.72)";
+        cx.shadowColor = "rgba(0,0,0,.85)"; cx.shadowBlur = 3;
+        cx.fillStyle = "#fff"; cx.beginPath(); cx.arc(pt.x, pt.y, t === 0 ? 2 : 1.5, 0, 2 * Math.PI); cx.fill();
+        cx.fillStyle = t === 0 ? "rgba(255,255,255,.92)" : t === 1 ? "rgba(255,255,255,.85)" : "rgba(236,240,245,.75)";
         cx.fillText(n, pt.x - 5, pt.y);
+        cx.shadowBlur = 0;
         if (++shown > 600) break;
       }
     },
