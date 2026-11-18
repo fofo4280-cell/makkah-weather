@@ -54,6 +54,56 @@ def system_word(st, day0, region):
     return "حمل حراري" + ("، يسنده النظام المداري" if T else " محلي")
 
 
+# ------------------------------------------------------------------ the spread against the past days (Fahad, 18 Nov 2026)
+def _pc(v):
+    return "—" if v is None else R2.cover_pct(v).removeprefix("نحو ")
+
+
+def _ratio_words(today, peak):
+    if today is None or not peak or peak <= 0:
+        return None
+    r = today / peak
+    if r >= 0.8:
+        return "يقارب انتشار ذروتها"
+    if r >= 0.4:
+        return "نحو نصف انتشار ذروتها"
+    if r >= 0.2:
+        return "نحو ربع انتشار ذروتها أو أقل"
+    n = round(1 / max(r, 1e-6))
+    return "أقل بكثير من انتشار ذروتها" + (f" (نحو جزء من {ar(n)})" if n <= 50 else "")
+
+
+def spread_table(st, day0, region=None):
+    """blocks: one table (our model and GFS, today, yesterday, the day before, the last wave's peak) and one line"""
+    import covhist as CH
+    H = st.get("cover_hist")
+    if not H:
+        return []
+    c = CH.compare(H, day0, region)
+    pk = c["peak"]
+    head = ["المصدر", "اليوم", "أمس", "أول أمس"]
+    if pk:
+        head.append(f"ذروة الموجة الماضية ({ar_date(pk[0])})")
+    rows = []
+    if any(v is not None for v in c["ours"]):
+        rows.append(["نموذجنا"] + [_pc(v) for v in c["ours"]] + (["لم يُحفظ"] if pk else []))
+    rows.append(["جي إف إس"] + [_pc(v) for v in c["gfs"]] + ([_pc(pk[1])] if pk else []))
+    B = [{"p": ("انتشار المطر على المملكة" if region is None else "انتشار المطر في المنطقة")
+               + " (نسبة المساحة التي يبلغ مطرها ١ ملم فأكثر في اليوم):"},
+         {"table": {"head": head, "rows": rows}}]
+    if pk:
+        w = c["wave"]
+        span = ar_date(w[0]) if len(w) == 1 else R2.ar_span(w[0], w[-1])
+        rw = _ratio_words(c["gfs"][0], pk[1])
+        t = f"الموجة الماضية {span}"
+        if rw:
+            t += f"، وانتشار اليوم {rw} بحسب جي إف إس"
+        B.append({"p": t + "."})
+    else:
+        B.append({"p": "لا موجة مطرية في الأسبوعين الماضيين للمقارنة بها."})
+    return B
+
+
 # ------------------------------------------------------------------ 1. the summary
 def summary(st, rs, regs, day0):
     import bigreport as BR
@@ -73,6 +123,7 @@ def summary(st, rs, regs, day0):
         where = sorted([w for w in where if w[0] >= 0.001], reverse=True)
         if where:
             B.append({"p": "تتركز على: " + "، و".join(f"منطقة {n} ({R2.cover_pct(v)} من مساحتها)" for v, n in where[:5]) + "."})
+    B += spread_table(st, day0)
     label, T, Rr = R2.case_kind(st, day0)
     if T or Rr:
         sup = "، و".join(([("المداريات: " + jl(T))] if T else []) + ([("العروض الوسطى: " + jl(Rr))] if Rr else []))
@@ -118,6 +169,7 @@ def makkah(st, rs, regs, day0):
         rows.append([name, "—" if mm is None else f"{n1(mm)} ملم", lv])
     if rows:
         B.append({"table": {"head": ["المكان", "مطر نموذجنا", "الثقة"], "rows": rows}})
+    B += spread_table(st, day0, "مكة المكرمة")
     # reasons, short: the meeting of the winds, the motion, the support
     why = []
     m = RD.get("meet")
@@ -206,6 +258,16 @@ def others(st, rs, regs, day0):
             t += f"، ويغطي المطر {R2.cover_pct(covr[nm])} من مساحتها"
         t += f". النظام: {system_word(st, day0, nm)}."
         B.append({"p": t})
+        H = st.get("cover_hist")
+        if H:
+            import covhist as CH
+            c = CH.compare(H, day0, nm)
+            g = c["gfs"]
+            if g[0] is not None:
+                u = (f"الانتشار بحسب جي إف إس: اليوم {_pc(g[0])}، وأمس {_pc(g[1])}، وأول أمس {_pc(g[2])}")
+                if c["peak"]:
+                    u += f"، وذروة الموجة الماضية {_pc(c['peak'][1])} ({ar_date(c['peak'][0])})"
+                B.append({"p": u + "."})
     if not B:
         B.append({"p": "لا أمطار تُذكر على بقية المناطق."})
     else:

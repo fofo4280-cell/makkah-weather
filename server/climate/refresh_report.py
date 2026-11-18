@@ -53,6 +53,11 @@ def main():
     rep["updated"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
     # Fahad's layout only (17 Nov 2026: "the old layout, I do not want it"): report2.build never returns the old
     # sections; on a failure it publishes the layout with a note saying what failed
+    try:   # the spread of past days, to compare today with them (Fahad, 18 Nov 2026)
+        import covhist
+        covhist.attach(st, out, new, day)
+    except Exception as e:  # noqa: BLE001
+        print("cover history failed:", repr(e), flush=True)
     import report2
     rep = report2.build(rep, st)
     st["report"] = rep
