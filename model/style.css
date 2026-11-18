@@ -386,3 +386,4 @@ a { color: var(--sea); }
 #mmBase .leaflet-control-layers label { margin: 3px 0; }
 .map-menu { max-height: calc(100vh - 200px); overflow-y: auto; }
 #mmBase .leaflet-control-layers-separator { border-top-color: var(--glass-line); }
+.map-bottom > .lg-mini-ctl { align-self: flex-end; margin: 0; float: none; }

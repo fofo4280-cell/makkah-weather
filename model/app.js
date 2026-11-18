@@ -193,7 +193,9 @@
       return d;
     },
   });
-  new MiniLg({ position: "topleft" }).addTo(map);
+  const miniCtl = new MiniLg({ position: "topleft" }).addTo(map);
+  // the folded colour key sits at the bottom, just above the time bar (Fahad 18 Nov 2026)
+  $("legend").parentNode.insertBefore(miniCtl.getContainer(), $("legend"));
   L.control.zoom({ position: "topleft" }).addTo(map);
   // "my location": a small button under the zoom buttons; a blue dot (with its accuracy ring) that follows the phone (Fahad 18 Nov 2026)
   map.createPane("me"); map.getPane("me").style.zIndex = 660; map.getPane("me").style.pointerEvents = "none";
