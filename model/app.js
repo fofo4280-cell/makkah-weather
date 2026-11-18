@@ -1021,6 +1021,7 @@
     S.frames = []; S.idx = 0;
     liFrames();
     liLoad();
+    if (Date.now() - RV.got > 2 * 60e3) rvLoad();   // the radar list is fresh every time this mode opens
     clearInterval(LX.timer); LX.timer = setInterval(liLoad, 2.5 * 60e3);
   }
   function liExit() {
@@ -1077,9 +1078,12 @@
       const r = await fetch(`${RV_ARCH}index.json?t=${Math.floor(Date.now() / 300e3)}`);
       if (r.ok) RV.arch = await r.json();
     } catch (e) { /* no archive yet */ }
-    const live = RV.live || [], first = live.length ? live[0].t : Infinity;
-    const old = ((RV.arch && RV.arch.frames) || []).map((f) => ({ t: f.t * 1000, arch: true, key: "a" + f.t })).filter((f) => f.t < first - 60e3);
-    RV.frames = [...old, ...live];
+    // join both lists by time (the newest picture always last, whichever source has it); the free
+    // service's pictures disappear after about 2 hours, so older times are drawn from our archive
+    const now = Date.now(), by = new Map();
+    for (const f of (RV.arch && RV.arch.frames) || []) by.set(f.t * 1000, { t: f.t * 1000, arch: true, key: "a" + f.t });
+    for (const f of RV.live || []) if (now - f.t < 100 * 60e3 || !by.has(f.t)) by.set(f.t, f);
+    RV.frames = [...by.values()].filter((f) => now - f.t < 12.2 * 3600e3).sort((a, b) => a.t - b.t);
     if (LX.on && S.prod === "radar") liFrames(); else rvSync();
   }
   // The free service sends one colour scheme ("Universal Blue"); each pixel is turned back into its
@@ -1304,7 +1308,12 @@
     if (RV.on && (!RV.frames.length || Date.now() - RV.got > 5 * 60e3)) rvLoad(); else rvSync();
   }
   rvLoad();
-  RV.timer = setInterval(() => { if (RV.on && !document.hidden) rvLoad(); }, 5 * 60e3);
+  // refresh every 2.5 minutes while the radar is on screen (also in the radar entry itself), and at once
+  // when the phone comes back to the page, so a page left open never stays on an old picture
+  const rvWanted = () => RV.on || S.prod === "radar" || LX.on;
+  RV.timer = setInterval(() => { if (rvWanted() && !document.hidden) rvLoad(); }, 2.5 * 60e3);
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && rvWanted() && Date.now() - RV.got > 60e3) rvLoad(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted && rvWanted()) rvLoad(); });
 
   // ------------------------------------------------------------------ time controls
   function stop() { if (S.playing) { clearInterval(S.playing); S.playing = null; $("btnPlay").textContent = "▶"; } }
