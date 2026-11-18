@@ -1704,7 +1704,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1867,8 +1867,36 @@
     krh7: "الرطوبة النسبية عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. الأخضر رطوبة تكفي لنمو السحب الركامية (٦٠٪ فأكثر)، والبني هواء جاف يُضعف السحب أثناء نموها. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
     krh5: "الرطوبة النسبية عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). رطوبة هذه الطبقة تسمح للسحاب بالنمو إلى ارتفاع كبير، وتُظهر السحب المتوسطة والعالية التي تصحب الأخاديد والمنخفضات. الخطوط عند ٥٠ و٧٠ و٩٠٪.",
     kconv: "الألوان مواضع تصادم الرياح السطحية (تقارب الرياح عند ١٠ أمتار بعد تنعيم نحو ٤٠ كم)، وفيها يُدفع الهواء إلى الصعود. الخطوط البيضاء اتجاه الرياح، والخطوط الداكنة الضغط عند سطح البحر كل هكتوباسكالين. «منخفض» تحيط به خطوط ضغط مغلقة، و«منخفض ضعيف» أقل من ذلك. لا يُعلَّم منخفض فوق أرض أعلى من ١٠٠٠ متر، لأن الضغط هناك محسوب لا مقاس. الخط الأزرق المتقطع أخدود البحر الأحمر: لسان الضغط المنخفض الممتد من السودان وجنوب البحر شمالًا، يحمل الرطوبة الجنوبية نحو جدة ومكة، والمثلث آخر امتداده. يُحكم عليه بمتوسط ضغط الثالثة عصرًا والثالثة فجرًا، لأن حرارة العصر تخفض الضغط فوق اليابسة فتخفيه.",
-    kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، وعليها القيمة كل درجتين.",
+    kt5: "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم). البرودة في الأعلى (الأزرق) مع دفء السطح تزيد عدم الاستقرار، والدفء (البرتقالي والأحمر) يكبح نمو السحب. الخطوط كل درجة، والأعرض كل درجتين.",
   };
+  // names over the Kingdom maps, written by the page at a constant small size (Fahad, 18 Nov 2026: the names drawn in the
+  // pictures grew big and heavy when zoomed, and some sat away from their dots). [name, lat, lon, side, tier]; tier 2
+  // shows from zoom 1.5, tier 3 from zoom 2. Seas and countries are faint and dotless.
+  const KMAP_NAMES = [
+    ["الرياض", 24.71, 46.68, "n", 1], ["جدة", 21.54, 39.17, "w", 1], ["مكة", 21.42, 39.83, "n", 1], ["المدينة", 24.47, 39.61, "n", 1],
+    ["الدمام", 26.43, 50.10, "w", 1], ["أبها", 18.22, 42.50, "e", 1], ["جازان", 16.89, 42.55, "w", 1], ["تبوك", 28.38, 36.57, "n", 1],
+    ["حائل", 27.52, 41.69, "n", 1], ["سكاكا", 29.97, 40.21, "n", 1],
+    ["الطائف", 21.27, 40.42, "e", 2], ["بريدة", 26.33, 43.97, "n", 2], ["نجران", 17.49, 44.13, "e", 2], ["الباحة", 20.01, 41.47, "e", 2],
+    ["ينبع", 24.09, 38.06, "w", 2], ["الأحساء", 25.38, 49.59, "s", 2], ["وادي الدواسر", 20.47, 44.78, "e", 2], ["عرعر", 30.98, 41.04, "n", 2],
+    ["القنفذة", 19.13, 41.08, "w", 3], ["الليث", 20.15, 40.27, "w", 3], ["رابغ", 22.80, 39.03, "w", 3], ["العلا", 26.60, 37.92, "e", 3],
+    ["الوجه", 26.23, 36.47, "w", 3], ["أملج", 25.05, 37.27, "w", 3], ["بيشة", 19.98, 42.60, "e", 3], ["شرورة", 17.47, 47.11, "n", 3],
+    ["الخرج", 24.15, 47.30, "s", 3], ["الدوادمي", 24.50, 44.39, "n", 3], ["حفر الباطن", 28.43, 45.97, "n", 3], ["الجبيل", 27.00, 49.66, "w", 3],
+    ["القريات", 31.33, 37.34, "n", 3], ["خميس مشيط", 18.30, 42.73, "s", 3],
+    ["البحر الأحمر", 19.6, 38.5, "c", 0], ["الخليج العربي", 27.3, 51.4, "c", 0], ["اليمن", 15.6, 46.5, "c", 0], ["السودان", 16.5, 34.6, "c", 0],
+    ["العراق", 32.4, 44.2, "c", 0], ["الأردن", 31.0, 36.4, "c", 0], ["الإمارات", 23.5, 54.3, "c", 0], ["إيران", 31.5, 53.0, "c", 0],
+  ];
+  function kmapNames(inner, ext) {
+    if (inner.querySelector(".kmap-names")) return;
+    const [w, e, s, n] = ext, box = document.createElement("div"); box.className = "kmap-names";
+    for (const [name, lat, lon, side, tier] of KMAP_NAMES) {
+      if (lon < w || lon > e || lat < s || lat > n) continue;
+      const el = document.createElement("span");
+      el.className = `kn kn-${side} t${tier}`; el.style.left = ((lon - w) / (e - w) * 100).toFixed(3) + "%"; el.style.top = ((n - lat) / (n - s) * 100).toFixed(3) + "%";
+      el.innerHTML = (side === "c" ? "" : "<i></i>") + `<b>${name}</b>`;
+      box.appendChild(el);
+    }
+    inner.appendChild(box); inner.dataset.z = 0;
+  }
   // zoom buttons, and the coordinates of a tapped point (Fahad, 17 Nov 2026). The map is a plain latitude-longitude
   // picture of the extent [west, east, south, north], edge to edge, so a point's place in the picture gives its position.
   const AR_DIG = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
@@ -1883,7 +1911,7 @@
       const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
       // the box keeps the map's height at zoom 1, so a zoomed map scrolls both ways inside it
       if (z === 0) sc.style.height = sc.clientHeight + "px";
-      z = nz; inner.style.width = LV[z] * 100 + "%";
+      z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
       if (z === 0) sc.style.height = "";
       // keep the tapped point (or the middle) in view
       const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
@@ -1895,17 +1923,36 @@
       const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
       if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
       pt = [fx, fy];
-      const [w, e, s, n] = ksaZoomSetup.ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
       const pin = $("ksaPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
-      const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-      const box = $("ksaCoord"); box.hidden = false;
-      box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
-      box.querySelector("button").onclick = async (e2) => {
-        try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
-        setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
-      };
+      ksaZoomSetup.pt = pt; ksaTapText();
     });
   }
+  // a value of the 0.5 deg grids (ksa_vals.bin, ksa_wind.bin) at a point, bilinear
+  function kGridAt(G, D, k, c, lat, lon) {
+    if (!G || !D) return null;
+    const fy = (G.lat0 - lat) / G.d, fx = (lon - G.lon0) / G.d, nc = G.order.length;
+    if (fy < 0 || fx < 0 || fy > G.ny - 1 || fx > G.nx - 1) return null;
+    const j = Math.min(G.ny - 2, Math.floor(fy)), i = Math.min(G.nx - 2, Math.floor(fx)), ty = fy - j, tx = fx - i;
+    const at = (jj, ii) => D[((k * nc + c) * G.ny + jj) * G.nx + ii] * G.scale;
+    return (at(j, i) * (1 - tx) + at(j, i + 1) * tx) * (1 - ty) + (at(j + 1, i) * (1 - tx) + at(j + 1, i + 1) * tx) * ty;
+  }
+  function ksaTapText() {
+    const pt = ksaZoomSetup.pt; if (!pt) return;
+    const [w, e, s, n] = ksaZoomSetup.ext, lon = w + pt[0] * (e - w), lat = n - pt[1] * (n - s);
+    const K = M.st.ksa, k = +$("ksaDay").value || 0, G = K && K.vals;
+    const v = (key) => G ? kGridAt(G, KSAV.data, k, G.order.indexOf(key), lat, lon) : null;
+    const rh7 = v("rh7"), rh5 = v("rh5"), t5 = v("t5");
+    const pc = (x) => AR_DIG(Math.round(Math.max(0, Math.min(100, x)))) + "٪";
+    const vals = rh7 == null ? "" : `<div>الرطوبة: <b>${pc(rh7)}</b> عند ٧٠٠، و<b>${pc(rh5)}</b> عند ٥٠٠</div>
+      <div>الحرارة عند ٥٠٠: <b>${t5 < 0 ? "−" : ""}${AR_DIG(Math.abs(Math.round(t5)))}° م</b></div>`;
+    const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("ksaCoord"); box.hidden = false;
+    box.innerHTML = `<span><div>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</div>${vals}</span><button type="button">نسخ</button>`;
+    box.querySelector("button").onclick = async (e2) => {
+      try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+      setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+    };
+  }
+  const KSAV = { data: null, v: null };
   function ksaCard() {
     const st = M.st, K = st.ksa;
     $("ksaCard").hidden = !(K && K.days && K.days.length);
@@ -1918,7 +1965,8 @@
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
-      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته.";
+      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
+      ksaTapText();
       const box = $("ksaLow");
       // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
       // surface lows stay under every layer
@@ -1937,6 +1985,12 @@
       lay = M.ksaLayer = b.dataset.l; show();
     });
     ksaZoomSetup(K.extent || [33, 57.5, 14, 33.5]);
+    kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (K.vals && KSAV.v !== st.updated) {
+      KSAV.v = st.updated;
+      fetch(`${CL}${K.vals.file}?v=${encodeURIComponent(st.updated)}`).then((r) => r.arrayBuffer())
+        .then((b) => { KSAV.data = new Int16Array(b); ksaTapText(); }).catch(() => { KSAV.data = null; });
+    }
     $("ksaDay").max = Math.max(0, K.days.length - 1);
     if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
     $("ksaDay").oninput = show;
@@ -2003,7 +2057,7 @@
       const nz = Math.max(0, Math.min(LV.length - 1, KW.z + d)); if (nz === KW.z) return;
       const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
       if (KW.z === 0) sc.style.height = sc.clientHeight + "px";
-      KW.z = nz; inner.style.width = LV[KW.z] * 100 + "%";
+      KW.z = nz; inner.style.width = LV[KW.z] * 100 + "%"; inner.dataset.z = KW.z;
       if (KW.z === 0) sc.style.height = "";
       const fx = KW.pt ? KW.pt[0] : cx, fy = KW.pt ? KW.pt[1] : cy;
       sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
@@ -2043,6 +2097,7 @@
     $("kwCard").hidden = !(K && K.wind && K.days && K.days.length);
     if ($("kwCard").hidden) return;
     kwSetup();
+    kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
     $("kwDay").max = Math.max(0, K.days.length - 1);
     if (!kwCard.done) { $("kwDay").value = todayIdx(K.days); kwCard.done = true; }
     if (!KW.data || KW.v !== st.updated) {
@@ -2060,7 +2115,7 @@
   const TC_HINT = {
     line: "الأزرق حافة الهدا والشفا والبرتقالي شرق الطائف والسيل. الخط المتقطع هو اليوم، وما بعده توقع. حين تكون الرياح فوق الهضبة شرقية بأكثر من ٢ م/ث يقف هواء البحر عند الحافة فيكون التصادم والمطر على الهدا والشفا، وحين تضعف أو تصير جنوبية أو غربية يصعد هواء البحر فوق الحافة وينتقل التصادم شرق الطائف والسيل ورهاط.",
     cape: "طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
-    day: "البرتقالي والأحمر تصادم الرياح السطحية في الساعة المختارة (١١ صباحًا وقت نشوء السحب على الحافة غالبًا، ثم ينزاح التصادم شرقًا مع العصر)، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته وأقرب مكان له.",
+    day: "البرتقالي والأحمر تصادم الرياح السطحية فوق المملكة في الساعة المختارة (١١ صباحًا وقت نشوء السحب على الحافة غالبًا، ثم ينزاح التصادم مع العصر)، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، والكنتور الرمادي ارتفاع ٩٠٠ و١٥٠٠ متر. انتقل بين الأيام بالسهمين: ٧ أيام مضت واليوم و٧ قادمة، من النموذج الأمريكي. كبّر الخريطة على أي منطقة لترى أماكن التصادم فيها، والمس أي موضع لترى إحداثياته. والسطر تحت الخريطة قراءة حول الطائف.",
   };
 
   // zoom and tap on the Taif collision maps (Fahad, 17 Nov 2026): as the Kingdom map, and the tap also names the
@@ -2072,7 +2127,7 @@
     let best = null, bd = 1e9, near = null, nd = 1e9;
     P.forEach((p) => { const d = km(p); if (p[3] && d < bd) { bd = d; best = p; } if (d < nd) { nd = d; near = p; } });
     if (near && nd <= 3 && (!best || bd > 3)) return `قرب ${near[0]}`;
-    if (!best) return "";
+    if (!best || bd > 60) return "";   // the map is the whole Kingdom now; the places list covers the Taif area
     if (bd <= 3) return `في ${best[0]} أو قربها`;
     const ang = Math.atan2((lon - best[2]) * Math.cos(lat * Math.PI / 180), lat - best[1]) * 180 / Math.PI;
     const dir = DIR8[Math.round(((ang + 360) % 360) / 45) % 8];
@@ -2090,7 +2145,7 @@
       const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
       const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
       if (z === 0) sc.style.height = sc.clientHeight + "px";
-      z = nz; inner.style.width = LV[z] * 100 + "%";
+      z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
       if (z === 0) sc.style.height = "";
       const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
       sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
@@ -2118,7 +2173,7 @@
     const st = M.st, T = st.taifc;
     $("tcCard").hidden = !(T && T.rows && T.rows.length);
     if ($("tcCard").hidden) return;
-    let lay = M.tcLayer || "day";
+    let lay = M.tcLayer === "line" ? "line" : "day";   // the CAPE view moved to the humidity tab (18 Nov 2026)
     const show = () => {
       const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
       const hh = M.tcHour || "11";
@@ -2137,7 +2192,7 @@
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
       const u = r.u850, wind = u <= T.u_east ? `شرقية ${num(-u, 1)} م/ث تُوقف هواء البحر عند الحافة`
         : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
-      $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "" : "اليوم: "}${TC_WHERE[r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
+      $("tcNow").innerHTML = `<div><b>${lay !== "line" ? "حول الطائف: " : "اليوم حول الطائف: "}${TC_WHERE[r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
         <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
         <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
@@ -2149,9 +2204,60 @@
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
     document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
+    kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
     $("tcDay").oninput = show;
+    show();
+  }
+
+  // the afternoon instability map (moved from the Taif card to the humidity tab, Fahad 18 Nov 2026): the same frames
+  // tcape_KK_HH.png of the whole Kingdom; 7 days back, today, 7 ahead
+  function tpCard() {
+    const st = M.st, T = st.taifc;
+    $("tpCard").hidden = !(T && T.rows && T.rows.length);
+    if ($("tpCard").hidden) return;
+    const ext = T.extent || [33, 57.5, 14, 33.5];
+    const show = () => {
+      const k = +$("tpDay").value || 0, hh = M.tpHour || "13";
+      document.querySelectorAll("#tpHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
+      $("tpFig").src = `${CL}fig/tcape_${String(k).padStart(2, "0")}_${hh}.png?v=${encodeURIComponent(st.updated)}`;
+      const r = T.rows[k]; $("tpDayLabel").textContent = r ? dayLab(r.d) : "";
+      if (T.cape_legend) $("tpLegend").innerHTML = legendHTML(T.cape_legend);
+    };
+    if (!tpCard.done) {
+      tpCard.done = true;
+      document.querySelectorAll("#tpHour button").forEach((b) => b.onclick = () => { M.tpHour = b.dataset.h; show(); });
+      $("tpDay").oninput = show;
+      $("tpDay").max = Math.max(0, T.rows.length - 1); $("tpDay").value = todayIdx(T.days);
+      kmapNames($("tpInner"), ext);
+      const LV = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
+      let z = 0, pt = null;
+      const zoom = (d) => {
+        const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
+        const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
+        if (z === 0) sc.style.height = sc.clientHeight + "px";
+        z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
+        if (z === 0) sc.style.height = "";
+        const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
+        sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
+        $("tpIn").disabled = z === LV.length - 1; $("tpOut").disabled = z === 0;
+      };
+      $("tpIn").onclick = () => zoom(1); $("tpOut").onclick = () => zoom(-1);
+      img.addEventListener("click", (ev) => {
+        const r = img.getBoundingClientRect(), fx = (ev.clientX - r.left) / r.width, fy = (ev.clientY - r.top) / r.height;
+        if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+        pt = [fx, fy];
+        const [w, e, s, n] = ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
+        const pin = $("tpPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
+        const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("tpCoord"); box.hidden = false;
+        box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
+        box.querySelector("button").onclick = async (e2) => {
+          try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+          setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+        };
+      });
+    }
     show();
   }
 

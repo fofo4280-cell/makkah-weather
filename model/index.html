@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261118ar">
+<link rel="stylesheet" href="style.css?v=20261118w3">
 </head>
 <body>
 <div class="app">
@@ -77,7 +77,6 @@
           <button type="button" data-s="report" class="on">التقرير</button>
           <button type="button" data-s="phase">طور التذبذب</button>
           <button type="button" data-s="pw">الرطوبة</button>
-          <button type="button" data-s="taif">الرياح حول الطائف</button>
           <button type="button" data-s="ksa">الرياح</button>
           <button type="button" data-s="waves">كلفن وروسبي</button>
           <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
@@ -143,16 +142,16 @@
           </div>
           <p class="hint" id="kwHint"></p>
         </div>
-        <div data-sec="taif" class="card" id="tcCard" hidden>
-          <h3>تصادم الرياح حول الطائف</h3>
+        <div data-sec="ksa" class="card" id="tcCard" hidden>
+          <h3>تصادم الرياح السطحية</h3>
           <div class="seg" id="tcLayer">
-            <button data-l="day" class="on">تصادم الرياح</button><button data-l="cape">طاقة عدم الاستقرار</button><button data-l="line">الخط الزمني</button>
+            <button data-l="day" class="on">تصادم الرياح</button><button data-l="line">الخط الزمني</button>
           </div>
           <div class="seg tc-hour" id="tcHour">
             <button data-h="11" class="on">١١ صباحًا</button><button data-h="13">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
           </div>
           <div class="ksa-map" dir="ltr">
-            <div class="ksa-scroll" id="tcScroll"><div class="ksa-inner" id="tcInner"><img id="tcFig" alt="تصادم الرياح حول الطائف" draggable="false"><i id="tcPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-scroll" id="tcScroll"><div class="ksa-inner" id="tcInner"><img id="tcFig" alt="تصادم الرياح السطحية" draggable="false"><i id="tcPin" class="ksa-pin" hidden></i></div></div>
             <div class="ksa-zoom" id="tcZoom"><button id="tcIn" aria-label="تكبير">+</button><button id="tcOut" aria-label="تصغير" disabled>−</button></div>
           </div>
           <div id="tcCoord" class="ksa-coord" hidden></div>
@@ -212,6 +211,23 @@
           </div>
           <p class="hint" id="ksaHint"></p>
         </div>
+        <div data-sec="pw" class="card" id="tpCard" hidden>
+          <h3>طاقة عدم الاستقرار</h3>
+          <div class="seg tc-hour" id="tpHour">
+            <button data-h="11">١١ صباحًا</button><button data-h="13" class="on">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img id="tpFig" alt="طاقة عدم الاستقرار" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="tpIn" aria-label="تكبير">+</button><button id="tpOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="tpCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="tpLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="tpDay" min="0" max="14" value="7" dir="ltr" aria-label="اليوم">
+            <span id="tpDayLabel"></span>
+          </div>
+          <p class="hint">طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. ٧ أيام مضت واليوم و٧ قادمة. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته.</p>
+        </div>
         <p class="hint" id="mjoUpdated"></p>
       </div>
     </section>
@@ -246,6 +262,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261118ar"></script>
+<script src="app.js?v=20261118w3"></script>
 </body>
 </html>
