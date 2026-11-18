@@ -368,3 +368,7 @@ a { color: var(--sea); }
 .mjo-tabs button { flex: 0 0 auto; white-space: nowrap; padding: 7px 13px; font-size: .82rem; }
 #p-mjo .sec-off { display: none !important; }
 @media (min-width: 700px) { .mjo-tabs button { padding: 7px 11px; font-size: .8rem; } }
+.me-ctl a { display: grid !important; place-items: center; }
+.me-ctl a.busy { animation: mePulse 1s infinite; }
+.me-ctl a.on { color: var(--sea) !important; }
+@keyframes mePulse { 50% { opacity: .4; } }

@@ -193,6 +193,36 @@
   });
   new MiniLg({ position: "topleft" }).addTo(map);
   L.control.zoom({ position: "topleft" }).addTo(map);
+  // "my location": a small button under the zoom buttons; a blue dot (with its accuracy ring) that follows the phone (Fahad 18 Nov 2026)
+  map.createPane("me"); map.getPane("me").style.zIndex = 660; map.getPane("me").style.pointerEvents = "none";
+  const ME = { dot: null, ring: null, watch: null, first: true };
+  function meShow(pos) {
+    const ll = [pos.coords.latitude, pos.coords.longitude], acc = Math.min(pos.coords.accuracy || 0, 5000);
+    if (!ME.dot) {
+      ME.ring = L.circle(ll, { radius: acc, pane: "me", color: "#4a86f5", weight: 1, opacity: 0.5, fillColor: "#4a86f5", fillOpacity: 0.12, interactive: false }).addTo(map);
+      ME.dot = L.circleMarker(ll, { radius: 7, pane: "me", color: "#fff", weight: 2.5, fillColor: "#2f6ff0", fillOpacity: 1, interactive: false }).addTo(map);
+    } else { ME.dot.setLatLng(ll); ME.ring.setLatLng(ll).setRadius(acc); }
+    if (ME.first) { ME.first = false; map.flyTo(ll, Math.max(map.getZoom(), 9), { duration: 0.8 }); }
+  }
+  const Locate = L.Control.extend({
+    onAdd() {
+      const d = L.DomUtil.create("div", "leaflet-bar leaflet-control me-ctl");
+      d.innerHTML = `<a href="#" role="button" id="meBtn" aria-label="موقعي" title="موقعي"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/><circle cx="12" cy="12" r="8"/></svg></a>`;
+      L.DomEvent.disableClickPropagation(d);
+      d.firstChild.addEventListener("click", (e) => {
+        e.preventDefault();
+        if (!navigator.geolocation) return;
+        const btn = $("meBtn");
+        if (ME.dot) { map.flyTo(ME.dot.getLatLng(), Math.max(map.getZoom(), 9), { duration: 0.8 }); return; }
+        btn.classList.add("busy");
+        ME.watch = navigator.geolocation.watchPosition((pos) => { btn.classList.remove("busy"); btn.classList.add("on"); meShow(pos); },
+          () => { btn.classList.remove("busy"); if (ME.watch != null) { navigator.geolocation.clearWatch(ME.watch); ME.watch = null; } ME.first = true; },
+          { enableHighAccuracy: true, maximumAge: 30000, timeout: 20000 });
+      });
+      return d;
+    },
+  });
+  new Locate({ position: "topleft" }).addTo(map);
   map.attributionControl.setPrefix(false);
   map.on("zoomend", () => map.getContainer().classList.toggle("hide-labels", map.getZoom() < 7));
 
@@ -998,8 +1028,10 @@
   // yellow, orange and red for the heaviest cores; blended smoothly between these dBZ points
   // colours after the Yanbu radar page (Fahad 18 Nov 2026): weak echoes green, then blue, violet, magenta, pink,
   // yellow cores, orange and red for the strongest; blended smoothly between these dBZ points
-  const RV_PAL = [[8, "#3fa34d"], [14, "#4caf50"], [17, "#3a6df0"], [21, "#6a48e6"], [25, "#a53fd8"], [29, "#d24cc8"], [33, "#ee78bf"],
-    [37, "#f6a5a0"], [41, "#f8e15a"], [46, "#ffd11a"], [50, "#ff9a1a"], [54, "#ff5a1a"], [58, "#e21c1c"], [62, "#b8123c"], [66, "#e8e8e8"]];
+  const RV_PAL = [[5, "#4cae4c"], [9, "#45a845"], [11, "#3a8be0"], [15, "#5367c9"], [17.5, "#8043c9"], [20, "#9c3ab5"], [22.5, "#c23fa4"],
+    [25, "#c95197"], [27.5, "#cb6f98"], [30, "#ca878e"], [32.5, "#d49471"], [35, "#d9a35e"], [37.5, "#eaba57"], [40, "#f6ce56"],
+    [42.5, "#fae144"], [45, "#f9ef3e"], [47.5, "#fbd650"], [50, "#f8b469"], [52, "#fa995d"], [54, "#e87d42"], [56, "#e96b38"],
+    [58, "#e16145"], [60, "#de695f"], [62, "#c79796"], [66, "#c0c7cd"]];   // read off the Yanbu radar legend (Fahad's screenshots, 18 Nov 2026)
   const RV_RGB = RV_PAL.map(([d, c]) => [d, parseInt(c.slice(1, 3), 16), parseInt(c.slice(3, 5), 16), parseInt(c.slice(5, 7), 16)]);
   function rvColor(d) {
     if (d <= RV_RGB[0][0]) return RV_RGB[0];
@@ -1110,10 +1142,10 @@
           const w = a[1] * k0 + b[1] * k1 + e[1] * k2 + f[1] * k3;
           if (w < 0.04) continue;
           const d = (a[0] * k0 + b[0] * k1 + e[0] * k2 + f[0] * k3) / w;
-          if (d < 8) continue;
+          if (d < 5) continue;
           const col = rvColor(d), o = 4 * (j * W + i);
-          // weak echoes faint so the ground shows through, cores nearly solid
-          const al = d < 14 ? 70 + (d - 8) * 12 : d < 20 ? 140 + (d - 14) * 10 : 200;
+          // weak (green) echoes see-through so the ground shows, rain from blue upward nearly solid
+          const al = d < 10 ? 105 + (d - 5) * 9 : d < 12 ? 150 + (d - 10) * 25 : 205;
           q[o] = col[1]; q[o + 1] = col[2]; q[o + 2] = col[3]; q[o + 3] = al * Math.min(1, w * 1.6);
         }
       }
