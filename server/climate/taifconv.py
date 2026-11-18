@@ -134,12 +134,12 @@ def measure(f):
     r_east = float(np.mean([rain[B(21.45, 21.85, 40.35, 40.7)].mean(), rain[B(20.9, 21.6, 40.6, 41.1)].mean(),
                             rain[B(22.2, 23.3, 39.8, 40.5)].mean()]))
     if cx >= CONV_MIN and cx >= ce + CONV_SHIFT:
-        where = "east" if cp_east >= EAST_CAPE else "eastdry"
+        where = "east"     # (with fuel False the page says the cells still grow strongest on the edges)
     elif max(ce, cx) < CONV_MIN:
         where = "weak"
     else:
         where = "edge"
-    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
+    return {"ce": round(ce, 1), "cx": round(cx, 1), "where": where, "fuel": bool(cp_east >= EAST_CAPE), "cape_edge": int(round(cp_edge)), "cape_east": int(round(cp_east)), "u850": round(u850, 1), "v850": round(v850, 1),
             "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1)}
 
 
@@ -325,8 +325,8 @@ def draw_line(path, rows, today):
         ax.tick_params(colors=MUTED, length=0, labelsize=10)
         ax.yaxis.set_major_formatter(mt.FuncFormatter(lambda v, p: ar(f"{v:g}")))
         for k, r in enumerate(rows):   # the day's verdict as a faint band
-            if r.get("where") in ("edge", "east", "eastdry"):
-                ax.axvspan(k - .5, k + .5, color=EAST_C if r["where"] == "east" else EDGE_C, alpha=.05, lw=0)
+            if r.get("where") in ("edge", "east"):
+                ax.axvspan(k - .5, k + .5, color=EDGE_C if r["where"] == "edge" else EAST_C, alpha=.05, lw=0)
         if ti is not None:
             ax.axvline(ti, color="#c9d1db", lw=.8, ls=(0, (3, 3)), alpha=.5)
     T = lambda ax, t: ax.set_title(t, loc="right", color="#c9d1db", fontsize=11.5, fontweight="semibold", pad=7)
