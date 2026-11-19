@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261120lw">
+<link rel="stylesheet" href="style.css?v=20261120db">
 </head>
 <body>
 <div class="app">
@@ -125,7 +125,7 @@
         <div data-sec="warm" class="card">
           <h3>خريطة الحدث الدافئ والبارد</h3>
           <div class="seg" id="mjoLayer">
-            <button data-l="wc" class="on">المؤشر</button><button data-l="lw" hidden>قرب الأرض والطاقة</button><button data-l="lwd" hidden>التغير خلال ٢٤ ساعة</button><button data-l="pw">رطوبة الجزيرة العربية</button>
+            <button data-l="wc" class="on">المؤشر</button><button data-l="lw" hidden>قرب الأرض والطاقة</button><button data-l="lwd" hidden>التغير خلال ٢٤ ساعة</button>
           </div>
           <div class="figwrap" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img loading="lazy" id="mjoFig" alt="خريطة الحدث الدافئ والبارد"></a></div>
           <div class="legend mjo-legend" id="mjoLegend"></div>
@@ -203,6 +203,16 @@
           <div id="mjoPw"></div>
           <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
         </div>
+        <div data-sec="pw" class="card" id="pwMapCard">
+          <h3>رطوبة الجزيرة العربية</h3>
+          <div class="figwrap fit" id="pwFigWrap" dir="ltr"><a id="pwFigLink" target="_blank" rel="noopener"><img loading="lazy" id="pwFig" alt="رطوبة الجزيرة العربية" style="width:100%;height:auto;display:block"></a></div>
+          <div class="legend mjo-legend" id="pwLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="pwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="pwDayLabel"></span>
+          </div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة فوق الجزيرة العربية وما حولها، من توقع جي إف إس. الأخضر والأزرق أرطب من المعتاد، والبني أجف. المسها لفتحها بحجم كامل.</p>
+        </div>
         <div data-sec="pw" class="card" id="ksaCard" hidden>
           <h3>خرائط الرطوبة والحرارة فوق المملكة</h3>
           <div class="seg" id="ksaLayer">
@@ -279,6 +289,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261120lw"></script>
+<script src="app.js?v=20261120db"></script>
 </body>
 </html>
