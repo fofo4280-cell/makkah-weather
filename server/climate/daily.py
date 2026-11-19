@@ -716,14 +716,11 @@ def main():
     taifc_out = None
     try:
         import taifconv
-        import ecmwf
-        if ecmwf.available(cycle, 360):
-            n0 = ecmwf.FALLBACK["n"]
-            taifc_out = taifconv.run(ecmwf.fields_like_gfs(gfs_fields), cycle, os.path.join(out, "fig"))
-            taifc_out["model"] = "ecmwf" if ecmwf.FALLBACK["n"] == n0 else "mixed"
-        else:
-            taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), model="الأمريكي")
-            taifc_out["model"] = "gfs"
+        # GFS (Fahad, 19 Nov 2026 evening, after Dr. Khalid: «معطيات GFS المخصصة لسحب الحمل الحراري "بيئات العواصف
+        # الرعدية" أفضل من ECMWF لكن رقعة الأمطار لا»): the storm-environment maps (surface collision, CAPE) stay on GFS;
+        # humidity, T500, winds and the Red Sea flow stay on ECMWF
+        taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), model="الأمريكي")
+        taifc_out["model"] = "gfs"
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
