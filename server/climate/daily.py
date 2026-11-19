@@ -168,7 +168,27 @@ def rmm_phase(r1, r2):
     return int(((a + 180) // 45) % 8) + 1
 
 
+RMM_JMA_URL = "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/figs/olr0-sst1_1991-2021/rmm8.csv"
+
+
 def read_rmm():
+    """The MJO index of the whole page: JMA's (OLR + u850 + u200, ENSO removed), the one Dr. Khalid reads (Fahad,
+    19 Nov 2026: «اجعل التذبذب كما لدى الدكتور تمامًا»; tested on 25 wet seasons, a little better than BoM's).
+    The Bureau of Meteorology's RMM only when JMA cannot be read."""
+    try:
+        out = []
+        for l in get(RMM_JMA_URL).decode("latin-1").splitlines():
+            if l.startswith("#") or not l.strip():
+                continue
+            p = [x.strip() for x in l.split(",")]
+            r1, r2, amp = float(p[3]), float(p[4]), float(p[7])
+            if all(math.isfinite(x) for x in (r1, r2, amp)) and abs(r1) < 90:
+                out.append((date(int(p[0]), int(p[1]), int(p[2])), r1, r2, int(p[5]), amp))
+        if len(out) > 1000:
+            print("rmm source: JMA, last", out[-1], flush=True)
+            return out
+    except Exception as e:  # noqa: BLE001
+        print("rmm JMA failed, using BoM:", repr(e), flush=True)
     txt = get(RMM_URL).decode("latin-1").splitlines()
     out = []
     for l in txt:
@@ -676,6 +696,17 @@ def main():
         traceback.print_exc()
         print("taif collision failed:", repr(e), flush=True)
 
+    # 8a4. the Red Sea flow toward the coasts (Fahad, 19 Nov 2026: «نضيفها لقسم الرياح خاصة لتوقع السواحل»): low-level
+    #      wind along the sea, where the southerly meets the northerly, sea CAPE; today and 7 days after (redsea.py)
+    rsflow_out = None
+    try:
+        import redsea
+        rsflow_out = redsea.run(gfs_fields, cycle, os.path.join(out, "fig"))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("red sea flow failed:", repr(e), flush=True)
+
     # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
     wave_rows = []
     for k, dt in enumerate(days[:WAVE_DAYS + 1]):
@@ -807,6 +838,38 @@ def main():
         if low["mean"] <= -1.5:
             ao_cold = low
     now_obs = obs[-1] if obs else None
+    # ENSO for the seasonal outlook (season.py): Nino 3.4 anomaly of the last month published by PSL
+    enso = None
+    try:
+        rows_e = {}
+        for line in get("https://psl.noaa.gov/data/correlation/nina34.anom.data").decode("latin-1").splitlines():
+            p_ = line.split()
+            if len(p_) == 13 and p_[0].isdigit() and len(p_[0]) == 4:
+                for m_ in range(12):
+                    v_ = float(p_[m_ + 1])
+                    if abs(v_) < 90:
+                        rows_e[(int(p_[0]), m_ + 1)] = v_
+        if rows_e:
+            k_ = max(rows_e)
+            enso = {"m": f"{k_[0]}-{k_[1]:02d}", "v": rows_e[k_]}
+        print("enso:", enso, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("enso failed:", repr(e), flush=True)
+    # the JMA MJO index (OLR + u850 + u200, ENSO removed), the one Dr. Khalid reads; used by the seasonal outlook
+    # (Fahad, 19 Nov 2026: «اجعل التذبذب كما لدى الدكتور تمامًا»)
+    rmm_jma = []
+    try:
+        txt_j = get("https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/figs/olr0-sst1_1991-2021/rmm8.csv").decode("latin-1")
+        for line in txt_j.splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            p_ = [x.strip() for x in line.split(",")]
+            rmm_jma.append({"d": f"{int(p_[0]):04d}-{int(p_[1]):02d}-{int(p_[2]):02d}", "r1": round(float(p_[3]), 2),
+                            "r2": round(float(p_[4]), 2), "phase": int(p_[5]), "amp": round(float(p_[7]), 2)})
+        rmm_jma = rmm_jma[-60:]
+        print("rmm jma:", rmm_jma[-1] if rmm_jma else None, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("rmm jma failed:", repr(e), flush=True)
     surge = []
     for row in pw_rows[1:11]:
         for key, (name, *_b) in BOXES.items():
@@ -821,7 +884,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
@@ -832,7 +895,7 @@ def main():
         "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
-        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "rsflow": rsflow_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}
