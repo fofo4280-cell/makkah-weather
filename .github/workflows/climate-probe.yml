@@ -4,6 +4,8 @@ name: Convective model study
 
 on:
   workflow_dispatch:
+    inputs:
+      script: {description: 'script and args', default: 'obs_box.py /home/runner/obs.npz'}
 
 permissions:
   contents: write
@@ -18,7 +20,7 @@ jobs:
           ref: study/convective-models
           path: code
       - run: pip install -q numpy netCDF4
-      - run: python3 code/server/study/obs_box.py /home/runner/obs.npz 2>&1 | tee /home/runner/obs.log
+      - run: python3 code/server/study/${{ inputs.script }} 2>&1 | tee /home/runner/obs.log
       - name: Keep results
         if: always()
         run: |
