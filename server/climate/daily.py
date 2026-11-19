@@ -637,10 +637,18 @@ def main():
     wind_days, wmeta_, vals_days, vmeta_ = {}, None, {}, None
     try:
         import ksa
+        import ecmwf
+        # ECMWF since 19 Nov 2026 (Fahad: «غيرها في الموقع كلها الى الاوروبي»); GFS answers any field IFS lacks
+        ec_ok = ecmwf.available(cycle, 360)
+        src = ecmwf.fields_like_gfs(gfs_fields) if ec_ok else gfs_fields
+        ksa_out["model"] = "ecmwf" if ec_ok else "gfs"
+        print("kingdom maps source:", ksa_out["model"], flush=True)
         stat = None
         for k, dt in enumerate(days):
             try:
-                f_ = ksa.fields(gfs_fields, cycle, int((dt - t0).total_seconds() // 3600), stat)
+                n0 = ecmwf.FALLBACK["n"]
+                f_ = ksa.fields(src, cycle, int((dt - t0).total_seconds() // 3600), stat)
+                model_ = "الأوروبي" if ec_ok and ecmwf.FALLBACK["n"] == n0 else "الأمريكي"
                 if stat is None:
                     stat = {"hgt": f_["hgt"], "land": f_["land"]}
                 lw_ = ksa.lows(f_)
@@ -650,7 +658,8 @@ def main():
                     print("red sea trough failed", k, repr(e)[:120], flush=True)
                     rs_ = None
                 for kd in ksa.KINDS:
-                    ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_, rs_)
+                    ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_, rs_, width_px=1400,
+                             when=dt.date(), model=model_)
                 try:
                     wp_, wmeta_ = ksa.wind_pack(f_)
                     wind_days[k] = wp_
@@ -690,7 +699,26 @@ def main():
     taifc_out = None
     try:
         import taifconv
-        taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"))
+        import ecmwf
+        if ecmwf.available(cycle, 360):
+            n0 = ecmwf.FALLBACK["n"]
+            taifc_out = taifconv.run(ecmwf.fields_like_gfs(gfs_fields), cycle, os.path.join(out, "fig"))
+            taifc_out["model"] = "ecmwf" if ecmwf.FALLBACK["n"] == n0 else "mixed"
+        else:
+            taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), model="الأمريكي")
+            taifc_out["model"] = "gfs"
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("taif collision failed:", repr(e), flush=True)
+    # the nightly report's Makkah reading keeps the GFS collision (report logic unchanged, 19 Nov 2026)
+    taifc_gfs = None
+    try:
+        import taifconv
+        if (taifc_out or {}).get("model") == "gfs":
+            taifc_gfs = taifc_out
+        else:
+            taifc_gfs = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), draw=False)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
@@ -904,7 +932,7 @@ def main():
         "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
-        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "rsflow": rsflow_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "taifc_gfs": taifc_gfs, "rsflow": rsflow_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}

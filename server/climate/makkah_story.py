@@ -137,7 +137,7 @@ def read(st, pending=False):
     # تبحث عن السبب وتتأكد». So: compare with yesterday; if the meeting moved, look for the cause and call it a trough
     # only when the air aloft confirms it (two signs or more), otherwise name what did change.
     cues = []
-    tc = st.get("taifc") or {}
+    tc = st.get("taifc_gfs") or st.get("taifc") or {}     # the report reads the GFS collision (19 Nov 2026)
     rows_ = tc.get("rows") or []
     ti = next((i for i, r in enumerate(rows_) if r.get("d") == tc.get("today")), None)
     trow = rows_[ti] if ti is not None else None
