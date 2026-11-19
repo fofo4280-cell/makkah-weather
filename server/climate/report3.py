@@ -416,7 +416,7 @@ def region_reading(st, rs, regs, day0, W):
                 _put(row, e.get("model_rain"), _towns(e["name"]))
             for r in np_:
                 _put(row, r.get("model_mtn"), _towns(r["name"]))
-        if aloft_moist and not any(row.values()):
+        if not any(row.values()) and (aloft_moist or (o or 0) >= 0.001):
             row["light"].append("زخات متفرقة")
         for k in row:
             row[k] = list(dict.fromkeys(row[k]))[:4]
@@ -835,7 +835,8 @@ def waves(st, rs, regs, day0):
     full = [w for w in wl if not w.get("sign")]
     B.append({"p": f"نرصد حتى {ar_date(days[-1])}، وهو أقصى ما يغطيه التوقع، "
                    + (f"{ar(len(full))} {'موجة' if len(full) == 1 else 'موجات'} مطرية" if full else "لا موجة مطرية واسعة")
-                   + (f" و{ar(len(wl) - len(full))} {'إشارة' if len(wl) - len(full) == 1 else 'إشارات'} أخدود ضعيفة" if len(wl) > len(full) else "")
+                   + ((lambda k: " وإشارة أخدود ضعيفة واحدة" if k == 1 else " وإشارتا أخدود ضعيفتان" if k == 2
+                                  else f" و{ar(k)} إشارات أخدود ضعيفة")(len(wl) - len(full)) if len(wl) > len(full) else "")
                    + "."})
     if wl:
         rows = []
