@@ -1,0 +1,134 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html lang="ja">
+
+
+<head>
+  <META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <meta name="Author" content="気象庁 Japan Meteorological Agency">
+  <meta name="keywords" content="気象庁 Japan Meteorological Agency">
+  <title>MJO</title>
+  <!-- <script type="text/javascript" src="js/ini_monsoon.js"></script> -->
+  <!-- <script language="javascript" src="js/changeImage.js"></script> -->
+  <!-- <script type="text/javascript" src="js/exchange.js"></script> -->
+  <!-- <script language="javascript" src="js/menu.js"></script> -->
+  <META http-equiv="content-style-type" content="text/css">
+  <!-- <LINK media=screen,print,projection href="./common/layout.css"  -->
+  <!-- type=text/css rel=stylesheet> -->
+</head>
+
+
+<body>
+<h2>Time-longitude cross section of phase and amplitude</h2>
+
+
+<form name="frmctl">
+
+Year
+  <select name="select_yy" onChange="draw()">
+    <script type="text/javascript" language="JavaScript">
+    <!--
+
+      var yy;
+
+      // set date
+      syy=1992;
+      myDate = new Date();
+      eyy = myDate.getUTCFullYear();
+      emm = myDate.getUTCMonth()+1;
+      edd = myDate.getUTCDate();
+
+      if (edd<=2) {
+        emm = emm - 1;
+        if (emm==0) {
+          emm = 12;
+          eyy = eyy - 1;
+        }
+      }
+
+      for (yy=syy; yy<eyy; yy++) {
+        document.write("<option value='"+yy+"'>"+yy+"</option>");
+      }
+      document.write("<option value='"+eyy+"'; -n selected>"+eyy+"</option>");
+
+    //-->
+    </script>
+  </select>
+
+
+<input type="button" value="-1 Year" onclick="backImage()"/>
+<input type="button" value="+1 Year" onclick="nextImage()"/>
+
+</form>
+
+
+<!-- initial figure -->
+<script type="text/javascript">
+<!--
+  yy=document.frmctl.select_yy.value;
+
+  document.write("<img name='fig5' src='./figs/olr0-sst1_1991-2021/time_lon_"+yy+".png'>");
+  document.write("<img name='fig6' src='./figs/chi200-sst1_1991-2021/time_lon_"+yy+".png'>");
+
+//-->
+</script>
+
+<p>
+<b>Fig. Time-longitude cross section of MJO (Left: OLR+U200+U850, Right: CHI200+U200+U850)</b>
+<br>
+Color shows amplitude of MJO.</b>
+</p>
+<br>
+
+
+<!-- ///// JavaScript ///// -->
+<script type="text/javascript" language="JavaScript">
+<!--
+
+// draw figure
+function draw(){
+
+  yy = frmctl.select_yy.value;
+
+  figname5 = "./figs/olr0-sst1_1991-2021/time_lon_"+yy+".png";
+  figname6 = "./figs/chi200-sst1_1991-2021/time_lon_"+yy+".png";
+
+  document.fig5.src=figname5;
+  document.fig6.src=figname6;
+
+}
+
+
+function nextImage(){
+  yy=document.frmctl.select_yy.value;
+  yy=eval(yy);
+
+  if (yy==eyy) {
+    alert (yy+" is the last year.");
+  } else {
+    yy+=1;
+  }
+
+  document.frmctl.select_yy.value=yy;
+  draw();
+}
+
+function backImage(){
+  yy=document.frmctl.select_yy.value;
+  yy=eval(yy);
+
+  if(yy==syy){
+    alert (yy+" is the oldest year.");
+  } else {
+    yy-=1;
+  }
+
+  document.frmctl.select_yy.value=yy;
+  draw();
+}
+
+
+//-->
+</script> 
+
+</body>
+</html>

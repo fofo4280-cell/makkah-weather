@@ -1,0 +1,526 @@
+<html lang="ja">
+
+<head>
+
+<meta content="text/html; charset=UTF-8" http-equiv="Content-Type">
+<title>Time-Longitude Cross Section</title>
+
+<script language="javascript"> 
+<!--
+
+function changeImage() {
+
+  imgdir = "./GIF/cross"
+
+/* Fig1 */
+  elem = figform.elemSelect1.value ;
+
+  for(i=0; i<3; i++) {
+   if(figform.typeSelect1[i].checked) type = figform.typeSelect1[i].value ;
+  }
+
+  for(i=0; i<2; i++) {
+   if(figform.meanSelect1[i].checked) mean = figform.meanSelect1[i].value ;
+  }
+
+  lat  = figform.latSelect1.value ;
+
+  if(figform.timeSelect1[0].checked) figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_latest.png" ;
+  else {
+    year = figform.yearSelect1.value ;
+    mon  = figform.monthSelect1.value ;
+    if(type != "norm") figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_" + year + mon + ".png" ;
+    else               figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_norm" + mon + ".png" ;
+  }
+
+  document.fig1.src = figname ;
+
+/* Fig2 */
+  elem = figform.elemSelect2.value ;
+
+  for(i=0; i<3; i++) {
+   if(figform.typeSelect2[i].checked) type = figform.typeSelect2[i].value ;
+  }
+
+  for(i=0; i<2; i++) {
+   if(figform.meanSelect2[i].checked) mean = figform.meanSelect2[i].value ;
+  }
+
+  lat  = figform.latSelect2.value ;
+
+  if(figform.timeSelect2[0].checked) figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_latest.png" ;
+  else {
+    year = figform.yearSelect2.value ;
+    mon  = figform.monthSelect2.value ;
+    if(type != "norm") figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_" + year + mon + ".png" ;
+    else               figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_norm" + mon + ".png" ;
+  }
+
+  document.fig2.src = figname ;
+
+/* Fig3 */
+  elem = figform.elemSelect3.value ;
+
+  for(i=0; i<3; i++) {
+   if(figform.typeSelect3[i].checked) type = figform.typeSelect3[i].value ;
+  }
+
+  for(i=0; i<2; i++) {
+   if(figform.meanSelect3[i].checked) mean = figform.meanSelect3[i].value ;
+  }
+
+  lat  = figform.latSelect3.value ;
+
+  if(figform.timeSelect3[0].checked) figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_latest.png" ;
+  else {
+    year = figform.yearSelect3.value ;
+    mon  = figform.monthSelect3.value ;
+    if(type != "norm") figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_" + year + mon + ".png" ;
+    else               figname = imgdir + "/" + elem + "/" + elem + "_" + type + "_" + lat + "_" + mean + "_norm" + mon + ".png" ;
+  }
+
+  document.fig3.src = figname ;
+}
+
+function changeDate(a) {
+
+  today = new Date() ;
+  mme = today.getMonth() - 1 ;
+  if(today.getDate() < 6) mme-- ;
+
+  yye = figform.yearSelect1.length - 1 ;
+  if (mme < 0) { mme+=12 ; yye-- ; }
+
+  if(a==0 || a==1 || a==2 || a==3) {
+    year = figform.yearSelect1.selectedIndex ;
+    mon  = figform.monthSelect1.selectedIndex ;
+  }
+  else if(a==4 || a==5 || a==6) {
+    year = figform.yearSelect2.selectedIndex ;
+    mon  = figform.monthSelect2.selectedIndex ;
+  }
+  else if(a==7 || a==8 || a==9) {
+    year = figform.yearSelect3.selectedIndex ;
+    mon  = figform.monthSelect3.selectedIndex ;
+  }
+
+  if(a==1 || a==4 || a==7) {
+    mon-- ;
+    if(mon<0) { mon = 11 ; year-- ; }
+  }
+  else if(a==2 || a==5 || a==8) {
+    mon++ ;
+    if(mon>11) { mon = 0 ; year++ ; }
+  }
+
+  if(year<0 || (year==0 && mon<6)) { year = 0 ; mon = 6 ; }
+  if(year>yye || (year==yye && mon>mme)) { year = yye ; mon = mme ; }
+
+  if(a==0) {
+    figform.yearSelect1.selectedIndex = year ;
+    figform.monthSelect1.selectedIndex = mon ;
+    changeCheckbox(1) ;
+  }
+  else if(a==1 || a==2 || a==3) {
+    figform.yearSelect1.selectedIndex = year ;
+    figform.monthSelect1.selectedIndex = mon ;
+    figform.timeSelect1[1].checked = 1 ;
+    changeCheckbox(1) ;
+  }
+  else if(a==4 || a==5 || a==6) {
+    figform.yearSelect2.selectedIndex = year ;
+    figform.monthSelect2.selectedIndex = mon ;
+    figform.timeSelect2[1].checked = 1 ;
+    changeCheckbox(2) ;
+  }
+  else if(a==7 || a==8 || a==9) {
+    figform.yearSelect3.selectedIndex = year ;
+    figform.monthSelect3.selectedIndex = mon ;
+    figform.timeSelect3[1].checked = 1 ;
+    changeCheckbox(3) ;
+  }
+}
+
+function changeCheckbox(a) {
+
+  if(figform.timeCheck.checked) {
+    if(a==0 || a==1) {
+      for(ind1=0; ind1<2; ind1++) if (figform.timeSelect1[ind1].checked) break ;
+      ind2 = figform.yearSelect1.selectedIndex ;
+      ind3 = figform.monthSelect1.selectedIndex ;
+    }
+    else if(a==2) {
+      for(ind1=0; ind1<2; ind1++) if (figform.timeSelect2[ind1].checked) break ;
+      ind2 = figform.yearSelect2.selectedIndex ;
+      ind3 = figform.monthSelect2.selectedIndex ;
+    }
+    else {
+      for(ind1=0; ind1<2; ind1++) if (figform.timeSelect3[ind1].checked) break ;
+      ind2 = figform.yearSelect3.selectedIndex ;
+      ind3 = figform.monthSelect3.selectedIndex ;
+    }
+
+    figform.timeSelect1[ind1].checked = 1 ;
+    figform.timeSelect2[ind1].checked = 1 ;
+    figform.timeSelect3[ind1].checked = 1 ;
+
+    figform.yearSelect1.selectedIndex = ind2 ;
+    figform.yearSelect2.selectedIndex = ind2 ;
+    figform.yearSelect3.selectedIndex = ind2 ;
+
+    figform.monthSelect1.selectedIndex = ind3 ;
+    figform.monthSelect2.selectedIndex = ind3 ;
+    figform.monthSelect3.selectedIndex = ind3 ;
+  }
+
+  if(figform.elemCheck.checked) {
+         if(a==0 || a==1) ind4 = figform.elemSelect1.selectedIndex ;
+    else if(a==2)         ind4 = figform.elemSelect2.selectedIndex ;
+    else                  ind4 = figform.elemSelect3.selectedIndex ;
+
+    figform.elemSelect1.selectedIndex = ind4 ;
+    figform.elemSelect2.selectedIndex = ind4 ;
+    figform.elemSelect3.selectedIndex = ind4 ;
+  }
+
+  if(figform.typeCheck.checked) {
+    if(a==0 || a==1) {
+      for(ind5=0; ind5<3; ind5++) if (figform.typeSelect1[ind5].checked) break ;
+    }
+    else if(a==2) {
+      for(ind5=0; ind5<3; ind5++) if (figform.typeSelect2[ind5].checked) break ;
+    }
+    else {
+      for(ind5=0; ind5<3; ind5++) if (figform.typeSelect3[ind5].checked) break ;
+    }
+
+    figform.typeSelect1[ind5].checked = 1 ;
+    figform.typeSelect2[ind5].checked = 1 ;
+    figform.typeSelect3[ind5].checked = 1 ;
+  }
+
+  if(figform.meanCheck.checked) {
+    if(a==0 || a==1) {
+      for(ind7=0; ind7<2; ind7++) if (figform.meanSelect1[ind7].checked) break;
+    }
+    else if(a==2) {
+      for(ind7=0; ind7<2; ind7++) if (figform.meanSelect2[ind7].checked) break;
+    }
+    else {
+      for(ind7=0; ind7<2; ind7++) if (figform.meanSelect3[ind7].checked) break;
+    }
+     
+    figform.meanSelect1[ind7].checked = 1 ;
+    figform.meanSelect2[ind7].checked = 1 ;
+    figform.meanSelect3[ind7].checked = 1 ;
+  }
+
+  if(figform.latCheck.checked) {
+         if(a==0 || a==1) ind6 = figform.latSelect1.selectedIndex ;
+    else if(a==2)         ind6 = figform.latSelect2.selectedIndex ;
+    else                  ind6 = figform.latSelect3.selectedIndex ;
+
+    figform.latSelect1.selectedIndex = ind6 ;
+    figform.latSelect2.selectedIndex = ind6 ;
+    figform.latSelect3.selectedIndex = ind6 ;
+  }
+
+  changeImage() ;
+}
+
+function changeDafault() {
+
+  figform.timeSelect1[0].checked = 1 ;
+  figform.yearSelect1.selectedIndex = figform.yearSelect1.length-1 ;
+  figform.monthSelect1.selectedIndex = 11 ;
+
+  figform.elemSelect1.selectedIndex = 1 ;
+  figform.elemSelect2.selectedIndex = 0 ;
+  figform.elemSelect3.selectedIndex = 3 ;
+
+  figform.typeSelect1[1].checked = 1 ;
+  figform.typeSelect2[1].checked = 1 ;
+  figform.typeSelect3[1].checked = 1 ;
+
+  figform.meanSelect1[1].checked = 1 ;
+  figform.meanSelect2[1].checked = 1 ;
+  figform.meanSelect3[1].checked = 1 ;
+
+  figform.latSelect1.selectedIndex = 2 ;
+
+  figform.timeCheck.checked = 1 ;
+  figform.elemCheck.checked = 0 ;
+  figform.typeCheck.checked = 0 ;
+  figform.meanCheck.checked = 0 ;
+  figform.latCheck.checked = 1 ;
+
+  changeDate(0) ;
+}
+
+//-->
+</script>
+
+</head>
+<body onLoad="changeDate(0)">
+
+<h2>Time-Longitude cross section</h2>
+
+<form name="figform">
+Checking the right boxes will reflect selected options in the left section to all the other sections. --->
+<b>
+<input type="checkbox" name="timeCheck" onclick="changeCheckbox(0)" checked>Time
+<input type="checkbox" name="elemCheck" onclick="changeCheckbox(0)">Elements
+<input type="checkbox" name="typeCheck" onclick="changeCheckbox(0)">Hist/Anom
+<input type="checkbox" name="meanCheck" onclick="changeCheckbox(0)">Time Mean
+<input type="checkbox" name="latCheck" onclick="changeCheckbox(0)" checked>Latitudinal Range
+</b>
+<br>
+
+Clicking on the 'default' button will initialize your setting. --->
+<input type="button" value="Default" onclick="changeDafault()">
+<hr>
+
+<table>
+
+<tr>
+
+<th bgcolor="#DDFFDD">
+
+<div align="left">
+&nbsp;The last month to be shown:<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect1" value="latest" onclick="changeCheckbox(1)" checked>Last month<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect1" value="latest" onclick="changeCheckbox(1)">Select ->
+Year
+<select name="yearSelect1" onchange="changeDate(3)">
+<script type="text/javascript"> 
+<!--
+  yend = new Date().getYear();
+  if (yend < 1000) yend += 1900 ;
+  for (yy = 1979; yy < yend; yy++) {
+    document.write("<option value='" + yy + "'>" + yy + "</option>");
+  }
+  document.write("<option value='" + yy + "' selected>" + yy + "</option>");
+//-->
+</script>
+</select>
+&nbsp;Month
+<select name="monthSelect1" onchange="changeDate(3)">
+  <option value="01">1</option>
+  <option value="02">2</option>
+  <option value="03">3</option>
+  <option value="04">4</option>
+  <option value="05">5</option>
+  <option value="06">6</option>
+  <option value="07">7</option>
+  <option value="08">8</option>
+  <option value="09">9</option>
+  <option value="10">10</option>
+  <option value="11">11</option>
+  <option value="12" selected>12</option>
+</select>
+&nbsp;
+<input type="button" value=" < " onclick="changeDate(1)">
+<input type="button" value=" > " onclick="changeDate(2)">
+<br>
+&nbsp;Elements:
+<select name="elemSelect1" onchange="changeCheckbox(1)">
+  <option value="olr">Outgoing Longwave Radiation (OLR)</option>
+  <option value="chi200" selected>200-hPa Velocity Potential</option>
+  <option value="u10m">10-m Zonal Wind</option>
+  <option value="u850">850-hPa Zonal Wind</option>
+  <option value="u200">200-hPa Zonal Wind</option>
+  <option value="sst">Sea Surface Temperature (SST)</option>
+</select>
+<br>
+&nbsp;&nbsp;
+<input type="radio" name="typeSelect1" value="hist" onclick="changeCheckbox(1)">Hist
+<input type="radio" name="typeSelect1" value="anom" onclick="changeCheckbox(1)" checked>Anom
+<input type="radio" name="typeSelect1" value="norm" onclick="changeCheckbox(1)">Norm
+<br>
+&nbsp;Time Mean:
+<input type="radio" name="meanSelect1" value="3drm" onclick="changeCheckbox(1)">3-day
+<input type="radio" name="meanSelect1" value="7drm" onclick="changeCheckbox(1)" checked>7-day
+<br>
+&nbsp;Latitudinal Range:
+<select name="latSelect1" onchange="changeCheckbox(1)">
+  <option value="15_25">15-25N mean</option>
+  <option value="5_15">5-15N mean</option>
+  <option value="-5_5" selected>Equator (5S-5N mean)</option>
+  <option value="-15_-5">15-5S mean</option>
+</select>
+</div>
+
+</th>
+<th bgcolor="#FFDDDD">
+
+<div align="left">
+&nbsp;The last month to be shown:<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect2" value="latest" onclick="changeCheckbox(2)" checked>Last month<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect2" value="latest" onclick="changeCheckbox(2)">Select ->
+Year
+<select name="yearSelect2" onchange="changeDate(6)">
+<script type="text/javascript"> 
+<!--
+  yend = new Date().getYear();
+  if (yend < 1000) yend += 1900 ;
+  for (yy = 1979; yy < yend; yy++) {
+    document.write("<option value='" + yy + "'>" + yy + "</option>");
+  }
+  document.write("<option value='" + yy + "' selected>" + yy + "</option>");
+//-->
+</script>
+</select>
+&nbsp;Month
+<select name="monthSelect2" onchange="changeDate(6)">
+  <option value="01">1</option>
+  <option value="02">2</option>
+  <option value="03">3</option>
+  <option value="04">4</option>
+  <option value="05">5</option>
+  <option value="06">6</option>
+  <option value="07">7</option>
+  <option value="08">8</option>
+  <option value="09">9</option>
+  <option value="10">10</option>
+  <option value="11">11</option>
+  <option value="12" selected>12</option>
+</select>
+&nbsp;
+<input type="button" value=" < " onclick="changeDate(4)">
+<input type="button" value=" > " onclick="changeDate(5)">
+<br>
+&nbsp;Elements:
+<select name="elemSelect2" onchange="changeCheckbox(2)">
+  <option value="olr" selected>Outgoing Longwave Radiation (OLR)</option>
+  <option value="chi200">200-hPa Velocity Potential</option>
+  <option value="u10m">10-m Zonal Wind</option>
+  <option value="u850">850-hPa Zonal Wind</option>
+  <option value="u200">200-hPa Zonal Wind</option>
+  <option value="sst">Sea Surface Temperature (SST)</option>
+</select>
+<br>
+&nbsp;&nbsp;
+<input type="radio" name="typeSelect2" value="hist" onclick="changeCheckbox(2)">Hist
+<input type="radio" name="typeSelect2" value="anom" onclick="changeCheckbox(2)" checked>Anom
+<input type="radio" name="typeSelect2" value="norm" onclick="changeCheckbox(2)">Norm
+<br>
+&nbsp;Time Mean:
+<input type="radio" name="meanSelect2" value="3drm" onclick="changeCheckbox(2)">3-day
+<input type="radio" name="meanSelect2" value="7drm" onclick="changeCheckbox(2)" checked>7-day
+<br>
+&nbsp;Latitudinal Range:
+<select name="latSelect2" onchange="changeCheckbox(2)">
+  <option value="15_25">15-25N mean</option>
+  <option value="5_15">5-15N mean</option>
+  <option value="-5_5" selected>Equator (5S-5N mean)</option>
+  <option value="-15_-5">15-5S mean</option>
+</select>
+</div>
+
+</th>
+<th bgcolor="#DDDDFF">
+
+<div align="left">
+&nbsp;The last month to be shown:<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect3" value="latest" onclick="changeCheckbox(3)" checked>Last month<br>
+&nbsp;&nbsp;&nbsp;<input type="radio" name="timeSelect3" value="latest" onclick="changeCheckbox(3)">Select ->
+Year
+<select name="yearSelect3" onchange="changeDate(9)">
+<script type="text/javascript"> 
+<!--
+  yend = new Date().getYear();
+  if (yend < 1000) yend += 1900 ;
+  for (yy = 1979; yy < yend; yy++) {
+    document.write("<option value='" + yy + "'>" + yy + "</option>");
+  }
+  document.write("<option value='" + yy + "' selected>" + yy + "</option>");
+//-->
+</script>
+</select>
+&nbsp;Month
+<select name="monthSelect3" onchange="changeDate(9)">
+  <option value="01">1</option>
+  <option value="02">2</option>
+  <option value="03">3</option>
+  <option value="04">4</option>
+  <option value="05">5</option>
+  <option value="06">6</option>
+  <option value="07">7</option>
+  <option value="08">8</option>
+  <option value="09">9</option>
+  <option value="10">10</option>
+  <option value="11">11</option>
+  <option value="12" selected>12</option>
+</select>
+&nbsp;
+<input type="button" value=" < " onclick="changeDate(7)">
+<input type="button" value=" > " onclick="changeDate(8)">
+<br>
+&nbsp;Elements:
+<select name="elemSelect3" onchange="changeCheckbox(3)">
+  <option value="olr">Outgoing Longwave Radiation (OLR)</option>
+  <option value="chi200">200-hPa Velocity Potential</option>
+  <option value="u10m">10-m Zonal Wind</option>
+  <option value="u850" selected>850-hPa Zonal Wind</option>
+  <option value="u200">200-hPa Zonal Wind</option>
+  <option value="sst">Sea Surface Temperature (SST)</option>
+</select>
+<br>
+&nbsp;&nbsp;
+<input type="radio" name="typeSelect3" value="hist" onclick="changeCheckbox(3)">Hist
+<input type="radio" name="typeSelect3" value="anom" onclick="changeCheckbox(3)" checked>Anom
+<input type="radio" name="typeSelect3" value="norm" onclick="changeCheckbox(3)">Norm
+<br>
+&nbsp;Time Mean:
+<input type="radio" name="meanSelect3" value="3drm" onclick="changeCheckbox(3)">3-day
+<input type="radio" name="meanSelect3" value="7drm" onclick="changeCheckbox(3)" checked>7-day
+<br>
+&nbsp;Latitudinal Range:
+<select name="latSelect3" onchange="changeCheckbox(3)">
+  <option value="15_25">15-25N mean</option>
+  <option value="5_15">5-15N mean</option>
+  <option value="-5_5" selected>Equator (5S-5N)</option>
+  <option value="-15_-5">15-5S mean</option>
+</select>
+</div>
+
+</th>
+</tr>
+
+</form>
+
+<tr>
+
+<td>
+<img name="fig1">
+</td>
+
+<td>
+<img name="fig2">
+</td>
+
+<td>
+<img name="fig3">
+</td>
+
+</tr>
+
+</table>
+
+<br>
+Three- and seven-day running mean values are used.<br>
+The base period for the normal is 1991-2020.<br>
+<br>
+'Hist', 'Anom' and 'Norm' are defined as below:<br>
+- <b>Hist</b>: Historical data (raw data)<br>
+- <b>Anom</b>: Anomaly (i.e., deviation from the climatological normal)<br>
+- <b>Norm</b>: Climatological normal data (i.e., the 1991 - 2020 average).<br>
+<br>
+<hr>
+
+<a href="./index.html">Asian Monsoon Top Page</a>&nbsp;
+<a href="../mjo/moni_mjo.html">Madden-Julian Oscillation (MJO)</a>
+
+</body>
+</html>
+
