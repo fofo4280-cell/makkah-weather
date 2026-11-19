@@ -1956,6 +1956,11 @@
   // zoom buttons, and the coordinates of a tapped point (Fahad, 17 Nov 2026). The map is a plain latitude-longitude
   // picture of the extent [west, east, south, north], edge to edge, so a point's place in the picture gives its position.
   const AR_DIG = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
+  // the Kingdom maps come from ECMWF since 19 Nov 2026 (Fahad), drawn in the card style: names, title, explanation and
+  // legend are inside the picture, so the page adds no names or legend of its own over them (model set in mjo.json)
+  const MODEL_AR = (m) => m === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
+  const CARDED = (o) => !!(o && o.model);
+  const fixModel = (t, o) => !CARDED(o) ? t : t.replace(/توقع جي إف إس|النموذج الأمريكي/g, MODEL_AR(o.model));
   function ksaZoomSetup(ext) {
     if (ksaZoomSetup.done) { ksaZoomSetup.ext = ext; return; }
     ksaZoomSetup.done = true; ksaZoomSetup.ext = ext;
@@ -2020,8 +2025,9 @@
       $("ksaFig").src = url;
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
-      $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
-      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
+      $("ksaLegend").innerHTML = st.figs && st.figs[lay] && !CARDED(K) ? legendHTML(st.figs[lay]) : "";
+      $("ksaLegend").hidden = CARDED(K);
+      $("ksaHint").textContent = fixModel(KSA_HINT[lay], K) + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
       ksaTapText();
       const box = $("ksaLow");
       // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
@@ -2041,7 +2047,7 @@
       lay = M.ksaLayer = b.dataset.l; show();
     });
     ksaZoomSetup(K.extent || [33, 57.5, 14, 33.5]);
-    kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(K)) kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
     if (K.vals && KSAV.v !== st.updated) {
       KSAV.v = st.updated;
       fetch(`${CL}${K.vals.file}?v=${encodeURIComponent(st.updated)}`).then((r) => r.arrayBuffer())
@@ -2077,6 +2083,7 @@
     const S = 34;
     c.lineCap = "round"; c.lineJoin = "round";
     for (let y = S / 2; y < Hd; y += S) for (let x = S / 2; x < Wd; x += S) {
+      if (CARDED(K) && ((x > Wd * 0.45 && y < Hd * 0.18) || (x < Wd * 0.45 && y > Hd * 0.86))) continue;   // title and legend boxes of the picture
       const lat = n - (y / Hd) * (n - s), lon = w + (x / Wd) * (e - w), uv = kwAt(k, KW.lay, lat, lon); if (!uv) continue;
       const sp = Math.hypot(uv[0], uv[1]); if (sp < 0.5) continue;
       const dx = uv[0] / Math.cos(lat * Math.PI / 180), dy = -uv[1], m = Math.hypot(dx, dy);
@@ -2141,10 +2148,11 @@
     $("kwFig").src = `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
     const d = K.days[k];
     $("kwDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
-    $("kwLegend").innerHTML = st.figs && st.figs[kd] ? legendHTML(st.figs[kd]) : "";
-    $("kwHint").textContent = (KW.lay === "7"
+    $("kwLegend").innerHTML = st.figs && st.figs[kd] && !CARDED(K) ? legendHTML(st.figs[kd]) : "";
+    $("kwLegend").hidden = CARDED(K);
+    $("kwHint").textContent = fixModel(KW.lay === "7"
       ? "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. هذه الطبقة توجّه السحب الركامية وتنقل الرطوبة إلى المرتفعات."
-      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.")
+      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.", K)
       + " الأسهم تشير إلى الجهة التي تهب نحوها الرياح، وطولها يزيد مع سرعتها، والألوان والخطوط سرعة الرياح كل ٥ م/ث. كبّر الخريطة فتظهر أسهم أكثر في المنطقة التي تنظر إليها، والمس أي موضع لترى إحداثياته واتجاه الرياح وسرعتها فيه.";
     kwDraw(); kwTapText();
   }
@@ -2153,7 +2161,7 @@
     $("kwCard").hidden = !(K && K.wind && K.days && K.days.length);
     if ($("kwCard").hidden) return;
     kwSetup();
-    kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(K)) kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
     $("kwDay").max = Math.max(0, K.days.length - 1);
     if (!kwCard.done) { $("kwDay").value = todayIdx(K.days); kwCard.done = true; }
     if (!KW.data || KW.v !== st.updated) {
@@ -2264,9 +2272,9 @@
       tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
       if (lay === "line") { if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true; }
       const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = lay === "line";   // names belong to the map only
-      $("tcLegend").hidden = !(lay === "cape" && T.cape_legend);
+      $("tcLegend").hidden = !(lay === "cape" && T.cape_legend) || CARDED(T);
       if (lay === "cape" && T.cape_legend) $("tcLegend").innerHTML = legendHTML(T.cape_legend);
-      $("tcHint").textContent = TC_HINT[lay];
+      $("tcHint").textContent = fixModel(TC_HINT[lay], T);
       const r = lay !== "line" ? T.rows[k] : T.rows[Math.max(0, T.days.indexOf(todayISO()))];
       $("tcDayLabel").textContent = r ? dayLab(r.d) : "";
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
@@ -2291,7 +2299,7 @@
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
     document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
-    kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(T)) kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; if (lay === "sea") setSlider(); }
     $("tcDay").oninput = show;
