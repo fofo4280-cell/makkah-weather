@@ -54,7 +54,7 @@ jobs:
           mkdir /tmp/p && cd /tmp/p && cp /home/runner/redsea_obs.npz . 2>/dev/null || true; cp /home/runner/reading.json . 2>/dev/null || true; cp -r /home/runner/hc /home/runner/rd . 2>/dev/null || true; ls
           git init -q -b data && git add -A
           git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m results
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-redsea
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-redsea-${{ inputs.first }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
