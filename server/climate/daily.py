@@ -767,6 +767,15 @@ def main():
         import traceback
         traceback.print_exc()
         print("plains check failed:", repr(e), flush=True)
+    # 8c3. wide lift of a deep moist layer (stratiform rain), region by region (strat.py, 19 Nov 2026 test)
+    strat_out = None
+    try:
+        import strat
+        strat_out = strat.compute(lambda c, h, f: gfs_fields(c, h, res="0p25", fields=f), cycle,
+                                  (first + timedelta(hours=3)).date(), log=lambda *a: print(*a, flush=True))
+        print("strat:", {k: v["frac"] for k, v in ((strat_out or {}).get("regions") or {}).items() if v["frac"]}, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("strat failed:", repr(e), flush=True)
     pattern_out = None
     try:
         dd = (first + timedelta(hours=3)).date()
@@ -811,7 +820,7 @@ def main():
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
-        "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "pattern": pattern_out, "ar": ar_data,
+        "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
         "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
