@@ -1760,12 +1760,13 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
   // section tab bar (Fahad 17 Nov 2026): one section at a time instead of one long page
   function mjoSec(k, keepScroll) {
+    setTimeout(() => document.querySelectorAll('#p-mjo span[id$="DayLabel"]').forEach((l) => l._badge && l._badge()), 60);
     const bar = $("mjoTabs"); if (!bar || !bar.querySelector(`[data-s="${k}"]`)) k = "report";
     M.sec = k;
     try { localStorage.setItem("mjoSec", k); } catch (e) {}
@@ -1901,6 +1902,54 @@
     g += `<line x1="${PL}" y1="${ly}" x2="${PL + 26}" y2="${ly}" stroke="#9a9a9a" stroke-width="3.2"/><text x="${PL + 32}" y="${ly + 4}" font-size="11" fill="#111">Observed (BoM)</text>`;
     g += `<line x1="${PL + 150}" y1="${ly}" x2="${PL + 176}" y2="${ly}" stroke="#111" stroke-width="2.6"/><text x="${PL + 182}" y="${ly + 4}" font-size="11" fill="#111">Forecast (GFS)</text>`;
     $("mjoPhase").innerHTML = g + "</svg>";
+  }
+
+  // Arabia's precipitable water, moved from the warm-event card to «الرطوبة» under the table (Fahad, 20 Nov 2026)
+  function pwMapCard() {
+    const st = M.st, days = st.days || [];
+    const show = (k) => {
+      const url = `${CL}fig/pw_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("pwFig").src = url; $("pwFigLink").href = url;
+      $("pwDayLabel").textContent = days[k] ? dayLab(days[k]) : "";
+      const lg = (st.figs || {}).pw;
+      if (!lg) { $("pwLegend").innerHTML = ""; return; }
+      const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
+      const ticks = lg.ticks.map((v) => `<span style="left:${((v - lg.vmin) / (lg.vmax - lg.vmin) * 100).toFixed(1)}%">${num(v)}</span>`).join("");
+      $("pwLegend").innerHTML = `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
+        <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
+    };
+    $("pwDay").max = Math.max(0, days.length - 1);
+    if (!pwMapCard.done) { $("pwDay").value = todayIdx(days); pwMapCard.done = true; }
+    $("pwDay").oninput = (e) => show(+e.target.value);
+    show(+$("pwDay").value || 0);
+  }
+
+  // the day and date written over every map that has a day slider, kept in step with the slider and the play button
+  // (Fahad, 20 Nov 2026: «أي خريطة فيها تشغيل أيام في اعلى الصورة اكتب التاريخ واليوم»)
+  function dayBadges() {
+    document.querySelectorAll('#p-mjo span[id$="DayLabel"]').forEach((lab) => {
+      const card = lab.closest(".card");
+      if (!card || card.dataset.badge) return;
+      const fig = card.querySelector(".figwrap, .ksa-map, .tw-stage, #beltPanels");
+      if (!fig) return;
+      card.dataset.badge = "1";
+      card.style.position = "relative";
+      const b = document.createElement("div");
+      b.className = "day-badge";
+      card.appendChild(b);
+      const put = () => {
+        const t = (lab.textContent || "").trim();
+        const i = t.indexOf(":");
+        b.textContent = i >= 0 ? t.slice(i + 1).trim() : t;
+        b.hidden = !t || !fig.offsetParent;
+        if (!b.hidden) b.style.top = (fig.getBoundingClientRect().top - card.getBoundingClientRect().top + 8) + "px";
+      };
+      new MutationObserver(put).observe(lab, { childList: true, characterData: true, subtree: true });
+      card.addEventListener("click", () => setTimeout(put, 50));
+      window.addEventListener("resize", put);
+      put();
+      lab._badge = put;
+    });
   }
 
   function mjoMap() {
