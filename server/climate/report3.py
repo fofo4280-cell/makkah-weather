@@ -823,7 +823,7 @@ def summary(st, rs, regs, day0):
     if W:
         B += cold_wave_blocks(st, day0, effect=False, W=W)
         wn = {r["name"] for r in rows}
-        no = [n for n in W["regions"] if n not in wn]
+        no = [n for n in W["regions"] if n not in wn and n not in ((getattr(region_reading, "lowwarm", None) or {}).get("cold_regions") or [])]
         if no:
             B.insert(len(B) - 1, {"p": f"ولا يُتوقع مطر تحت الموجة على {jl(no)}، لجفاف الهواء أو غياب الرفع، فأثرها هناك برودة ورياح."})
     B.append({"note": "هذه القراءة من المكونات لا من مطر النماذج: الرطوبة، والتقاء الرياح على التضاريس، والتبريد العلوي، "
