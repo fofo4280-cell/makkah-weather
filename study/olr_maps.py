@@ -9,29 +9,36 @@ fp = fm.FontProperties(fname=sys.argv[1])
 A = lambda s: get_display(arabic_reshaper.reshape(s))
 ARD = str.maketrans("0123456789", "٠١٢٣٤٥٦٧٨٩")
 MON = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"]
-base = "https://psl.noaa.gov/thredds/dodsC/Datasets/interp_OLR/"
-nc = netCDF4.Dataset(base + "olr.day.mean.nc")
-t = netCDF4.num2date(nc["time"][:], nc["time"].units)
+import glob, os
+# NOAA OLR daily CDR (NCEI, 1 degree): this year's preliminary file and the ten last years for the normal
+files = sorted(glob.glob("ncei/*.nc"))
+cur = [f for f in files if "_2026" in os.path.basename(f)]
+nc = netCDF4.Dataset(cur[-1])
+tv = nc["time"]; t = netCDF4.num2date(tv[:], tv.units)
 days = [dt.date(x.year, x.month, x.day) for x in t]
 print("last OLR day", days[-1], flush=True)
 la, lo = nc["lat"][:], nc["lon"][:]
 jj = np.where((la >= -30) & (la <= 40))[0]
-# climatology: same calendar days of 1991-2020
+if la[0] > la[-1]:
+    pass
 want = [dt.date(2026, 11, 10), days[-1]]
 for d in want:
     i = days.index(d)
-    f = nc["olr"][i, jj[0]:jj[-1] + 1, :].astype(float)
     clim = []
-    for y in range(1991, 2021):
-        try:
-            k = days.index(dt.date(y, d.month, d.day))
-            clim.append(nc["olr"][k - 2:k + 3, jj[0]:jj[-1] + 1, :].astype(float).mean(0))
-        except ValueError:
-            pass
-    an = f - np.mean(clim, 0)
+    for f in files:
+        if f in cur:
+            continue
+        with netCDF4.Dataset(f) as c:
+            ct = netCDF4.num2date(c["time"][:], c["time"].units)
+            cd = [dt.date(x.year, x.month, x.day) for x in ct]
+            for k, x in enumerate(cd):
+                if x.month == d.month and abs(x.day - d.day) <= 2:
+                    clim.append(np.ma.filled(c["olr"][k, jj[0]:jj[-1] + 1, :].astype(float), np.nan))
+    clim = [np.nanmean(clim, 0)]
+    print("normal from", len(files) - len(cur), "years", flush=True)
     # 5-day mean anomaly centred on the day where possible
     lo5 = max(i - 2, 0); hi5 = min(i + 3, len(days))
-    an5 = nc["olr"][lo5:hi5, jj[0]:jj[-1] + 1, :].astype(float).mean(0) - np.mean(clim, 0)
+    an5 = np.ma.filled(nc["olr"][lo5:hi5, jj[0]:jj[-1] + 1, :].astype(float), np.nan).mean(0) - clim[0]
     fig = plt.figure(figsize=(14, 5.2), dpi=130)
     ax = plt.axes(projection=ccrs.PlateCarree(central_longitude=120))
     ax.set_extent([0, 359.9, -30, 40], ccrs.PlateCarree())

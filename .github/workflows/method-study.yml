@@ -22,12 +22,19 @@ jobs:
       - run: |
           mkdir out && cd out
           B=https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo
-          for k in olr0-sst1_1991-2021 chi200-sst1_1991-2021; do
-            for m in 202608 202609 202610 202611; do curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_${k%%-*}_$m.png" "$B/figs/$k/rmm_$m.png" || echo "fail $k $m"; done
-            curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_dir_${k%%-*}.html" "$B/figs/$k/" || echo "nodir $k"
+          for k in olr0-sst1_1991-2021 chi200-sst1_1991-2021; do curl -sfL -m 120 -A "Mozilla/5.0" -o "jma_${k%%-*}_rmm8.csv" "$B/figs/$k/rmm8.csv" || echo "fail csv $k"; done
+          curl -sfL -m 60 -A "Mozilla/5.0" -o jma_time_lon.html "$B/time_lon.html" || true
+          curl -sfL -m 60 -A "Mozilla/5.0" -o jma_mjo_cross.html "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/ASIA_TCC/mjo_cross.html" || true
+          mkdir -p ncei && cd ncei
+          L=https://www.ncei.noaa.gov/data/outgoing-longwave-radiation-daily/access/
+          curl -sfL -m 120 "$L" -o list.html || echo "no ncei list"
+          grep -oE 'olr-daily_[^"]+\.nc' list.html | sort -u > names.txt; tail -12 names.txt
+          for f in $(grep -E '_(2016|2017|2018|2019|2020|2021|2022|2023|2024|2025)0101_' names.txt | sort -u) $(grep -E '_20260101_' names.txt | sort -u | tail -1); do
+            curl -sfL -m 900 -O "$L$f" || echo "fail $f"
           done
-          for f in moni_mjo.html; do curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_$f" "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/$f" || curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_$f" "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/$f" || true; done
+          rm -f list.html; cd ..
           python3 ../code/study/olr_maps.py ../code/server/climate/fonts/IBMPlexSansArabic-SemiBold.ttf || echo "olr failed"
+          rm -rf ncei
           ls -la
           git init -q -b study-season-jma && git add -A
           git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "jma + olr"
