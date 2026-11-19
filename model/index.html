@@ -212,21 +212,18 @@
           <p class="hint" id="ksaHint"></p>
         </div>
         <div data-sec="pw" class="card" id="tpCard" hidden>
-          <h3>طاقة عدم الاستقرار</h3>
-          <div class="seg tc-hour" id="tpHour">
-            <button data-h="11">١١ صباحًا</button><button data-h="13" class="on">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
-          </div>
+          <h3>توغّل طاقة الحمل من البحر الأحمر</h3>
           <div class="ksa-map" dir="ltr">
-            <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img id="tpFig" alt="طاقة عدم الاستقرار" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img id="tpFig" alt="توغّل طاقة الحمل" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
             <div class="ksa-zoom"><button id="tpIn" aria-label="تكبير">+</button><button id="tpOut" aria-label="تصغير" disabled>−</button></div>
           </div>
           <div id="tpCoord" class="ksa-coord" hidden></div>
-          <div class="legend mjo-legend" id="tpLegend"></div>
+          <div id="tpNow" class="ksa-low"></div>
           <div class="mjo-time">
-            <input type="range" id="tpDay" min="0" max="14" value="7" dir="ltr" aria-label="اليوم">
+            <input type="range" id="tpDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
             <span id="tpDayLabel"></span>
           </div>
-          <p class="hint">طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. ٧ أيام مضت واليوم و٧ قادمة. كبّر الخريطة أو صغّرها بالزرين، والمس أي موضع لترى إحداثياته.</p>
+          <p class="hint">طاقة الحمل من النموذج الأوروبي، أعلى قيمها بين ١٢ ظهرًا و٦ مساءً، بألوان خرائط الدكتور خالد العتيبي: الأخضر طاقة خفيفة، ثم الأصفر فالأحمر فالعنابي، والأسود والرمادي أعلاها. الخط المتقطع يحيط بالطاقة (٥٠٠ فأكثر) المتصلة بالبحر الأحمر، فيُظهر إلى أين دخل تدفقها داخل الجزيرة نحو نجد والقصيم والوسطى، وهو ما يصحب مواسم الخصب. الأسهم الرياح القريبة من السطح. كبّر الخريطة بالزرين، والمس أي موضع لترى إحداثياته.</p>
         </div>
         <p class="hint" id="mjoUpdated"></p>
       </div>
@@ -262,6 +259,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261119rs2"></script>
+<script src="app.js?v=20261119ci1"></script>
 </body>
 </html>
