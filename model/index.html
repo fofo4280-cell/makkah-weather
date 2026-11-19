@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261118w4">
+<link rel="stylesheet" href="style.css?v=20261120lw">
 </head>
 <body>
 <div class="app">
@@ -125,7 +125,7 @@
         <div data-sec="warm" class="card">
           <h3>خريطة الحدث الدافئ والبارد</h3>
           <div class="seg" id="mjoLayer">
-            <button data-l="wc" class="on">المؤشر</button><button data-l="pw">رطوبة الجزيرة العربية</button>
+            <button data-l="wc" class="on">المؤشر</button><button data-l="lw" hidden>قرب الأرض والطاقة</button><button data-l="lwd" hidden>التغير خلال ٢٤ ساعة</button><button data-l="pw">رطوبة الجزيرة العربية</button>
           </div>
           <div class="figwrap" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img loading="lazy" id="mjoFig" alt="خريطة الحدث الدافئ والبارد"></a></div>
           <div class="legend mjo-legend" id="mjoLegend"></div>
@@ -133,7 +133,7 @@
             <input type="range" id="mjoDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
             <span id="mjoDayLabel"></span>
           </div>
-          <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
+          <p class="hint" id="mjoHint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
         </div>
         <div data-sec="ksa" class="card" id="kwCard" hidden>
           <h3>الرياح</h3>
@@ -279,6 +279,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261120cv1"></script>
+<script src="app.js?v=20261120lw"></script>
 </body>
 </html>
