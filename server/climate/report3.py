@@ -412,7 +412,9 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             up_cold = (e.get("upper") or {}).get("flags", {}).get("cold") or (e.get("upper") or {}).get("flags", {}).get("fall")
             fuel = (e.get("cape") or 0)
             if f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
-                _put_w = _cape_word(fuel + (300 if up_cold else 0))
+                _put_w = _cape_word(fuel)
+                if _put_w == "heavy" and not up_cold:
+                    _put_w = "moderate"     # heavy only with the cooling aloft too
                 row[_put_w].append(_towns(e["name"]))
                 capes.append(fuel)
                 if lift and e["key"] != "sail":
@@ -424,6 +426,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             if r["region"] != nm:
                 continue
             f = r.get("flags") or {}
+            if nm == "مكة المكرمة" and not RD.get("toward_plain"):
+                continue                # 18 Nov 2026 test: cells moved NE, Makkah and Al-Jumum stayed dry
             if f.get("moist") and f.get("unstable") and (f.get("mountain") or f.get("inflow")):
                 # the storms come down from the mountains: their strength follows the fuel up there, at most moderate
                 row["moderate" if (r.get("cape_mtn") or 0) >= 300 else "light"].append(_towns(r["name"]))
@@ -468,6 +472,14 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                  "الطاقة": 1.0 if cmax >= 500 else 0.5 if cmax >= 150 else 0.0}
         pct = min(95, round(100 * sum(parts.values()) / len(parts)))
         lv = level4(pct)
+        # not tested on enough cases yet (Fahad, 19 Nov 2026: «لا تصدر شيء الا متيقن منه»): no «قوية» on a weak day,
+        # and a region with no meeting of the winds is a possible shower only
+        if big < 0.6 and lv == "قوية":           # the Kingdom's strength under 1.8 of 5
+            lv = "مرجحة"
+        if not meets:
+            lv = "ضعيفة"
+        elif cmax < 150 and lv in ("مرجحة", "قوية"):
+            lv = "متوسطة"               # a meeting with no measured fuel
         cov = COVER_OF[lv] * (1.0 if meets else 0.5) * min(1.0, 0.4 + 0.15 * nplaces)
         out.append({"name": nm, "row": row, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
                     "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts,
@@ -494,8 +506,10 @@ def summary(st, rs, regs, day0):
     import bigreport as BR0
     f00 = BR0._day_factors(st, day0)
     lab0, T0, R0 = R2.case_kind(st, day0)
-    s0 = 3 if BR0._supported(f00) else 1 if (T0 or R0) else 0
-    rows = region_reading(st, rs, regs, day0, W, big=s0 / 3)
+    sc0 = BR0.strength(st, day0)
+    c0 = BR0.combined(st, day0, day0)
+    ws0 = BR0.wave_score(st, day0, day0, sc0, None if c0 is None else c0["ksa"])["score"]
+    rows = region_reading(st, rs, regs, day0, W, big=min(1.0, ws0 / 3))
     rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", -r["pct"]))
     B = []
     # a. the strength of the case and our estimate of the rain spread over the Kingdom (from the reading, not a model)
@@ -507,8 +521,9 @@ def summary(st, rs, regs, day0):
     tot = sum(r["area"] or 0 for r in rows)
     ksa_area = 2.15e6
     spread = sum((r["area"] or 0) * r["cover"] for r in rows) / ksa_area
-    B.append({"p": f"{size_word(spread)}: نقدّر أن يغطي المطر {_cov(spread)} من مساحة المملكة، وقوة الحالة {n1(ws)} من ٥ "
-                   f"({BR.grade(ws)}). وفرصة أن تكون حالة واسعة عند هذه القوة {next(t for lim, t in WIDE_CHANCE if ws < lim)} في سجل ٢٥ موسمًا."})
+    band = "محدود، أقل من ٣٪ من مساحة المملكة" if spread < 0.03 else "متوسط، بين ٣ و١٠٪" if spread < 0.10 else "واسع، أكثر من ١٠٪"
+    B.append({"p": f"قوة الحالة {n1(ws)} من ٥ ({BR.grade(ws)})، وانتشار المطر المتوقع {band}. وفرصة أن تكون حالة واسعة "
+                   f"عند هذه القوة {next(t for lim, t in WIDE_CHANCE if ws < lim)} في سجل ٢٥ موسمًا."})
     sup = BR._supported(f0)
     struct = 3 if sup and ws >= 3 else 2 if sup and ws >= 1.8 else 1 if (sup or Tt or Rr) else 0
     why = []
@@ -520,7 +535,8 @@ def summary(st, rs, regs, day0):
                    + (f"، يسندها {'، و'.join(why)}" if why else "") + "."})
     # b. the regions where the reading finds a chance of rain
     if rows:
-        items = [f"{r['name']} (انتشار نحو {_cov(r['cover'])} من مساحتها، وقوة الحالة {ar(r['pct'])}٪ {r['level']})" for r in rows]
+        rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", LEVEL4.index(r["level"]) * -1))
+        items = [f"{r['name']} ({'زخات متفرقة محتملة' if r['level'] == 'ضعيفة' else 'فرصة ' + r['level']})" for r in rows]
         B.append({"p": "المناطق المتأثرة بحسب حالة اليوم: " + "، و".join(items) + "."})
         B.append({"table": {"head": ["المنطقة", "غزيرة", "متوسطة", "خفيفة"],
                             "rows": [[r["name"]] + ["، ".join(r["row"][k]) or "—" for k in ("heavy", "moderate", "light")]
@@ -545,8 +561,8 @@ def summary(st, rs, regs, day0):
         if no:
             B.insert(len(B) - 1, {"p": f"ولا يُتوقع مطر تحت الموجة على {jl(no)}، لجفاف الهواء أو غياب الرفع، فأثرها هناك برودة ورياح."})
     B.append({"note": "هذه القراءة من المكونات لا من مطر النماذج: الرطوبة، والتقاء الرياح على التضاريس، والتبريد العلوي، "
-                      "وطاقة عدم الاستقرار، ورياح الطبقات المتوسطة. قوة الحالة توافقها مع الصورة الكبرى (الجزئي بنصف)، والانتشار "
-                      "تقدير من مستواها. ومطر نموذجنا على الخريطة."})
+                      "وطاقة عدم الاستقرار، ورياح الطبقات المتوسطة. ودرجة كل منطقة من توافقها، ولا تُعطى «قوية» في يوم ضعيف "
+                      "الصورة الكبرى، والمنطقة بلا التقاء رياح زخاتها محتملة فقط. ومطر نموذجنا على الخريطة."})
     return sec("الخلاصة", "sum", B)
 
 
