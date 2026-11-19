@@ -168,7 +168,27 @@ def rmm_phase(r1, r2):
     return int(((a + 180) // 45) % 8) + 1
 
 
+RMM_JMA_URL = "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/figs/olr0-sst1_1991-2021/rmm8.csv"
+
+
 def read_rmm():
+    """The MJO index of the whole page: JMA's (OLR + u850 + u200, ENSO removed), the one Dr. Khalid reads (Fahad,
+    19 Nov 2026: «اجعل التذبذب كما لدى الدكتور تمامًا»; tested on 25 wet seasons, a little better than BoM's).
+    The Bureau of Meteorology's RMM only when JMA cannot be read."""
+    try:
+        out = []
+        for l in get(RMM_JMA_URL).decode("latin-1").splitlines():
+            if l.startswith("#") or not l.strip():
+                continue
+            p = [x.strip() for x in l.split(",")]
+            r1, r2, amp = float(p[3]), float(p[4]), float(p[7])
+            if all(math.isfinite(x) for x in (r1, r2, amp)) and abs(r1) < 90:
+                out.append((date(int(p[0]), int(p[1]), int(p[2])), r1, r2, int(p[5]), amp))
+        if len(out) > 1000:
+            print("rmm source: JMA, last", out[-1], flush=True)
+            return out
+    except Exception as e:  # noqa: BLE001
+        print("rmm JMA failed, using BoM:", repr(e), flush=True)
     txt = get(RMM_URL).decode("latin-1").splitlines()
     out = []
     for l in txt:
