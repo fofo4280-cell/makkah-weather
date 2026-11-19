@@ -393,13 +393,29 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         areas = {r["name"]: r["area_km2"] for r in G.regions()}
     except Exception:  # noqa: BLE001
         pass
+    import plains as PL
+    BOXES = {e[0]: e[5] for e in PL.EDGES if len(e) > 5 and e[5]}
+    MZ = {z[0]: z[2] for z in MS.ZONES}
+    _uv = [(r["steer_u"], r["steer_v"]) for r in prs if r.get("steer_u") is not None]
+    uv_all = (sum(u for u, _ in _uv) / len(_uv), sum(v for _, v in _uv) / len(_uv)) if _uv else None
     out = []
     for nm in ORDER:
         pw = pw_of(st, day0, nm)
         moist = (pw or 0) >= 110
         cold = nm in wregs
         row = {"heavy": [], "moderate": [], "light": []}
-        meets, capes, steer = [], [], None
+        why = {}
+        src = []            # (lat, lon, level, name) where the cells are born, to follow them with the steering
+        meets, capes, steer, plains_at = [], [], None, []
+
+        def add(lv, place, cause, at=None):
+            if any(place in v for v in row.values()):
+                return
+            row[lv].append(place)
+            why[place] = cause
+            if at:
+                src.append((at[0], at[1], lv, place))
+
         # the escarpments and the harrat: sea air or moist southerly air climbing, with fuel
         for e in eds:
             if e["region"] != nm:
@@ -407,21 +423,27 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             f = e.get("flags") or {}
             if nm == "مكة المكرمة" and e["key"] in ("hada", "shafa") and not (meet_mk and meet_mk[0] == "edge"):
                 continue                # Fahad: the edges of Al-Hada and Ash-Shafa only when the winds meet there
-            lift = f.get("upslope") or (e["key"] == "sail" and meet_mk and meet_mk[0] != "edge")
-            harra = e["kind"] if "kind" in e else ""
+            sail_meet = e["key"] == "sail" and meet_mk and meet_mk[0] != "edge"
+            lift = f.get("upslope") or sail_meet
             up_cold = (e.get("upper") or {}).get("flags", {}).get("cold") or (e.get("upper") or {}).get("flags", {}).get("fall")
             fuel = (e.get("cape") or 0)
             if f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
-                _put_w = _cape_word(fuel)
-                if _put_w == "heavy" and not up_cold:
-                    _put_w = "moderate"     # heavy only with the cooling aloft too
-                row[_put_w].append(_towns(e["name"]))
+                lv = _cape_word(fuel)
+                if lv == "heavy" and not up_cold:
+                    lv = "moderate"     # heavy only with the cooling aloft too
+                harra = e.get("kind") == "harra" or "حرة" in e["name"]
+                cause = ("التقاء الرياح على هضبة الطائف" if sail_meet else
+                         ("هواء رطب يصعد الحرة" if harra else "هواء البحر الرطب يصعد الحافة") if f.get("upslope") else
+                         "تبريد علوي فوق هواء رطب")
+                bx = BOXES.get(e["key"])
+                add(lv, _towns(e["name"]), cause, ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)
                 capes.append(fuel)
-                if lift and e["key"] != "sail":
+                if f.get("upslope") and e["key"] != "sail":
                     meets.append("هواء البحر الرطب يصعد " + P_short(e["name"]))
             if e.get("steer") is not None and steer is None and e.get("steer") >= 3:
                 steer = e["steer"]
-        # the plains under the mountains: cold outflow running down in the evening into hot moist air
+        # the plains under the mountains: cold outflow running down in the evening into hot moist air; written only
+        # when the reading supports it (Fahad, 19 Nov 2026: «اذا رأيت فرص على السهول اكتبها واذا لم ترى لا تكتب»)
         for r in prs:
             if r["region"] != nm:
                 continue
@@ -430,30 +452,60 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 continue                # 18 Nov 2026 test: cells moved NE, Makkah and Al-Jumum stayed dry
             if f.get("moist") and f.get("unstable") and (f.get("mountain") or f.get("inflow")):
                 # the storms come down from the mountains: their strength follows the fuel up there, at most moderate
-                row["moderate" if (r.get("cape_mtn") or 0) >= 300 else "light"].append(_towns(r["name"]))
+                pn = _towns(r["name"])
+                add("moderate" if (r.get("cape_mtn") or 0) >= 300 else "light", pn, "هواء السحب البارد ينحدر مساءً من الجبال")
+                plains_at.append(pn)
                 meets.append("هواء السحب البارد ينحدر مساءً إلى " + P_short(r["name"]))
         # the surface collision zones over the Kingdom
         for z in zones:
             if nm in (z.get("regions") or [z.get("region")]):
-                meets.append(f"رياح {' تلتقي برياح '.join(z['winds'][:2]) if len(z['winds']) > 1 else z['winds'][0] + ' تتباطأ وتتكدس'} قرب {z['place']}")
-                row["moderate" if (z.get("c") or 0) >= 4 else "light"].append(f"قرب {z['place']}")
+                w2 = z["winds"]
+                cause = f"التقاء رياح {w2[0]} برياح {w2[1]}" if len(w2) > 1 else f"رياح {w2[0]} تتباطأ وتتكدس"
+                meets.append(f"{cause} قرب {z['place']}")
+                add("moderate" if (z.get("c") or 0) >= 4 else "light", f"قرب {z['place']}", cause, (z["lat"], z["lon"]))
         # Makkah: the afternoon meeting around Taif from the collision study
         if nm == "مكة المكرمة" and meet_mk:
             site = "على حافتي الهدا والشفا" if meet_mk[0] == "edge" else "شمال الطائف وشرقه"
             meets.insert(0, f"التقاء الرياح بعد الظهر {site}" + (f" قرب {meet_mk[1]}" if meet_mk[1] else ""))
+            if meet_mk[0] != "edge" and meet_mk[1]:
+                bx = MZ.get("east_taif")
+                dry = meet_mk[0] == "east_dry"
+                add("light" if dry else "moderate", f"شرق الطائف قرب {meet_mk[1]}",
+                    "التقاء الرياح بعد الظهر" + ("، والطاقة هناك ضعيفة" if dry else ""),
+                    ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)
             if RD.get("steer"):
                 sv = RD["steer"]
                 steer = (f"نحو {sv['to']} بنحو {ar(round(sv['speed']))} م/ث" if sv["speed"] >= 3
                          else "ضعيفة فتبقى الخلايا شبه ثابتة وتنحدر مع الأودية")
-        if isinstance(steer, (int, float)):
+        # follow the cells with the 700-500 hPa wind: where they drift in the 2-3 hours after they are born
+        uv = None
+        if nm == "مكة المكرمة" and RD.get("steer"):
+            uv = (RD["steer"]["u"], RD["steer"]["v"])
+        else:
             pr = next((r for r in prs if r["region"] == nm and r.get("steer_u") is not None), None)
-            steer = (f"نحو {MS.toward(pr['steer_u'], pr['steer_v'])} بنحو {ar(round(steer))} م/ث" if pr
-                     else f"بنحو {ar(round(steer))} م/ث")
-        if cold and moist and not any(row.values()):
-            row["light"].append("زخات متفرقة")
+            if pr:
+                uv = (pr["steer_u"], pr["steer_v"])
+            elif uv_all:
+                uv = uv_all             # no plain of its own (Al-Baha, Al-Madinah): the mean steering over the west
+        if uv and (uv[0] ** 2 + uv[1] ** 2) ** 0.5 >= 3:
+            for la, lo, lv, pname in src[:3]:
+                if lv == "light":
+                    continue
+                d = _downstream(la, lo, uv[0], uv[1], nm)
+                if d:
+                    add("light" if lv == "moderate" else "moderate", d,
+                        f"تدفعها رياح الطبقات المتوسطة من {P_short(pname)}")
+        if isinstance(steer, (int, float)):
+            steer = (f"نحو {MS.toward(*uv)} بنحو {ar(round(steer))} م/ث" if uv else f"بنحو {ar(round(steer))} م/ث")
         for k in row:
             row[k] = list(dict.fromkeys(row[k]))[:5]
         if not any(row.values()):
+            # no place where the rain can be pinned down: a moist region under the cold wave keeps passing showers,
+            # named in one sentence, not as an empty row (Fahad, 19 Nov 2026)
+            if cold and moist:
+                out.append({"name": nm, "row": row, "why": {}, "trough": None, "meets": [], "pw": pw, "steer": None,
+                            "cape": 0, "pct": 0, "level": "ضعيفة", "cold": True, "parts": {}, "cover": 0.002,
+                            "area": areas.get(nm), "vague": True, "plains": []})
             continue
         trough = None
         if cold:
@@ -481,10 +533,39 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         elif cmax < 150 and lv in ("مرجحة", "قوية"):
             lv = "متوسطة"               # a meeting with no measured fuel
         cov = COVER_OF[lv] * (1.0 if meets else 0.5) * min(1.0, 0.4 + 0.15 * nplaces)
-        out.append({"name": nm, "row": row, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
+        out.append({"name": nm, "row": row, "why": why, "plains": plains_at, "vague": False, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
                     "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts,
                     "cover": cov, "area": areas.get(nm)})
     return out
+
+
+def _downstream(lat, lon, u, v, region, hours=2.5):
+    """the place the cells reach after a few hours with the steering wind (u, v m/s), or None when they stay put"""
+    import math
+    import sa_geo as G
+    km = min(80.0, max(25.0, 3.6 * hours * math.hypot(u, v)))
+    sp = math.hypot(u, v)
+    la = lat + km * v / sp / 111.2
+    lo = lon + km * u / sp / (111.2 * math.cos(math.radians(lat)))
+    try:
+        regs = G.regions()
+        k = int(G.region_of_points(regs, [la], [lo])[0])
+        if k >= 0 and regs[k]["name"] != region:
+            return None              # out of the region: the next region's own reading covers it
+    except Exception:  # noqa: BLE001
+        pass
+    n, d = G.nearest_place(la, lo)
+    if not n:
+        return None
+    return f"قرب {n}" if d <= 20 else f"{G.direction(*_town_at(n), la, lo)} {n}" if _town_at(n) else None
+
+
+def _town_at(name):
+    import sa_geo as G
+    for n, la, lo in G.PLACES:
+        if n == name:
+            return la, lo
+    return None
 
 
 def P_short(name):
@@ -494,6 +575,41 @@ def P_short(name):
 
 def _cov(v):
     return "—" if v is None else ("أقل من ٠٫١٪" if v < 0.001 else R2.cover_pct(v).removeprefix("نحو "))
+
+
+def weak_reasons(st, day0, W):
+    """short reasons why the big picture over the Kingdom is weak today, from the drivers that are missing"""
+    import bigreport as BR
+    import bigpic as BP
+    v = BR._vals(st, day0)
+    c = BR.strength(st, day0)
+    out = []
+    m = v.get("m")
+    if m and st.get("wet_season") is not False:
+        if m["phase"] not in BP.WET_PHASES:
+            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} خارج أطوار الدعم")
+        elif m["amp"] < 1.5:
+            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} بسعة ضعيفة ({n1(m['amp'])})")
+    if v.get("mf"):
+        ref = (st.get("mjof") or {}).get("z_ref") or 10
+        z = v["mf"][0]
+        if z >= ref / 3:
+            out.append(f"مكوّن التذبذب فوق المملكة موجب ({n1(z)} م) {BR.mf_word(z, ref)}")
+    if v.get("w") and c["warm"] == 0 and not BP.favourable(v["w"][0]):
+        out.append(f"الحدث الدافئ مركزه عند {ar(round(v['w'][0]))}° شرقًا، خارج القطاع الداعم فوق غرب بحر العرب وشرق أفريقيا")
+    T = (W or {}).get("trough")
+    if T:
+        k = T["k"]
+        if not T.get("cutoff") and (k.get("tip_v") or 0) > -40:
+            nx = T.get("next") or {}
+            out.append(f"الأخدود مركزه خارج المملكة ولا يصل منه إلى الحجاز إلا طرف ضحل ({_dam(k['tip_v'])} ديكامتر)"
+                       + ("، ويخرج غدًا" if not nx.get("k") else ""))
+    elif c["trough"] < 0.3:
+        out.append("لا أخدود علوي مؤثر")
+    dry = [n for n in ORDER if (pw_of(st, day0, n) or 100) < 100]
+    if dry:
+        out.append(f"الهواء جاف على {jl(dry)}")
+    return out[:5]
 
 
 def summary(st, rs, regs, day0):
@@ -524,6 +640,10 @@ def summary(st, rs, regs, day0):
     band = "محدود، أقل من ٣٪ من مساحة المملكة" if spread < 0.03 else "متوسط، بين ٣ و١٠٪" if spread < 0.10 else "واسع، أكثر من ١٠٪"
     B.append({"p": f"قوة الحالة {n1(ws)} من ٥ ({BR.grade(ws)})، وانتشار المطر المتوقع {band}. وفرصة أن تكون حالة واسعة "
                    f"عند هذه القوة {next(t for lim, t in WIDE_CHANCE if ws < lim)} في سجل ٢٥ موسمًا."})
+    if ws < 2.6:
+        wk = weak_reasons(st, day0, W)
+        if wk:
+            B.append({"p": f"أسباب {'ضعف' if ws < 1.8 else 'توسط'} الحالة على المملكة: " + "، و".join(wk) + "."})
     sup = BR._supported(f0)
     struct = 3 if sup and ws >= 3 else 2 if sup and ws >= 1.8 else 1 if (sup or Tt or Rr) else 0
     why = []
@@ -538,11 +658,31 @@ def summary(st, rs, regs, day0):
         rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", LEVEL4.index(r["level"]) * -1))
         items = [f"{r['name']} ({'زخات متفرقة محتملة' if r['level'] == 'ضعيفة' else 'فرصة ' + r['level']})" for r in rows]
         B.append({"p": "المناطق المتأثرة بحسب حالة اليوم: " + "، و".join(items) + "."})
-        B.append({"table": {"head": ["المنطقة", "غزيرة", "متوسطة", "خفيفة"],
-                            "rows": [[r["name"]] + ["، ".join(r["row"][k]) or "—" for k in ("heavy", "moderate", "light")]
-                                     for r in rows]}})
+        # one line per place, with what makes the rain there (Fahad, 19 Nov 2026: «حاول تحدد أماكن المطر من خلال
+        # دراستك لمعطيات أماكن تصادم الرياح بجميع انواعها وتوجيه الرياح العليا للسحاب والرطوبة وتأثير التبريد العلوي»)
+        LVW = {"heavy": "غزيرة", "moderate": "متوسطة", "light": "خفيفة"}
+        trs = []
         for r in rows:
-            bits = list(r["meets"])
+            if r.get("vague"):
+                continue
+            first = True
+            for k in ("heavy", "moderate", "light"):
+                for pl_ in r["row"][k]:
+                    trs.append([r["name"] if first else "", pl_, LVW[k], r["why"].get(pl_, "")])
+                    first = False
+        if trs:
+            B.append({"table": {"head": ["المنطقة", "المكان", "الشدة", "السبب"], "rows": trs}})
+        plains_all = [(r["name"], p_) for r in rows for p_ in r.get("plains") or []]
+        if plains_all:
+            B.append({"p": "فرصة على السهول: " + "، و".join(f"{p_} ({n_})" for n_, p_ in plains_all)
+                           + "، إذا نزل هواء السحب البارد من الجبال مساءً إلى الهواء الحار الرطب تحتها."})
+        vague = [r["name"] for r in rows if r.get("vague")]
+        if vague:
+            B.append({"p": f"وعلى {jl(vague)} رطوبة وتبريد علوي بلا التقاء رياح يحدد مكانًا، فالزخات هناك عابرة متفرقة."})
+        for r in rows:
+            if r.get("vague"):
+                continue
+            bits = []
             if r["trough"]:
                 bits.append(f"تبريد علوي من {r['trough']}")
             if r["pw"]:
@@ -551,7 +691,8 @@ def summary(st, rs, regs, day0):
                 bits.append(f"طاقة عدم الاستقرار نحو {ar(int(round(r['cape'], -1)))} جول/كغ")
             if r["steer"]:
                 bits.append(f"الرياح في الطبقات المتوسطة تدفع الخلايا {r['steer']}")
-            B.append({"p": f"{r['name']}: " + "، و".join(bits) + "."})
+            if bits:
+                B.append({"p": f"{r['name']}: " + "، و".join(bits) + "."})
     else:
         B.append({"p": "لا تجتمع مكونات المطر على أي منطقة اليوم."})
     if W:
