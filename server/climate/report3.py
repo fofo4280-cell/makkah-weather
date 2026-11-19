@@ -1032,7 +1032,8 @@ def waves(st, rs, regs, day0):
     spread_of = lambda w: ((R2.cover_pct(w["cover"]) + " من المملكة") if w.get("cover") and w["cover"] >= 0.01 else "أقل من ١٪ من المملكة")
     full = [w for w in wl if not w.get("sign")]
     B.append({"p": f"نرصد حتى {ar_date(days[-1])}، وهو أقصى ما يغطيه التوقع، "
-                   + (f"{ar(len(full))} {'موجة' if len(full) == 1 else 'موجات'} مطرية" if full else "لا موجة مطرية واسعة")
+                   + (("موجة مطرية واحدة" if len(full) == 1 else "موجتان مطريتان" if len(full) == 2
+                      else f"{ar(len(full))} موجات مطرية") if full else "لا موجة مطرية واسعة")
                    + ((lambda k: " وإشارة أخدود ضعيفة واحدة" if k == 1 else " وإشارتا أخدود ضعيفتان" if k == 2
                                   else f" و{ar(k)} إشارات أخدود ضعيفة")(len(wl) - len(full)) if len(wl) > len(full) else "")
                    + "."})
@@ -1065,6 +1066,17 @@ def waves(st, rs, regs, day0):
         ref = (st.get("mjof") or {}).get("z_ref") or 10
         back = [d for d in days[1:] if "mjo" in {k for k, _ in fac[d]} and (BR._mf(st, d) or [0])[0] <= -ref / 3]
         t = f"لا تظهر فترة خصب واسعة على الجزيرة العربية حتى {ar_date(days[-1])}"
+        try:   # the seasonal outlook may see one coming from the MJO: say so, do not contradict it
+            import season
+            o_ = season.outlook(st, day0) if st.get("wet_season") else None
+            sp_ = o_ and o_["spell"]
+        except Exception:  # noqa: BLE001
+            sp_ = None
+        if sp_ and sp_[0] <= days[-1]:
+            t = (f"لم تكتمل بعد في توقع الأيام القادمة عوامل فترة خصب واسعة على الجزيرة العربية حتى {ar_date(days[-1])}، "
+                 f"لكن النظرة الموسمية أعلاه ترجّح بدايتها نحو {ar_date(sp_[0], weekday=False)} مع دخول التذبذب أطوارنا "
+                 "الداعمة، فتُتابع كل ليلة")
+            back = []
         if back:
             pk = max(back, key=lambda d: score[d])
             t += (f"؛ وأول ملامح عودة الدعم المداري {R2.ar_span(back[0], back[-1]) if len(back) > 1 else ar_date(back[0])}: "
