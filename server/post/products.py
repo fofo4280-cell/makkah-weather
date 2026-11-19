@@ -66,7 +66,8 @@ DAILY = {
 SINGLE = {
     "rain24": {"label": "المطر التراكمي من ١٢ إلى ١٢", "unit": "ملم", "stops": RAINACC, "tf": "sqrt", "from_h": 9, "len": 24,
                "bands": True},
-    "tsprob": {"label": "احتمال العواصف الرعدية +٢٤", "unit": "٪", "stops": TSPROB, "tf": "lin", "from_h": 3,
+    # tsprob: the same 12 to 12 window as rain24 (Fahad, 19 Nov 2026; was hours 3-27, 6 PM to 6 PM)
+    "tsprob": {"label": "احتمال العواصف الرعدية من ١٢ إلى ١٢", "unit": "٪", "stops": TSPROB, "tf": "lin", "from_h": 9,
                "len": 24, "dbz": 40, "radius_km": 25},
 }
 # Temperature and wind are no longer drawn as maps but stay in the tap-anywhere values and city charts.
