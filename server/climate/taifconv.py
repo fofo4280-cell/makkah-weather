@@ -39,10 +39,9 @@ PAST, NEXT = 7, 7
 WIND = [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
 UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("cape", r":CAPE:surface:")]
 # afternoon surface CAPE (Fahad, 17 Nov 2026: third view of the card), J/kg; calm sequential scale on the dark map
-CAPE_SCALE = {"vmin": 0, "vmax": 4000, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
+CAPE_SCALE = {"vmin": 0, "vmax": 2500, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
                                                 (.4, "#a9cf6a"), (.6, "#e9cf55"), (.8, "#e58a4c"), (1, "#c2445a")],
-              "label": "طاقة عدم الاستقرار (النموذج الأوروبي)", "unit": "جول/كجم", "ticks": [0, 1000, 2000, 3000, 4000]}
-# ECMWF gives the most-unstable CAPE (the best parcel of the lowest 300 hPa), higher than the GFS surface CAPE: scale 0-4000
+              "label": "طاقة عدم الاستقرار السطحية (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 PLACES = [("جدة", 21.54, 39.17), ("رابغ", 22.80, 39.03), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
           ("السيل", 21.6, 40.43), ("حرة رهاط", 22.8, 40.1), ("الجموم", 21.62, 39.70)]
@@ -226,7 +225,7 @@ def explain(f, row, kind, hour):
     return out
 
 
-def run(gfs_fields, cycle, out_fig, model="الأوروبي", draw=True):
+def run(gfs_fields, cycle, out_fig, model="الأمريكي", draw=True):
     t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
     d0 = t0.date()
     today = d0 + timedelta(days=1)
@@ -278,7 +277,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1400, kind="conv", hour="11", when=None, model="الأوروبي", lines=()):
+def draw_map(path, f, width_px=1400, kind="conv", hour="11", when=None, model="الأمريكي", lines=()):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
