@@ -2,13 +2,15 @@
 the phases that favour widespread rain over the Kingdom, and the ENSO background, in plain words people can share.
 
 Method (tested before publishing, 25 wet seasons 2001-2026, CHIRPS share of the Kingdom with 5 mm or more, weekly):
-  - the last observed RMM (Australian Bureau of Meteorology) is carried eastward at the usual speed of the oscillation
+  - the index: JMA's MJO index (OLR + u850 + u200, ENSO removed; Dr. Khalid's reference; Fahad 19 Nov 2026:
+    «اجعل التذبذب كما لدى الدكتور تمامًا»), st["rmm_jma"]; the BoM RMM (st["rmm_obs"]) only if JMA is missing;
+  - the last observed value is carried eastward at the usual speed of the oscillation
     (one cycle in 45 days, 8 degrees a day); the GFS projection is NOT used here (it was not part of the test);
   - each coming week (7 days from the report day) is classed by its projected phases: supportive (4 days or more in
     phases 7, 8, 1), suppressing (4 days or more in phases 2-5), between, or weak (amplitude below 1);
   - the chance that a week is wetter than usual (top third of its month over the Kingdom) by class and lead, from the
-    test (study branch study/season, docs in PROJECT.md): supportive 49/49/43/42/42 %, suppressing 17/20/25/28/27 %,
-    usual 33 %;
+    test with the JMA index (study branch study/season, docs in PROJECT.md): supportive 53/50/45/40/38 %, suppressing
+    14/21/26/28/26 %, usual 33 % (with the BoM index 49/49/43/42/42 and 17/20/25/28/27);
   - ENSO: Nino 3.4 of the last month (PSL); El Nino seasons (Oct >= 0.5, 8 of 25) had wet weeks more often (38 % vs 31 %;
     widespread 20 % vs 15 %); the Indian Ocean Dipole showed no link with widespread weeks and is not used.
 """
@@ -21,7 +23,7 @@ SPEED = 8.0                       # degrees a day: one cycle in 45 days
 SUPP, SUPR = {7, 8, 1}, {2, 3, 4, 5}
 WEEKS = 5
 # chance (%) that the week is wetter than usual, by class and lead week (test, 25 seasons)
-RATE = {"sup": [49, 49, 43, 42, 42], "supr": [17, 20, 25, 28, 27], "mid": [38, 29, 29, 31, 32], "weak": [35, 34, 35, 33, 34]}
+RATE = {"sup": [53, 50, 45, 40, 38], "supr": [14, 21, 26, 28, 26], "mid": [42, 32, 23, 25, 31], "weak": [33, 35, 35, 35, 37]}
 CLS_WORD = {"sup": "داعم", "supr": "كابح", "mid": "انتقالي", "weak": "ضعيف"}
 STATE_WORD = {"sup": "فرصة خصب واسع", "supr": "هدوء نسبي", "mid": "أمطار متفرقة كالمعتاد", "weak": "حسب الأخاديد"}
 
@@ -48,7 +50,8 @@ def _entry(obs, phase, after):
 
 
 def outlook(st, day0):
-    obs = (st.get("rmm_obs") or [None])[-1]
+    src = "jma" if st.get("rmm_jma") else "bom"
+    obs = (st.get("rmm_jma") or st.get("rmm_obs") or [None])[-1]
     if not obs:
         return None
     weeks = []
@@ -81,7 +84,7 @@ def outlook(st, day0):
                 e += timedelta(days=1)
             spell = (s0, e)
     enso = st.get("enso")
-    return {"obs": obs, "weeks": weeks, "spell": spell, "enso": enso}
+    return {"obs": obs, "src": src, "weeks": weeks, "spell": spell, "enso": enso}
 
 
 MONTH = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
@@ -124,10 +127,15 @@ def blocks(st, day0):
         p = p % 8 + 1
         nxt.append(ar(p))
     t = (f"التذبذب المداري (مادن-جوليان) في الطور {ar(ob['phase'])} وقوته {num(ob['amp'], 1)}، أي {strength} "
-         f"(آخر رصد {ar_date(od, weekday=False)})")
+         f"(مؤشر {'الوكالة اليابانية للأرصاد الجوية' if o['src'] == 'jma' else 'مكتب الأرصاد الأسترالي'}، آخر رصد "
+         f"{ar_date(od, weekday=False)})")
+    hist = (st.get("rmm_jma") if o["src"] == "jma" else st.get("rmm_obs")) or []
+    dwell = sum(1 for x in hist if x["phase"] in (3, 4))
+    if len(hist) >= 50 and dwell >= 30 and ob["phase"] not in (3, 4):
+        t += f"، بعد مكوث طويل في الطورين ٣ و٤ الكابحين ({ar(dwell)} يومًا من آخر {ar(len(hist))})"
     if ob["amp"] >= 1:
         t += f"، ويتقدم شرقًا نحو الطورين {nxt[0]} و{nxt[1]}"
-    B.append({"p": t + ". أطوارنا الداعمة للأمطار الواسعة على المملكة هي ٧ و٨ و١، والطوران ٣ و٤ أكثرها كبحًا."})
+    B.append({"p": t + ". أطوارنا الداعمة للأمطار الواسعة على المملكة هي ٧ و٨ و١، والأطوار ٣ و٤ و٥ أكثرها كبحًا."})
     sp = o["spell"]
     if sp:
         n_days = (sp[1] - sp[0]).days + 1
@@ -155,8 +163,8 @@ def blocks(st, day0):
         calm = [w for w in ws if w["b"] < sp[0] and w["cls"] == "supr"]
         v = "الحكم: "
         if sp[0] > day0:
-            v += f"هدوء نسبي حتى نحو {ar_date(sp[0] - timedelta(days=1), weekday=False)}"
-            v += "، " if calm else " مع أمطار متفرقة كالمعتاد، "
+            v += (f"{'هدوء نسبي' if calm else 'أمطار متفرقة كالمعتاد'} حتى نحو "
+                  f"{ar_date(sp[0] - timedelta(days=1), weekday=False)}، ")
         v += (f"ثم فترة خصب واسعة متوقعة على المملكة {ar_span(sp[0], sp[1])} "
               f"({wk_t}) بإذن الله")
         if o["enso"] and o["enso"]["v"] >= 0.5:
@@ -170,8 +178,8 @@ def blocks(st, day0):
              "تأتي بها الأخاديد فقط.")
     B.append({"p": v})
     B.append({"note": "اختُبرت هذه النظرة على خمسة وعشرين موسمًا ممطرًا (٢٠٠١-٢٠٢٦) بأمطار الأقمار الصناعية والمحطات أسبوعًا "
-                      "بأسبوع: الأسابيع التي توقعنا فيها طورًا داعمًا كانت ممطرة على نطاق واسع فوق المعتاد في ٤٩٪ منها "
-                      "(والمعتاد ٣٣٪)، وأمطارها شملت ٥٪ من المملكة فأكثر في ٢٥٪ منها، مقابل ١٧٪ و٦٪ في أسابيع الأطوار الكابحة، "
-                      "وتبقى الإشارة نافعة حتى الأسبوع الخامس. التذبذب لا يحدد يوم المطر ومكانه، بل يرفع أو يخفض فرص "
-                      "الأمطار الواسعة."})
+                      "بأسبوع: الأسابيع التي توقعنا فيها طورًا داعمًا كانت ممطرة على نطاق واسع فوق المعتاد في ٥٣٪ منها "
+                      "(والمعتاد ٣٣٪)، وأمطارها شملت ٥٪ من المملكة فأكثر في ٢٤٪ منها، مقابل ١٤٪ و٥٪ في أسابيع الأطوار الكابحة، "
+                      "وتبقى الإشارة نافعة حتى الأسبوع الخامس. وأسابيع الطور ٨ وحدها كانت ممطرة في ٦٢٪ منها. التذبذب لا يحدد "
+                      "يوم المطر ومكانه، بل يرفع أو يخفض فرص الأمطار الواسعة."})
     return B
