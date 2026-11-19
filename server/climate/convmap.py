@@ -116,7 +116,6 @@ def draw(olr, t1, jma, path, fc=False):
         ax.plot([a, a], [-25, -18], color="#ddd", lw=.8, transform=ccrs.PlateCarree())
         ax.text((a + b) / 2, -22, _ar(t), fontproperties=fp, fontsize=10.5, color="#eee", ha="center", va="center",
                 transform=ccrs.PlateCarree())
-    ax.text(45, 24, _ar("المملكة"), fontproperties=fb, fontsize=12, color="#fff", ha="center", transform=ccrs.PlateCarree())
     sub = "كلما اشتد اللون كانت السحب الركامية أعمق وأعلى"
     if jma and jma.get("r1") is not None:
         import math
