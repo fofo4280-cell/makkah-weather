@@ -2384,12 +2384,26 @@
   // "after 3 days" with the Arabic number agreement
   function after(k) { return k === 1 ? "بعد يوم" : k === 2 ? "بعد يومين" : k <= 10 ? `بعد ${num(k)} أيام` : `بعد ${num(k)} يومًا`; }
 
+  const WC_HINT = "الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.";
+  const LW_HINT = "الحدث الدافئ والبارد قرب الأرض: حرارة الهواء ورطوبته معًا عند ٢ متر و٨٠٠ هكتوباسكال مقارنة بمعدل التاريخ (٢٠٢١-٢٠٢٥)، الثالثة عصرًا. الأحمر بيئة تهيئ للحمل العميق، والأزرق حدث بارد يكبته. اللوحة الثانية المؤشر مضروبًا في جذر طاقة عدم الاستقرار. اختُبر على ٣٨٢ يومًا حول مكة وتهامة والطائف: في الحدث البارد (١- أو أقل) لم يبلغ المطر ٢٠ ملم في أي يوم، فهو يلغي المطر في التقرير، أما الدافئ فمعزز يرفع الثقة مع المكونات الأخرى ولا يصنع مطرًا وحده.";
+  const LWD_HINT = "تغير مؤشر الحدث الدافئ والبارد قرب الأرض خلال ٢٤ ساعة حتى الثالثة عصرًا. البرتقالي اشتداد الحدث الدافئ أو ضعف البارد، والأزرق العكس.";
   function mjoShow() {
     const st = M.st, k = M.day, lay = M.layer, kk = String(k).padStart(2, "0");
     const figs = st.figs || {};
-    const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+    // the low-level warm event (Fahad, 19 Nov 2026, after Dr. Khalid's 2 m / 800 hPa maps): its own list of days
+    const lw = st.lowwarm && st.lowwarm.days && st.lowwarm.days.length ? st.lowwarm : null;
+    document.querySelectorAll('#mjoLayer [data-l="lw"], #mjoLayer [data-l="lwd"]').forEach((b) => { b.hidden = !lw; });
+    let fk = kk;
+    if (lay === "lw" || lay === "lwd") {
+      const i = lw ? lw.days.indexOf(st.days[k]) : -1;
+      fk = String(Math.max(0, i)).padStart(2, "0");
+    }
+    const url = `${CL}fig/${lay}_${fk}.png?v=${encodeURIComponent(st.updated)}`;
     $("mjoFig").src = url; $("mjoFigLink").href = url;
     $("mjoFigWrap").classList.toggle("fit", lay === "pw");
+    $("mjoFigWrap").classList.toggle("lw-tall", lay === "lw");
+    $("mjoFigWrap").classList.toggle("lw-mid", lay === "lwd");
+    $("mjoHint").textContent = lay === "lw" ? LW_HINT : lay === "lwd" ? LWD_HINT : WC_HINT;
     const d = st.days[k];
     $("mjoDayLabel").textContent = d ? dayLab(d) : "";
     const lg = figs[lay];
