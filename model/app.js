@@ -934,7 +934,10 @@
     const B = LI_BOX, W = LI_W, H = LI_H;
     const url = `${LI_WMS}?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326` +
       `&bbox=${B.s},${B.w},${B.n},${B.e}&width=${W}&height=${H}&format=image/png&transparent=true&time=${liTimeISO(t)}`;
-    const r = await fetch(url, { mode: "cors" });
+    // a request that hangs (phone asleep, weak signal) must not block every later update
+    const ac = new AbortController(), kill = setTimeout(() => ac.abort(), 20e3);
+    let r;
+    try { r = await fetch(url, { mode: "cors", cache: "no-store", signal: ac.signal }); } finally { clearTimeout(kill); }
     if (!r.ok || !(r.headers.get("content-type") || "").startsWith("image/")) return null;
     const blob = await r.blob();
     if (!blob.size) return null;
@@ -980,12 +983,13 @@
   }
 
   async function liLoad() {
-    if (LX.busy) return;
-    LX.busy = true;
+    if (LX.busy && Date.now() - LX.busy < 90e3) return;
+    const run = LX.busy = Date.now();
     if (!LX.raw) liCacheLoad();
-    // images appear about 10 minutes after their time; ask newest first and draw as each one arrives
+    // images appear about 10 minutes after their time and keep filling for a while after that, so the
+    // newest 30 minutes are asked again on every update (an early empty answer is never kept for good)
     const top = Math.floor((Date.now() - 5 * 60e3) / LI_STEP) * LI_STEP, want = [];
-    for (let t = top; t > top - LI_BACK; t -= LI_STEP) if (!LX.got.has(t)) want.push(t);
+    for (let t = top; t > top - LI_BACK; t -= LI_STEP) if (!LX.got.has(t) || t > top - 30 * 60e3) want.push(t);
     let next = 0, since = 0;
     const worker = async () => {
       while (next < want.length) {
@@ -1004,7 +1008,7 @@
     const newest = times.length ? times[times.length - 1] : 0;
     for (const t of times) if (t < newest - LI_WIN - LI_STEP) LX.got.delete(t);
     LX.failed = !LX.got.size;
-    LX.busy = false;
+    if (LX.busy === run) LX.busy = false;
     liCacheSave();
     liFrames();
   }
@@ -1022,8 +1026,11 @@
     liFrames();
     liLoad();
     if (Date.now() - RV.got > 2 * 60e3) rvLoad();   // the radar list is fresh every time this mode opens
-    clearInterval(LX.timer); LX.timer = setInterval(liLoad, 2.5 * 60e3);
+    clearInterval(LX.timer); LX.timer = setInterval(() => { if (!document.hidden) liLoad(); }, 2 * 60e3);
   }
+  // the phone stops timers while the page is in the background: update at once on return
+  document.addEventListener("visibilitychange", () => { if (!document.hidden && LX.on) liLoad(); });
+  window.addEventListener("pageshow", (e) => { if (e.persisted && LX.on) liLoad(); });
   function liExit() {
     LX.on = false;
     clearInterval(LX.timer); LX.timer = null;
