@@ -366,6 +366,19 @@ STRAT_MIN = 0.05     # share of a region under wide lift before it is named (str
 COVER_OF = {"ضعيفة": 0.01, "متوسطة": 0.03, "مرجحة": 0.08, "قوية": 0.15}   # share of a region that a reading of this level wets
 
 
+LW_COLD, LW_WARM = -1.0, 1.0
+
+
+def lowwarm_of(st, day0):
+    """the low-level warm/cold event of the day (lowwarm.py): (Makkah low ground and Tihama, Taif plateau and edges)"""
+    lw = st.get("lowwarm") or {}
+    d = day0.isoformat()
+    if d not in (lw.get("days") or []):
+        return None, None
+    k = lw["days"].index(d)
+    return (lw.get("low") or [None] * (k + 1))[k], (lw.get("high") or [None] * (k + 1))[k]
+
+
 def region_reading(st, rs, regs, day0, W, big=0.5):
     """the expert reading of each region from the ingredients alone, not from any model's rain (Fahad, 19 Nov 2026:
     «ابني توقعاتك على صورة النمط الكبير ودراسة تصادم الرياح والرطوبة وتأثير التبريد العلوي والطاقة وعدم الاستقرار مع
@@ -401,6 +414,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
     _uv = [(r["steer_u"], r["steer_v"]) for r in prs if r.get("steer_u") is not None]
     uv_all = (sum(u for u, _ in _uv) / len(_uv), sum(v for _, v in _uv) / len(_uv)) if _uv else None
     out = []
+    lw_low, lw_high = lowwarm_of(st, day0)
+    region_reading.lowwarm = {"low": lw_low, "high": lw_high, "cut": []}
     for nm in ORDER:
         pw = pw_of(st, day0, nm)
         moist = (pw or 0) >= 110
@@ -413,11 +428,15 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         _sr = (strat.get("regions") or {}).get(nm) if strat else None
         strat_here = bool(_sr and _sr["frac"] >= STRAT_MIN)
 
-        def add(lv, place, cause, at=None):
+        zone = {}           # place -> "low" (Makkah plain, Al-Jumum, Tihama) or "high" (Taif plateau, edges, harrat)
+
+        def add(lv, place, cause, at=None, z=None):
             if any(place in v for v in row.values()):
                 return
             row[lv].append(place)
             why[place] = cause
+            if z:
+                zone[place] = z
             if at:
                 src.append((at[0], at[1], lv, place))
 
@@ -446,7 +465,7 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                          ("هواء رطب يصعد الحرة" if harra else "هواء البحر الرطب يصعد الحافة") if f.get("upslope") else
                          "تبريد علوي فوق هواء رطب")
                 bx = BOXES.get(e["key"])
-                add(lv, _towns(e["name"]), cause, ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)
+                add(lv, _towns(e["name"]), cause, ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None, "high")
                 capes.append(fuel)
                 if f.get("upslope") and e["key"] != "sail":
                     meets.append("هواء البحر الرطب يصعد " + P_short(e["name"]))
@@ -463,7 +482,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             if f.get("moist") and f.get("unstable") and (f.get("mountain") or f.get("inflow")):
                 # the storms come down from the mountains: their strength follows the fuel up there, at most moderate
                 pn = _towns(r["name"])
-                add("moderate" if (r.get("cape_mtn") or 0) >= 300 else "light", pn, "هواء السحب البارد ينحدر مساءً من الجبال")
+                add("moderate" if (r.get("cape_mtn") or 0) >= 300 else "light", pn, "هواء السحب البارد ينحدر مساءً من الجبال",
+                    z="low")
                 plains_at.append(pn)
                 meets.append("هواء السحب البارد ينحدر مساءً إلى " + P_short(r["name"]))
         # the surface collision zones over the Kingdom
@@ -472,7 +492,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 w2 = z["winds"]
                 cause = f"التقاء رياح {w2[0]} برياح {w2[1]}" if len(w2) > 1 else f"رياح {w2[0]} تتباطأ وتتكدس"
                 meets.append(f"{cause} قرب {z['place']}")
-                add("moderate" if (z.get("c") or 0) >= 4 else "light", f"قرب {z['place']}", cause, (z["lat"], z["lon"]))
+                add("moderate" if (z.get("c") or 0) >= 4 else "light", f"قرب {z['place']}", cause, (z["lat"], z["lon"]),
+                    "high" if z["lat"] >= 20.8 and z["lon"] >= 40.3 else "low")
         # wide lift of a deep moist layer ahead of a trough: stratiform rain the convective reading cannot see
         # (19 Nov 2026 test: 10-12 Nov over Riyadh and the Eastern Province)
         sr = (strat.get("regions") or {}).get(nm) if strat else None
@@ -492,7 +513,7 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 dry = meet_mk[0] == "east_dry"
                 add("light" if dry else "moderate", f"شرق الطائف قرب {meet_mk[1]}",
                     "التقاء الرياح بعد الظهر" + ("، والطاقة هناك ضعيفة" if dry else ""),
-                    ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)
+                    ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None, "high")
             if RD.get("steer"):
                 sv = RD["steer"]
                 steer = (f"نحو {sv['to']} بنحو {ar(round(sv['speed']))} م/ث" if sv["speed"] >= 3
@@ -514,11 +535,33 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 d = _downstream(la, lo, uv[0], uv[1], nm)
                 if d:
                     add("light" if lv == "moderate" else "moderate", d,
-                        f"تدفعها رياح الطبقات المتوسطة من {P_short(pname)}")
+                        f"تدفعها رياح الطبقات المتوسطة من {P_short(pname)}", z=zone.get(pname))
         if isinstance(steer, (int, float)):
             steer = (f"نحو {MS.toward(*uv)} بنحو {ar(round(steer))} م/ث" if uv else f"بنحو {ar(round(steer))} م/ث")
         for k in row:
             row[k] = list(dict.fromkeys(row[k]))[:5]
+        # the low-level cold event cancels the rain where it lies (Fahad, 19 Nov 2026: «لما يكون هناك حدث بارد الغي كل
+        # شيء غيره»). Tested on 382 days (1 Sep-18 Nov 2026 and three seasons before, troughs and stratiform days too):
+        # with -1 or less no day had 20 mm around Makkah, in Tihama, on the Taif plateau or the edges, and 2-5 % had
+        # 5 mm. Only the Makkah region was tested, so only there; places with no known ground go when both sides are cold.
+        lw_cut = []
+        if nm == "مكة المكرمة" and (lw_low is not None or lw_high is not None):
+            cl, ch = lw_low is not None and lw_low <= LW_COLD, lw_high is not None and lw_high <= LW_COLD
+            for k in row:
+                keep = []
+                for p_ in row[k]:
+                    z_ = zone.get(p_)
+                    if (z_ == "low" and cl) or (z_ == "high" and ch) or (z_ is None and cl and ch):
+                        lw_cut.append(p_)
+                    else:
+                        keep.append(p_)
+                row[k] = keep
+            plains_at = [p_ for p_ in plains_at if p_ not in lw_cut]
+            if cl or ch:
+                region_reading.lowwarm["cut"] = lw_cut
+                region_reading.lowwarm["sides"] = [s_ for s_, c_ in (("low", cl), ("high", ch)) if c_]
+            if cl and ch:
+                continue                # no showers either, vague or not
         if not any(row.values()):
             # no place where the rain can be pinned down: a moist region under the cold wave keeps passing showers,
             # named in one sentence, not as an empty row (Fahad, 19 Nov 2026)
@@ -543,6 +586,12 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                  "التبريد العلوي": 1.0 if trough else 0.0,
                  "الطاقة": 1.0 if cmax >= 500 else 0.5 if cmax >= 150 else 0.0}
         pct = min(95, round(100 * sum(parts.values()) / len(parts)))
+        # the low-level warm event only adds confidence to the other ingredients, it never makes rain alone (Fahad)
+        lw_boost = False
+        if nm == "مكة المكرمة" and meets and (parts["الرطوبة"] >= 0.5 or cmax >= 150):
+            if any(v is not None and v >= LW_WARM for v in (lw_low, lw_high)):
+                pct = min(95, pct + 10)
+                lw_boost = True
         lv = level4(pct)
         # not tested on enough cases yet (Fahad, 19 Nov 2026: «لا تصدر شيء الا متيقن منه»): no «قوية» on a weak day,
         # and a region with no meeting of the winds is a possible shower only
@@ -559,7 +608,7 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         cov = COVER_OF[lv] * (1.0 if meets else 0.5) * min(1.0, 0.4 + 0.15 * nplaces)
         cov = max(cov, 0.6 * strat_frac)           # wide lift wets about that share of the region
         out.append({"name": nm, "row": row, "why": why, "strat": strat_frac, "plains": plains_at, "vague": False, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
-                    "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts,
+                    "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts, "lw_boost": lw_boost,
                     "cover": cov, "area": areas.get(nm)})
     return out
 
@@ -720,10 +769,18 @@ def summary(st, rs, regs, day0):
                 bits.append(f"طاقة عدم الاستقرار نحو {ar(int(round(r['cape'], -1)))} جول/كغ")
             if r["steer"]:
                 bits.append(f"الرياح في الطبقات المتوسطة تدفع الخلايا {r['steer']}")
+            if r.get("lw_boost"):
+                bits.append("حدث دافئ قرب الأرض يعزز الحمل ويرفع الثقة")
             if bits:
                 B.append({"p": f"{r['name']}: " + "، و".join(bits) + "."})
     else:
         B.append({"p": "لا تجتمع مكونات المطر على أي منطقة اليوم."})
+    lwr = getattr(region_reading, "lowwarm", None) or {}
+    if lwr.get("sides"):
+        where = {"low": "سهول مكة وتهامة", "high": "هضبة الطائف وحافتي الهدا والشفا"}
+        B.append({"p": f"حدث بارد قرب الأرض فوق {' و'.join(where[x] for x in lwr['sides'])} يكبت الحمل، فلا يُتوقع هناك مطر "
+                       "يُذكر مهما اجتمعت المكونات الأخرى، وقد تمر زخات خفيفة. (في ٣٨٢ يومًا مختبرة لم يبلغ المطر ٢٠ ملم في أي يوم "
+                       "بارد كهذا.)"})
     if W:
         B += cold_wave_blocks(st, day0, effect=False, W=W)
         wn = {r["name"] for r in rows}
