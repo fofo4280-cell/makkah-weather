@@ -2,16 +2,20 @@
 التدفق هذه للبحر ونضيفها لقسم الرياح خاصة لتوقع السواحل.. لكنها تختلف عن الحمل الحراري وتدفقه»).
 
 A coastal product, not a convective-jet index: it shows where the warm moist sea air is pushed along the Red Sea and
-onto the coasts. Mean of 09, 12 and 15 UTC (12-6 PM Makkah), wind = mean of 925 hPa and 10 m, GFS 0.25 only.
+onto the coasts. Mean of 09, 12 and 15 UTC (12-6 PM Makkah), wind = mean of 925 hPa and 10 m. Source: ECMWF open
+data (IFS 0.25, MUCAPE), the one exception to the page's GFS-only rule (Fahad, 19 Nov 2026: Dr. Khalid Al-Otaibi
+reads humidity, accumulated rain and the convective flow from ECMWF, the big picture from GFS); GFS when ECMWF is
+missing, with its own thresholds (SRC). The energy tongue (CAPE >= 1000 along the sea and coast) is described, not
+scored: in ECMWF it reaches 23-29 N on nearly every Oct-Nov day (corr with Hijaz rain 0.12).
   - along-sea component = -0.5 u + 0.866 v (the sea's axis runs about 330 deg); the meeting line is where the
     southerly flow coming up from the south meets the northerly (first + to - change going north from 15 N, 1 deg
     smoothing). The sea air feeds the coast south of that line.
   - north coast (Jeddah, Rabigh, Al-Lith, Makkah plain), score: +1 the southerly reaches 21 N (line >= 21 or along
-    mean 19-24 N >= 0), +1 sea CAPE (180-0 hPa, p75, 16-23 N) >= 2500, +1 south-westerly aloft (v500 20-26 N,
+    mean 19-24 N >= 0), +1 sea CAPE (p75, 16-23 N) >= 4000 ECMWF / 2500 GFS, +1 south-westerly aloft (v500 20-26 N,
     36-42 E) >= 2 m/s, -1 northerly <= -4 m/s over 19-24 N; land PW (18.5-23.5 N, 38.5-42 E) < 20 mm: confined over
-    the sea. Score >= 1 supportive.
+    the sea. Supportive from 2 points (ECMWF) / 1 point (GFS).
   - south coast (Al-Qunfudhah to Jazan): sea PW (16-23 N) >= 35 mm feeds it; named when the meeting line is on it.
-Test 1 Oct-18 Nov 2026 vs PERSIANN-PDIR-Now (Jeddah/Makkah/Taif/Rabigh/Al-Lith land 20-23.5 N): supportive 24 days
+Test 1 Oct-18 Nov 2026 (same for GFS and ECMWF with SRC thresholds) vs PERSIANN-PDIR-Now (Jeddah/Makkah/Taif/Rabigh/Al-Lith land 20-23.5 N): supportive 24 days
 mean wet share 13.5 % (10 of 11 wide days), not supportive 25 days 3.0 % (1 wide: 10 Nov, stratiform). South: sea PW
 >= 35 mm 15 % vs 5 %. Part of the gap is seasonal (sea CAPE ~3000 in Oct, ~1300-1700 in Nov).
 
@@ -31,6 +35,7 @@ FIELDS = [("u925", r":UGRD:925 mb:"), ("v925", r":VGRD:925 mb:"), ("u10", r":UGR
           ("v10", r":VGRD:10 m above ground:"), ("v500", r":VGRD:500 mb:"), ("cape", r":CAPE:180-0 mb above ground:"),
           ("pw", r":PWAT:entire atmosphere")]
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
+WIND1 = [("u10", r":UGRD:10 m above ground:")]
 COAST = [(16.9, "جازان"), (18.2, "الشقيق"), (19.1, "القنفذة"), (20.15, "الليث"), (21.5, "جدة"), (22.8, "رابغ"),
          (24.1, "ينبع"), (25.0, "أملج"), (26.2, "الوجه"), (27.4, "ضباء")]
 PLACES = [("جدة", 21.54, 39.17), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الليث", 20.15, 40.27),
@@ -41,6 +46,74 @@ CAPE_COLS = [(0, "#00000000"), (.03, "#00000000"), (.08, "#2c7f8c"), (.2, "#3fa7
 CAPE_MAX = 3500
 BG = "#0c1118"
 AR = str.maketrans("0123456789.-", "٠١٢٣٤٥٦٧٨٩٫−")
+
+
+EC = "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
+EC_FIELDS = [("u10", "10u", ""), ("v10", "10v", ""), ("u925", "u", "925"), ("v925", "v", "925"), ("v500", "v", "500"),
+             ("cape", "mucape", ""), ("pw", "tcwv", "")]
+TONGUE = 1000                              # J/kg: the edge of the energy tongue
+
+
+def _get(url, rng=None, tries=8):
+    import time
+    import urllib.request
+    for k in range(tries):
+        try:
+            req = urllib.request.Request(url, headers={"Range": "bytes=%d-%d" % rng} if rng else {})
+            with urllib.request.urlopen(req, timeout=120) as r:
+                return r.read()
+        except Exception:  # noqa: BLE001
+            if k == tries - 1:
+                raise
+            time.sleep(4 + 6 * k)
+
+
+def ec_fields(cycle, fh):
+    """ECMWF open data (IFS 0.25) fields of one step on the GFS layout (lat 90..-90, lon 0..360)"""
+    import json
+    import pygrib
+    d, hh = cycle[:8], cycle[8:10]
+    url = f"{EC}/{d}/{hh}z/ifs/0p25/oper/{d}{hh}0000-{fh}h-oper-fc"
+    idx = [json.loads(x) for x in _get(url + ".index").decode().splitlines()]
+    out = {}
+    for name, par, lev in EC_FIELDS:
+        it = next(x for x in idx if x["param"] == par and x.get("levelist", "") == lev)
+        msg = _get(url + ".grib2", (it["_offset"], it["_offset"] + it["_length"] - 1))
+        g = pygrib.fromstring(msg)
+        a = np.asarray(g.values, dtype=np.float32)
+        la = g.latlons()[0][:, 0]
+        if la[0] < la[-1]:
+            a = a[::-1]
+        lo0 = float(g.latlons()[1][0, 0])
+        if lo0 < 0:
+            a = np.roll(a, a.shape[1] // 2, axis=1)
+        out[name] = a
+    return out
+
+
+def ec_steps(base):
+    """the three steps round base: 3-hourly to 144 h, 6-hourly after"""
+    return (base - 3, base, base + 3) if base + 3 <= 144 else (base - 6, base, base + 6)
+
+
+def tongue(cape, lat, m):
+    """northernmost latitude the energy tongue (CAPE >= TONGUE over 30 % of the sea and coast row) reaches, running
+    north from 16 N with up to 2 missing rows; and the share of the western interior under it"""
+    from scipy.ndimage import binary_dilation
+    cor = binary_dilation(m["sea"], iterations=4) & (m["LA"] >= 15) & (m["LA"] <= 30) & (m["LO"] >= 32) & (m["LO"] <= 44.5)
+    inland = m["land"] & (m["LA"] >= 16) & (m["LA"] <= 28) & (m["LO"] >= 36) & (m["LO"] <= 44) & \
+        ~binary_dilation(m["sea"], iterations=2)
+    tip, gap = 15.0, 0
+    for j in np.argsort(lat):
+        if lat[j] < 16 or lat[j] > 30 or cor[j].sum() < 3:
+            continue
+        if (cape[j][cor[j]] >= TONGUE).mean() >= 0.3:
+            tip, gap = float(lat[j]), 0
+        else:
+            gap += 1
+            if gap > 2:
+                break
+    return tip, float((cape[inland] >= TONGUE).mean() * 100)
 
 
 def _cut(f):
@@ -79,7 +152,13 @@ def coast_of(z):
     return min(COAST, key=lambda c: abs(c[0] - z))[1]
 
 
-def measure(fs, lat, lon, static):
+# thresholds per source (19 Nov 2026 test): ECMWF's MUCAPE over the sea is far higher than GFS's (median p75 ~4400
+# vs ~2000 J/kg), so its sea-energy point needs 4000 and the verdict 2 points; both give 24 supportive days of 49,
+# mean wet share 13.5 % (10 of 11 wide days) vs 3.0 % on the others.
+SRC = {"ec": {"scape": 4000, "need": 2, "cmax": 5000}, "gfs": {"scape": 2500, "need": 1, "cmax": 3500}}
+
+
+def measure(fs, lat, lon, static, src="ec"):
     m = masks(lat, lon, static["land"])
     mean = lambda k: np.mean([f[k] for f in fs], axis=0)
     u = (mean("u925") + mean("u10")) / 2
@@ -91,10 +170,14 @@ def measure(fs, lat, lon, static):
     r = dict(z=round(z, 2), at=coast_of(z), al_n=round(float(al[m["NSEA"]].mean()), 1),
              scape=int(np.percentile(cape[m["SEA"]], 75)), spw=round(float(pw[m["SEA"]].mean()), 1),
              ipw=round(float(pw[m["INL"]].mean()), 1), v500=round(float(mean("v500")[m["WB"]].mean()), 1))
-    sc = (1 if (z >= 21 or r["al_n"] >= 0) else 0) + (1 if r["scape"] >= 2500 else 0) + (1 if r["v500"] >= 2 else 0) \
-        - (1 if r["al_n"] <= -4 else 0)
-    r["score"] = sc
-    r["north"] = "confined" if (sc >= 1 and r["ipw"] < 20) else ("yes" if sc >= 1 else ("blocked" if r["al_n"] <= -4 else "no"))
+    th = SRC[src]
+    sc = (1 if (z >= 21 or r["al_n"] >= 0) else 0) + (1 if r["scape"] >= th["scape"] else 0) \
+        + (1 if r["v500"] >= 2 else 0) - (1 if r["al_n"] <= -4 else 0)
+    r["score"], r["src"] = sc, src
+    ok = sc >= th["need"]
+    r["north"] = "confined" if (ok and r["ipw"] < 20) else ("yes" if ok else ("blocked" if r["al_n"] <= -4 else "no"))
+    r["tip"], r["inland"] = tongue(cape, lat, m)
+    r["tip_at"] = coast_of(r["tip"])
     r["south"] = bool(r["spw"] >= 35)
     return r, u, v, cape, m
 
@@ -109,7 +192,9 @@ def verdict(r):
             else f"تلتقي الجنوبية بالشمالية فوق البحر عند محاذاة {r['at']}")
     s = ("رطوبة جنوب البحر عالية فتتغذى سواحل القنفذة وجازان" if r["south"]
          else "رطوبة جنوب البحر دون الداعم لسواحل القنفذة وجازان")
-    return n, line, s
+    t = ("لسان الطاقة (١٠٠٠ جول/كجم فأكثر) يمتد مع البحر حتى محاذاة " + r["tip_at"]) if r.get("tip", 15) >= 17 \
+        else "لسان الطاقة لا يصعد مع البحر"
+    return n, line, s, t
 
 
 def _font():
@@ -120,7 +205,7 @@ def _font():
         return "sans-serif"
 
 
-def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100):
+def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -147,7 +232,7 @@ def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100):
               interpolation="bilinear", zorder=0)
     cm = LinearSegmentedColormap.from_list("cape", [(p, to_rgba(c)) for p, c in CAPE_COLS], N=256)
     cp = np.clip(gaussian_filter(zoom(sb(cape), up, order=1), 3), 0, None)
-    ax.imshow(cp, extent=ext, cmap=cm, vmin=0, vmax=CAPE_MAX, alpha=.8, interpolation="bilinear", zorder=1)
+    ax.imshow(cp, extent=ext, cmap=cm, vmin=0, vmax=cmax, alpha=.8, interpolation="bilinear", zorder=1)
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
     ax.contour(flo, fla, lf, levels=[0.5], colors=["#7d8a99"], linewidths=[.6], zorder=2)
     ax.contour(flo, fla, h, levels=[1500], colors=["#aab3bd"], linewidths=[.4], zorder=2)
@@ -176,8 +261,8 @@ def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100):
     lx, ly = [W + .4, W + 4.4], S + .55
     ax.imshow(np.linspace(0, 1, 200)[None, :], extent=[lx[0], lx[1], ly, ly + .28], cmap=cm, vmin=0, vmax=1,
               zorder=7, aspect="auto")
-    for t in (0, 1000, 2000, 3000):
-        ax.text(lx[0] + (lx[1] - lx[0]) * t / CAPE_MAX, ly - .08, str(t).translate(AR), ha="center", va="top",
+    for t in range(0, cmax + 1, 1000):
+        ax.text(lx[0] + (lx[1] - lx[0]) * t / cmax, ly - .08, str(t).translate(AR), ha="center", va="top",
                 fontsize=7, color="#dfe5ea", family=fam, zorder=7, path_effects=halo)
     ax.text(lx[1] + .15, ly + .14, "طاقة عدم الاستقرار (جول/كجم)", ha="left", va="center", fontsize=6.5,
             color="#b9c3cd", family=fam, zorder=7, path_effects=halo)
@@ -206,17 +291,29 @@ def run(gfs_fields, cycle, out_fig, log=print):
         d = today + timedelta(days=k)
         base = int((datetime(d.year, d.month, d.day, 12) - t0).total_seconds() // 3600)
         try:
-            fs = []
-            for fh in (base - 3, base, base + 3):
-                f = gfs_fields(cycle, fh, res="0p25", fields=FIELDS + ([] if static else STATIC))
+            if static is None:   # terrain and land-sea mask from GFS (same 0.25 grid)
+                f = gfs_fields(cycle, 24, res="0p25", fields=WIND1 + STATIC)
                 f, lat, lon = _cut(f)
-                if static is None:
-                    static = {"hgt": f.pop("hgt"), "land": f.pop("land")}
-                fs.append(f)
-            r, u, v, cape, m = measure(fs, lat, lon, static)
+                static = {"hgt": f["hgt"], "land": f["land"]}
+            fs, src = [], "ec"
+            try:   # ECMWF first (Fahad, 19 Nov 2026: Dr. Khalid reads the convective flow from ECMWF)
+                for fh in ec_steps(base):
+                    try:
+                        fs.append(_cut(ec_fields(cycle, fh))[0])
+                    except Exception:  # noqa: BLE001  (the open-data bucket answers 503 at times: one more go)
+                        import time
+                        time.sleep(45)
+                        fs.append(_cut(ec_fields(cycle, fh))[0])
+            except Exception as e:  # noqa: BLE001
+                log("red sea flow: ECMWF unavailable, GFS instead", d, repr(e)[:120], flush=True)
+                fs, src = [], "gfs"
+                for fh in (base - 3, base, base + 3):
+                    fs.append(_cut(gfs_fields(cycle, fh, res="0p25", fields=FIELDS))[0])
+            r, u, v, cape, m = measure(fs, lat, lon, static, src)
             r["d"] = d.isoformat()
             r["text"] = list(verdict(r))
-            draw(os.path.join(out_fig, f"rsf_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], r["z"])
+            draw(os.path.join(out_fig, f"rsf_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], r["z"],
+                 cmax=SRC[src]["cmax"])
             log("red sea flow", d, r["north"], r["z"], r["at"], r["score"], flush=True)
         except Exception as e:  # noqa: BLE001
             log("red sea flow failed", d, repr(e)[:160], flush=True)
