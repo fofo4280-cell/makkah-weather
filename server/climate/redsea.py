@@ -125,6 +125,11 @@ def tongue(cape, lat, m):
 # rest come by other roads (Gulf moisture, troughs).
 INLAND_CAPE = 500
 INLAND_LEVELS = (2.0, 3.0)                 # % : «بداية دخول», «توغّل واضح»
+# GFS (Fahad, 19 Nov 2026 night, after Dr. Khalid: «معطيات GFS المخصصة لسحب الحمل الحراري "بيئات العواصف الرعدية"
+# أفضل من ECMWF»): GFS CAPE 180-0 hPa (max of 09/12/15 UTC, 12Z cycle of the day before), same 341 days and reference.
+# Threshold 100 J/kg, levels set to keep EC's day counts: >= 4.5 %: 69 days, mean wet 21.9 %, 61 % wide (EC 19.7 / 54);
+# >= 10.5 %: 40 days, 26.6 %, 72 % wide (EC 24.8 / 64); others 3.5 %; corr 0.46 (EC 0.43). 500 J/kg on GFS: corr 0.30.
+INLAND_SRC = {"ec": (500, (2.0, 3.0)), "gfs": (100, (4.5, 10.5))}
 IN_EXTENT = (32.5, 51.5, 14.0, 32.5)
 DR_MAX = 3600
 DR_COLS = [(0, "#00000000"), (140 / DR_MAX, "#00000000"), (150 / DR_MAX, "#2e9e3a"), (300 / DR_MAX, "#6cc04a"),
@@ -137,11 +142,11 @@ IN_PLACES = [("جدة", 21.54, 39.17), ("مكة", 21.42, 39.83), ("الطائف"
              ("بيشة", 19.99, 42.6), ("الدمام", 26.42, 50.09)]
 
 
-def inland(cape, m):
+def inland(cape, m, thr=None):
     """(share % of the interior under sea-joined CAPE, mask of that sea-joined land)"""
     from scipy.ndimage import label
     LA, LO = m["LA"], m["LO"]
-    hi = (cape >= INLAND_CAPE) & m["land"]
+    hi = (cape >= (INLAND_CAPE if thr is None else thr)) & m["land"]
     lab, _ = label(hi | (m["sea"] & (LA < 28)))
     seal = set(np.unique(lab[m["sea"] & (LA >= 16) & (LA <= 24)])) - {0}
     conn = np.isin(lab, list(seal)) & m["land"]
@@ -149,7 +154,7 @@ def inland(cape, m):
     return float(conn[interior].mean() * 100), conn
 
 
-def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300):
+def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300, thr=INLAND_CAPE, card=None):
     """Dr. Khalid's colours (green, yellow, red, maroon, black, grey) over light terrain; dashed line round the
     sea-joined energy"""
     import matplotlib
@@ -202,12 +207,15 @@ def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300):
                 color="#1b1f24", family=fam, zorder=7, path_effects=halo)
     ax.text(lx[1] + .2, ly + .15, "طاقة الحمل (جول/كجم)", ha="left", va="center", fontsize=6.6, color="#1b1f24",
             family=fam, zorder=7, path_effects=halo)
-    ax.text(W + .5, S + 1.5, "الخط المتقطع: الطاقة (٥٠٠ فأكثر) المتصلة بالبحر الأحمر  •  الأسهم: الرياح القريبة من السطح",
+    ax.text(W + .5, S + 1.5, "الخط المتقطع: الطاقة (" + str(thr).translate(AR) + " فأكثر) المتصلة بالبحر الأحمر  •  الأسهم: الرياح القريبة من السطح",
             ha="left", va="center", fontsize=6.4, color="#1b1f24", family=fam, zorder=7, path_effects=halo)
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
     ax.set_aspect(1 / math.cos(math.radians((S + N) / 2)))
     ax.axis("off")
+    if card:   # the card style title box (Fahad, 19 Nov 2026)
+        import figures as F
+        F.card_frame(fig, *card)
     fig.savefig(path, dpi=200)
     plt.close(fig)
     try:
@@ -307,7 +315,7 @@ def _font():
         return "sans-serif"
 
 
-def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX):
+def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX, card=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -374,6 +382,9 @@ def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX):
     ax.set_ylim(S, N)
     ax.set_aspect(1 / math.cos(math.radians((S + N) / 2)))
     ax.axis("off")
+    if card:   # the card style title box (Fahad, 19 Nov 2026)
+        import figures as F
+        F.card_frame(fig, *card)
     fig.savefig(path, dpi=200, facecolor=BG)
     plt.close(fig)
     try:
@@ -398,7 +409,14 @@ def run(gfs_fields, cycle, out_fig, log=print):
                 f, lat, lon = _cut(f)
                 static = {"hgt": f["hgt"], "land": f["land"]}
             fs, src = [], "ec"
-            try:   # ECMWF first (Fahad, 19 Nov 2026: Dr. Khalid reads the convective flow from ECMWF)
+            try:   # GFS since 19 Nov 2026 night (Fahad, after Dr. Khalid); ECMWF only if GFS fails
+                fs, src = [_cut(gfs_fields(cycle, fh, res="0p25", fields=FIELDS))[0] for fh in (base - 3, base, base + 3)], "gfs"
+            except Exception as e:  # noqa: BLE001
+                log("red sea flow: GFS unavailable, ECMWF instead", d, repr(e)[:120], flush=True)
+                fs, src = [], "ec"
+            try:
+                if src == "gfs":
+                    raise StopIteration
                 for fh in ec_steps(base):
                     try:
                         fs.append(_cut(ec_fields(cycle, fh))[0])
@@ -406,22 +424,26 @@ def run(gfs_fields, cycle, out_fig, log=print):
                         import time
                         time.sleep(45)
                         fs.append(_cut(ec_fields(cycle, fh))[0])
-            except Exception as e:  # noqa: BLE001
-                log("red sea flow: ECMWF unavailable, GFS instead", d, repr(e)[:120], flush=True)
-                fs, src = [], "gfs"
-                for fh in (base - 3, base, base + 3):
-                    fs.append(_cut(gfs_fields(cycle, fh, res="0p25", fields=FIELDS))[0])
+            except StopIteration:
+                pass
             r, u, v, cape, m = measure(fs, lat, lon, static, src)
             r["d"] = d.isoformat()
             r["text"] = list(verdict(r))
+            import figures as F
+            mdl = "الأمريكي" if src == "gfs" else "الأوروبي"
+            when = F.when_ar(d, 12).replace("الساعة ١٢ ظهرًا", "من ١٢ ظهرًا إلى ٦ مساءً")
             draw(os.path.join(out_fig, f"rsf_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], r["z"],
-                 cmax=SRC[src]["cmax"])
-            try:   # the inland penetration map (humidity tab), ECMWF only: GFS energy is far lower
-                if src == "ec":
-                    r["inland_share"], conn = inland(cape, m)
-                    lv = INLAND_LEVELS
+                 cmax=SRC[src]["cmax"], card=(f"تدفق البحر الأحمر — النموذج {mdl}", when, r["text"][:1]))
+            try:   # the inland penetration map, thresholds per model (INLAND_SRC)
+                if True:
+                    thr, lv = INLAND_SRC[src]
+                    r["inland_share"], conn = inland(cape, m, thr)
                     r["inland"] = "clear" if r["inland_share"] >= lv[1] else ("start" if r["inland_share"] >= lv[0] else "none")
-                    draw_inland(os.path.join(out_fig, f"rsc_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], conn)
+                    say = {"none": "الطاقة محصورة على البحر والساحل", "start": "بداية دخول لطاقة البحر نحو الداخل",
+                           "clear": "توغّل واضح لطاقة البحر داخل الجزيرة"}[r["inland"]]
+                    draw_inland(os.path.join(out_fig, f"rsc_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], conn,
+                                thr=thr, card=(f"توغّل طاقة الحمل من البحر الأحمر — النموذج {mdl}", when,
+                                               [f"{say}: {F.ar_num(r['inland_share'], 1)}٪ من نجد والقصيم والوسطى"]))
             except Exception as e:  # noqa: BLE001
                 log("inland energy map failed", d, repr(e)[:160], flush=True)
             log("red sea flow", d, r["north"], r["z"], r["at"], r["score"], flush=True)

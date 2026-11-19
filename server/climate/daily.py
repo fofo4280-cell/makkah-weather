@@ -716,14 +716,11 @@ def main():
     taifc_out = None
     try:
         import taifconv
-        import ecmwf
-        if ecmwf.available(cycle, 360):
-            n0 = ecmwf.FALLBACK["n"]
-            taifc_out = taifconv.run(ecmwf.fields_like_gfs(gfs_fields), cycle, os.path.join(out, "fig"))
-            taifc_out["model"] = "ecmwf" if ecmwf.FALLBACK["n"] == n0 else "mixed"
-        else:
-            taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), model="الأمريكي")
-            taifc_out["model"] = "gfs"
+        # GFS (Fahad, 19 Nov 2026 evening, after Dr. Khalid: «معطيات GFS المخصصة لسحب الحمل الحراري "بيئات العواصف
+        # الرعدية" أفضل من ECMWF لكن رقعة الأمطار لا»): the storm-environment maps (surface collision, CAPE) stay on GFS;
+        # humidity, T500, winds and the Red Sea flow stay on ECMWF
+        taifc_out = taifconv.run(gfs_fields, cycle, os.path.join(out, "fig"), model="الأمريكي")
+        taifc_out["model"] = "gfs"
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
@@ -924,6 +921,14 @@ def main():
                               log=lambda *a: print(*a, flush=True))
     except Exception as e:  # noqa: BLE001
         print("olr map failed:", repr(e), flush=True)
+    # the low-level warm/cold event (2 m / 800 hPa) with its energy panel and 24 h change (lowwarm.py; Fahad, 19 Nov 2026)
+    lw_out = None
+    try:
+        import lowwarm
+        lw_out = lowwarm.run(gfs_fields, cycle, [dt.date() for dt in days], os.path.join(out, "fig"),
+                             log=lambda *a: print(*a, flush=True))
+    except Exception as e:  # noqa: BLE001
+        print("lowwarm failed:", repr(e), flush=True)
     surge = []
     for row in pw_rows[1:11]:
         for key, (name, *_b) in BOXES.items():
@@ -938,7 +943,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
