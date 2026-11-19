@@ -20,7 +20,11 @@ def main():
     for d in days:
         st = [got[n][d] for n in ("pdir", "ccs") if d in got[n]]
         if d in got["pers"]:
-            st.append(np.kron(got["pers"][d], np.ones((6, 6), np.float32))[:st[0].shape[0], :st[0].shape[1]] if st else None)
+            if st:
+                ny, nx = st[0].shape; P = got["pers"][d]
+                jj = np.minimum((np.arange(ny) * 0.04 / 0.25).astype(int), P.shape[0] - 1)
+                ii = np.minimum((np.arange(nx) * 0.04 / 0.25).astype(int), P.shape[1] - 1)
+                st.append(P[jj][:, ii])
         st = [s for s in st if s is not None]
         out.append(np.nanmedian(np.stack(st), 0).astype(np.float16)); kept.append(d)
     np.savez_compressed(sys.argv[1], days=np.array(kept), rain=np.stack(out),
