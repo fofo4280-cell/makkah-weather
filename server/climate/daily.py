@@ -459,6 +459,23 @@ def main():
             amp = float(math.hypot(*p))
             fc_rmm.append({"d": dt.strftime("%Y-%m-%d"), "r1": round(float(p[0]), 2), "r2": round(float(p[1]), 2),
                            "phase": rmm_phase(*p), "amp": round(amp, 2)})
+    # with the JMA index the GFS wave-1 fit can be weak (19 Nov 2026 test: r2 0.32, the projection went back from
+    # phase 5 to 4 against the observed eastward march): then the 15 days are the tested projection of season.py,
+    # the last observed value carried east at the usual speed (8 degrees a day), amplitude kept
+    if rmm and (fit is None or min(fit["r1"], fit["r2"]) < 0.6):
+        d_l, r1_l, r2_l, _ph, amp_l = max((x for x in rmm if x[0] <= t0.date()), key=lambda x: x[0])
+        a_l = math.degrees(math.atan2(r2_l, r1_l))
+        fc_rmm = []
+        for dt in days:
+            lead = (dt.date() - d_l).days
+            if lead <= 0:
+                continue
+            a = math.radians(a_l + 8.0 * lead)
+            p = (amp_l * math.cos(a), amp_l * math.sin(a))
+            fc_rmm.append({"d": dt.strftime("%Y-%m-%d"), "r1": round(p[0], 2), "r2": round(p[1], 2),
+                           "phase": rmm_phase(*p), "amp": round(amp_l, 2)})
+        fit = dict(fit or {}, method="speed")
+        print("rmm forecast: usual-speed projection (GFS fit weak)", flush=True)
     obs = [{"d": d.isoformat(), "r1": round(r1, 2), "r2": round(r2, 2), "phase": ph, "amp": round(amp, 2)}
            for d, r1, r2, ph, amp in rmm if d >= t0.date() - timedelta(days=60)]
 
