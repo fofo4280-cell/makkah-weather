@@ -35,9 +35,9 @@ jobs:
         run: curl -sf -m 60 -o /home/runner/mjo.json "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/climate-data/mjo.json"
       - name: Observed rain
         if: inputs.obs == 'yes'
-        run: python3 code/server/climate/obs_rain.py ${{ inputs.first }} ${{ inputs.last }} /home/runner/obs.json || true
+        run: python3 code/server/climate/redsea_obs.py ${{ inputs.first }} ${{ inputs.last }} /home/runner/redsea_obs.npz || true
       - name: Reading
-        if: inputs.reading == 'yes'
+        if: inputs.reading == 'yes-old'
         run: |
           mkdir -p /home/runner/hc /home/runner/rd
           d=${{ inputs.first }}
@@ -51,10 +51,10 @@ jobs:
       - name: Keep results (test-data branch)
         if: always()
         run: |
-          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.json . 2>/dev/null || true; cp /home/runner/reading.json . 2>/dev/null || true; cp -r /home/runner/hc /home/runner/rd . 2>/dev/null || true; ls
+          mkdir /tmp/p && cd /tmp/p && cp /home/runner/redsea_obs.npz . 2>/dev/null || true; cp /home/runner/reading.json . 2>/dev/null || true; cp -r /home/runner/hc /home/runner/rd . 2>/dev/null || true; ls
           git init -q -b data && git add -A
           git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m results
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-data
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-redsea
       - uses: actions/upload-artifact@v4
         if: always()
         with:
