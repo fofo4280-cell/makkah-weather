@@ -1080,6 +1080,70 @@ def _strength_word(w):
             "متوسطة" if cov >= 0.05 or w["top"] >= 2.6 else "خفيفة")
 
 
+def lowwarm_spell(st, a, b):
+    """the low-level warm/cold event around a wave (Fahad, 20 Nov 2026: «في أقرب موجة لا تنسى تضيف الحدث الدافئ ضمن
+    نقاط قوة الموجة وكم تستمر الموجة من أيام مع معززاتها»): the warm run of days (3+ regions at I >= 1, or Makkah low
+    ground) that overlaps the wave days a..b, whole even where it runs past them, and the cold regions inside the
+    wave (I <= -1, which cancels the convective rain there). -> dict or None"""
+    from datetime import date, timedelta
+    lw = st.get("lowwarm") or {}
+    ds = [date.fromisoformat(x) for x in lw.get("days") or []]
+    R = lw.get("regions") or {}
+    if not ds or not R:
+        return None
+    low = lw.get("low") or []
+    warm_on = {}
+    for k, d in enumerate(ds):
+        w = [n for n, v in R.items() if k < len(v) and v[k] is not None and v[k] >= LW_WARM]
+        mk = k < len(low) and low[k] is not None and low[k] >= LW_WARM
+        if len(w) >= 3 or mk:
+            warm_on[d] = w
+    # the whole run of consecutive warm days that has the most days inside the wave (it may start before or end after)
+    blocks, cur = [], []
+    for d in sorted(warm_on):
+        if cur and (d - cur[-1]).days == 1:
+            cur.append(d)
+        else:
+            cur = [d]
+            blocks.append(cur)
+    blocks = [x for x in blocks if any(a <= y <= b for y in x)]
+    run = max(blocks, key=lambda x: sum(1 for y in x if a <= y <= b)) if blocks else []
+    out = {"warm": None, "cold": []}
+    if run:
+        cnt = {}
+        for d in run:
+            for n in warm_on[d]:
+                cnt[n] = cnt.get(n, 0) + 1
+        regs = [n for n, c in sorted(cnt.items(), key=lambda x: -x[1]) if c * 2 >= len(run)]
+        out["warm"] = {"start": run[0], "end": run[-1], "regions": regs, "last": run[-1] == ds[-1],
+                       "in_wave": sum(1 for x in run if a <= x <= b)}
+    cold = {}
+    for k, d in enumerate(ds):
+        if a <= d <= b:
+            for n, v in R.items():
+                if k < len(v) and v[k] is not None and v[k] <= LW_COLD:
+                    cold[n] = cold.get(n, 0) + 1
+    out["cold"] = [n for n, c in sorted(cold.items(), key=lambda x: -x[1])]
+    return out if (out["warm"] or out["cold"]) else None
+
+
+def _lw_pro(sp):
+    """the warm event as one of the wave's strengths, and the cold one as a brake"""
+    pro, con = [], []
+    if sp and sp["warm"]:
+        w = sp["warm"]
+        rg = w["regions"][:5]
+        pro.append("حدث دافئ قرب الأرض" + (f" فوق {jl(rg)}" if rg else " فوق مكة المكرمة وتهامة")
+                   + (" وغيرها" if len(w["regions"]) > 5 else ""))
+    if sp and sp["cold"]:
+        con.append(f"حدث بارد قرب الأرض فوق {jl(sp['cold'][:4])} يلغي المطر الحملي فيها")
+    return pro, con
+
+
+def _days_word(n):
+    return "يومًا واحدًا" if n == 1 else "يومين" if n == 2 else f"{ar(n)} أيام" if n <= 10 else f"{ar(n)} يومًا"
+
+
 def waves(st, rs, regs, day0):
     """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
     أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
@@ -1122,6 +1186,15 @@ def waves(st, rs, regs, day0):
                    "kind": "troughs", "regions": [area], "pro": [f"أخدود {BR.trough_word(-v / 10)} فوق {area}"], "con": [],
                    "sign": BR.trough_word(-v / 10)})
     wl.sort(key=lambda w: w["start"])
+    for w in wl:
+        try:
+            w["lw"] = lowwarm_spell(st, w["start"], w["end"])
+        except Exception as e:  # noqa: BLE001
+            print("lowwarm spell failed:", repr(e), flush=True)
+            w["lw"] = None
+        p_, c_ = _lw_pro(w["lw"])
+        w["pro"] = list(w.get("pro") or []) + p_
+        w["con"] = list(w.get("con") or []) + c_
     KIND = {"mixed": "مدارية أخدودية", "tropical": "مدارية", "troughs": "أخدودية"}
     B = []
     span_of = lambda w: (ar_date(w["start"]) if w["start"] == w["end"] else R2.ar_span(w["start"], w["end"]).removeprefix("من "))
@@ -1151,12 +1224,28 @@ def waves(st, rs, regs, day0):
         if w.get("con"):
             t += f"، ويكبحها {jl(w['con'])}"
         B.append({"p": t + "."})
+        # the nearest real wave too when the nearest is only a weak sign, and how long each lasts with its boosters
+        nw = next((x for x in wl if not x.get("sign")), None)
+        if nw is not None and nw is not w:
+            ld = (nw["peak"] - day0).days
+            t = (f"أقرب موجة مطرية: {span_of(nw)}، {KIND[nw['kind']]}، قوتها {n1(nw['top'])} من ٥ "
+                 f"({ar(round(20 * nw['top']))}٪، {BR.grade(nw['top'])})، وانتشارها المتوقع {spread_of(nw)}، "
+                 f"وتتأثر بها {jl(nw['regions'])}، والثقة في توقيتها {BR.confidence(ld)}")
+            if nw.get("pro"):
+                t += f"؛ يسندها {jl(nw['pro'])}"
+            if nw.get("con"):
+                t += f"، ويكبحها {jl(nw['con'])}"
+            B.append({"p": t + "."})
+        for x in [w] + ([nw] if nw is not None and nw is not w else []):
+            B.append({"p": wave_length(x)})
     # the next very wide fertile spell over Arabia: tropical and trough support together, several days, strong
     fert = next((w for w in wl if w["kind"] == "mixed" and (w["end"] - w["start"]).days >= 2 and w["top"] >= 2.6), None)
     if fert:
         conf = BR.confidence((fert["start"] - day0).days)
         B.append({"p": f"أقرب فترة خصب واسعة على الجزيرة العربية: {R2.ar_span(fert['start'], fert['end'])}، قوتها "
                        f"{n1(fert['top'])} من ٥، تتوافق عليها {jl(fert['pro'])}، والثقة {conf}."})
+        if not any(fert is x for x in wl[:1]) and fert is not next((x for x in wl if not x.get("sign")), None):
+            B.append({"p": wave_length(fert)})
     else:
         # where the support comes back: the MJO in a supportive phase with its component supportive
         ref = (st.get("mjof") or {}).get("z_ref") or 10
@@ -1193,6 +1282,37 @@ def waves(st, rs, regs, day0):
         B = sb + [{"h": "أقرب موجة قادمة"}] + B
         return sec("النظرة الموسمية وأقرب موجة قادمة", "waves", B)
     return sec("الموجات القادمة", "waves", B)
+
+
+def wave_length(w):
+    """how long the wave lasts and how long its low-level warm booster lasts with it"""
+    n = (w["end"] - w["start"]).days + 1
+    nm = "الإشارة" if w.get("sign") else "الموجة"
+    t = f"تستمر {nm} {_days_word(n)}" + (f" ({span_of_(w)})" if n > 1 else f" ({ar_date(w['start'])})")
+    sp = w.get("lw")
+    if sp and sp["warm"]:
+        h = sp["warm"]
+        m = (h["end"] - h["start"]).days + 1
+        sp_t = R2.ar_span(h["start"], h["end"]) if m > 1 else ar_date(h["start"])
+        if h.get("last"):
+            sp_t += "، أي حتى نهاية التوقع"
+        t += f"، ويعززها الحدث الدافئ قرب الأرض {_days_word(m)} ({sp_t.removeprefix('من ')})"
+        before, after = (w["start"] - h["start"]).days, (h["end"] - w["end"]).days
+        if before > 0 or after > 0:
+            tot = (max(w["end"], h["end"]) - min(w["start"], h["start"])).days + 1
+            t += ("، يبدأ قبلها" if before > 0 else "") + (" ويبقى بعدها" if after > 0 else "") \
+                + f"، فبيئتها الدافئة الداعمة تمتد {_days_word(tot)}"
+        elif h["in_wave"] < n:
+            t += " من أيامها"
+    elif sp and sp["cold"]:
+        t += f"، ولا حدث دافئ قرب الأرض يعززها، بل حدث بارد فوق {jl(sp['cold'][:4])} يلغي المطر الحملي فيها"
+    else:
+        t += "، ولا حدث دافئ قرب الأرض يعززها"
+    return t + "."
+
+
+def span_of_(w):
+    return R2.ar_span(w["start"], w["end"]).removeprefix("من ")
 
 
 def build(rep, st):
