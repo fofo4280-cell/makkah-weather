@@ -88,7 +88,7 @@ def index(f, day, C):
 def run(gfs_fields, cycle, days, fig_dir, log=print):
     C = {k: v.astype(np.float32) for k, v in np.load(os.path.join(HERE, "lw_clim.npz")).items()}
     t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
-    out_days, box, hbox, prev = [], [], [], None
+    out_days, box, hbox, prev, regs = [], [], [], None, {}
     first = days[0] - timedelta(days=1)
     for k, d in enumerate([first] + list(days)):
         valid = datetime(d.year, d.month, d.day, 12, tzinfo=timezone.utc)
@@ -117,8 +117,31 @@ def run(gfs_fields, cycle, days, fig_dir, log=print):
         low, high = boxes(i, f["ps"])
         box.append(low)
         hbox.append(high)
+        try:
+            for nm, v in region_means(i).items():
+                regs.setdefault(nm, []).append(v)
+        except Exception as e:  # noqa: BLE001
+            log("lowwarm regions failed:", repr(e))
     log("lowwarm maps:", len(out_days), "makkah low ground", box[:3], "taif", hbox[:3])
-    return {"days": out_days, "low": box, "high": hbox}
+    return {"days": out_days, "low": box, "high": hbox, "regions": regs}
+
+
+_RMASK = {}
+
+
+def region_means(i):
+    """the index over each region of the Kingdom: mean of the 1 degree cells inside it (Kingdom test, 383 days)"""
+    if not _RMASK:
+        import sa_geo as G
+        regs = G.regions()
+        la = np.arange(45, -46, -1.0)
+        J = [j for j in range(91) if 15 <= la[j] <= 33]
+        LA, LO = np.meshgrid(la[J], np.arange(34.0, 57.0), indexing="ij")
+        r = np.array(G.region_of_points(regs, LA.ravel(), LO.ravel())).reshape(LA.shape)
+        for q, rg in enumerate(regs):
+            if (r == q).any():
+                _RMASK[rg["name"]] = (J, r == q)
+    return {nm: round(float(i[J][:, 34:57][m].mean()), 2) for nm, (J, m) in _RMASK.items()}
 
 
 def boxes(i, ps):

@@ -369,6 +369,17 @@ COVER_OF = {"ضعيفة": 0.01, "متوسطة": 0.03, "مرجحة": 0.08, "قو�
 LW_COLD, LW_WARM = -1.0, 1.0
 
 
+def lowwarm_region(st, day0, nm):
+    """the low-level index over a whole region (lowwarm.region_means), or None"""
+    lw = st.get("lowwarm") or {}
+    d = day0.isoformat()
+    if d not in (lw.get("days") or []):
+        return None
+    v = (lw.get("regions") or {}).get(nm) or []
+    k = lw["days"].index(d)
+    return v[k] if k < len(v) else None
+
+
 def lowwarm_of(st, day0):
     """the low-level warm/cold event of the day (lowwarm.py): (Makkah low ground and Tihama, Taif plateau and edges)"""
     lw = st.get("lowwarm") or {}
@@ -562,6 +573,28 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 region_reading.lowwarm["sides"] = [s_ for s_, c_ in (("low", cl), ("high", ch)) if c_]
             if cl and ch:
                 continue                # no showers either, vague or not
+        # the other regions (Fahad: «ماذا عن بقية السعودية»; 383 days, PERSIANN, each region's own mean): on cold days
+        # (-1 or less) a spot of 20 mm came 4 times in about 1,600 region-days, so the convective places go; wide light
+        # rain under the cold air still came in Dec-May in the north and centre (Hail 11 of 92 days), so the stratiform
+        # places stay, light
+        lv_reg = lowwarm_region(st, day0, nm) if nm != "مكة المكرمة" else None
+        if lv_reg is not None and lv_reg <= LW_COLD:
+            strat_cause = "صعود واسع لهواء رطب عميق في الطبقات الوسطى (مطر طبقي)"
+            for k in ("heavy", "moderate"):
+                for p_ in list(row[k]):
+                    row[k].remove(p_)
+                    if why.get(p_) == strat_cause:
+                        row["light"].append(p_)
+                    else:
+                        lw_cut.append(p_)
+            for p_ in list(row["light"]):
+                if why.get(p_) != strat_cause:
+                    row["light"].remove(p_)
+                    lw_cut.append(p_)
+            plains_at = [p_ for p_ in plains_at if p_ not in lw_cut]
+            region_reading.lowwarm.setdefault("cold_regions", []).append(nm)
+            if not any(row.values()):
+                continue
         if not any(row.values()):
             # no place where the rain can be pinned down: a moist region under the cold wave keeps passing showers,
             # named in one sentence, not as an empty row (Fahad, 19 Nov 2026)
@@ -588,8 +621,10 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         pct = min(95, round(100 * sum(parts.values()) / len(parts)))
         # the low-level warm event only adds confidence to the other ingredients, it never makes rain alone (Fahad)
         lw_boost = False
-        if nm == "مكة المكرمة" and meets and (parts["الرطوبة"] >= 0.5 or cmax >= 150):
-            if any(v is not None and v >= LW_WARM for v in (lw_low, lw_high)):
+        if meets and (parts["الرطوبة"] >= 0.5 or cmax >= 150):
+            # warm (1 or more): wet 40-70 % of days against 13-36 % on neutral days in every region (383 days)
+            vals = (lw_low, lw_high) if nm == "مكة المكرمة" else (lowwarm_region(st, day0, nm),)
+            if any(v is not None and v >= LW_WARM for v in vals):
                 pct = min(95, pct + 10)
                 lw_boost = True
         lv = level4(pct)
@@ -776,6 +811,10 @@ def summary(st, rs, regs, day0):
     else:
         B.append({"p": "لا تجتمع مكونات المطر على أي منطقة اليوم."})
     lwr = getattr(region_reading, "lowwarm", None) or {}
+    if lwr.get("cold_regions"):
+        B.append({"p": f"حدث بارد قرب الأرض فوق {jl(lwr['cold_regions'])} يكبت الحمل، فلا تُتوقع هناك عواصف ولا أمطار غزيرة، "
+                       "وقد يبقى مطر خفيف واسع إن كان هناك صعود طبقي. (في ٣٨٣ يومًا مختبرة لم يبلغ المطر ٢٠ ملم في هذه الأيام إلا "
+                       "نادرًا جدًا.)"})
     if lwr.get("sides"):
         where = {"low": "سهول مكة وتهامة", "high": "هضبة الطائف وحافتي الهدا والشفا"}
         B.append({"p": f"حدث بارد قرب الأرض فوق {' و'.join(where[x] for x in lwr['sides'])} يكبت الحمل، فلا يُتوقع هناك مطر "
