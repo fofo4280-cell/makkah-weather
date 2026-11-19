@@ -676,6 +676,17 @@ def main():
         traceback.print_exc()
         print("taif collision failed:", repr(e), flush=True)
 
+    # 8a4. the Red Sea flow toward the coasts (Fahad, 19 Nov 2026: «نضيفها لقسم الرياح خاصة لتوقع السواحل»): low-level
+    #      wind along the sea, where the southerly meets the northerly, sea CAPE; today and 7 days after (redsea.py)
+    rsflow_out = None
+    try:
+        import redsea
+        rsflow_out = redsea.run(gfs_fields, cycle, os.path.join(out, "fig"))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("red sea flow failed:", repr(e), flush=True)
+
     # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
     wave_rows = []
     for k, dt in enumerate(days[:WAVE_DAYS + 1]):
@@ -849,7 +860,7 @@ def main():
         "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
-        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "rsflow": rsflow_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}
