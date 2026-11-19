@@ -2026,6 +2026,7 @@
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] && !CARDED(K) ? legendHTML(st.figs[lay]) : "";
+      $("ksaLegend").hidden = CARDED(K);
       $("ksaHint").textContent = fixModel(KSA_HINT[lay], K) + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
       ksaTapText();
       const box = $("ksaLow");
@@ -2082,6 +2083,7 @@
     const S = 34;
     c.lineCap = "round"; c.lineJoin = "round";
     for (let y = S / 2; y < Hd; y += S) for (let x = S / 2; x < Wd; x += S) {
+      if (CARDED(K) && ((x > Wd * 0.45 && y < Hd * 0.18) || (x < Wd * 0.45 && y > Hd * 0.86))) continue;   // title and legend boxes of the picture
       const lat = n - (y / Hd) * (n - s), lon = w + (x / Wd) * (e - w), uv = kwAt(k, KW.lay, lat, lon); if (!uv) continue;
       const sp = Math.hypot(uv[0], uv[1]); if (sp < 0.5) continue;
       const dx = uv[0] / Math.cos(lat * Math.PI / 180), dy = -uv[1], m = Math.hypot(dx, dy);
@@ -2147,6 +2149,7 @@
     const d = K.days[k];
     $("kwDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
     $("kwLegend").innerHTML = st.figs && st.figs[kd] && !CARDED(K) ? legendHTML(st.figs[kd]) : "";
+    $("kwLegend").hidden = CARDED(K);
     $("kwHint").textContent = fixModel(KW.lay === "7"
       ? "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. هذه الطبقة توجّه السحب الركامية وتنقل الرطوبة إلى المرتفعات."
       : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.", K)
