@@ -362,6 +362,7 @@ def _cape_word(c):
     return "heavy" if c >= 1000 else "moderate" if c >= 300 else "light"
 
 
+STRAT_MIN = 0.05     # share of a region under wide lift before it is named (strat.py)
 COVER_OF = {"ضعيفة": 0.01, "متوسطة": 0.03, "مرجحة": 0.08, "قوية": 0.15}   # share of a region that a reading of this level wets
 
 
@@ -387,6 +388,7 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
     except Exception:  # noqa: BLE001
         pass
     meet_mk = RD.get("meet")
+    strat = st.get("strat") if (st.get("strat") or {}).get("day") == day0.isoformat() else None
     areas = {}
     try:
         import sa_geo as G
@@ -407,6 +409,7 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         why = {}
         src = []            # (lat, lon, level, name) where the cells are born, to follow them with the steering
         meets, capes, steer, plains_at = [], [], None, []
+        strat_frac = 0.0
 
         def add(lv, place, cause, at=None):
             if any(place in v for v in row.values()):
@@ -463,6 +466,16 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                 cause = f"التقاء رياح {w2[0]} برياح {w2[1]}" if len(w2) > 1 else f"رياح {w2[0]} تتباطأ وتتكدس"
                 meets.append(f"{cause} قرب {z['place']}")
                 add("moderate" if (z.get("c") or 0) >= 4 else "light", f"قرب {z['place']}", cause, (z["lat"], z["lon"]))
+        # wide lift of a deep moist layer ahead of a trough: stratiform rain the convective reading cannot see
+        # (19 Nov 2026 test: 10-12 Nov over Riyadh and the Eastern Province)
+        sr = (strat.get("regions") or {}).get(nm) if strat else None
+        if sr and sr["frac"] >= STRAT_MIN:
+            lvs = "moderate" if sr["frac"] >= 0.25 else "light"
+            cause = "صعود واسع لهواء رطب عميق في الطبقات الوسطى (مطر طبقي)"
+            for sp in sr["spots"] or ["أجزاء واسعة"]:
+                add(lvs, sp, cause)
+            meets.append(f"صعود واسع لهواء رطب عميق فوق نحو {ar(round(100 * sr['frac']))}٪ من المنطقة")
+            strat_frac = sr["frac"]
         # Makkah: the afternoon meeting around Taif from the collision study
         if nm == "مكة المكرمة" and meet_mk:
             site = "على حافتي الهدا والشفا" if meet_mk[0] == "edge" else "شمال الطائف وشرقه"
@@ -530,9 +543,10 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             lv = "مرجحة"
         if not meets:
             lv = "ضعيفة"
-        elif cmax < 150 and lv in ("مرجحة", "قوية"):
+        elif cmax < 150 and strat_frac < STRAT_MIN and lv in ("مرجحة", "قوية"):
             lv = "متوسطة"               # a meeting with no measured fuel
         cov = COVER_OF[lv] * (1.0 if meets else 0.5) * min(1.0, 0.4 + 0.15 * nplaces)
+        cov = max(cov, 0.6 * strat_frac)           # wide lift wets about that share of the region
         out.append({"name": nm, "row": row, "why": why, "plains": plains_at, "vague": False, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
                     "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts,
                     "cover": cov, "area": areas.get(nm)})

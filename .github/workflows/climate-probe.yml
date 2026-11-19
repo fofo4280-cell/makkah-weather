@@ -40,11 +40,12 @@ jobs:
         if: inputs.reading == 'yes'
         run: |
           ls /home/runner/clim
-          python3 code/server/climate/hindcast.py /home/runner/clim /home/runner/mjo.json ${{ inputs.first }} ${{ inputs.last }} /home/runner/reading.json
+          mkdir -p /home/runner/hc
+          HC_CACHE=/home/runner/hc python3 code/server/climate/hindcast.py /home/runner/clim /home/runner/mjo.json ${{ inputs.first }} ${{ inputs.last }} /home/runner/reading.json
       - name: Keep results (test-data branch)
         if: always()
         run: |
-          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.json /home/runner/reading.json . 2>/dev/null; ls
+          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.json /home/runner/reading.json . 2>/dev/null; cp -r /home/runner/hc . 2>/dev/null; ls
           git init -q -b data && git add -A
           git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m results
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-data

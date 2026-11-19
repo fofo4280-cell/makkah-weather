@@ -104,6 +104,11 @@ def inputs(day, clim, log=print):
     except Exception as e:  # noqa: BLE001
         traceback.print_exc()
         log("plains failed", repr(e))
+    import strat
+    try:
+        out["strat"] = strat.compute(lambda c, h, f: D.gfs_fields(c, h, res="0p25", fields=f), cycle, day, log=log)
+    except Exception as e:  # noqa: BLE001
+        log("strat failed", repr(e))
     import pattern
     vt = datetime(day.year, day.month, day.day, 12, tzinfo=timezone.utc)
     near = min(fc, key=lambda k: abs((k - vt).total_seconds()))
@@ -130,12 +135,19 @@ def main():
     import bigreport as BR
     res = {}
     d = date.fromisoformat(a)
+    cache = os.environ.get("HC_CACHE")
     while d <= date.fromisoformat(b):
         print("==", d, flush=True)
         try:
-            inp = inputs(d, clim)
+            cp = cache and os.path.join(cache, d.isoformat() + ".json")
+            if cp and os.path.exists(cp):
+                inp = json.load(open(cp))
+            else:
+                inp = inputs(d, clim)
+                if cp:
+                    json.dump(inp, open(cp, "w"), default=lambda o: o.tolist() if hasattr(o, "tolist") else str(o))
             st = copy.deepcopy(base)
-            for k in ("pw", "waves", "troughs", "taifc", "collide", "plains", "pattern"):
+            for k in ("pw", "waves", "troughs", "taifc", "collide", "plains", "pattern", "strat"):
                 if k in inp:
                     st[k] = inp[k]
             st.pop("mstory", None)
@@ -158,7 +170,7 @@ def main():
                 txt.append("summary failed " + repr(e))
             res[d.isoformat()] = {"cycle": inp["cycle"], "strength": sc, "ws": ws, "regions": flat(rows),
                                   "cold": (W or {}).get("regions"), "summary": txt,
-                                  "inputs": {k: inp.get(k) for k in ("collide", "plains", "pattern", "taifc")}}
+                                  "inputs": {k: inp.get(k) for k in ("collide", "plains", "pattern", "taifc", "strat")}}
             print("\n".join(txt), flush=True)
         except Exception as e:  # noqa: BLE001
             traceback.print_exc()
