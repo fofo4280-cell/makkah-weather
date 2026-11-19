@@ -29,7 +29,7 @@ FALLBACK = {"n": 0}
 _idx, _raw = {}, {}
 
 
-def _get(url, rng=None, tries=6):
+def _get(url, rng=None, tries=8):
     for k in range(tries):
         try:
             req = urllib.request.Request(url, headers={"Range": "bytes=%d-%d" % rng} if rng else {})
@@ -38,7 +38,7 @@ def _get(url, rng=None, tries=6):
         except Exception:  # noqa: BLE001
             if k == tries - 1:
                 raise
-            time.sleep(3 + 5 * k)
+            time.sleep(4 + 6 * k)
 
 
 def steps(cycle):

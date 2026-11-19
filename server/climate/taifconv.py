@@ -362,7 +362,7 @@ def draw_map(path, f, width_px=1400, kind="conv", hour="11", when=None, model="�
         else:
             leg = {"cols": [(0, "#8fd0ea"), (.5, "#3a434e"), (.62, "#f6e27a"), (.72, "#f5a623"), (.86, "#e2532d"),
                             (1, "#b3124a")], "vmin": -8, "vmax": 8, "ticks": [-8, -4, 0, 4, 8],
-                   "caption": "تقارب الرياح السطحية (أحمر)، والمتقطع محور التصادم"}
+                   "caption": "تقارب الرياح السطحية بالأحمر، والمتقطع محور التصادم"}
             ttl = "تصادم الرياح السطحية"
         F.card_frame(fig, f"{ttl} — النموذج {model}", F.when_ar(when, int(hour)), lines, leg)
     fig.savefig(path, dpi=200, facecolor=BG)

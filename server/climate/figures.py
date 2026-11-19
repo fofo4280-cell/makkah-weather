@@ -1154,8 +1154,11 @@ def card_frame(fig, title, when, lines=(), legend=None):
         lx, ly = m / W, m / H
         fig.patches.append(FancyBboxPatch((lx, ly), lw_, lh, boxstyle="round,pad=0,rounding_size=0.008",
                                           transform=fig.transFigure, fc=CARD_BG, ec=(1, 1, 1, 0.06), lw=0.6, zorder=19))
-        fig.text(lx + lw_ / 2, ly + lh * 0.80, _rtl(legend["caption"]), ha="center", va="center", fontsize=base * 0.78,
-                 color=CARD_MUTED, family=fam, zorder=21)
+        cap = fig.text(lx + lw_ / 2, ly + lh * 0.80, _rtl(legend["caption"]), ha="center", va="center",
+                       fontsize=base * 0.78, color=CARD_MUTED, family=fam, zorder=21)
+        cw = cap.get_window_extent(r).width
+        if cw > lw_ * W * 0.94:          # a long caption shrinks to fit inside its box
+            cap.set_fontsize(base * 0.78 * lw_ * W * 0.94 / cw)
         bx = fig.add_axes([lx + lw_ * 0.07, ly + lh * 0.40, lw_ * 0.86, lh * 0.18], zorder=21)
         cm = LinearSegmentedColormap.from_list("lg", [(p, to_rgba(c)) for p, c in legend["cols"]], N=256)
         bx.imshow(np.linspace(0, 1, 256)[None, :], aspect="auto", cmap=cm, vmin=0, vmax=1, extent=[0, 1, 0, 1])
