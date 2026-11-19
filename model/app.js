@@ -1926,23 +1926,47 @@
 
   // the day and date written over every map that has a day slider, kept in step with the slider and the play button
   // (Fahad, 20 Nov 2026: «أي خريطة فيها تشغيل أيام في اعلى الصورة اكتب التاريخ واليوم»)
+  // the title box over each day-slider map (Fahad, 20 Nov 2026: «التواريخ في الخرائط والأيام مع شرح بسيط أبيها
+  // بالطريقة ذي»): the same box as the server-drawn Kingdom maps (figures.card_frame): title and model, the day and
+  // date, one short line; it follows the slider and the play button. Maps that draw their own box are left alone.
+  const MAP_BOX = {
+    olrDayLabel: () => ["الحمل الحراري المداري ومركز التذبذب — النموذج الأمريكي", "الأزرق والبنفسجي سحب ركامية نشطة، والخط الأصفر مركز التذبذب"],
+    twDayLabel: () => ["موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق فوق المملكة يدعم الأمطار، والأحمر يكبتها"],
+    beltDayLabel: () => ["اللوحة الاستوائية الشاملة — النموذج الأمريكي", "حول الأرض من ٣٥ جنوبًا إلى ٣٥ شمالًا، والخطوط مراكز الموجات"],
+    mjoDayLabel: () => (M.layer === "lw" || M.layer === "lwd") ? null
+      : ["الحدث الدافئ والبارد عند ٢٠٠ هكتوباسكال — النموذج الأمريكي", "الأحمر حدث دافئ يدعم الحمل العميق، والأزرق حدث بارد يكبته"],
+    mjofDayLabel: () => [($("mjofLayer").querySelector(".on") || {}).dataset?.l === "mjop"
+      ? "الأمطار المرتبطة بالتذبذب — النموذج الأمريكي" : "مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال — النموذج الأمريكي",
+      "الأزرق يدعم الأمطار والأحمر يكبتها، فانظر إلى لون المملكة"],
+    waveDayLabel: () => ["موجات روسبي عند ٥٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق أخدود منخفض والأحمر مرتفع، والأسهم اتجاه الرياح"],
+    pwDayLabel: () => ["رطوبة الجزيرة العربية — النموذج الأمريكي", "الماء القابل للهطول نسبة إلى معدله: الأخضر والأزرق أرطب من المعتاد"],
+  };
   function dayBadges() {
     document.querySelectorAll('#p-mjo span[id$="DayLabel"]').forEach((lab) => {
+      const spec = MAP_BOX[lab.id];
       const card = lab.closest(".card");
-      if (!card || card.dataset.badge) return;
+      if (!spec || !card || card.dataset.badge) return;
       const fig = card.querySelector(".figwrap, .ksa-map, .tw-stage, #beltPanels");
       if (!fig) return;
       card.dataset.badge = "1";
       card.style.position = "relative";
       const b = document.createElement("div");
-      b.className = "day-badge";
+      b.className = "map-box";
+      b.dir = "rtl";
       card.appendChild(b);
       const put = () => {
         const t = (lab.textContent || "").trim();
         const i = t.indexOf(":");
-        b.textContent = i >= 0 ? t.slice(i + 1).trim() : t;
-        b.hidden = !t || !fig.offsetParent;
-        if (!b.hidden) b.style.top = (fig.getBoundingClientRect().top - card.getBoundingClientRect().top + 8) + "px";
+        const day = i >= 0 ? t.slice(i + 1).trim() : t;
+        const sp = spec();
+        b.hidden = !t || !sp || !fig.offsetParent;
+        if (b.hidden) return;
+        b.innerHTML = `<b>${sp[0]}</b><span>${day}</span><small>${sp[1]}</small>`;
+        const cr = card.getBoundingClientRect(), fr = fig.getBoundingClientRect();
+        b.style.top = (fr.top - cr.top + 8) + "px";
+        b.style.right = (cr.right - fr.right + 8) + "px";
+        b.style.maxWidth = Math.max(150, fr.width * (fr.width < 600 ? 0.56 : 0.5)) + "px";
+        b.classList.toggle("short", fr.height < 150);
       };
       new MutationObserver(put).observe(lab, { childList: true, characterData: true, subtree: true });
       card.addEventListener("click", () => setTimeout(put, 50));
