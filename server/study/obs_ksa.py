@@ -20,6 +20,8 @@ def days():
 
 
 ob.days = days
+_crop = ob.crop_global
+ob.crop_global = lambda *a: _crop(*a).copy()      # a view would keep each whole global day in memory (runner died)
 
 
 def main():
