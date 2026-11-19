@@ -1773,6 +1773,7 @@
     document.querySelectorAll("#p-mjo [data-sec]").forEach((c) => c.classList.toggle("sec-off", c.dataset.sec !== k));
     const on = bar.querySelector("button.on"); if (on && on.scrollIntoView) on.scrollIntoView({ block: "nearest", inline: "center" });
     if (!keepScroll) $("p-mjo").scrollTop = 0;
+    if (k === "waves") ["twDay", "waveDay"].forEach((id) => { const el = $(id); if (el && el.oninput) el.dispatchEvent(new Event("input")); });  // neighbours of the shown day
   }
   if ($("mjoTabs")) $("mjoTabs").addEventListener("click", (e) => { const b = e.target.closest("button[data-s]"); if (b) mjoSec(b.dataset.s); });
 
@@ -2408,11 +2409,17 @@
       <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
 
+  // 19 Nov 2026 (Fahad: the site was very slow): the page fetched every frame of every map at once (about 44 MB when
+  // the oscillation tab opened); now only the day shown and its neighbours, and only once the card is on screen
+  const NEAR = new Set();
+  function nearby(urls, el) {
+    const go = () => (el && !el.offsetParent) || urls.forEach((u) => { if (NEAR.has(u)) return; NEAR.add(u); const im = new Image(); im.src = u; });
+    (window.requestIdleCallback || ((f) => setTimeout(f, 300)))(go);
+  }
   function waveCard() {
     const st = M.st, rows = st.waves || [];
     if (!rows.length) { $("waveList").innerHTML = `<p class="muted">غير متاح اليوم.</p>`; return; }
     const wurl = (k) => `${CL}fig/wave_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
-    rows.forEach((_, k) => { const im = new Image(); im.src = wurl(k); });
     const show = (k) => {
       const url = wurl(k);
       const [a, b] = document.querySelectorAll("#waveWrap img");
@@ -2426,6 +2433,7 @@
         back.dataset.u = url; back.src = url;
       }
       $("waveLink").href = url;
+      nearby([k - 1, k + 1].filter((i) => i >= 0 && i < rows.length).map(wurl), $("waveWrap"));
       const d = rows[k] && rows[k].d;
       $("waveDayLabel").textContent = d ? dayLab(d) : "";
     };
@@ -2514,7 +2522,6 @@
     if (!t) return;
     const n = t.days.length, kinds = ["twr", "twk"];
     const url = (kd, k) => `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
-    kinds.forEach((kd) => { for (let k = 0; k < n; k++) { const im = new Image(); im.src = url(kd, k); } });
     const show = () => {
       const k = +$("twDay").value || 0, d = t.days[k];
       document.querySelectorAll("#twCard .tw-stage").forEach((sg) => {
@@ -2524,6 +2531,7 @@
         back.onload = () => { if (back.naturalWidth) sg.style.aspectRatio = `${back.naturalWidth} / ${back.naturalHeight}`; back.classList.add("on"); if (front) front.classList.remove("on"); };  // the stage takes the picture's own shape, so no empty strip at the side
         back.dataset.u = u; back.src = u;
       });
+      nearby(kinds.flatMap((kd) => [k - 1, k + 1].filter((i) => i >= 0 && i < n).map((i) => url(kd, i))), $("twCard"));
       const dd = d ? dayDiff(d) : 0;
       const lab = k <= t.t0 ? "تحليل" : dd === 0 ? "اليوم" : "توقع";   // t0 is the evening analysis of yesterday
       $("twDayLabel").textContent = d ? `${lab}: ${fmtDayD.format(dOf(d))}` : "";
