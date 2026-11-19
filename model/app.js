@@ -15,14 +15,14 @@
   const DATA_1K = window.SWRF_DATA_1K || DATA0.replace("/model-data/", "/model-data-1km/");
   // two drivers of the same 3 km model (15 Nov 2026): GFS (model-data, model-data-<id>) and ECMWF open data
   // (model-data-ec, model-data-ec-<id>); the two tabs under the product list switch every map between them
-  const MODELS = { gfs: "", ec: "ec-", am: "am-" };   // am: the morning run over Makkah, Taif and their surroundings (GFS 00Z, Fahad 17 Nov 2026)
+  const MODELS = { gfs: "", ec: "ec-" };   // (the morning GFS 00Z run was removed 19 Nov 2026, Fahad)
   let MODEL = MODELS[localStorage_get("model")] !== undefined ? localStorage_get("model") : "gfs";
   let DATA, REGIONS;
   function useModel(m) {
     MODEL = m;
     DATA = m === "gfs" ? DATA0 : DATA0.replace("/model-data/", `/model-data-${MODELS[m].slice(0, -1)}/`);
     // the five regional 3 km grids that, with the western highlands, cover the Kingdom; each on its own branch
-    REGIONS = m === "am" ? [] : ["nw", "n", "c", "e", "se"].map((id) => [id, DATA0.replace("/model-data/", `/model-data-${MODELS[m]}${id}/`)]);
+    REGIONS = ["nw", "n", "c", "e", "se"].map((id) => [id, DATA0.replace("/model-data/", `/model-data-${MODELS[m]}${id}/`)]);
   }
   function localStorage_get(k) { try { return localStorage.getItem("swrf." + k); } catch (e) { return null; } }
   useModel(MODEL);
@@ -44,7 +44,7 @@
   // current names, also for runs made before an option was renamed
   const LABELS = { refl_day: "أقصى انعكاسية لكل يوم", rain24: "المطر التراكمي من ١٢ إلى ١٢", ivt: "تدفق الأنهار الجوية" };
   // the morning run's 24-hour map holds its hours 9-18: noon to 9 PM Makkah
-  const lab = (k) => (MODEL === "am" && k === "rain24" ? "المطر التراكمي من الظهر حتى ٩ مساءً" : LABELS[k]);
+  const lab = (k) => LABELS[k];
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
@@ -1577,7 +1577,7 @@
     let idx;
     try { idx = await getJSON(DATA + "runs.json"); } catch (e) { idx = { runs: [] }; }
     // evening (12Z) runs only: the daytime run was removed (Fahad, 15 Nov 2026); the morning tab lists its own 00Z runs (Fahad, 17 Nov 2026)
-    S.runs = (idx.runs || []).filter((r) => MODEL === "am" ? String(r.run).endsWith("00") : !String(r.run).endsWith("00"));
+    S.runs = (idx.runs || []).filter((r) => !String(r.run).endsWith("00"));
     const sel = $("runSelect");
     sel.hidden = !S.runs.length;  // the run time lives here, so it shows even with one run
     sel.innerHTML = S.runs.map((r) => `<option value="${r.run}">${runShort(r.run)}${r.status === "running" ? " · جارٍ" : ""}</option>`).join("");
@@ -1587,7 +1587,7 @@
       const newest = S.runs[0];
       // prefer the newest run once it has at least a day of the 3 km domain
       // a running run is shown once it covers the day through 6 pm (hour 15); before that, the last complete one
-      const pick = newest.status === "running" && complete && ((newest.hours || {}).d02 || 0) < (MODEL === "am" ? 12 : 15) ? complete : newest;
+      const pick = newest.status === "running" && complete && ((newest.hours || {}).d02 || 0) < 15 ? complete : newest;
       sel.value = pick.run;
       await loadRun(pick.run, true);
     } else {
@@ -1623,7 +1623,6 @@
     await refreshRuns(true);
     if (!S.runs.length) $("mapEmptyMsg").textContent = MODEL === "ec"
       ? "تشغيل النموذج الأوروبي يبدأ قرابة ١٠:٤٥ مساءً بتوقيت مكة، وتظهر خرائطه هنا ساعة بساعة حتى يكتمل قرابة ٥:٣٠ فجرًا."
-      : MODEL === "am" ? "التشغيل الصباحي لمكة والطائف وما حولهما يبدأ قرابة ٦:٣٠ صباحًا بتوقيت مكة ويكتمل قبل الظهر."
       : "النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.";
     if (S.man && S.frames.length && f0) {
       let k = -1;
@@ -1665,15 +1664,15 @@
       <ul class="steps">${steps}</ul>`;
   }
   async function refreshStatus() {
-    const GFS_DATA = DATA0, EC_DATA = DATA0.replace("/model-data/", "/model-data-ec/"), AM_DATA = DATA0.replace("/model-data/", "/model-data-am/");
-    const [g, e, a] = await Promise.all([GFS_DATA, EC_DATA, AM_DATA].map((d) => getJSON(d + "status.json").catch(() => null)));
+    const GFS_DATA = DATA0, EC_DATA = DATA0.replace("/model-data/", "/model-data-ec/");
+    const [g, e] = await Promise.all([GFS_DATA, EC_DATA].map((d) => getJSON(d + "status.json").catch(() => null)));
     const s = MODEL === "ec" ? e : g;
     if (!g && !e) { $("statusCard").innerHTML = `<p class="muted">لم تصل حالة الخادم بعد.</p>`; return; }
     const running = [g, e].some((x) => x && (x.phase === "cycle" || x.phase === "install"));
     const err = [g, e].some((x) => x && x.phase === "error");
     const cls = running ? "run" : err ? "err" : "ok";
     $("statusDot").className = "dot " + cls; $("menuDot").className = "dot " + cls;
-    $("statusCard").innerHTML = [[g, "تشغيل النموذج الأمريكي"], [e, "تشغيل النموذج الأوروبي"], [a, "التشغيل الصباحي لمكة والطائف"]]
+    $("statusCard").innerHTML = [[g, "تشغيل النموذج الأمريكي"], [e, "تشغيل النموذج الأوروبي"]]
       .map(([x, t]) => x ? statusBlock(x, t) : `<h3>${t}</h3><p class="muted">لم تصل حالته بعد.</p>`)
       .join(`<div style="height:14px"></div>`);
     if (!s) return;
