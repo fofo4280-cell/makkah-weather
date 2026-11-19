@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2307,39 +2307,37 @@
     show();
   }
 
-  // the afternoon instability map (moved from the Taif card to the humidity tab, Fahad 18 Nov 2026): the same frames
-  // tcape_KK_HH.png of the whole Kingdom; 7 days back, today, 7 ahead
+  // the inland penetration of the Red Sea energy (Fahad, 19 Nov 2026: «توغل التدفق للحمل الحراري cape في قسم الرطوبة
+  // بدلا عن تبويب عدم الاستقرار»): ECMWF maps fig/rsc_NN.png (redsea.py), today and 7 after, Dr. Khalid's colours
   function tpCard() {
-    const st = M.st, T = st.taifc;
-    $("tpCard").hidden = !(T && T.rows && T.rows.length);
+    const st = M.st, R = st.rsflow, rows = R && R.rows ? R.rows : [];
+    $("tpCard").hidden = !rows.some((r) => r.inland_share != null);
     if ($("tpCard").hidden) return;
-    const ext = T.extent || [33, 57.5, 14, 33.5];
+    const ext = R.in_extent || [32.5, 51.5, 14, 32.5];
+    const LV = { none: "الطاقة محصورة على البحر والساحل ولم تدخل الداخل", start: "بداية دخول لطاقة البحر نحو الداخل",
+      clear: "توغّل واضح لطاقة البحر داخل الجزيرة، ومعه تزيد فرصة مطر واسع في الداخل" };
     const show = () => {
-      const k = +$("tpDay").value || 0, hh = M.tpHour || "13";
-      document.querySelectorAll("#tpHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
-      $("tpFig").src = `${CL}fig/tcape_${String(k).padStart(2, "0")}_${hh}.png?v=${encodeURIComponent(st.updated)}`;
-      const r = T.rows[k]; $("tpDayLabel").textContent = r ? dayLab(r.d) : "";
-      $("tpLegend").hidden = CARDED(T);
-      if (CARDED(T)) $("tpHint").textContent = $("tpHint").textContent.replace("طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي", "طاقة عدم الاستقرار في الساعة المختارة من " + MODEL_AR(T.model) + " (أعلى طاقة لهواء الطبقات السفلى)");
-      if (T.cape_legend && !CARDED(T)) $("tpLegend").innerHTML = legendHTML(T.cape_legend);
+      const k = +$("tpDay").value || 0, r = rows[k] || {};
+      $("tpFig").src = `${CL}fig/rsc_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tpDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      $("tpNow").innerHTML = r.inland_share == null ? "<div>لا تتوفر خريطة الأوروبي لهذا اليوم.</div>"
+        : `<div><b>${LV[r.inland] || ""}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div><div>الطاقة المتصلة بالبحر تغطي ${num(r.inland_share, 1)}٪ من نجد والقصيم والوسطى.</div>`;
     };
     if (!tpCard.done) {
       tpCard.done = true;
-      document.querySelectorAll("#tpHour button").forEach((b) => b.onclick = () => { M.tpHour = b.dataset.h; show(); });
       $("tpDay").oninput = show;
-      $("tpDay").max = Math.max(0, T.rows.length - 1); $("tpDay").value = todayIdx(T.days);
-      if (!CARDED(T)) kmapNames($("tpInner"), ext);
-      const LV = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
+      $("tpDay").max = Math.max(0, rows.length - 1); $("tpDay").value = todayIdx(R.days);
+      const LVZ = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
       let z = 0, pt = null;
       const zoom = (d) => {
-        const nz = Math.max(0, Math.min(LV.length - 1, z + d)); if (nz === z) return;
+        const nz = Math.max(0, Math.min(LVZ.length - 1, z + d)); if (nz === z) return;
         const cx = (sc.scrollLeft + sc.clientWidth / 2) / sc.scrollWidth, cy = (sc.scrollTop + sc.clientHeight / 2) / sc.scrollHeight;
         if (z === 0) sc.style.height = sc.clientHeight + "px";
-        z = nz; inner.style.width = LV[z] * 100 + "%"; inner.dataset.z = z;
+        z = nz; inner.style.width = LVZ[z] * 100 + "%"; inner.dataset.z = z;
         if (z === 0) sc.style.height = "";
         const fx = pt ? pt[0] : cx, fy = pt ? pt[1] : cy;
         sc.scrollLeft = fx * sc.scrollWidth - sc.clientWidth / 2; sc.scrollTop = fy * sc.scrollHeight - sc.clientHeight / 2;
-        $("tpIn").disabled = z === LV.length - 1; $("tpOut").disabled = z === 0;
+        $("tpIn").disabled = z === LVZ.length - 1; $("tpOut").disabled = z === 0;
       };
       $("tpIn").onclick = () => zoom(1); $("tpOut").onclick = () => zoom(-1);
       img.addEventListener("click", (ev) => {
@@ -2442,6 +2440,26 @@
   }
 
   // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
+  // tropical convection with the MJO centre line (convmap.py, Fahad 19 Nov 2026)
+  function olrCard() {
+    const st = M.st || {};
+    const ok = !!st.olr;
+    $("olrCard").hidden = !ok;
+    if (!ok) return;
+    const days = st.olr.days || [st.olr.t1];
+    const mk = (t) => new Date(Date.parse(t) + 3 * 3600e3).toISOString().slice(0, 10);   // Makkah date of the window end
+    const show = () => {
+      const k = Math.min(+$("olrDay").value || 0, days.length - 1);
+      const url = `${CL}fig/olr_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("olrFig").src = url; $("olrLink").href = url;
+      $("olrDayLabel").textContent = (k === 0 ? "آخر ٢٤ ساعة، " : "متوقع، ") + dayLab(mk(days[k]));
+    };
+    $("olrTime").hidden = days.length < 2;
+    $("olrDay").max = days.length - 1;
+    $("olrDay").oninput = show;
+    show();
+  }
+
   function mjofCard() {
     const st = M.st, m = st.mjof;
     $("mjofCard").hidden = !m;
