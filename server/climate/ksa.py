@@ -1,4 +1,7 @@
-"""Four Kingdom maps for every forecast day of the oscillation page (Fahad, 17 Nov 2026), from GFS alone:
+"""Kingdom maps for every forecast day of the oscillation page (Fahad, 17 Nov 2026). Source: ECMWF open data since
+19 Nov 2026 (Fahad: «غيرها في الموقع كلها الى الاوروبي»; daily.py passes ecmwf.fields_like_gfs, GFS if IFS is missing),
+drawn in the card style (title box with model, day and hour in Makkah time and an explanation line read off the
+map, city names, legend box):
   krh7  relative humidity at 700 hPa
   krh5  relative humidity at 500 hPa
   kconv where the surface (10 m) winds meet, with the sea-level isobars and any surface low over the Red Sea or land
@@ -181,7 +184,61 @@ def legend(kind):
             "stops": stops}
 
 
-def draw(path, kind, f, lws=(), trough=None, width_px=1000):
+CAPTION = {"krh7": "النسبة المئوية، والخطوط عند ٥٠ و٧٠ و٩٠", "krh5": "النسبة المئوية، والخطوط عند ٥٠ و٧٠ و٩٠",
+           "kt5": "درجة مئوية، وخط عند كل درجة", "kw7": "متر في الثانية، وخط كل ٥ م/ث، والأسهم اتجاه الرياح",
+           "kw5": "متر في الثانية، وخط كل ٥ م/ث، والأسهم اتجاه الرياح", "kconv": "تقارب الرياح عند ١٠ أمتار"}
+TITLE = {"krh7": "الرطوبة النسبية عند ٧٠٠ هكتوباسكال (نحو ٣ كم)", "krh5": "الرطوبة النسبية عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم)",
+         "kt5": "درجة الحرارة عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم)", "kw7": "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم)",
+         "kw5": "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم)", "kconv": "تصادم الرياح السطحية"}
+DIR_FROM = ["شمالية", "شمالية شرقية", "شرقية", "جنوبية شرقية", "جنوبية", "جنوبية غربية", "غربية", "شمالية غربية"]
+
+
+def wind_dir(u, v):
+    """«جنوبية غربية»: where the wind blows from"""
+    b = (math.degrees(math.atan2(-u, -v)) + 360) % 360
+    return DIR_FROM[int((b + 22.5) // 45) % 8]
+
+
+def explain(kind, f):
+    """the explanation line(s) under the title, read off the map's own numbers at the cities"""
+    import figures as F
+    lat, lon = f["lat"], f["lon"]
+    N = F.ar_num
+    if kind in ("krh7", "krh5"):
+        a = f["rh7" if kind == "krh7" else "rh5"]
+        thr = 70 if kind == "krh7" else 60
+        v = F.nearest_vals(a, lat, lon, radius=0.25)
+        wet = [k for k, x in sorted(v.items(), key=lambda kv: -kv[1]) if x >= thr]
+        if wet:
+            more = f" و{N(len(wet) - 5)} غيرها" if len(wet) > 5 else ""
+            return [f"رطوبة عالية ({N(thr)}٪ فأكثر) فوق {F.ar_list(wet, 5)}{more}"]
+        top = sorted(v.items(), key=lambda kv: -kv[1])[:2]
+        return [f"لا رطوبة عالية فوق المدن، وأعلاها {F.ar_list([f'{k} {N(x)}٪' for k, x in top])}"]
+    if kind == "kt5":
+        v = F.nearest_vals(f["t5"], lat, lon, radius=0.25)
+        cold = min(v, key=v.get)
+        warm = max(v, key=v.get)
+        deg = lambda x: f"{N(-x)} تحت الصفر" if x < -0.5 else f"{N(abs(x))} فوق الصفر" if x > 0.5 else "صفر"
+        out = [f"أبرد الهواء في الأعلى فوق {cold} ({deg(v[cold])}) وأدفؤه فوق {warm} ({deg(v[warm])})"]
+        c10 = [k for k, x in sorted(v.items(), key=lambda kv: kv[1]) if x <= -10]
+        if c10:
+            out.append(f"هواء بارد (١٠ تحت الصفر فأبرد) فوق {F.ar_list(c10, 5)}")
+        return out
+    if kind in ("kw7", "kw5"):
+        lv = kind[2]
+        u, v_ = f["u" + lv], f["v" + lv]
+        sp = np.hypot(u, v_)
+        vs = F.nearest_vals(sp, lat, lon, radius=0.25)
+        top = max(vs, key=vs.get)
+        j, i = int(np.argmin(np.abs(lat - 21.42))), int(np.argmin(np.abs(lon - 39.83)))
+        jt = int(np.argmin(np.abs(lat - [c for c in F.SAUDI_CITIES if c[0] == top][0][1])))
+        it = int(np.argmin(np.abs(lon - [c for c in F.SAUDI_CITIES if c[0] == top][0][2])))
+        return [f"فوق مكة {wind_dir(u[j, i], v_[j, i])} {N(sp[j, i])} م/ث، وأقواها بين المدن فوق {top} "
+                f"({wind_dir(u[jt, it], v_[jt, it])} {N(vs[top])} م/ث)"]
+    return []
+
+
+def draw(path, kind, f, lws=(), trough=None, width_px=1000, when=None, model="الأوروبي"):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -318,6 +375,14 @@ def draw(path, kind, f, lws=(), trough=None, width_px=1000):
                 fontweight="bold", color="#111111", path_effects=[pe.withStroke(linewidth=2, foreground="#ffffff")],
                 zorder=5)
     ax.spines["geo"].set_visible(False)
+    if when is not None:
+        # the card style (Fahad, 19 Nov 2026): names, title box with the explanation, legend box
+        if kind != "kconv":
+            F.card_cities(ax, pc)
+        sc_ = SCALES[kind]
+        F.card_frame(fig, f"{TITLE[kind]} — النموذج {model}", F.when_ar(when, 15), explain(kind, {**f, "lat": lat, "lon": lon}),
+                     {"cols": sc_["cols"], "vmin": sc_["vmin"], "vmax": sc_["vmax"], "ticks": sc_["ticks"],
+                      "caption": CAPTION[kind]})
     F._save_png(fig, path)
 
 

@@ -1070,3 +1070,128 @@ def draw_waves(path, zp, fx, fy, lat, lon, extent, marks, width_px=2000):
                 path_effects=[pe.withStroke(linewidth=3, foreground="#10161d")], zorder=6)
     ax.spines["geo"].set_visible(False)
     _save_png(fig, path)
+
+
+# ------------------------------------------------------------------ the card style (Fahad, 19 Nov 2026: «الصور مع
+# الشرح جميلة جدا عملية اجعلها هكذا»): a dark box top right with the title, the model, the day and hour in Makkah time
+# and an explanation line; cities with their names; a dark legend box bottom left with a caption over the colour bar.
+CARD_BG = (0.06, 0.08, 0.11, 0.86)
+CARD_INK, CARD_MUTED = "#eef2f6", "#b9c3cd"
+CARD_CITIES = ["عرعر", "سكاكا", "تبوك", "حائل", "بريدة", "الرياض", "الدمام", "الأحساء", "المدينة", "ينبع", "جدة", "مكة",
+               "الطائف", "الباحة", "أبها", "نجران", "جازان", "وادي الدواسر"]
+AR_DIG = str.maketrans("0123456789.-", "٠١٢٣٤٥٦٧٨٩٫−")
+WEEK_AR = ["الإثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت", "الأحد"]
+MONTH_AR = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"]
+HOUR_AR = {11: "الساعة ١١ صباحًا", 12: "الساعة ١٢ ظهرًا", 13: "الساعة ١ ظهرًا", 15: "الساعة ٣ عصرًا", 18: "الساعة ٦ مساءً"}
+
+
+def ar_num(x, nd=0):
+    """a number in Arabic digits; a minus kept in front of the digits"""
+    s = f"{x:.{nd}f}" if nd else f"{int(round(x))}"
+    neg = s.startswith("-")
+    s = s.lstrip("-").translate(AR_DIG)
+    return ("‎−" + s) if neg and s.strip("٠٫") else s
+
+
+def when_ar(d, hour):
+    """«الخميس ١٩ نوفمبر، الساعة ٣ عصرًا بتوقيت مكة» for a date and a Makkah hour"""
+    return f"{WEEK_AR[d.weekday()]} {ar_num(d.day)} {MONTH_AR[d.month - 1]}، {HOUR_AR.get(hour, 'الساعة ' + ar_num(hour))} بتوقيت مكة"
+
+
+def city_points(names=None):
+    keep = names or CARD_CITIES
+    return [c for c in SAUDI_CITIES if c[0] in keep]
+
+
+def card_cities(ax, transform=None, names=None, fontsize=None, skip=()):
+    """white dots and soft light names with a dark halo, readable on any colour of the map"""
+    from matplotlib import patheffects as pe
+    fam = _ar_font()
+    fs = fontsize or ax.figure.get_figwidth() * 1.2
+    kw = {"transform": transform} if transform is not None else {}
+    halo = [pe.withStroke(linewidth=2.4, foreground="#0c1118")]
+    gap = 0.22
+    for name, la, lo, where, _ in city_points(names):
+        if name in skip:
+            continue
+        ax.plot(lo, la, marker="o", markersize=fs * 0.36, color="#ffffff", markeredgecolor="#0c1118",
+                markeredgewidth=0.7, zorder=8, **kw)
+        dx, dy, ha, va = {"n": (0, gap, "center", "bottom"), "s": (0, -gap, "center", "top"),
+                          "e": (gap, 0, "left", "center"), "w": (-gap, 0, "right", "center")}[where]
+        ax.text(lo + dx, la + dy, _rtl(name), ha=ha, va=va, fontsize=fs, color="#e6ebf0", family=fam,
+                path_effects=halo, zorder=8, **kw)
+
+
+def card_frame(fig, title, when, lines=(), legend=None):
+    """the title box (top right) and the legend box (bottom left) over the whole figure.
+    legend = {"cols": [(p, colour)], "vmin", "vmax", "ticks", "caption", "fmt": callable}"""
+    from matplotlib.patches import FancyBboxPatch
+    from matplotlib.colors import LinearSegmentedColormap, to_rgba
+    fam = _ar_font()
+    W, H = fig.get_size_inches() * fig.dpi
+    base = fig.get_figwidth() * 1.45          # 10 pt on a 7-inch (1400 px) map
+    r = fig.canvas.get_renderer()
+    # ---- title box
+    m, pad = 14, base * 1.1
+    x0 = 1 - (m + pad) / W
+    y = 1 - (m + pad) / H
+    texts = []
+    rows = [(title, base, CARD_INK, "semibold"), (when, base * 0.86, CARD_INK, "normal")]
+    rows += [(t, base * 0.8, CARD_MUTED, "normal") for t in lines if t]
+    for k, (t, fs, col, wt) in enumerate(rows):
+        tx = fig.text(x0, y, _rtl(t), ha="right", va="top", fontsize=fs, color=col, family=fam, fontweight=wt, zorder=20)
+        texts.append(tx)
+        y -= (tx.get_window_extent(r).height + fs * (1.0 if k == 0 else 0.7)) / H
+    bbs = [t.get_window_extent(r) for t in texts]
+    left = min(b.x0 for b in bbs) - pad
+    bottom = min(b.y0 for b in bbs) - pad * 0.8
+    fig.patches.append(FancyBboxPatch((left / W, bottom / H), (W - m - left) / W, (H - m - bottom) / H,
+                                      boxstyle="round,pad=0,rounding_size=0.008", transform=fig.transFigure,
+                                      fc=CARD_BG, ec=(1, 1, 1, 0.06), lw=0.6, zorder=19))
+    # ---- legend box
+    if legend:
+        lw_, lh = 0.40, 0.065 * W / H
+        lx, ly = m / W, m / H
+        fig.patches.append(FancyBboxPatch((lx, ly), lw_, lh, boxstyle="round,pad=0,rounding_size=0.008",
+                                          transform=fig.transFigure, fc=CARD_BG, ec=(1, 1, 1, 0.06), lw=0.6, zorder=19))
+        cap = fig.text(lx + lw_ / 2, ly + lh * 0.80, _rtl(legend["caption"]), ha="center", va="center",
+                       fontsize=base * 0.78, color=CARD_MUTED, family=fam, zorder=21)
+        cw = cap.get_window_extent(r).width
+        if cw > lw_ * W * 0.94:          # a long caption shrinks to fit inside its box
+            cap.set_fontsize(base * 0.78 * lw_ * W * 0.94 / cw)
+        bx = fig.add_axes([lx + lw_ * 0.07, ly + lh * 0.40, lw_ * 0.86, lh * 0.18], zorder=21)
+        cm = LinearSegmentedColormap.from_list("lg", [(p, to_rgba(c)) for p, c in legend["cols"]], N=256)
+        bx.imshow(np.linspace(0, 1, 256)[None, :], aspect="auto", cmap=cm, vmin=0, vmax=1, extent=[0, 1, 0, 1])
+        bx.set_axis_off()
+        fmt = legend.get("fmt") or ar_num
+        v0, v1 = legend["vmin"], legend["vmax"]
+        for t in legend["ticks"]:
+            px = lx + lw_ * 0.07 + lw_ * 0.86 * (t - v0) / (v1 - v0)
+            fig.text(px, ly + lh * 0.17, fmt(t), ha="center", va="center", fontsize=base * 0.72, color=CARD_INK,
+                     family=fam, zorder=21)
+            fig.add_artist(__import__("matplotlib").lines.Line2D([px, px], [ly + lh * 0.33, ly + lh * 0.40],
+                                                                 color=CARD_MUTED, lw=0.6, transform=fig.transFigure,
+                                                                 zorder=21))
+
+
+def nearest_vals(field, lat, lon, names=None, radius=0.0, mode="mean"):
+    """{city: value} read off a lat x lon field at each card city (max/min/mean within radius deg)"""
+    out = {}
+    for name, la, lo, _, _ in city_points(names):
+        if radius:
+            j = np.abs(lat - la) <= radius
+            i = np.abs(lon - lo) <= radius
+            sub = field[np.ix_(j, i)]
+            if not sub.size:
+                continue
+            out[name] = float({"max": np.nanmax, "min": np.nanmin, "mean": np.nanmean}[mode](sub))
+        else:
+            out[name] = float(field[int(np.argmin(np.abs(lat - la))), int(np.argmin(np.abs(lon - lo)))])
+    return out
+
+
+def ar_list(names, n=6):
+    names = list(names)[:n]
+    if len(names) <= 1:
+        return "".join(names)
+    return "، ".join(names[:-1]) + " و" + names[-1]
