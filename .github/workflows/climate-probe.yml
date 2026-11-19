@@ -1,0 +1,52 @@
+# Test of the report's expert reading on past days against the observed rain (Fahad, 19 Nov 2026: «قبل تنشر اختبر
+# وتأكد من فعالية قراءتك ثم انشر», «اذا تريد توسع دائرة الاختبار ابدأ من 10 نوفمبر»). By hand only; nothing is
+# published: the reading of every day and the satellite rain go to an artifact.
+name: Climate probe
+
+on:
+  workflow_dispatch:
+    inputs:
+      first: {description: 'first day (YYYY-MM-DD)', default: '2026-11-10'}
+      last: {description: 'last day (YYYY-MM-DD)', default: '2026-11-19'}
+      ref: {description: 'code branch', default: 'test/reading'}
+      obs: {description: 'yes: fetch the observed (satellite) rain too', default: 'yes'}
+      reading: {description: 'yes: rebuild the reading of each day', default: 'yes'}
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: code
+      - run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi shapely h5py
+      - name: Restore climatology
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/clim
+          key: clim-r1-1991-2020-v2
+      - name: State
+        run: curl -sf -m 60 -o /home/runner/mjo.json "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/climate-data/mjo.json"
+      - name: Observed rain
+        if: inputs.obs == 'yes'
+        run: python3 code/server/climate/obs_rain.py ${{ inputs.first }} ${{ inputs.last }} /home/runner/obs.json || true
+      - name: Reading
+        if: inputs.reading == 'yes'
+        run: |
+          ls /home/runner/clim
+          python3 code/server/climate/hindcast.py /home/runner/clim /home/runner/mjo.json ${{ inputs.first }} ${{ inputs.last }} /home/runner/reading.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reading-test
+          path: |
+            /home/runner/obs.json
+            /home/runner/reading.json
+          retention-days: 30
+          if-no-files-found: ignore
