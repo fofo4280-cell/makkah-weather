@@ -807,6 +807,23 @@ def main():
         if low["mean"] <= -1.5:
             ao_cold = low
     now_obs = obs[-1] if obs else None
+    # ENSO for the seasonal outlook (season.py): Nino 3.4 anomaly of the last month published by PSL
+    enso = None
+    try:
+        rows_e = {}
+        for line in get("https://psl.noaa.gov/data/correlation/nina34.anom.data").decode("latin-1").splitlines():
+            p_ = line.split()
+            if len(p_) == 13 and p_[0].isdigit() and len(p_[0]) == 4:
+                for m_ in range(12):
+                    v_ = float(p_[m_ + 1])
+                    if abs(v_) < 90:
+                        rows_e[(int(p_[0]), m_ + 1)] = v_
+        if rows_e:
+            k_ = max(rows_e)
+            enso = {"m": f"{k_[0]}-{k_[1]:02d}", "v": rows_e[k_]}
+        print("enso:", enso, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("enso failed:", repr(e), flush=True)
     surge = []
     for row in pw_rows[1:11]:
         for key, (name, *_b) in BOXES.items():
@@ -821,7 +838,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},

@@ -1073,6 +1073,17 @@ def waves(st, rs, regs, day0):
         B.append({"p": t + "."})
     B.append({"note": "القوة من ٥ (والنسبة ٢٠٪ لكل درجة) تجمع العوامل الكبرى وانتشار المطر المتوقع. "
                       "الثقة عالية حتى ٥ أيام، ومتوسطة حتى ١٠ أيام، ومنخفضة بعدها. وتُحدّث كل ليلة."})
+    # the seasonal outlook first (Fahad, 19 Nov 2026: «اجعلها داخل تبويب أقرب موجة قادمة وغيرها الى النظرة الموسمية
+    # وأقرب موجة قادمة»); a failure leaves the waves part alone
+    try:
+        import season
+        sb = season.blocks(st, day0) if st.get("wet_season") else []
+    except Exception as e:  # noqa: BLE001
+        print("season outlook failed:", repr(e), flush=True)
+        sb = []
+    if sb:
+        B = sb + [{"h": "أقرب موجة قادمة"}] + B
+        return sec("النظرة الموسمية وأقرب موجة قادمة", "waves", B)
     return sec("الموجات القادمة", "waves", B)
 
 
