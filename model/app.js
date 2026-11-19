@@ -930,6 +930,25 @@
     return out;
   }
 
+  // the newest time the satellite service actually has (its list of times); when it stops sending
+  // (an outage on their side, e.g. 18-19 Nov 2026) the page shows the last hour it has and says so
+  async function liLatest() {
+    for (const u of [`${LI_WMS.replace("/wms", "/mtg_fd/li_afa/wms")}?service=WMS&request=GetCapabilities&version=1.3.0`,
+                     `${LI_WMS}?service=WMS&request=GetCapabilities&version=1.3.0`]) {
+      const ac = new AbortController(), kill = setTimeout(() => ac.abort(), 25e3);
+      try {
+        const r = await fetch(u, { cache: "no-store", signal: ac.signal });
+        if (!r.ok) continue;
+        const x = await r.text(), i = x.indexOf("li_afa");
+        const m = i >= 0 && /<Dimension[^>]*name="time"[^>]*>([^<]+)</.exec(x.slice(i));
+        if (!m) continue;
+        const end = Date.parse(m[1].trim().split(",").pop().split("/")[1] || m[1].trim().split(",").pop());
+        if (end) return end;
+      } catch (e) { /* try the next address */ } finally { clearTimeout(kill); }
+    }
+    return 0;
+  }
+
   async function liFetch(t) {
     const B = LI_BOX, W = LI_W, H = LI_H;
     const url = `${LI_WMS}?service=WMS&request=GetMap&version=1.3.0&layers=mtg_fd:li_afa&styles=&crs=EPSG:4326` +
@@ -988,7 +1007,9 @@
     if (!LX.raw) liCacheLoad();
     // images appear about 10 minutes after their time and keep filling for a while after that, so the
     // newest 30 minutes are asked again on every update (an early empty answer is never kept for good)
-    const top = Math.floor((Date.now() - 5 * 60e3) / LI_STEP) * LI_STEP, want = [];
+    if (!LX.srcAt || Date.now() - LX.srcAt > 5 * 60e3) { const e = await liLatest(); if (e) { LX.srcEnd = e; LX.srcAt = Date.now(); } }
+    const nowTop = Math.floor((Date.now() - 5 * 60e3) / LI_STEP) * LI_STEP;
+    const top = LX.srcEnd && LX.srcEnd < nowTop ? Math.floor(LX.srcEnd / LI_STEP) * LI_STEP : nowTop, want = [];
     for (let t = top; t > top - LI_BACK; t -= LI_STEP) if (!LX.got.has(t) || t > top - 30 * 60e3) want.push(t);
     let next = 0, since = 0;
     const worker = async () => {
@@ -1050,7 +1071,11 @@
       : LX.busy ? "جارٍ جلب رصد البرق…" : "تعذّر جلب رصد البرق، سيُعاد المحاولة";
     if (LX.layer) LX.layer.redraw();
     rvSync();
-    const n = $("liCount"); if (n && S.prod !== "radar") n.textContent = f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "";
+    const n = $("liCount"); if (n && S.prod !== "radar") n.textContent = liLate() + (f ? (LX.shown ? `مواضع البرق: ${num(LX.shown)}` : "لا برق في هذه الساعة") : "");
+  }
+  function liLate() {
+    return LX.srcEnd && Date.now() - LX.srcEnd > 40 * 60e3
+      ? `مصدر البرق (القمر الأوروبي) متوقف منذ ${new Date(LX.srcEnd).toDateString() === new Date().toDateString() ? "" : "أمس "}${fmtClock.format(LX.srcEnd)}، المعروض آخر ما أرسله. ` : "";
   }
 
   function liLegend() {
@@ -1058,7 +1083,7 @@
     const svg = (c) => `<svg viewBox="-6 -6 12 12" width="13" height="13"><path d="M-0.1,-5 L3,-5 L1,-1 L3,-1 L-2.2,5 L-0.4,0.4 L-2.4,0.4 Z" fill="${c}" stroke="#1a1000" stroke-width=".7" stroke-linejoin="round"/></svg>`;
     const keys = LI_AGES.map(([m, c], i) => `<span>${svg(c)}${i === 0 ? `آخر ${num(m)} د` : `حتى ${num(m)} د`}</span>`).join("");
     setMini(`linear-gradient(to right, ${LI_AGES.map(([m, c]) => c).join(", ")})`);
-    $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
+    $("legend").innerHTML = `<div class="legend-title"><span>البرق المرصود من القمر الأوروبي، يتحدث كل ٥ دقائق</span><span id="liCount">${liLate()}${LX.shown ? `مواضع البرق: ${num(LX.shown)}` : ""}</span></div>
       <div class="bolt-key">${keys}</div>`;
   }
 
