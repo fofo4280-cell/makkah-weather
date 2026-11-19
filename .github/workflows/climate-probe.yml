@@ -39,13 +39,19 @@ jobs:
       - name: Reading
         if: inputs.reading == 'yes'
         run: |
-          ls /home/runner/clim
-          mkdir -p /home/runner/hc
-          HC_CACHE=/home/runner/hc python3 code/server/climate/hindcast.py /home/runner/clim /home/runner/mjo.json ${{ inputs.first }} ${{ inputs.last }} /home/runner/reading.json
+          mkdir -p /home/runner/hc /home/runner/rd
+          d=${{ inputs.first }}
+          while [ "$(date -d "$d" +%s)" -le "$(date -d "${{ inputs.last }}" +%s)" ]; do
+            HC_CACHE=/home/runner/hc python3 code/server/climate/hindcast.py /home/runner/clim /home/runner/mjo.json $d $d /home/runner/rd/$d.json > /home/runner/rd/$d.log 2>&1 &
+            d=$(date -d "$d + 1 day" +%F)
+          done
+          wait
+          tail -n 3 /home/runner/rd/*.log
+          python3 -c "import json,glob; r={}; [r.update(json.load(open(f))) for f in sorted(glob.glob('/home/runner/rd/*.json'))]; json.dump(r, open('/home/runner/reading.json','w'), ensure_ascii=False)"
       - name: Keep results (test-data branch)
         if: always()
         run: |
-          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.json /home/runner/reading.json . 2>/dev/null; cp -r /home/runner/hc . 2>/dev/null; ls
+          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.json . 2>/dev/null || true; cp /home/runner/reading.json . 2>/dev/null || true; cp -r /home/runner/hc /home/runner/rd . 2>/dev/null || true; ls
           git init -q -b data && git add -A
           git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m results
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-data

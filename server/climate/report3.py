@@ -410,6 +410,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         src = []            # (lat, lon, level, name) where the cells are born, to follow them with the steering
         meets, capes, steer, plains_at = [], [], None, []
         strat_frac = 0.0
+        _sr = (strat.get("regions") or {}).get(nm) if strat else None
+        strat_here = bool(_sr and _sr["frac"] >= STRAT_MIN)
 
         def add(lv, place, cause, at=None):
             if any(place in v for v in row.values()):
@@ -430,11 +432,15 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             lift = f.get("upslope") or sail_meet
             up_cold = (e.get("upper") or {}).get("flags", {}).get("cold") or (e.get("upper") or {}).get("flags", {}).get("fall")
             fuel = (e.get("cape") or 0)
+            harra = e.get("kind") == "harra" or "حرة" in e["name"]
+            if harra and not (up_cold or strat_here):
+                continue                # 10-19 Nov test: Harrat Rahat named 13-17 Nov on sea air alone, all dry
             if f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
                 lv = _cape_word(fuel)
-                if lv == "heavy" and not up_cold:
-                    lv = "moderate"     # heavy only with the cooling aloft too
-                harra = e.get("kind") == "harra" or "حرة" in e["name"]
+                if lv == "heavy" and not (up_cold and big >= 0.6):
+                    lv = "moderate"     # heavy only with the cooling aloft and a supportive big picture
+                if big < 0.4 and lv != "light":
+                    lv = "moderate" if lv == "heavy" else "light"   # a very weak day: 14-17 Nov edges 0-19 % wet, light
                 cause = ("التقاء الرياح على هضبة الطائف" if sail_meet else
                          ("هواء رطب يصعد الحرة" if harra else "هواء البحر الرطب يصعد الحافة") if f.get("upslope") else
                          "تبريد علوي فوق هواء رطب")
@@ -541,13 +547,15 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         # and a region with no meeting of the winds is a possible shower only
         if big < 0.6 and lv == "قوية":           # the Kingdom's strength under 1.8 of 5
             lv = "مرجحة"
+        if big < 0.4 and strat_frac < STRAT_MIN:
+            lv = min(lv, "متوسطة", key=LEVEL4.index)    # under 1.2 of 5: 12-18 Nov regions 0-19 % wet
         if not meets:
             lv = "ضعيفة"
         elif cmax < 150 and strat_frac < STRAT_MIN and lv in ("مرجحة", "قوية"):
             lv = "متوسطة"               # a meeting with no measured fuel
         cov = COVER_OF[lv] * (1.0 if meets else 0.5) * min(1.0, 0.4 + 0.15 * nplaces)
         cov = max(cov, 0.6 * strat_frac)           # wide lift wets about that share of the region
-        out.append({"name": nm, "row": row, "why": why, "plains": plains_at, "vague": False, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
+        out.append({"name": nm, "row": row, "why": why, "strat": strat_frac, "plains": plains_at, "vague": False, "trough": trough, "meets": list(dict.fromkeys(meets))[:3], "pw": pw,
                     "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts,
                     "cover": cov, "area": areas.get(nm)})
     return out
@@ -637,20 +645,24 @@ def summary(st, rs, regs, day0):
     f00 = BR0._day_factors(st, day0)
     lab0, T0, R0 = R2.case_kind(st, day0)
     sc0 = BR0.strength(st, day0)
-    c0 = BR0.combined(st, day0, day0)
-    ws0 = BR0.wave_score(st, day0, day0, sc0, None if c0 is None else c0["ksa"])["score"]
+    # the drivers alone, not the GFS rain spread (Fahad, 19 Nov 2026: nothing from the model in the reading); the
+    # 10-19 Nov test: 3.3-3.4 on the two wide days (28-32 % of the Kingdom wet), 2.9 on 8 %, under 2.5 on 0.1-4 %
+    ws0 = sc0["total"]
     rows = region_reading(st, rs, regs, day0, W, big=min(1.0, ws0 / 3))
     rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", -r["pct"]))
     B = []
     # a. the strength of the case and our estimate of the rain spread over the Kingdom (from the reading, not a model)
     sc = BR.strength(st, day0)
     c = BR.combined(st, day0, day0)
-    ws = BR.wave_score(st, day0, day0, sc, None if c is None else c["ksa"])["score"]
+    ws = sc["total"]
     f0 = BR._day_factors(st, day0)
     label, Tt, Rr = R2.case_kind(st, day0)
     tot = sum(r["area"] or 0 for r in rows)
     ksa_area = 2.15e6
     spread = sum((r["area"] or 0) * r["cover"] for r in rows) / ksa_area
+    # the band from the strength of the drivers and the wide lift together (10-19 Nov test, see above)
+    sfr = sum((r["area"] or 0) * r.get("strat", 0) for r in rows) / ksa_area
+    spread = max(spread, 0.15 if ws >= 3.0 else 0.05 if ws >= 2.6 else 0.0, sfr)
     band = "محدود، أقل من ٣٪ من مساحة المملكة" if spread < 0.03 else "متوسط، بين ٣ و١٠٪" if spread < 0.10 else "واسع، أكثر من ١٠٪"
     B.append({"p": f"قوة الحالة {n1(ws)} من ٥ ({BR.grade(ws)})، وانتشار المطر المتوقع {band}. وفرصة أن تكون حالة واسعة "
                    f"عند هذه القوة {next(t for lim, t in WIDE_CHANCE if ws < lim)} في سجل ٢٥ موسمًا."})
