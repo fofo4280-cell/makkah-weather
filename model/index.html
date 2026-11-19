@@ -145,7 +145,7 @@
         <div data-sec="ksa" class="card" id="tcCard" hidden>
           <h3>تصادم الرياح السطحية</h3>
           <div class="seg" id="tcLayer">
-            <button data-l="day" class="on">تصادم الرياح</button><button data-l="line">الخط الزمني</button>
+            <button data-l="day" class="on">تصادم الرياح</button><button data-l="line">الخط الزمني</button><button data-l="sea">تدفق البحر الأحمر</button>
           </div>
           <div class="seg tc-hour" id="tcHour">
             <button data-h="11" class="on">١١ صباحًا</button><button data-h="13">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
@@ -162,16 +162,6 @@
             <span id="tcDayLabel"></span>
           </div>
           <p class="hint" id="tcHint"></p>
-        </div>
-        <div data-sec="ksa" class="card" id="rsCard" hidden>
-          <h3>تدفق البحر الأحمر نحو السواحل</h3>
-          <div class="figwrap" dir="ltr"><a id="rsLink" target="_blank" rel="noopener"><img id="rsFig" alt="تدفق البحر الأحمر نحو السواحل"></a></div>
-          <div id="rsNow" class="ksa-low"></div>
-          <div class="mjo-time">
-            <input type="range" id="rsDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
-            <span id="rsDayLabel"></span>
-          </div>
-          <p class="hint">خريطة ساحلية من النموذج الأوروبي، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها الصاعد مع البحر. الخط المتقطع حيث تلتقي الجنوبية بالشمالية، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال. المس الخريطة لفتحها بحجم كامل.</p>
         </div>
         <div data-sec="phase" class="card" id="mjofCard" hidden>
           <h3>مكوّن التذبذب المعزول</h3>
@@ -272,6 +262,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261119rs1"></script>
+<script src="app.js?v=20261119rs2"></script>
 </body>
 </html>

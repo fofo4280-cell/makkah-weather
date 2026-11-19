@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2229,8 +2229,31 @@
     const st = M.st, T = st.taifc;
     $("tcCard").hidden = !(T && T.rows && T.rows.length);
     if ($("tcCard").hidden) return;
-    let lay = M.tcLayer === "line" ? "line" : "day";   // the CAPE view moved to the humidity tab (18 Nov 2026)
+    // third view (Fahad, 19 Nov 2026: «ضعه هنا بجانب الخط الزمني ويكون تبويب ثالث»): the Red Sea flow toward the
+    // coasts (ECMWF, redsea.py), its own days (today and 7 after), maps fig/rsf_NN.png with names drawn in
+    const RS = st.rsflow && st.rsflow.rows && st.rsflow.rows.length ? st.rsflow : null;
+    document.querySelector('#tcLayer button[data-l="sea"]').hidden = !RS;
+    let lay = M.tcLayer === "line" ? "line" : M.tcLayer === "sea" && RS ? "sea" : "day";   // CAPE view moved to the humidity tab
+    let seaK = RS ? todayIdx(RS.days) : 0, dayK = null;
+    const showSea = () => {
+      const k = Math.min(+$("tcDay").value || 0, RS.rows.length - 1), r = RS.rows[k] || {};
+      seaK = k;
+      $("tcHour").hidden = true; $("tcTime").hidden = false; $("tcLegend").hidden = true;
+      tcZoomSetup.off = true; $("tcZoom").hidden = true;
+      if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true;
+      const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = true;
+      $("tcFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tcDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      $("tcHint").textContent = "خريطة ساحلية من النموذج الأوروبي، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال.";
+      $("tcNow").innerHTML = r.text ? `<div><b>${r.text[0]}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("")
+        + (r.src === "gfs" ? "<div>(من النموذج الأمريكي لتعذّر الأوروبي)</div>" : "") : "<div>لا تتوفر بيانات لهذا اليوم.</div>";
+    };
+    const setSlider = () => {   // the two views have their own days
+      if (lay === "sea") { if (dayK === null) dayK = +$("tcDay").value || 0; $("tcDay").max = RS.rows.length - 1; $("tcDay").value = seaK; }
+      else { $("tcDay").max = Math.max(0, T.rows.length - 1); if (dayK !== null) { $("tcDay").value = dayK; dayK = null; } }
+    };
     const show = () => {
+      if (lay === "sea") { showSea(); return; }
       const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
       const hh = M.tcHour || "11";
       const name = lay === "line" ? "tconv_line" : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${hh}`;
@@ -2263,15 +2286,16 @@
     };
     document.querySelectorAll("#tcLayer button").forEach((b) => b.onclick = () => {
       document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x === b));
-      lay = M.tcLayer = b.dataset.l; show();
+      lay = M.tcLayer = b.dataset.l; setSlider(); show();
     });
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
     document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
     kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
-    if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; }
+    if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; if (lay === "sea") setSlider(); }
     $("tcDay").oninput = show;
+    document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x.dataset.l === lay));
     show();
   }
 
@@ -2408,25 +2432,6 @@
   }
 
   // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
-  // the Red Sea flow toward the coasts (Fahad, 19 Nov 2026): one map per day (today and 7 after) + the verdict lines
-  function rsCard() {
-    const st = M.st, R = st.rsflow;
-    $("rsCard").hidden = !(R && R.rows && R.rows.length);
-    if ($("rsCard").hidden) return;
-    const show = () => {
-      const k = +$("rsDay").value || 0, r = R.rows[k] || {};
-      const url = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
-      $("rsFig").src = url; $("rsLink").href = url;
-      $("rsDayLabel").textContent = r.d ? dayLab(r.d) : "";
-      $("rsNow").innerHTML = r.text ? `<div><b>${r.text[0]}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("") + (r.src === "gfs" ? "<div>(من النموذج الأمريكي لتعذّر الأوروبي)</div>" : "")
-        : "<div>لا تتوفر بيانات لهذا اليوم.</div>";
-    };
-    $("rsDay").max = Math.max(0, R.rows.length - 1);
-    if (!rsCard.done) { $("rsDay").value = todayIdx(R.days); rsCard.done = true; }
-    $("rsDay").oninput = show;
-    show();
-  }
-
   function mjofCard() {
     const st = M.st, m = st.mjof;
     $("mjofCard").hidden = !m;
