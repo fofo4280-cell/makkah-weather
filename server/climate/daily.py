@@ -835,6 +835,21 @@ def main():
         print("enso:", enso, flush=True)
     except Exception as e:  # noqa: BLE001
         print("enso failed:", repr(e), flush=True)
+    # the JMA MJO index (OLR + u850 + u200, ENSO removed), the one Dr. Khalid reads; used by the seasonal outlook
+    # (Fahad, 19 Nov 2026: «اجعل التذبذب كما لدى الدكتور تمامًا»)
+    rmm_jma = []
+    try:
+        txt_j = get("https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/figs/olr0-sst1_1991-2021/rmm8.csv").decode("latin-1")
+        for line in txt_j.splitlines():
+            if line.startswith("#") or not line.strip():
+                continue
+            p_ = [x.strip() for x in line.split(",")]
+            rmm_jma.append({"d": f"{int(p_[0]):04d}-{int(p_[1]):02d}-{int(p_[2]):02d}", "r1": round(float(p_[3]), 2),
+                            "r2": round(float(p_[4]), 2), "phase": int(p_[5]), "amp": round(float(p_[7]), 2)})
+        rmm_jma = rmm_jma[-60:]
+        print("rmm jma:", rmm_jma[-1] if rmm_jma else None, flush=True)
+    except Exception as e:  # noqa: BLE001
+        print("rmm jma failed:", repr(e), flush=True)
     surge = []
     for row in pw_rows[1:11]:
         for key, (name, *_b) in BOXES.items():
@@ -849,7 +864,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "enso": enso, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
