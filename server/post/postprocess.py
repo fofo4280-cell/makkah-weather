@@ -181,7 +181,7 @@ class Processor:
             np.save(os.path.join(self.st.dir, f".acc3_{did}.npy"), acc)
         if h == SINGLE["rain24"]["from_h"] + SINGLE["rain24"]["len"]:   # end of the 24-hour map when the run is longer
             np.save(os.path.join(self.st.dir, f".acc27_{did}.npy"), acc)
-        # strongest radar echo since hour 3, for the thunderstorm chance map
+        # strongest radar echo over the 12 to 12 window, for the thunderstorm chance map
         ts = SINGLE["tsprob"]
         if not late and ts["from_h"] <= h <= ts["from_h"] + ts["len"] and "refl" in fields:
             rp = os.path.join(self.st.dir, f".rmax_{did}.npy")
@@ -283,7 +283,7 @@ class Processor:
         jdump(out, {"h": h, "l": labs})
 
     def tsprob(self):
-        """Share of points within 25 km where the radar echo reached 40 dBZ at some hour since hour 3."""
+        """Share of points within 25 km where the radar echo reached 40 dBZ at some hour of the 12 to 12 window (from_h to from_h + len)."""
         from scipy.ndimage import convolve
         spec = SINGLE["tsprob"]
         out = self.st.s.setdefault("single_ts", {})
