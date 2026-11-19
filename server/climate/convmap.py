@@ -5,7 +5,7 @@ from JMA's index (the same index the page uses): its phase angle placed on the b
 longitude a phase (phase 1 from 40 E, 2-3 Indian Ocean 60-100, 4-5 Maritime Continent 100-140, 6-7 western Pacific
 140-180, 8 east of the date line). JMA's own `lon` column (135 + angle) does not match the usual belts, so not used.
 
-    run(gfs_fields, cycle, fig_dir, jma_last) -> {"t0", "t1", "lon", "phase", "amp", "d"} ; writes fig/olr_00.png
+    run(gfs_fields, cycle, fig_dir, jma_last) -> {"t0", "t1", "days", "phase", "amp", "d", ...};\n    writes fig/olr_00.png (analyses) and olr_01..15.png (forecast days)
 """
 import os
 from datetime import datetime, timedelta, timezone
@@ -27,7 +27,23 @@ def _ar(t):
         return t
 
 
+SPEED = 8.0          # degrees of RMM angle a day, as season.py (tested)
+FC_DAYS = 15
+
+
+def _proj(jma, when):
+    """the JMA phase carried east at the usual speed to date `when` (as the seasonal outlook)"""
+    import math
+    ang = math.degrees(math.atan2(jma["r2"], jma["r1"])) % 360
+    lead = (when - datetime.strptime(jma["d"], "%Y-%m-%d").date()).days
+    a = (ang + SPEED * max(lead, 0)) % 360
+    return {**jma, "r1": math.cos(math.radians(a)), "r2": math.sin(math.radians(a)),
+            "phase": int(((a - 180) % 360) // 45) + 1, "proj": lead > 0, "on": when.isoformat()}
+
+
 def run(gfs_fields, cycle, fig_dir, jma_last, log=print):
+    """day 0: the last 24 h of analyses; days 1-15 (Fahad, 19 Nov 2026: «زر الأيام المستقبلية لها وتتغير معها حتى
+    آخر تاريخ ممكن»): 24 h means of this run, forecast hours (24k-18, 24k+6], with the MJO line projected"""
     t_end = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
     acc, used = None, []
     for k in range(4):
@@ -41,18 +57,34 @@ def run(gfs_fields, cycle, fig_dir, jma_last, log=print):
         used.append(c)
     if not used:
         return None
-    olr = acc / len(used)
     t1 = datetime.strptime(max(used), "%Y%m%d%H").replace(tzinfo=timezone.utc) + timedelta(hours=6)
     t0 = datetime.strptime(min(used), "%Y%m%d%H").replace(tzinfo=timezone.utc)
-    draw(olr, t1, jma_last, os.path.join(fig_dir, "olr_00.png"))
-    out = {"t0": t0.strftime("%Y-%m-%dT%H:%MZ"), "t1": t1.strftime("%Y-%m-%dT%H:%MZ"), "cycles": len(used)}
+    draw(acc / len(used), t1, jma_last, os.path.join(fig_dir, "olr_00.png"), fc=False)
+    days = [t1.strftime("%Y-%m-%dT%H:%MZ")]
+    for k in range(1, FC_DAYS + 1):
+        acc, n = None, 0
+        for h in range(24 * k - 12, 24 * k + 7, 6):
+            try:
+                a = gfs_fields(cycle, h, res="0p25", fields=[("olr", rf":ULWRF:top of atmosphere:{h - 6}-{h} hour ave")])["olr"]
+            except Exception as e:  # noqa: BLE001
+                log("olr f", h, "failed:", repr(e))
+                continue
+            acc = a if acc is None else acc + a
+            n += 1
+        if n < 3:
+            break
+        te = t_end + timedelta(hours=24 * k + 6)
+        j = _proj(jma_last, (te + timedelta(hours=3)).date()) if jma_last and jma_last.get("r1") is not None else None
+        draw(acc / n, te, j, os.path.join(fig_dir, f"olr_{k:02d}.png"), fc=True)
+        days.append(te.strftime("%Y-%m-%dT%H:%MZ"))
+    out = {"t0": t0.strftime("%Y-%m-%dT%H:%MZ"), "t1": t1.strftime("%Y-%m-%dT%H:%MZ"), "cycles": len(used), "days": days}
     if jma_last:
         out.update({"r1": jma_last.get("r1"), "r2": jma_last.get("r2"), "phase": jma_last["phase"], "amp": jma_last["amp"], "d": jma_last["d"]})
-    log("olr map:", out)
+    log("olr maps:", len(days))
     return out
 
 
-def draw(olr, t1, jma, path):
+def draw(olr, t1, jma, path, fc=False):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -92,15 +124,22 @@ def draw(olr, t1, jma, path):
         x = 40 + ((ang - 180) % 360) * 20 / 45
         d = datetime.strptime(jma["d"], "%Y-%m-%d")
         ax.plot([x, x], [-17, 37], color="#ffd34d", lw=2.2, transform=ccrs.PlateCarree(), zorder=6)
-        ax.text(x, 34.5, _ar(f"مركز التذبذب: الطور {ar(jma['phase'])}"), fontproperties=fb, fontsize=12, color="#ffd34d",
+        ax.text(x, 34.5, _ar(f"مركز التذبذب{' المتوقع' if jma.get('proj') else ''}: الطور {ar(jma['phase'])}"), fontproperties=fb, fontsize=12, color="#ffd34d",
                 ha="right", va="center", transform=ccrs.PlateCarree(), zorder=7,
                 bbox=dict(boxstyle="round,pad=0.25", fc="#111", ec="none", alpha=.75))
-        sub = (f"الخط الأصفر: مركز التذبذب المداري حسب مؤشر الوكالة اليابانية للأرصاد الجوية في {ar(d.day)} "
-               f"{MONTHS[d.month - 1]}، الطور {ar(jma['phase'])} وقوته {ar(round(float(jma['amp']), 1)).replace('.', '٫')}؛ " + sub)
+        if jma.get("proj"):
+            sub = (f"الخط الأصفر: مركز التذبذب متوقعًا بسرعته المعتادة من آخر رصد للوكالة اليابانية ({ar(d.day)} "
+                   f"{MONTHS[d.month - 1]})، الطور {ar(jma['phase'])}؛ " + sub)
+        else:
+            sub = (f"الخط الأصفر: مركز التذبذب المداري حسب مؤشر الوكالة اليابانية للأرصاد الجوية في {ar(d.day)} "
+                   f"{MONTHS[d.month - 1]}، الطور {ar(jma['phase'])} وقوته {ar(round(float(jma['amp']), 1)).replace('.', '٫')}؛ " + sub)
     mk = t1 + timedelta(hours=3)
     hr = mk.hour % 12 or 12
     when = "صباح" if mk.hour < 12 else ("عصر" if mk.hour < 18 else "مساء")
-    title = f"الحمل الحراري المداري في آخر ٢٤ ساعة حتى {ar(hr)} {when} {DAYS[mk.weekday()]} {ar(mk.day)} {MONTHS[mk.month - 1]}"
+    if fc:
+        title = f"الحمل الحراري المداري المتوقع: ٢٤ ساعة حتى {ar(hr)} {when} {DAYS[mk.weekday()]} {ar(mk.day)} {MONTHS[mk.month - 1]}"
+    else:
+        title = f"الحمل الحراري المداري في آخر ٢٤ ساعة حتى {ar(hr)} {when} {DAYS[mk.weekday()]} {ar(mk.day)} {MONTHS[mk.month - 1]}"
     fig.text(.5, .93, _ar(title), fontproperties=fb, fontsize=17, color="#fff", ha="center")
     fig.text(.5, .875, _ar(sub), fontproperties=fp, fontsize=11.5, color="#bbb", ha="center")
     cax = fig.add_axes([.3, .075, .4, .022])
@@ -110,7 +149,8 @@ def draw(olr, t1, jma, path):
     cb.outline.set_edgecolor("#555")
     for t in cb.ax.get_xticklabels():
         t.set_fontproperties(fp); t.set_color("#ddd")
-    fig.text(.5, -.005, _ar("الأشعة الطويلة الصادرة من قمم السحب (واط/م²)، من تحليلات جي إف إس؛ أقل من ٢٤٠ حمل حراري، "
-                           "وأقل من ١٨٠ حمل عميق"), fontproperties=fp, fontsize=10.5, color="#aaa", ha="center")
+    foot = ("الأشعة الطويلة الصادرة من قمم السحب (واط/م²)، من " + ("توقع" if fc else "تحليلات")
+            + " جي إف إس؛ أقل من ٢٤٠ حمل حراري، وأقل من ١٨٠ حمل عميق")
+    fig.text(.5, -.005, _ar(foot), fontproperties=fp, fontsize=10.5, color="#aaa", ha="center")
     fig.savefig(path, facecolor="#111", bbox_inches="tight")
     plt.close(fig)
