@@ -163,6 +163,16 @@
           </div>
           <p class="hint" id="tcHint"></p>
         </div>
+        <div data-sec="ksa" class="card" id="rsCard" hidden>
+          <h3>تدفق البحر الأحمر نحو السواحل</h3>
+          <div class="figwrap" dir="ltr"><a id="rsLink" target="_blank" rel="noopener"><img id="rsFig" alt="تدفق البحر الأحمر نحو السواحل"></a></div>
+          <div id="rsNow" class="ksa-low"></div>
+          <div class="mjo-time">
+            <input type="range" id="rsDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
+            <span id="rsDayLabel"></span>
+          </div>
+          <p class="hint">خريطة ساحلية من توقع جي إف إس، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار. الخط المتقطع حيث تلتقي الجنوبية بالشمالية، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال. المس الخريطة لفتحها بحجم كامل.</p>
+        </div>
         <div data-sec="phase" class="card" id="mjofCard" hidden>
           <h3>مكوّن التذبذب المعزول</h3>
           <div class="seg" id="mjofLayer">
@@ -262,6 +272,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261119li2"></script>
+<script src="app.js?v=20261119rs1"></script>
 </body>
 </html>

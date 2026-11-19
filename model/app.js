@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2408,6 +2408,25 @@
   }
 
   // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
+  // the Red Sea flow toward the coasts (Fahad, 19 Nov 2026): one map per day (today and 7 after) + the verdict lines
+  function rsCard() {
+    const st = M.st, R = st.rsflow;
+    $("rsCard").hidden = !(R && R.rows && R.rows.length);
+    if ($("rsCard").hidden) return;
+    const show = () => {
+      const k = +$("rsDay").value || 0, r = R.rows[k] || {};
+      const url = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("rsFig").src = url; $("rsLink").href = url;
+      $("rsDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      $("rsNow").innerHTML = r.text ? `<div><b>${r.text[0]}.</b></div><div>${r.text[1]}.</div><div>${r.text[2]}.</div>`
+        : "<div>لا تتوفر بيانات لهذا اليوم.</div>";
+    };
+    $("rsDay").max = Math.max(0, R.rows.length - 1);
+    if (!rsCard.done) { $("rsDay").value = todayIdx(R.days); rsCard.done = true; }
+    $("rsDay").oninput = show;
+    show();
+  }
+
   function mjofCard() {
     const st = M.st, m = st.mjof;
     $("mjofCard").hidden = !m;
