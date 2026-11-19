@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2432,6 +2432,26 @@
   }
 
   // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
+  // tropical convection with the MJO centre line (convmap.py, Fahad 19 Nov 2026)
+  function olrCard() {
+    const st = M.st || {};
+    const ok = !!st.olr;
+    $("olrCard").hidden = !ok;
+    if (!ok) return;
+    const days = st.olr.days || [st.olr.t1];
+    const mk = (t) => new Date(Date.parse(t) + 3 * 3600e3).toISOString().slice(0, 10);   // Makkah date of the window end
+    const show = () => {
+      const k = Math.min(+$("olrDay").value || 0, days.length - 1);
+      const url = `${CL}fig/olr_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("olrFig").src = url; $("olrLink").href = url;
+      $("olrDayLabel").textContent = (k === 0 ? "آخر ٢٤ ساعة، " : "متوقع، ") + dayLab(mk(days[k]));
+    };
+    $("olrTime").hidden = days.length < 2;
+    $("olrDay").max = days.length - 1;
+    $("olrDay").oninput = show;
+    show();
+  }
+
   function mjofCard() {
     const st = M.st, m = st.mjof;
     $("mjofCard").hidden = !m;

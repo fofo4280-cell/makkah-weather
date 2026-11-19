@@ -83,10 +83,19 @@
         </nav>
         <div data-sec="report" class="card report" id="mjoReport" hidden></div>
         <div data-sec="phase" class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
+        <div data-sec="phase" class="card" id="olrCard" hidden>
+          <h3>الحمل الحراري المداري ومركز التذبذب</h3>
+          <div class="figwrap" dir="ltr"><a id="olrLink" target="_blank" rel="noopener"><img id="olrFig" alt="خريطة الحمل الحراري المداري" style="width:100%"></a></div>
+          <div class="mjo-time" id="olrTime" hidden>
+            <input type="range" id="olrDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="olrDayLabel"></span>
+          </div>
+          <p class="hint">اليوم الأول: السحب الركامية في آخر ٢٤ ساعة من تحليلات جي إف إس، وبعده حرّك الشريط لترى الأيام القادمة من توقع جي إف إس حتى ١٥ يومًا، وكلما اشتد اللون كان الحمل أعمق. الخط الأصفر مركز التذبذب المداري حسب آخر رصد للوكالة اليابانية للأرصاد الجوية، وفي الأيام القادمة يتقدم بسرعته المعتادة. آخر الأيام أقل ثقة. أطوارنا الداعمة للأمطار الواسعة على المملكة ٧ و٨ و١، أي حين يبتعد الحمل شرقًا إلى غرب المحيط الهادئ ثم يعود إلى أفريقيا. تتحدث كل ليلة، والمسها لفتحها بحجم كامل.</p>
+        </div>
         <div data-sec="phase" class="card">
           <h3>مخطط أطوار التذبذب</h3>
           <div id="mjoPhase"></div>
-          <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مكتب الأرصاد الأسترالي، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
+          <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مؤشر الوكالة اليابانية للأرصاد الجوية (نفس مؤشر الدكتور خالد العتيبي)، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
         </div>
         <div data-sec="waves" class="card" id="twCard" hidden>
           <h3>موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال</h3>
@@ -259,6 +268,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261119ci1"></script>
+<script src="app.js?v=20261119m32"></script>
 </body>
 </html>
