@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2240,7 +2240,7 @@
     if ($("tcCard").hidden) return;
     // third view (Fahad, 19 Nov 2026: «ضعه هنا بجانب الخط الزمني ويكون تبويب ثالث»): the Red Sea flow toward the
     // coasts (ECMWF, redsea.py), its own days (today and 7 after), maps fig/rsf_NN.png with names drawn in
-    const RS = st.rsflow && st.rsflow.rows && st.rsflow.rows.length ? st.rsflow : null;
+    const RS = null;   // the Red Sea flow has its own card in the «الحمل الحراري» tab since 20 Nov 2026 (Fahad)
     document.querySelector('#tcLayer button[data-l="sea"]').hidden = !RS;
     let lay = M.tcLayer === "line" ? "line" : M.tcLayer === "sea" && RS ? "sea" : "day";   // CAPE view moved to the humidity tab
     let seaK = RS ? todayIdx(RS.days) : 0, dayK = null;
@@ -2310,6 +2310,28 @@
 
   // the inland penetration of the Red Sea energy (Fahad, 19 Nov 2026: «توغل التدفق للحمل الحراري cape في قسم الرطوبة
   // بدلا عن تبويب عدم الاستقرار»): ECMWF maps fig/rsc_NN.png (redsea.py), today and 7 after, Dr. Khalid's colours
+  // the Red Sea flow toward the coasts in the «الحمل الحراري» tab (Fahad, 19 Nov 2026 night: «اجعل لها تبويب خاص الحمل
+  // الحراري بعد الرطوبة»), maps fig/rsf_NN.png from redsea.py, today and 7 after
+  function rsCard() {
+    const st = M.st, R = st.rsflow, rows = R && R.rows ? R.rows : [];
+    $("rsCard").hidden = !rows.length;
+    if ($("rsCard").hidden) return;
+    const show = () => {
+      const k = +$("rsDay").value || 0, r = rows[k] || {};
+      $("rsFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("rsDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      const mdl = r.src === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
+      $("rsHint").textContent = `خريطة ساحلية من ${mdl}، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال.`;
+      $("rsNow").innerHTML = r.text ? `<div><b>${r.text[0]}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("")
+        : "<div>لا تتوفر بيانات لهذا اليوم.</div>";
+    };
+    if (!rsCard.done) {
+      rsCard.done = true;
+      $("rsDay").oninput = show;
+      $("rsDay").max = Math.max(0, rows.length - 1); $("rsDay").value = todayIdx(R.days);
+    }
+    show();
+  }
   function tpCard() {
     const st = M.st, R = st.rsflow, rows = R && R.rows ? R.rows : [];
     $("tpCard").hidden = !rows.some((r) => r.inland_share != null);
@@ -2321,7 +2343,8 @@
       const k = +$("tpDay").value || 0, r = rows[k] || {};
       $("tpFig").src = `${CL}fig/rsc_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
       $("tpDayLabel").textContent = r.d ? dayLab(r.d) : "";
-      $("tpNow").innerHTML = r.inland_share == null ? "<div>لا تتوفر خريطة الأوروبي لهذا اليوم.</div>"
+      if (r.src === "gfs") $("tpHint").textContent = $("tpHint").textContent.replace("من النموذج الأوروبي", "من النموذج الأمريكي");
+      $("tpNow").innerHTML = r.inland_share == null ? "<div>لا تتوفر خريطة لهذا اليوم.</div>"
         : `<div><b>${LV[r.inland] || ""}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div><div>الطاقة المتصلة بالبحر تغطي ${num(r.inland_share, 1)}٪ من نجد والقصيم والوسطى.</div>`;
     };
     if (!tpCard.done) {
