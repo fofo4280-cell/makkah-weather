@@ -17,7 +17,7 @@ while d < date(2026, 10, 16):
         nc = netCDF4.Dataset("/tmp/c.nc")
         if d.day == 1: print({k: (v.shape, getattr(v, 'units', '')) for k, v in nc.variables.items()}, flush=True)
         lat = nc.variables["lat"][:]; lon = nc.variables["lon"][:]
-        name = [k for k, v in nc.variables.items() if v.ndim >= 2][0]
+        name = "cmorph"
         v = np.squeeze(nc.variables[name][:]).astype(np.float32)
         v = np.asarray(np.ma.filled(v, np.nan)); v[v < 0] = np.nan
         j = (lat >= 19.9) & (lat <= 24.1); i = (lon >= 38.9) & (lon <= 42.1)
