@@ -433,8 +433,9 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             up_cold = (e.get("upper") or {}).get("flags", {}).get("cold") or (e.get("upper") or {}).get("flags", {}).get("fall")
             fuel = (e.get("cape") or 0)
             harra = e.get("kind") == "harra" or "حرة" in e["name"]
-            if harra and not (up_cold or strat_here):
-                continue                # 10-19 Nov test: Harrat Rahat named 13-17 Nov on sea air alone, all dry
+            fall = (e.get("upper") or {}).get("fall")
+            if harra and not (strat_here or (fall is not None and fall <= -10 and big >= 0.6)):
+                continue                # 10-19 Nov test: Harrat Rahat named 13-17 Nov without a real height fall, all dry
             if f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
                 lv = _cape_word(fuel)
                 if lv == "heavy" and not (up_cold and big >= 0.6):
@@ -545,6 +546,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         lv = level4(pct)
         # not tested on enough cases yet (Fahad, 19 Nov 2026: «لا تصدر شيء الا متيقن منه»): no «قوية» on a weak day,
         # and a region with no meeting of the winds is a possible shower only
+        if lv == "قوية" and strat_frac < 0.10:
+            lv = "مرجحة"                 # 10-19 Nov test: the wide days were the wide-lift days (Qassim 91 %, Hail 45 %)
         if big < 0.6 and lv == "قوية":           # the Kingdom's strength under 1.8 of 5
             lv = "مرجحة"
         if big < 0.4 and strat_frac < STRAT_MIN:
