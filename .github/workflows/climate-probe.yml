@@ -24,7 +24,7 @@ jobs:
       - name: Keep results
         if: always()
         run: |
-          mkdir /tmp/p && cd /tmp/p && cp /home/runner/obs.npz /home/runner/obs.log . 2>/dev/null || true
+          mkdir /tmp/p && cd /tmp/p && cp /home/runner/*.npz /home/runner/obs.log . 2>/dev/null || true
           git init -q -b data && git add -A
           git -c user.name="study" -c user.email="actions@users.noreply.github.com" commit -q -m results
           git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:study-data-conv
