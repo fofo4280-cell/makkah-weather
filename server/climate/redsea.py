@@ -116,6 +116,108 @@ def tongue(cape, lat, m):
     return tip, float((cape[inland] >= TONGUE).mean() * 100)
 
 
+# inland penetration of the sea energy (Fahad, 19 Nov 2026: «تدفق الحمل الحراري cape احيانا يدخل الى داخل الجزيرة
+# العربية في مواسم الخصب وهذا ما نريده ويقصده الدكتور»): share of Najd, Al-Qassim and the centre (land 18-30 N,
+# 41.5-50 E) under CAPE >= INLAND_CAPE joined to the Red Sea. Test 19 Nov 2026 (ECMWF, 341 days: mid Nov 2024-May 2025,
+# Oct-Dec 2025, 1 Oct-18 Nov 2026, vs PERSIANN, interior land 20-29 N 41.5-46 E, wide = 10 % wet): corr 0.43;
+# >= 3 %: 39 days, mean wet 24.8 %, 64 % wide (others 4.9 %); >= 2 %: 69 days, 19.7 %, 54 % wide (others 4.1 %).
+# Holds in autumn-winter (28.7 vs 4.7 %) and spring (20.4 vs 5.6 %). It catches 25 of 78 wide interior days: the
+# rest come by other roads (Gulf moisture, troughs).
+INLAND_CAPE = 500
+INLAND_LEVELS = (2.0, 3.0)                 # % : «بداية دخول», «توغّل واضح»
+IN_EXTENT = (32.5, 51.5, 14.0, 32.5)
+DR_MAX = 3600
+DR_COLS = [(0, "#00000000"), (140 / DR_MAX, "#00000000"), (150 / DR_MAX, "#2e9e3a"), (300 / DR_MAX, "#6cc04a"),
+           (450 / DR_MAX, "#c8e04a"), (600 / DR_MAX, "#f3e33b"), (750 / DR_MAX, "#f7b22c"), (900 / DR_MAX, "#f07a22"),
+           (1050 / DR_MAX, "#e2421b"), (1350 / DR_MAX, "#c0141a"), (1650 / DR_MAX, "#8a0d16"), (1950 / DR_MAX, "#4a0a10"),
+           (2250 / DR_MAX, "#1c1416"), (2700 / DR_MAX, "#3b3b3d"), (3150 / DR_MAX, "#7d7d80"), (1, "#c8c8cc")]
+IN_PLACES = [("جدة", 21.54, 39.17), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("المدينة", 24.47, 39.61),
+             ("تبوك", 28.38, 36.57), ("حائل", 27.52, 41.69), ("بريدة", 26.33, 43.97), ("الرياض", 24.71, 46.68),
+             ("أبها", 18.22, 42.5), ("جازان", 16.89, 42.55), ("نجران", 17.49, 44.13), ("الدوادمي", 24.5, 44.39),
+             ("بيشة", 19.99, 42.6), ("الدمام", 26.42, 50.09)]
+
+
+def inland(cape, m):
+    """(share % of the interior under sea-joined CAPE, mask of that sea-joined land)"""
+    from scipy.ndimage import label
+    LA, LO = m["LA"], m["LO"]
+    hi = (cape >= INLAND_CAPE) & m["land"]
+    lab, _ = label(hi | (m["sea"] & (LA < 28)))
+    seal = set(np.unique(lab[m["sea"] & (LA >= 16) & (LA <= 24)])) - {0}
+    conn = np.isin(lab, list(seal)) & m["land"]
+    interior = m["land"] & (LA >= 18) & (LA <= 30) & (LO >= 41.5) & (LO <= 50)
+    return float(conn[interior].mean() * 100), conn
+
+
+def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300):
+    """Dr. Khalid's colours (green, yellow, red, maroon, black, grey) over light terrain; dashed line round the
+    sea-joined energy"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib import patheffects as pe
+    from matplotlib.colors import LightSource, LinearSegmentedColormap, to_rgba
+    from scipy.ndimage import zoom, gaussian_filter
+    fam = _font()
+    W, E, S, N = IN_EXTENT
+    j = (lat >= S - .5) & (lat <= N + .5)
+    i = (lon >= W - .5) & (lon <= E + .5)
+    la, lo = lat[j], lon[i]
+    sb = lambda a: a[np.ix_(j, i)]
+    asp = (N - S) / ((E - W) * math.cos(math.radians((S + N) / 2)))
+    fig = plt.figure(figsize=(width_px / 200, width_px / 200 * asp), dpi=200)
+    fig.patch.set_facecolor("#a3bad1")
+    ax = fig.add_axes([0, 0, 1, 1])
+    up = 6
+    ext = [lo[0], lo[-1], la[-1], la[0]]
+    h = gaussian_filter(zoom(np.clip(sb(hgt), 0, None), up, order=3), 2)
+    shade = LightSource(azdeg=315, altdeg=40).hillshade(h, vert_exag=0.02, dx=1, dy=1)
+    lf = gaussian_filter(zoom(sb(m["land"]).astype(float), up, order=1), 3)
+    terr = LinearSegmentedColormap.from_list("t", [(0, "#9fb38a"), (.15, "#c9c08f"), (.35, "#c7a77a"), (.6, "#a98d6c"),
+                                                   (1, "#8a7a6a")])
+    rgb = terr(np.clip(h / 2500, 0, 1))[..., :3] * (0.75 + 0.35 * shade[..., None])
+    ax.imshow(np.where((lf > 0.5)[..., None], np.clip(rgb, 0, 1), np.array([0.64, 0.73, 0.82])), extent=ext,
+              interpolation="bilinear", zorder=0)
+    cm = LinearSegmentedColormap.from_list("dr", [(p, to_rgba(c)) for p, c in DR_COLS], N=512)
+    ax.imshow(np.clip(gaussian_filter(zoom(sb(cape), up, order=1), 3), 0, None), extent=ext, cmap=cm, vmin=0,
+              vmax=DR_MAX, alpha=.92, interpolation="bilinear", zorder=1)
+    flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
+    ax.contour(flo, fla, lf, levels=[.5], colors=["#4d5560"], linewidths=[.6], zorder=2)
+    cf = gaussian_filter(zoom(sb(conn).astype(float), up, order=1), 2)
+    if cf.max() > .5:
+        ax.contour(flo, fla, cf, levels=[.5], colors=["#1d2a3a"], linewidths=[1.3], linestyles=[(0, (4, 3))], zorder=3)
+    st = 4
+    LOg, LAg = np.meshgrid(lo[::st], la[::st])
+    ax.quiver(LOg, LAg, sb(u)[::st, ::st], sb(v)[::st, ::st], color="#26303b", alpha=.6, scale=230, width=0.0028,
+              headwidth=3.4, zorder=4)
+    halo = [pe.withStroke(linewidth=2.2, foreground="#f2efe6")]
+    for nm, y, x in IN_PLACES:
+        ax.plot(x, y, "o", ms=2.6, color="#ffffff", mec="#1b1f24", mew=.6, zorder=6)
+        ax.text(x + .15, y, nm, ha="left", va="center", fontsize=7, color="#1b1f24", family=fam, path_effects=halo, zorder=6)
+    lx, ly = [W + .5, W + 5.5], S + .6
+    ax.imshow(np.linspace(0, 1, 200)[None, :], extent=[lx[0], lx[1], ly, ly + .3], cmap=cm, vmin=0, vmax=1, zorder=7,
+              aspect="auto")
+    for t in (150, 600, 1050, 1650, 2250, 3000, 3600):
+        ax.text(lx[0] + (lx[1] - lx[0]) * t / DR_MAX, ly - .1, str(t).translate(AR), ha="center", va="top", fontsize=7,
+                color="#1b1f24", family=fam, zorder=7, path_effects=halo)
+    ax.text(lx[1] + .2, ly + .15, "طاقة الحمل (جول/كجم)", ha="left", va="center", fontsize=6.6, color="#1b1f24",
+            family=fam, zorder=7, path_effects=halo)
+    ax.text(W + .5, S + 1.5, "الخط المتقطع: الطاقة (٥٠٠ فأكثر) المتصلة بالبحر الأحمر  •  الأسهم: الرياح القريبة من السطح",
+            ha="left", va="center", fontsize=6.4, color="#1b1f24", family=fam, zorder=7, path_effects=halo)
+    ax.set_xlim(W, E)
+    ax.set_ylim(S, N)
+    ax.set_aspect(1 / math.cos(math.radians((S + N) / 2)))
+    ax.axis("off")
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=220, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _cut(f):
     la = np.linspace(90, -90, f["u10"].shape[0])
     lo = np.linspace(0, 360, f["u10"].shape[1], endpoint=False)
@@ -314,10 +416,18 @@ def run(gfs_fields, cycle, out_fig, log=print):
             r["text"] = list(verdict(r))
             draw(os.path.join(out_fig, f"rsf_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], r["z"],
                  cmax=SRC[src]["cmax"])
+            try:   # the inland penetration map (humidity tab), ECMWF only: GFS energy is far lower
+                if src == "ec":
+                    r["inland_share"], conn = inland(cape, m)
+                    lv = INLAND_LEVELS
+                    r["inland"] = "clear" if r["inland_share"] >= lv[1] else ("start" if r["inland_share"] >= lv[0] else "none")
+                    draw_inland(os.path.join(out_fig, f"rsc_{k:02d}.png"), lat, lon, u, v, cape, m, static["hgt"], conn)
+            except Exception as e:  # noqa: BLE001
+                log("inland energy map failed", d, repr(e)[:160], flush=True)
             log("red sea flow", d, r["north"], r["z"], r["at"], r["score"], flush=True)
         except Exception as e:  # noqa: BLE001
             log("red sea flow failed", d, repr(e)[:160], flush=True)
             r = {"d": d.isoformat()}
         rows.append(r)
         days.append(d.isoformat())
-    return {"days": days, "rows": rows, "extent": list(EXTENT)}
+    return {"days": days, "rows": rows, "extent": list(EXTENT), "in_extent": list(IN_EXTENT)}
