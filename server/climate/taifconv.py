@@ -14,7 +14,7 @@ nightly run uses the evening 12Z cycle and finishes after midnight Makkah). Days
 that day's 06Z GFS cycle (f03, f06 = 12 and 3 PM Makkah: near-analyses); later days from the nightly 12Z cycle.
 
 run(gfs_fields, cycle, out_fig) -> dict for mjo.json["taifc"]; draws fig/tconv_line.png, fig/tconv_NN.png (one map
-per day, with the axis of each collision zone as a dashed line). GFS only, as every product of the oscillation page.
+per day, with the axis of each collision zone as a dashed line). Page maps from ECMWF since 19 Nov 2026 (Fahad), through\necmwf.fields_like_gfs; a GFS copy (draw=False) still feeds the nightly report's Makkah reading.
 """
 import math
 import os
@@ -39,9 +39,10 @@ PAST, NEXT = 7, 7
 WIND = [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
 UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("cape", r":CAPE:surface:")]
 # afternoon surface CAPE (Fahad, 17 Nov 2026: third view of the card), J/kg; calm sequential scale on the dark map
-CAPE_SCALE = {"vmin": 0, "vmax": 2500, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
+CAPE_SCALE = {"vmin": 0, "vmax": 4000, "cols": [(0, "#00000000"), (.04, "#00000000"), (.1, "#2c7f8c"), (.2, "#3fa79a"),
                                                 (.4, "#a9cf6a"), (.6, "#e9cf55"), (.8, "#e58a4c"), (1, "#c2445a")],
-              "label": "طاقة عدم الاستقرار السطحية (النموذج الأمريكي)", "unit": "جول/كجم", "ticks": [0, 500, 1000, 1500, 2000, 2500]}
+              "label": "طاقة عدم الاستقرار (النموذج الأوروبي)", "unit": "جول/كجم", "ticks": [0, 1000, 2000, 3000, 4000]}
+# ECMWF gives the most-unstable CAPE (the best parcel of the lowest 300 hPa), higher than the GFS surface CAPE: scale 0-4000
 STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 PLACES = [("جدة", 21.54, 39.17), ("رابغ", 22.80, 39.03), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الهدا", 21.36, 40.28), ("الشفا", 21.07, 40.33),
           ("السيل", 21.6, 40.43), ("حرة رهاط", 22.8, 40.1), ("الجموم", 21.62, 39.70)]
@@ -196,7 +197,36 @@ def measure(f):
             "front": round(front, 2), "r_edge": round(r_edge, 1), "r_east": round(r_east, 1), **west_index(f)}
 
 
-def run(gfs_fields, cycle, out_fig):
+TAIF_SAY = {"edge": "حكم اليوم حول الطائف: التصادم على حافة الهدا والشفا",
+            "east": "حكم اليوم حول الطائف: التصادم شرق الطائف وشماله",
+            "eastdry": "حكم اليوم حول الطائف: التقارب أقوى شرقه لكن الطاقة هناك ضعيفة، فالحافة أرجح",
+            "weak": "حكم اليوم حول الطائف: التصادم ضعيف"}
+
+
+def explain(f, row, kind, hour):
+    """the explanation lines of a map: where the collision (or the energy) is, at the cities, and the Taif verdict"""
+    import figures as F
+    N = F.ar_num
+    lat, lon = f["lat"], f["lon"]
+    uh, vh, caph = f["H"][hour]
+    out = []
+    if kind == "cape":
+        v = F.nearest_vals(caph, lat, lon, radius=0.5, mode="max")
+        hi = [f"{k} ({N(round(x, -1))})" for k, x in sorted(v.items(), key=lambda kv: -kv[1]) if x >= 250]
+        out.append(f"أعلى طاقة قرب {F.ar_list(hi, 4)}" if hi else "طاقة ضعيفة (أقل من ٢٥٠) قرب المدن كلها")
+    else:
+        v = F.nearest_vals(convergence(uh, vh, lat), lat, lon, radius=0.5, mode="max")
+        hi = [k for k, x in sorted(v.items(), key=lambda kv: -kv[1]) if x >= CONV_MIN]
+        out.append(f"تصادم قوي قرب {F.ar_list(hi, 5)}" if hi else "لا تصادم قويًا قرب المدن في هذه الساعة")
+    w_ = row.get("where")
+    if w_ == "east" and not row.get("fuel", True):
+        w_ = "eastdry"
+    if w_ in TAIF_SAY:
+        out.append(TAIF_SAY[w_])
+    return out
+
+
+def run(gfs_fields, cycle, out_fig, model="الأوروبي", draw=True):
     t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
     d0 = t0.date()
     today = d0 + timedelta(days=1)
@@ -217,15 +247,18 @@ def run(gfs_fields, cycle, out_fig):
             print("taif collision day failed", d, repr(e)[:160], flush=True)
             rows.append({"d": d.isoformat(), "fc": d > d0, "where": None})
     for k, d in enumerate(days):
-        if d in flds:
+        if d in flds and draw:
             try:
                 for hh in HOURS:
-                    draw_map(os.path.join(out_fig, f"tconv_{k:02d}_{hh}.png"), flds[d], hour=hh)
-                    draw_map(os.path.join(out_fig, f"tcape_{k:02d}_{hh}.png"), flds[d], kind="cape", hour=hh)
+                    draw_map(os.path.join(out_fig, f"tconv_{k:02d}_{hh}.png"), flds[d], hour=hh, when=d, model=model,
+                             lines=explain(flds[d], rows[k], "conv", hh))
+                    draw_map(os.path.join(out_fig, f"tcape_{k:02d}_{hh}.png"), flds[d], kind="cape", hour=hh, when=d,
+                             model=model, lines=explain(flds[d], rows[k], "cape", hh))
             except Exception as e:  # noqa: BLE001
                 print("taif collision map failed", k, repr(e)[:160], flush=True)
     try:
-        draw_line(os.path.join(out_fig, "tconv_line.png"), rows, today)
+        if draw:
+            draw_line(os.path.join(out_fig, "tconv_line.png"), rows, today)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
@@ -245,7 +278,7 @@ def _font():
         return "sans-serif"
 
 
-def draw_map(path, f, width_px=1400, kind="conv", hour="11"):
+def draw_map(path, f, width_px=1400, kind="conv", hour="11", when=None, model="الأوروبي", lines=()):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -317,6 +350,21 @@ def draw_map(path, f, width_px=1400, kind="conv", hour="11"):
     ax.set_ylim(s, n)
     ax.set_aspect(1 / math.cos(math.radians((s + n) / 2)))
     ax.axis("off")
+    if when is not None:
+        # the card style (Fahad, 19 Nov 2026): names, title box with the explanation, legend box
+        import figures as F
+        F.card_cities(ax)
+        if kind == "cape":
+            leg = {"cols": CAPE_SCALE["cols"][2:], "vmin": CAPE_SCALE["vmin"], "vmax": CAPE_SCALE["vmax"],
+                   "ticks": CAPE_SCALE["ticks"], "caption": "جول/كجم، والخط المتقطع محور تصادم الرياح"}
+            leg["cols"] = [(0, CAPE_SCALE["cols"][2][1])] + leg["cols"]
+            ttl = "طاقة عدم الاستقرار"
+        else:
+            leg = {"cols": [(0, "#8fd0ea"), (.5, "#3a434e"), (.62, "#f6e27a"), (.72, "#f5a623"), (.86, "#e2532d"),
+                            (1, "#b3124a")], "vmin": -8, "vmax": 8, "ticks": [-8, -4, 0, 4, 8],
+                   "caption": "تقارب الرياح السطحية (أحمر)، والمتقطع محور التصادم"}
+            ttl = "تصادم الرياح السطحية"
+        F.card_frame(fig, f"{ttl} — النموذج {model}", F.when_ar(when, int(hour)), lines, leg)
     fig.savefig(path, dpi=200, facecolor=BG)
     plt.close(fig)
     try:   # keep the files small: 90 maps a night
