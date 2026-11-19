@@ -1956,6 +1956,11 @@
   // zoom buttons, and the coordinates of a tapped point (Fahad, 17 Nov 2026). The map is a plain latitude-longitude
   // picture of the extent [west, east, south, north], edge to edge, so a point's place in the picture gives its position.
   const AR_DIG = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
+  // the Kingdom maps come from ECMWF since 19 Nov 2026 (Fahad), drawn in the card style: names, title, explanation and
+  // legend are inside the picture, so the page adds no names or legend of its own over them (model set in mjo.json)
+  const MODEL_AR = (m) => m === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
+  const CARDED = (o) => !!(o && o.model);
+  const fixModel = (t, o) => !CARDED(o) ? t : t.replace(/توقع جي إف إس|النموذج الأمريكي/g, MODEL_AR(o.model));
   function ksaZoomSetup(ext) {
     if (ksaZoomSetup.done) { ksaZoomSetup.ext = ext; return; }
     ksaZoomSetup.done = true; ksaZoomSetup.ext = ext;
@@ -2020,8 +2025,8 @@
       $("ksaFig").src = url;
       const d = K.days[k];
       $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
-      $("ksaLegend").innerHTML = st.figs && st.figs[lay] ? legendHTML(st.figs[lay]) : "";
-      $("ksaHint").textContent = KSA_HINT[lay] + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
+      $("ksaLegend").innerHTML = st.figs && st.figs[lay] && !CARDED(K) ? legendHTML(st.figs[lay]) : "";
+      $("ksaHint").textContent = fixModel(KSA_HINT[lay], K) + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
       ksaTapText();
       const box = $("ksaLow");
       // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
@@ -2041,7 +2046,7 @@
       lay = M.ksaLayer = b.dataset.l; show();
     });
     ksaZoomSetup(K.extent || [33, 57.5, 14, 33.5]);
-    kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(K)) kmapNames($("ksaInner"), K.extent || [33, 57.5, 14, 33.5]);
     if (K.vals && KSAV.v !== st.updated) {
       KSAV.v = st.updated;
       fetch(`${CL}${K.vals.file}?v=${encodeURIComponent(st.updated)}`).then((r) => r.arrayBuffer())
@@ -2141,10 +2146,10 @@
     $("kwFig").src = `${CL}fig/${kd}_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
     const d = K.days[k];
     $("kwDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
-    $("kwLegend").innerHTML = st.figs && st.figs[kd] ? legendHTML(st.figs[kd]) : "";
-    $("kwHint").textContent = (KW.lay === "7"
+    $("kwLegend").innerHTML = st.figs && st.figs[kd] && !CARDED(K) ? legendHTML(st.figs[kd]) : "";
+    $("kwHint").textContent = fixModel(KW.lay === "7"
       ? "الرياح عند ٧٠٠ هكتوباسكال (نحو ٣ كم فوق سطح البحر) من توقع جي إف إس. هذه الطبقة توجّه السحب الركامية وتنقل الرطوبة إلى المرتفعات."
-      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.")
+      : "الرياح عند ٥٠٠ هكتوباسكال (نحو ٥٫٥ كم) من توقع جي إف إس. هذه الطبقة تُظهر مسار الأخاديد والمنخفضات العلوية وتوجّه السحب العميقة.", K)
       + " الأسهم تشير إلى الجهة التي تهب نحوها الرياح، وطولها يزيد مع سرعتها، والألوان والخطوط سرعة الرياح كل ٥ م/ث. كبّر الخريطة فتظهر أسهم أكثر في المنطقة التي تنظر إليها، والمس أي موضع لترى إحداثياته واتجاه الرياح وسرعتها فيه.";
     kwDraw(); kwTapText();
   }
@@ -2153,7 +2158,7 @@
     $("kwCard").hidden = !(K && K.wind && K.days && K.days.length);
     if ($("kwCard").hidden) return;
     kwSetup();
-    kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(K)) kmapNames($("kwInner"), K.extent || [33, 57.5, 14, 33.5]);
     $("kwDay").max = Math.max(0, K.days.length - 1);
     if (!kwCard.done) { $("kwDay").value = todayIdx(K.days); kwCard.done = true; }
     if (!KW.data || KW.v !== st.updated) {
@@ -2264,9 +2269,9 @@
       tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
       if (lay === "line") { if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true; }
       const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = lay === "line";   // names belong to the map only
-      $("tcLegend").hidden = !(lay === "cape" && T.cape_legend);
+      $("tcLegend").hidden = !(lay === "cape" && T.cape_legend) || CARDED(T);
       if (lay === "cape" && T.cape_legend) $("tcLegend").innerHTML = legendHTML(T.cape_legend);
-      $("tcHint").textContent = TC_HINT[lay];
+      $("tcHint").textContent = fixModel(TC_HINT[lay], T);
       const r = lay !== "line" ? T.rows[k] : T.rows[Math.max(0, T.days.indexOf(todayISO()))];
       $("tcDayLabel").textContent = r ? dayLab(r.d) : "";
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
@@ -2291,7 +2296,7 @@
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
     document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
-    kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
+    if (!CARDED(T)) kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
     $("tcDay").max = Math.max(0, T.rows.length - 1);
     if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; if (lay === "sea") setSlider(); }
     $("tcDay").oninput = show;
@@ -2311,14 +2316,16 @@
       document.querySelectorAll("#tpHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
       $("tpFig").src = `${CL}fig/tcape_${String(k).padStart(2, "0")}_${hh}.png?v=${encodeURIComponent(st.updated)}`;
       const r = T.rows[k]; $("tpDayLabel").textContent = r ? dayLab(r.d) : "";
-      if (T.cape_legend) $("tpLegend").innerHTML = legendHTML(T.cape_legend);
+      $("tpLegend").hidden = CARDED(T);
+      if (CARDED(T)) $("tpHint").textContent = $("tpHint").textContent.replace("طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي", "طاقة عدم الاستقرار في الساعة المختارة من " + MODEL_AR(T.model) + " (أعلى طاقة لهواء الطبقات السفلى)");
+      if (T.cape_legend && !CARDED(T)) $("tpLegend").innerHTML = legendHTML(T.cape_legend);
     };
     if (!tpCard.done) {
       tpCard.done = true;
       document.querySelectorAll("#tpHour button").forEach((b) => b.onclick = () => { M.tpHour = b.dataset.h; show(); });
       $("tpDay").oninput = show;
       $("tpDay").max = Math.max(0, T.rows.length - 1); $("tpDay").value = todayIdx(T.days);
-      kmapNames($("tpInner"), ext);
+      if (!CARDED(T)) kmapNames($("tpInner"), ext);
       const LV = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
       let z = 0, pt = null;
       const zoom = (d) => {
