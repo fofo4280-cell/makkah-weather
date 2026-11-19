@@ -1422,7 +1422,7 @@
   async function pointData(dom) {
     const d = S.man.domains[dom];
     if (!d || !d.points) return null;
-    const key = S.run + dom + d.points.hours.length;
+    const key = base(d) + S.run + dom + d.points.hours.length;   // the branch too: never one model's points for the other
     if (!S.points[key]) {
       S.points[key] = fetch(`${base(d)}runs/${S.run}/${d.points.file}?n=${d.points.hours.length}`)
         .then((r) => (r.ok ? r.arrayBuffer() : null)).then((b) => (b ? new Uint8Array(b) : null)).catch(() => null);
@@ -1491,13 +1491,23 @@
     return `تشغيل ${fmtStamp.format(t)}`;
   }
 
+  // each model keeps to its own files (Fahad, 19 Nov 2026: never mix GFS and ECMWF): a load started for one model
+  // or run is dropped if the model or run changed while it was still reading, and every grid carries its own
+  // branch address, so a map can never take one grid from one model and another grid from the other
+  let loadTok = 0;
   async function loadRun(run, first) {
+    const tok = ++loadTok, D = DATA, RG = REGIONS, M = MODEL;
+    const stale = () => tok !== loadTok || M !== MODEL || D !== DATA;
     S.run = run;
-    try { S.man = await getJSON(`${DATA}runs/${run}/manifest.json`); } catch (e) { S.man = null; }
-    try { S.meteo = await getJSON(`${DATA}runs/${run}/meteo.json`); } catch (e) { S.meteo = null; }
+    let man = null, meteo = null;
+    try { man = await getJSON(`${D}runs/${run}/manifest.json`); } catch (e) { man = null; }
+    try { meteo = await getJSON(`${D}runs/${run}/meteo.json`); } catch (e) { meteo = null; }
+    if (stale()) return;
+    if (man) for (const d of Object.values(man.domains || {})) if (!d.base) d.base = D;
+    S.man = man; S.meteo = meteo;
     // the 9 km grids (the Kingdom-wide run and the western 9 km parent) are not shown: only 3 km (Fahad, 13 Nov 2026)
     S.k1wait = false;
-    if (MODEL === "gfs") try {  // the 1 km nest (GFS runs only) (only its own grid; the 9 and 3 km grids there just feed it)
+    if (M === "gfs") try {  // the 1 km nest (GFS runs only) (only its own grid; the 9 and 3 km grids there just feed it)
       const k1 = await getJSON(`${DATA_1K}runs/${run}/manifest.json`);
       S.k1wait = !(k1.domains && k1.domains.d03) && k1.status === "running";
       if (S.man && k1.domains && k1.domains.d03) {
@@ -1505,16 +1515,22 @@
         S.man.products = { ...(k1.products || {}), ...(S.man.products || {}) };
       }
     } catch (e) { S.k1wait = S.runs && S.runs[0] && S.runs[0].run === run && S.runs[0].status === "running"; }
-    await Promise.all(REGIONS.map(async ([id, B]) => {
-      try {
-        const m = await getJSON(`${B}runs/${run}/manifest.json`);
+    if (stale()) return;
+    const regs = await Promise.all(RG.map(async ([id, B]) => {
+      try { return [B, await getJSON(`${B}runs/${run}/manifest.json`)]; } catch (e) { return null; }
+    }));
+    if (stale()) return;
+    for (const x of regs) {
+      if (!x) continue;
+      const [B, m] = x;
+      {
         for (const [k, d] of Object.entries(m.domains || {})) {
           if (!S.man) S.man = { ...m, domains: {} };
           S.man.domains[k] = { ...d, base: B, proj: m.proj };
         }
         if (S.man) S.man.products = { ...(m.products || {}), ...(S.man.products || {}) };
-      } catch (e) { /* this region was not run */ }
-    }));
+      }
+    }
     if (S.man) {   // the Kingdom at 3 km: the western highlands and the regional grids drawn together
       const dxOf = (d) => d.dx || (d.points && d.points.dx) || 0;
       for (const [k, d] of Object.entries(S.man.domains)) if (dxOf(d) > 5000 || k === "d01" || k === "sa") delete S.man.domains[k];
