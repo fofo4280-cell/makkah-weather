@@ -407,8 +407,3 @@ a { color: var(--sea); }
 .kn-w b { transform: translate(calc(-100% - 6px), -50%); }
 .kn-c b { transform: translate(-50%, -50%); font-size: 10.5px; font-weight: 400; color: rgba(255,255,255,.55); }
 [data-z="0"] .kn.t2, [data-z="0"] .kn.t3, [data-z="1"] .kn.t3 { display: none; }
-
-/* tropical convection map: larger than the screen, scrolled sideways (Fahad, 19 Nov 2026: «وسعها شوي») */
-.figwrap.olr-wrap { background: #111; }
-.olr-img { display: block; height: 380px; width: auto; max-width: none; }
-@media (min-width: 900px) { .olr-img { height: auto; width: 100%; } }
