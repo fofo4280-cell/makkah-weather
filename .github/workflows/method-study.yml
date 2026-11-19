@@ -1,5 +1,4 @@
-# Study branch (Fahad, 19 Nov 2026): JMA MJO index + OLR for the seasonal outlook. Pushes what it gets to branch
-# study-season-jma. Dispatch with ref=study/season.
+# Study branch (Fahad, 19 Nov 2026): JMA MJO monitor figures + OLR convection maps. Pushes to study-season-jma.
 name: Method study
 
 on:
@@ -15,29 +14,21 @@ permissions:
 jobs:
   fetch:
     runs-on: ubuntu-24.04
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
+      - uses: actions/checkout@v4
+        with: {path: code}
+      - run: pip install -q numpy netCDF4 matplotlib cartopy arabic-reshaper python-bidi
       - run: |
           mkdir out && cd out
           B=https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo
-          for p in monitor.html index.html mjo.html; do curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_$p" "$B/$p" || echo "fail $p"; done
-          curl -sfL -m 60 -A "Mozilla/5.0" -o jma_dir.html "$B/" || echo faildir
-          curl -sfL -m 60 -A "Mozilla/5.0" -o tcc_monitor.html https://ds.data.jma.go.jp/tcc/tcc/products/clisys/ || true
-          # every link on those pages that looks like data or a figure, one level deep
-          cat jma_*.html 2>/dev/null | grep -oiE '(href|src)="[^"]+"' | sed -E 's/^(href|src)="//I;s/"$//' | sort -u > links.txt
-          wc -l links.txt; cat links.txt | head -200
-          mkdir -p jma
-          while read l; do
-            case "$l" in http*) u="$l";; /*) u="https://ds.data.jma.go.jp$l";; *) u="$B/$l";; esac
-            case "$u" in *.txt|*.csv|*.dat|*.png|*.gif|*.html|*.htm) f="jma/$(echo "$l" | tr '/:?' '___')"; curl -sfL -m 60 -A "Mozilla/5.0" -o "$f" "$u" || rm -f "$f";; esac
-          done < links.txt
-          ls -la jma | head -100
-          # NOAA interpolated OLR, daily (this year and last year), for convection maps
-          for y in 2026; do curl -sfL -m 600 -o olr.$y.nc "https://psl.noaa.gov/thredds/fileServer/Datasets/uninterp_OLR/olr.day.mean.nc" && break; done || true
-          curl -sfL -m 600 -o olr.cdr.2026.nc "https://www.ncei.noaa.gov/data/outgoing-longwave-radiation-daily/access/olr-daily_v01r02-preliminary_20260101_latest.nc" || true
-          curl -sfL -m 120 -o olr_ltm.nc "https://psl.noaa.gov/thredds/fileServer/Datasets/uninterp_OLR/olr.day.ltm.1991-2020.nc" || curl -sfL -m 120 -o olr_ltm.nc "https://psl.noaa.gov/thredds/fileServer/Datasets/uninterp_OLR/olr.day.ltm.nc" || true
+          for k in olr0-sst1_1991-2021 chi200-sst1_1991-2021; do
+            for m in 202608 202609 202610 202611; do curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_${k%%-*}_$m.png" "$B/figs/$k/rmm_$m.png" || echo "fail $k $m"; done
+            curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_dir_${k%%-*}.html" "$B/figs/$k/" || echo "nodir $k"
+          done
+          for f in moni_mjo.html; do curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_$f" "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/mjo/$f" || curl -sfL -m 60 -A "Mozilla/5.0" -o "jma_$f" "https://ds.data.jma.go.jp/tcc/tcc/products/clisys/$f" || true; done
+          python3 ../code/study/olr_maps.py ../code/server/climate/fonts/IBMPlexSansArabic-SemiBold.ttf || echo "olr failed"
           ls -la
-          find . -size +60M -delete
           git init -q -b study-season-jma && git add -A
           git -c user.name=bot -c user.email=bot@users.noreply.github.com commit -qm "jma + olr"
           git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" study-season-jma
