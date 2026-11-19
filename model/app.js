@@ -2438,8 +2438,18 @@
     const ok = !!st.olr;
     $("olrCard").hidden = !ok;
     if (!ok) return;
-    const url = `${CL}fig/olr_00.png?v=${encodeURIComponent(st.updated)}`;
-    $("olrFig").src = url; $("olrLink").href = url;
+    const days = st.olr.days || [st.olr.t1];
+    const mk = (t) => new Date(Date.parse(t) + 3 * 3600e3).toISOString().slice(0, 10);   // Makkah date of the window end
+    const show = () => {
+      const k = Math.min(+$("olrDay").value || 0, days.length - 1);
+      const url = `${CL}fig/olr_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("olrFig").src = url; $("olrLink").href = url;
+      $("olrDayLabel").textContent = (k === 0 ? "آخر ٢٤ ساعة، " : "متوقع، ") + dayLab(mk(days[k]));
+    };
+    $("olrTime").hidden = days.length < 2;
+    $("olrDay").max = days.length - 1;
+    $("olrDay").oninput = show;
+    show();
   }
 
   function mjofCard() {
