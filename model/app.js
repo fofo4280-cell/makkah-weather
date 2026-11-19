@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); olrCard(); ksaCard(); kwCard(); tcCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -2432,6 +2432,16 @@
   }
 
   // the MJO component of the 800 hPa height and of the rain (Dr Khalid's method), and its line over the Kingdom
+  // tropical convection with the MJO centre line (convmap.py, Fahad 19 Nov 2026)
+  function olrCard() {
+    const st = M.st || {};
+    const ok = !!st.olr;
+    $("olrCard").hidden = !ok;
+    if (!ok) return;
+    const url = `${CL}fig/olr_00.png?v=${encodeURIComponent(st.updated)}`;
+    $("olrFig").src = url; $("olrLink").href = url;
+  }
+
   function mjofCard() {
     const st = M.st, m = st.mjof;
     $("mjofCard").hidden = !m;
