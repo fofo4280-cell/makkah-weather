@@ -1938,7 +1938,7 @@
       ? "الأمطار المرتبطة بالتذبذب — النموذج الأمريكي" : "مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال — النموذج الأمريكي",
       "الأزرق يدعم الأمطار والأحمر يكبتها، فانظر إلى لون المملكة"],
     waveDayLabel: () => ["موجات روسبي عند ٥٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق أخدود منخفض والأحمر مرتفع، والأسهم اتجاه الرياح"],
-    pwDayLabel: () => ["رطوبة الجزيرة العربية — النموذج الأمريكي", "الماء القابل للهطول نسبة إلى معدله: الأخضر والأزرق أرطب من المعتاد"],
+    pwDayLabel: () => [`رطوبة الجزيرة العربية — النموذج ${M.st && M.st.pw_model === "ecmwf" ? "الأوروبي" : "الأمريكي"}`, "الماء القابل للهطول نسبة إلى معدله: الأخضر والأزرق أرطب من المعتاد"],
   };
   function dayBadges() {
     document.querySelectorAll('#p-mjo span[id$="DayLabel"]').forEach((lab) => {
@@ -2713,11 +2713,20 @@
 
 
 
+  function pwModelHints() {
+    const w = (ec) => ec ? "من توقع النموذج الأوروبي" : "من توقع جي إف إس";
+    document.querySelectorAll(".pw-src").forEach((x) => {
+      x.textContent = w(x.dataset.f === "map" ? M.st && M.st.pw_model === "ecmwf" : M.st && !!M.st.pw_ec);
+    });
+  }
+
   function mjoPwTable() {
-    const st = M.st, rows = (st.pw || []).filter((r) => r.d >= todayISO()).slice(0, 10);
+    pwModelHints();
+    // ECMWF when the night's run had it (Fahad, 20 Nov 2026), 16 days; the report keeps reading GFS (st.pw)
+    const st = M.st, rows = (st.pw_ec || st.pw || []).filter((r) => r.d >= todayISO()).slice(0, 16);
     if (!rows.length) return;
     const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
-    let t = `<table class="pwt"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
+    let t = `<table class="pwt${rows.length > 10 ? " wide" : ""}"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
     for (const k of Object.keys(names)) {
       t += `<tr><td>${names[k]}</td>` + rows.map((r) => {
         // shades of the site's blue on the dark page (Fahad, 16 Nov 2026): faint at 110 %, full from about 180 %

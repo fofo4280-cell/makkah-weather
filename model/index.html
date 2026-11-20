@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261120fa">
+<link rel="stylesheet" href="style.css?v=20261120ga">
 </head>
 <body>
 <div class="app">
@@ -200,8 +200,8 @@
         </div>
         <div data-sec="pw" class="card">
           <h3>الرطوبة فوق المملكة</h3>
-          <div id="mjoPw"></div>
-          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
+          <div id="mjoPw" class="pw-scroll"></div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، <span class="pw-src">من توقع جي إف إس</span>. اسحب الجدول لترى الأيام الخمسة عشر. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
         </div>
         <div data-sec="pw" class="card" id="pwMapCard">
           <h3>رطوبة الجزيرة العربية</h3>
@@ -211,7 +211,7 @@
             <input type="range" id="pwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
             <span id="pwDayLabel"></span>
           </div>
-          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة فوق الجزيرة العربية وما حولها، من توقع جي إف إس. الأخضر والأزرق أرطب من المعتاد، والبني أجف. المسها لفتحها بحجم كامل.</p>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة فوق الجزيرة العربية وما حولها، <span class="pw-src" data-f="map">من توقع جي إف إس</span>. الأخضر والأزرق أرطب من المعتاد، والبني أجف. المسها لفتحها بحجم كامل.</p>
         </div>
         <div data-sec="pw" class="card" id="ksaCard" hidden>
           <h3>خرائط الرطوبة والحرارة فوق المملكة</h3>
@@ -289,6 +289,6 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261120wg2"></script>
+<script src="app.js?v=20261120ga2"></script>
 </body>
 </html>
