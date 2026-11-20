@@ -1,0 +1,186 @@
+{
+ "phase": "idle",
+ "steps": [
+  {
+   "id": "gfs",
+   "label": "تنزيل بيانات جي إف إس",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T15:51:41Z",
+   "ended": "2026-11-20T15:56:54Z"
+  },
+  {
+   "id": "wps",
+   "label": "المعالجة المسبقة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T15:56:54Z",
+   "ended": "2026-11-20T15:57:33Z"
+  },
+  {
+   "id": "real",
+   "label": "التهيئة",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T15:57:33Z",
+   "ended": "2026-11-20T15:57:51Z"
+  },
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T15:57:55Z",
+   "note": "الساعة 33 من 33",
+   "ended": "2026-11-20T18:21:08Z"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T18:21:08Z",
+   "ended": "2026-11-20T18:21:08Z"
+  }
+ ],
+ "history": [
+  {
+   "cycle": "2026112012",
+   "ok": 1,
+   "minutes": 149,
+   "cores": 4,
+   "finished": "2026-11-20T18:21Z"
+  },
+  {
+   "cycle": "2026111912",
+   "ok": 1,
+   "minutes": 157,
+   "cores": 4,
+   "finished": "2026-11-19T18:39Z"
+  },
+  {
+   "cycle": "2026111812",
+   "ok": 1,
+   "minutes": 119,
+   "cores": 4,
+   "finished": "2026-11-18T17:53Z"
+  },
+  {
+   "cycle": "2026111712",
+   "ok": 1,
+   "minutes": 200,
+   "cores": 4,
+   "finished": "2026-11-17T19:12Z"
+  },
+  {
+   "cycle": "2026111612",
+   "ok": 1,
+   "minutes": 190,
+   "cores": 4,
+   "finished": "2026-11-16T19:05Z"
+  },
+  {
+   "cycle": "2026111512",
+   "ok": 1,
+   "minutes": 181,
+   "cores": 4,
+   "finished": "2026-11-15T18:54Z"
+  },
+  {
+   "cycle": "2026111500",
+   "ok": 1,
+   "minutes": 189,
+   "cores": 4,
+   "finished": "2026-11-15T07:02Z"
+  },
+  {
+   "cycle": "2026111412",
+   "ok": 1,
+   "minutes": 199,
+   "cores": 4,
+   "finished": "2026-11-14T19:12Z"
+  },
+  {
+   "cycle": "2026111400",
+   "ok": 1,
+   "minutes": 191,
+   "cores": 4,
+   "finished": "2026-11-14T07:03Z"
+  },
+  {
+   "cycle": "2026111312",
+   "ok": 1,
+   "minutes": 191,
+   "cores": 4,
+   "finished": "2026-11-13T18:58Z"
+  },
+  {
+   "cycle": "2026111300",
+   "ok": 1,
+   "minutes": 192,
+   "cores": 4,
+   "finished": "2026-11-13T07:07Z"
+  },
+  {
+   "cycle": "2026111212",
+   "ok": 1,
+   "minutes": 192,
+   "cores": 4,
+   "finished": "2026-11-12T20:17Z"
+  },
+  {
+   "cycle": "2026111200",
+   "ok": 1,
+   "minutes": 208,
+   "cores": 4,
+   "finished": "2026-11-12T11:42Z"
+  },
+  {
+   "cycle": "2026111112",
+   "ok": 1,
+   "minutes": 161,
+   "cores": 4,
+   "finished": "2026-11-11T19:13Z"
+  },
+  {
+   "cycle": "2026111100",
+   "ok": 1,
+   "minutes": 206,
+   "cores": 4,
+   "finished": "2026-11-11T07:30Z"
+  },
+  {
+   "cycle": "2026111012",
+   "ok": 1,
+   "minutes": 185,
+   "cores": 4,
+   "finished": "2026-11-10T18:49Z"
+  },
+  {
+   "cycle": "2026111000",
+   "ok": 1,
+   "minutes": 275,
+   "cores": 4,
+   "finished": "2026-11-10T08:20Z"
+  },
+  {
+   "cycle": "2026110912",
+   "ok": 1,
+   "minutes": 187,
+   "cores": 4,
+   "finished": "2026-11-09T18:56Z"
+  },
+  {
+   "cycle": "2026110900",
+   "ok": 1,
+   "minutes": 179,
+   "cores": 4,
+   "finished": "2026-11-09T07:40Z"
+  }
+ ],
+ "cycle": "2026112012",
+ "message": "اكتملت آخر دورة في 149 دقيقة",
+ "started": "2026-11-20T15:51:37Z",
+ "updated": "2026-11-20T18:21:08Z",
+ "finished": "2026-11-20T18:21:08Z"
+}
