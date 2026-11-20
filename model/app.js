@@ -1980,7 +1980,9 @@
     $("p-mjo").addEventListener("click", (ev) => {
       const img = ev.target.closest("img");
       if (!img || img.closest(".ksa-map")) return;
-      const G = (M.st && M.st.geo) || {};
+      const G = Object.assign({}, (M.st && M.st.geo) || {});
+      const RX = M.st && M.st.rsflow && M.st.rsflow.extent;   // the Red Sea flow map fills its picture edge to edge
+      if (RX && !G["rsf.png"]) G["rsf.png"] = [[0, 1, 0, 1, RX[0], RX[1], RX[2], RX[3]]];
       const file = (img.currentSrc || img.src || "").split("?")[0].split("/").pop() || "";
       const pans = G[file.replace(/(_\d+)+(?=\.png$)/, "")];
       if (!pans) return;
