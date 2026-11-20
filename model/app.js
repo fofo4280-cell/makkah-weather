@@ -2418,7 +2418,22 @@
       $("tcNow").innerHTML = `<div><b>حول الطائف: ${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
         <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
-        <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}`;
+        <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}${tcWest(r)}`;
+    };
+    // the rest of the western region (Fahad, 20 Nov 2026): a collision on the Red Sea in front of the coast (it serves
+    // the outflows coming down from the mountains) or west of Makkah is named too; nothing when there is none
+    const tcWest = (r) => {
+      const MIN = 3, out = [];
+      if (r.ws != null && r.ws >= MIN && r.wsat) {
+        const C = [["جدة", 21.54, 39.17], ["رابغ", 22.8, 39.03], ["ثول", 22.28, 39.1], ["الليث", 20.15, 40.27], ["القنفذة", 19.13, 41.08]];
+        const near = C.map((c) => [c[0], Math.hypot(c[1] - r.wsat[0], (c[2] - r.wsat[1]) * Math.cos(r.wsat[0] * Math.PI / 180))]).sort((a, b) => a[1] - b[1])[0][0];
+        out.push(`<div>وعلى البحر الأحمر قبالة ${near}: تصادم بقوة ${num(r.ws, 1)} أمام الساحل، يخدم التخريجات النازلة من الجبال ويغذي السحب قرب الساحل.</div>`);
+      }
+      if (r.wm != null && r.wm >= MIN && r.wmat) {
+        const at = tcWhere(r.wmat[0], r.wmat[1]);
+        out.push(`<div>وغرب مكة${at ? " (" + at + ")" : ""}: تصادم بقوة ${num(r.wm, 1)} على السهول بين مكة وجدة.</div>`);
+      }
+      return out.join("");
     };
     document.querySelectorAll("#tcLayer button").forEach((b) => b.onclick = () => {
       document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x === b));
