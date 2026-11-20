@@ -28,7 +28,7 @@ from datetime import datetime, timedelta
 
 import numpy as np
 
-NEXT = 7
+NEXT = 15         # same 16 days as the other maps of the page (Fahad, 20 Nov 2026)
 EXTENT = (33.5, 45.5, 14.0, 28.5)          # west, east, south, north of the map
 CUT = (12.0, 36.0, 28.0, 52.0)             # south, north, west, east of the data
 FIELDS = [("u925", r":UGRD:925 mb:"), ("v925", r":VGRD:925 mb:"), ("u10", r":UGRD:10 m above ground:"),
@@ -410,7 +410,8 @@ def run(gfs_fields, cycle, out_fig, log=print):
                 static = {"hgt": f["hgt"], "land": f["land"]}
             fs, src = [], "ec"
             try:   # GFS since 19 Nov 2026 night (Fahad, after Dr. Khalid); ECMWF only if GFS fails
-                fs, src = [_cut(gfs_fields(cycle, fh, res="0p25", fields=FIELDS))[0] for fh in (base - 3, base, base + 3)], "gfs"
+                fs, src = [_cut(gfs_fields(cycle, fh, res="0p25", fields=FIELDS))[0]
+                            for fh in sorted({min(h, 384) for h in (base - 3, base, base + 3)})], "gfs"
             except Exception as e:  # noqa: BLE001
                 log("red sea flow: GFS unavailable, ECMWF instead", d, repr(e)[:120], flush=True)
                 fs, src = [], "ec"
