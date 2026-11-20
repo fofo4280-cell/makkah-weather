@@ -54,4 +54,4 @@ jobs:
           path: hj
           run-id: ${{ inputs.hist_run || github.run_id }}
           github-token: ${{ github.token }}
-      - run: ls -la hj/* && python3 code/server/climate/hijaz_study.py analyse hj && cat hijaz.json
+      - run: ls -la hj/* && python3 code/server/climate/y97.py hj
