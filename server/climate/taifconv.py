@@ -122,6 +122,7 @@ def day_fields(gfs_fields, cycle, fh9, static=None):
 # The day's index is the strongest zone (peak convergence 11 AM-1 PM, 1e-5 /s): taif +peak, edge -peak, sea (its own
 # colour, drawn below zero, west of the edge); weak when every peak is under CONV_MIN.
 WREG = (20.25, 23.3, 38.3, 41.6)
+WMAK = (21.0, 21.9, 39.0, 39.75)          # the plains west of Makkah (south, north, west, east)
 EDGE_N = 21.9                            # the edge zone (Makkah-Taif mountains and south of Makkah) stops here
 
 
@@ -158,8 +159,14 @@ def west_index(f):
     if pk[k] < CONV_MIN:
         k = "weak"
     wi = {"taif": pk["taif"], "edge": -pk["edge"], "sea": -pk["sea"]}.get(k, 0.0)
+    # beyond Taif (Fahad, 20 Nov 2026: «لا تحصر التصادم في هضبة الطائف او حوافها»): the Red Sea in front of the coast
+    # (serves the mountain outflows) and the plains west of Makkah (Al-Jumum, Wadi Fatimah, Bahrah, Jeddah's east)
+    LA, LO = np.meshgrid(f["lat"], f["lon"], indexing="ij")
+    wm = (f["land"] > 0.5) & (LA >= WMAK[0]) & (LA <= WMAK[1]) & (LO >= WMAK[2]) & (LO <= WMAK[3]) & (f["hgt"] < 700)
+    j, i = np.unravel_index(np.where(wm, c, -np.inf).argmax(), c.shape)
     return {"wz": k, "wi": round(wi, 1), "wt": round(pk["taif"], 1), "wg": round(pk["edge"], 1), "ws": round(pk["sea"], 1),
-            "wat": at.get(k)}
+            "wat": at.get(k), "wsat": at["sea"], "wm": round(float(c[j, i]), 1),
+            "wmat": [round(float(f["lat"][j]), 2), round(float(f["lon"][i]), 2)]}
 
 
 def measure(f):
@@ -224,7 +231,28 @@ def explain(f, row, kind, hour):
         w_ = "eastdry"
     if w_ in TAIF_SAY:
         out.append(TAIF_SAY[w_])
+    if kind != "cape":       # the rest of the western region, only when there is a collision there
+        more = []
+        if row.get("ws") is not None and row["ws"] >= CONV_MIN:
+            more.append(f"على البحر قبالة {_near(*row['wsat'], coast=True)}")
+        if row.get("wm") is not None and row["wm"] >= CONV_MIN:
+            more.append("بين مكة وجدة" if row["wmat"][1] < 39.5 else "غرب مكة")
+        if more:
+            out.append("وفي القطاع الغربي تصادم " + " و".join(more))
     return out
+
+
+def _near(la, lo, coast=False):
+    """the nearest card city (for the sea: the nearest coastal one)"""
+    import figures as F
+    best, bd = "الساحل", 9e9
+    for name, a, b, *_ in F.city_points(None):
+        if coast and b > 39.6:
+            continue
+        d = (a - la) ** 2 + ((b - lo) * np.cos(np.radians(la))) ** 2
+        if d < bd:
+            best, bd = name, d
+    return best
 
 
 def run(gfs_fields, cycle, out_fig, model="الأمريكي", draw=True):
