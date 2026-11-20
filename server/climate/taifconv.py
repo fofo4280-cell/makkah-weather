@@ -99,7 +99,8 @@ def day_fields(gfs_fields, cycle, fh9, static=None):
     a, lat, lon = _get(gfs_fields, cycle, fh9, [("ap1", rf":APCP:surface:0-{fh9} hour acc")] + ([] if static else STATIC))
     b, _, _ = _get(gfs_fields, cycle, fh9 + 3, W + UP)
     fe = min(fh9 + 12, 384)          # GFS ends at 384 h: the last day's rain stops there
-    c, _, _ = _get(gfs_fields, cycle, fe, [("ap2", rf":APCP:surface:0-{fe} hour acc")])
+    acc = f"0-{fe // 24} day acc" if fe % 24 == 0 else f"0-{fe} hour acc"   # GFS names whole days in days
+    c, _, _ = _get(gfs_fields, cycle, fe, [("ap2", rf":APCP:surface:{acc}")])
     H = {"11": at([fh9 - 1] if hourly else [fh9 - 3, fh9]), "13": at([fh9 + 1] if hourly else [fh9]),
          "15": (b["u10"], b["v10"], b["cape"])}
     f = {"lat": lat, "lon": lon, "H": H, "u12": b["u10"], "v12": b["v10"], "u850": b["u850"], "v850": b["v850"],
