@@ -17,6 +17,9 @@ import urllib.request
 import numpy as np
 
 EC = "https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com"
+# the same files (same bytes, same .index offsets) on ECMWF's own server: used when the AWS copy does not answer
+# (night of 19 Nov 2026: AWS did not answer for ~6 min and the Kingdom maps fell back to GFS)
+MIRROR = "https://data.ecmwf.int/forecasts"
 # GFS pattern (regex searched in the GFS line) -> (IFS param, level, scale, offset)
 MAP = [(r":RH:(\d+) mb:", "r", 1.0), (r":TMP:(\d+) mb:", "t", 1.0), (r":UGRD:(\d+) mb:", "u", 1.0),
        (r":VGRD:(\d+) mb:", "v", 1.0), (r":HGT:(\d+) mb:", "gh", 1.0), (r":SPFH:(\d+) mb:", "q", 1.0),
@@ -31,14 +34,16 @@ _idx, _raw = {}, {}
 
 def _get(url, rng=None, tries=8):
     for k in range(tries):
+        u = url if k % 2 == 0 else url.replace(EC, MIRROR)      # alternate AWS and ECMWF's own server
         try:
-            req = urllib.request.Request(url, headers={"Range": "bytes=%d-%d" % rng} if rng else {})
-            with urllib.request.urlopen(req, timeout=120) as r:
+            req = urllib.request.Request(u, headers={"Range": "bytes=%d-%d" % rng} if rng else {})
+            with urllib.request.urlopen(req, timeout=60) as r:
                 return r.read()
-        except Exception:  # noqa: BLE001
+        except Exception as e:  # noqa: BLE001
             if k == tries - 1:
                 raise
-            time.sleep(4 + 6 * k)
+            print("ECMWF fetch retry", k + 1, u.split("/")[2], repr(e)[:120], flush=True)
+            time.sleep(3 + 4 * k)
 
 
 def steps(cycle):
@@ -82,7 +87,8 @@ def available(cycle, fh=0):
     try:
         _index(cycle, fh)
         return True
-    except Exception:  # noqa: BLE001
+    except Exception as e:  # noqa: BLE001
+        print("ECMWF not available:", cycle, fh, repr(e)[:150], flush=True)
         return False
 
 
