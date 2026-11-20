@@ -163,10 +163,14 @@ def west_index(f):
     # (serves the mountain outflows) and the plains west of Makkah (Al-Jumum, Wadi Fatimah, Bahrah, Jeddah's east)
     LA, LO = np.meshgrid(f["lat"], f["lon"], indexing="ij")
     wm = (f["land"] > 0.5) & (LA >= WMAK[0]) & (LA <= WMAK[1]) & (LO >= WMAK[2]) & (LO <= WMAK[3]) & (f["hgt"] < 700)
-    j, i = np.unravel_index(np.where(wm, c, -np.inf).argmax(), c.shape)
+    # its own collision only: a peak along its row (not the tail of the edge collision rising east toward the rim,
+    # 20 Nov 2026 test: 21.75 N 3.1 at 39.75 E rising to 4.2 at 40.25 E)
+    rowpk = (c >= np.roll(c, 1, axis=1)) & (c >= np.roll(c, -1, axis=1))
+    j, i = np.unravel_index(np.where(wm & rowpk, c, -np.inf).argmax(), c.shape)
+    wm_own = float(c[j, i]) if (wm & rowpk).any() else -9.0
     return {"wz": k, "wi": round(wi, 1), "wt": round(pk["taif"], 1), "wg": round(pk["edge"], 1), "ws": round(pk["sea"], 1),
-            "wat": at.get(k), "wsat": at["sea"], "wm": round(float(c[j, i]), 1),
-            "wmat": [round(float(f["lat"][j]), 2), round(float(f["lon"][i]), 2)]}
+            "wat": at.get(k), "wsat": at["sea"], "wm": round(wm_own, 1),
+            "wmat": [round(float(f["lat"][j]), 2), round(float(f["lon"][i]), 2)] if wm_own > -9 else None}
 
 
 def measure(f):
