@@ -1760,7 +1760,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1967,6 +1967,64 @@
       card.addEventListener("click", () => setTimeout(put, 50));
       put();
       lab._badge = put;
+    });
+  }
+
+  // tap any map of the page for its latitude and longitude (Fahad, 20 Nov 2026: «واي خريطة اضغط على اي جزء منها يظهر
+  // لي خطوط الطول والعرض»): mjo.json "geo" gives each picture's map panels (figure fractions + lon/lat extent); the
+  // Kingdom maps keep their own tap (.ksa-map). A tap shows a pin and a box under the map with a copy button and a link
+  // to the full picture.
+  function geoTapSetup() {
+    if (geoTapSetup.done) return;
+    geoTapSetup.done = true;
+    $("p-mjo").addEventListener("click", (ev) => {
+      const img = ev.target.closest("img");
+      if (!img || img.closest(".ksa-map")) return;
+      const G = (M.st && M.st.geo) || {};
+      const file = (img.currentSrc || img.src || "").split("?")[0].split("/").pop() || "";
+      const pans = G[file.replace(/(_\d+)+(?=\.png$)/, "")];
+      if (!pans) return;
+      const r = img.getBoundingClientRect();
+      const fx = (ev.clientX - r.left) / r.width, fy = 1 - (ev.clientY - r.top) / r.height;
+      const p = pans.find((q) => fx >= q[0] && fx <= q[1] && fy >= q[2] && fy <= q[3]);
+      const a = img.closest("a");
+      if (a) ev.preventDefault();
+      const card = img.closest(".card");
+      if (!card) return;
+      let box = card.querySelector(".geo-coord");
+      if (!box) {
+        box = document.createElement("div");
+        box.className = "ksa-coord geo-coord";
+        const anchor = card.querySelector(".mjo-time") || card.lastElementChild;
+        card.insertBefore(box, anchor);
+      }
+      let pin = card.querySelector(".geo-pin");
+      if (!p) { box.hidden = true; if (pin) pin.hidden = true; return; }
+      let lon = p[4] + (fx - p[0]) / (p[1] - p[0]) * (p[5] - p[4]);
+      const lat = p[6] + (fy - p[2]) / (p[3] - p[2]) * (p[7] - p[6]);
+      lon = ((lon + 540) % 360) - 180;
+      const ns = lat >= 0 ? "شمالًا" : "جنوبًا", ew = lon >= 0 ? "شرقًا" : "غربًا";
+      const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+      box.hidden = false;
+      box.innerHTML = `<span>خط العرض <b>${AR_DIG(Math.abs(lat).toFixed(2))}</b> ${ns}، خط الطول <b>${AR_DIG(Math.abs(lon).toFixed(2))}</b> ${ew}`
+        + (a ? ` · <a href="${a.href}" target="_blank" rel="noopener">الصورة كاملة</a>` : "") + `</span><button type="button">نسخ</button>`;
+      box.querySelector("button").onclick = async (e2) => {
+        try { await navigator.clipboard.writeText(txt); e2.target.textContent = "نُسخت"; } catch (_) { e2.target.textContent = "تعذّر النسخ"; }
+        setTimeout(() => { e2.target.textContent = "نسخ"; }, 1500);
+      };
+      // the pin, on the picture's own box (it scrolls with a wide map)
+      const host = img.parentElement;
+      if (getComputedStyle(host).position === "static") host.style.position = "relative";
+      if (!pin || pin.parentElement !== host) {
+        if (pin) pin.remove();
+        pin = document.createElement("i");
+        pin.className = "ksa-pin geo-pin";
+        host.appendChild(pin);
+      }
+      const hr = host.getBoundingClientRect();
+      pin.hidden = false;
+      pin.style.left = (ev.clientX - hr.left) + "px";
+      pin.style.top = (ev.clientY - hr.top) + "px";
     });
   }
 
