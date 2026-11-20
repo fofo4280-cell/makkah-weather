@@ -1,15 +1,13 @@
-"""Probe (test branch only): can the Actions runner read ECMWF open data?"""
-import time, urllib.request, sys
+"""Probe (test branch only): ECMWF fetch through the mirror when AWS fails."""
+import sys, time
+import numpy as np
 sys.path.insert(0, __file__.rsplit("/", 1)[0])
-for u in ["https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/20261119/12z/ifs/0p25/oper/20261119120000-360h-oper-fc.index",
-          "https://data.ecmwf.int/forecasts/20261119/12z/ifs/0p25/oper/20261119120000-360h-oper-fc.index",
-          "https://ai4edataeuwest.blob.core.windows.net/ecmwf/20261119/12z/ifs/0p25/oper/20261119120000-360h-oper-fc.index"]:
-    t = time.time()
-    try:
-        with urllib.request.urlopen(u, timeout=60) as r:
-            print("OK", r.status, len(r.read()), round(time.time() - t, 1), u, flush=True)
-    except Exception as e:
-        print("FAIL", repr(e)[:300], round(time.time() - t, 1), u, flush=True)
 import ecmwf
-print("module", ecmwf.__file__)
-t = time.time(); print("available", ecmwf.available("2026111912", 360), round(time.time() - t, 1))
+real = ecmwf.EC
+ecmwf.EC = "https://ecmwf-forecasts-broken.s3.eu-central-1.amazonaws.com"
+t = time.time()
+print("avail via mirror", ecmwf.available("2026111912", 360), round(time.time() - t, 1), flush=True)
+a = ecmwf._field("2026111912", 24, "r", "700")
+ecmwf.EC = real; ecmwf._idx.clear(); ecmwf._raw.clear()
+b = ecmwf._field("2026111912", 24, "r", "700")
+print("RESULT", a.shape, "max diff mirror vs aws", float(np.abs(a - b).max()), "mean", float(a.mean()), flush=True)
