@@ -1136,6 +1136,10 @@ def card_frame(fig, title, when, lines=(), legend=None):
     x0 = 1 - (m + pad) / W
     y = 1 - (m + pad) / H
     texts = []
+    # the page card already carries the map's name (Fahad, 20 Nov 2026: «لا تعيد تكرار ما هو موجود»): the box keeps
+    # the model, the day and hour, and the day's own reading
+    if " — " in title:
+        title = title.split(" — ", 1)[1].strip()
     rows = [(title, base, CARD_INK, "semibold"), (when, base * 0.86, CARD_INK, "normal")]
     rows += [(t, base * 0.8, CARD_MUTED, "normal") for t in lines if t]
     for k, (t, fs, col, wt) in enumerate(rows):
