@@ -2,6 +2,57 @@
 import os
 import numpy as np
 
+
+# ---- where the map sits inside each picture (Fahad, 20 Nov 2026: «واي خريطة اضغط على اي جزء منها يظهر لي خطوط الطول
+# والعرض»): every saved figure records its map panels (figure fractions, left/right/bottom/top) and their lon/lat
+# extent, one entry per kind of picture (the file name without its day/hour numbers); daily.py writes GEO to mjo.json
+GEO = {}
+
+
+def _geo_hook():
+    import re
+    import matplotlib.figure as mf
+    if getattr(mf.Figure.savefig, "_geo", False):
+        return
+    orig = mf.Figure.savefig
+
+    def savefig(self, fname, *a, **k):
+        r = orig(self, fname, *a, **k)
+        try:
+            if isinstance(fname, str):
+                W_, H_ = self.get_size_inches()
+                ox, oy, sw, sh = 0.0, 0.0, W_, H_      # the saved area in inches (all of it, or the tight box)
+                if k.get("bbox_inches") == "tight":
+                    pad = k.get("pad_inches", 0.1)
+                    tb = self.get_tightbbox(self.canvas.get_renderer())
+                    ox, oy, sw, sh = tb.x0 - pad, tb.y0 - pad, tb.width + 2 * pad, tb.height + 2 * pad
+                fx = lambda v: (v * W_ - ox) / sw
+                fy = lambda v: (v * H_ - oy) / sh
+                key = re.sub(r"(_\d+)+(?=\.png$)", "", os.path.basename(fname))
+                pans = []
+                for ax in self.axes:
+                    pr = getattr(ax, "projection", None)
+                    if pr is None or not hasattr(ax, "get_extent"):
+                        continue
+                    if pr.__class__.__name__ != "PlateCarree":
+                        continue
+                    x0, x1, y0, y1 = ax.get_extent()
+                    import cartopy.crs as _cc
+                    lon0 = float(_cc.PlateCarree().transform_point(0.0, 0.0, pr)[0])   # the map's central longitude
+                    b = ax.get_position()
+                    pans.append([round(float(v), 5) for v in (fx(b.x0), fx(b.x1), fy(b.y0), fy(b.y1))]
+                                + [round(float(v), 4) for v in (x0 + lon0, x1 + lon0, y0, y1)])
+                if pans:
+                    GEO[key] = pans
+        except Exception:  # noqa: BLE001
+            pass
+        return r
+    savefig._geo = True
+    mf.Figure.savefig = savefig
+
+
+_geo_hook()
+
 # (position 0..1 along the value range, colour)
 SCALES = {
     "wc": {"vmin": -12, "vmax": 12, "cols": [(0, "#0c1238"), (.13, "#1a3f99"), (.27, "#3f7fc2"), (.4, "#9cc1df"), (.5, "#eef0f1"),
