@@ -1959,7 +1959,10 @@
         const sp = spec();
         b.hidden = !t || !sp;
         if (b.hidden) return;
-        b.innerHTML = `<b>${sp[0]}، ${day}</b><small>${sp[1]}</small>`;
+        // only what the card does not already say (Fahad, 20 Nov 2026: «لا تعيد تكرار ما هو موجود»): the card keeps
+        // its title and legend, the strip gives the day, the date and the model
+        const mdl = (sp[0].split(" — ")[1] || "").trim();
+        b.innerHTML = `<b>${day}</b>${mdl ? `<small>${mdl}</small>` : ""}`;
       };
       new MutationObserver(put).observe(lab, { childList: true, characterData: true, subtree: true });
       card.addEventListener("click", () => setTimeout(put, 50));
