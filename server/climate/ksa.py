@@ -25,6 +25,7 @@ STATIC = [("hgt", r":HGT:surface:"), ("land", r":LAND:surface:")]
 BOX = (8.0, 38.0, 28.0, 62.0)            # south, north, west, east of the data (margin around the map)
 EXTENT = (33.0, 57.5, 14.0, 33.5)        # west, east, south, north of the map
 KINDS = ("krh7", "krh5", "kt5", "kw7", "kw5")   # kw7/kw5: wind speed under the page's own arrows (18 Nov 2026)            # kconv dropped 17 Nov 2026 (Fahad): convergence has its own card (taifconv)
+GFS_KINDS = ("kw7", "kw5")              # winds always from GFS (Fahad, 20 Nov 2026, after Dr. Khalid)
 SMOOTH = 1.5                             # convergence smoothing, grid lengths (about 40 km, as collide.py)
 
 SCALES = {
@@ -444,6 +445,17 @@ def rst(f, log=None):
 
 # ------------------------------------------------------------------ the winds for the page's arrows (Fahad, 18 Nov 2026)
 WIND_STEP = 0.5     # deg; the page interpolates between points, so arrows can be as dense as the zoom wants
+
+
+def gfs_winds(f, gfs_fields, cycle, fh):
+    """replace u7, v7, u5, v5 in f (cut to BOX) by the GFS winds of the same cycle and hour"""
+    keys = [x for x in FIELDS if x[0] in ("u7", "v7", "u5", "v5")]
+    g = gfs_fields(cycle, fh, res="0p25", fields=keys)
+    la = np.linspace(90, -90, g["u7"].shape[0])
+    lo = np.linspace(0, 360, g["u7"].shape[1], endpoint=False)
+    for k, a in g.items():
+        f[k] = cut(a, la, lo)[0]
+    return f
 
 
 def vals_pack(f):

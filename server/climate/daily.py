@@ -659,13 +659,19 @@ def main():
         ec_ok = ecmwf.available(cycle, 360)
         src = ecmwf.fields_like_gfs(gfs_fields) if ec_ok else gfs_fields
         ksa_out["model"] = "ecmwf" if ec_ok else "gfs"
+        ksa_out["wind_model"] = "gfs"
         print("kingdom maps source:", ksa_out["model"], flush=True)
         stat = None
         for k, dt in enumerate(days):
             try:
                 n0 = ecmwf.FALLBACK["n"]
-                f_ = ksa.fields(src, cycle, int((dt - t0).total_seconds() // 3600), stat)
+                fh_k = int((dt - t0).total_seconds() // 3600)
+                f_ = ksa.fields(src, cycle, fh_k, stat)
                 model_ = "الأوروبي" if ec_ok and ecmwf.FALLBACK["n"] == n0 else "الأمريكي"
+                # winds at 700 and 500 hPa from GFS (Fahad, 20 Nov 2026: «الرياح الدكتور دائما يقول الأمريكي ادق
+                # فيها»): the kw7/kw5 maps and the page's arrows; humidity and T500 stay ECMWF
+                if src is not gfs_fields:
+                    ksa.gfs_winds(f_, gfs_fields, cycle, fh_k)
                 if stat is None:
                     stat = {"hgt": f_["hgt"], "land": f_["land"]}
                 lw_ = ksa.lows(f_)
@@ -676,7 +682,7 @@ def main():
                     rs_ = None
                 for kd in ksa.KINDS:
                     ksa.draw(os.path.join(out, "fig", f"{kd}_{k:02d}.png"), kd, f_, lw_, rs_, width_px=1400,
-                             when=dt.date(), model=model_)
+                             when=dt.date(), model="الأمريكي" if kd in ksa.GFS_KINDS else model_)
                 try:
                     wp_, wmeta_ = ksa.wind_pack(f_)
                     wind_days[k] = wp_
