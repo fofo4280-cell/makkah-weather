@@ -1954,15 +1954,14 @@
       fig.parentNode.insertBefore(b, fig);
       const put = () => {
         const t = (lab.textContent || "").trim();
-        const i = t.indexOf(":");
-        const day = i >= 0 ? t.slice(i + 1).trim() : t;
         const sp = spec();
         b.hidden = !t || !sp;
-        if (b.hidden) return;
+        if (b.hidden) { lab.style.display = ""; return; }
         // only what the card does not already say (Fahad, 20 Nov 2026: «لا تعيد تكرار ما هو موجود»): the card keeps
         // its title and legend, the strip gives the day, the date and the model
         const mdl = (sp[0].split(" — ")[1] || "").trim();
-        b.innerHTML = `<b>${day}</b>${mdl ? `<small>${mdl}</small>` : ""}`;
+        b.innerHTML = `<b>${t}</b>${mdl ? `<small>${mdl}</small>` : ""}`;
+        lab.style.display = "none";      // the strip above the map says it: no second copy under the slider
       };
       new MutationObserver(put).observe(lab, { childList: true, characterData: true, subtree: true });
       card.addEventListener("click", () => setTimeout(put, 50));
