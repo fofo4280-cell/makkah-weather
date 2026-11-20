@@ -230,23 +230,39 @@ def explain(f, row, kind, hour):
 def run(gfs_fields, cycle, out_fig, model="الأمريكي", draw=True):
     t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
     d0 = t0.date()
-    today = d0 + timedelta(days=1)
+    # the nightly 12Z cycle is published after midnight Makkah, so its "today" is the next day; a daytime (00Z/06Z)
+    # run's today is the cycle's own date (20 Nov 2026: a 00Z run left today's map empty)
+    today = d0 + timedelta(days=1) if t0.hour >= 12 else d0
     days = [today + timedelta(days=k) for k in range(-PAST, NEXT + 1)]
     rows, flds, static = [], {}, None
     for d in days:
         try:
-            if d <= d0:     # the day's own 06Z cycle: 03 and 06 h = 09 and 12 UTC
-                f = day_fields(gfs_fields, d.strftime("%Y%m%d") + "06", 3, static)
+            fh9 = int((datetime(d.year, d.month, d.day, 9, tzinfo=timezone.utc) - t0).total_seconds() // 3600)
+            if fh9 - 1 >= 0:    # from the run's own cycle
+                f = day_fields(gfs_fields, cycle, fh9, static)
+                fc = d >= today
+            else:               # a past day: its own 06Z cycle (03/06 h = 09/12 UTC), else the nearest earlier one
+                f, err = None, None
+                prev = (d - timedelta(days=1)).strftime("%Y%m%d")
+                for cyc, fh in ((d.strftime("%Y%m%d") + "06", 3), (d.strftime("%Y%m%d") + "00", 9),
+                                (prev + "18", 15), (prev + "12", 21)):
+                    if datetime.strptime(cyc, "%Y%m%d%H").replace(tzinfo=timezone.utc) > t0:
+                        continue
+                    try:
+                        f = day_fields(gfs_fields, cyc, fh, static)
+                        break
+                    except Exception as e:  # noqa: BLE001
+                        err = e
+                        print("taif collision: cycle", cyc, "missing for", d, repr(e)[:120], flush=True)
+                if f is None:
+                    raise err or RuntimeError("no cycle")
                 fc = False
-            else:           # the nightly 12Z cycle
-                f = day_fields(gfs_fields, cycle, int((datetime(d.year, d.month, d.day, 9, tzinfo=timezone.utc) - t0).total_seconds() // 3600), static)
-                fc = True
             static = static or {"hgt": f["hgt"], "land": f["land"]}
             flds[d] = f
             rows.append({"d": d.isoformat(), "fc": fc, **measure(f)})
         except Exception as e:  # noqa: BLE001
             print("taif collision day failed", d, repr(e)[:160], flush=True)
-            rows.append({"d": d.isoformat(), "fc": d > d0, "where": None})
+            rows.append({"d": d.isoformat(), "fc": d >= today, "where": None})
     for k, d in enumerate(days):
         if d in flds and draw:
             try:
