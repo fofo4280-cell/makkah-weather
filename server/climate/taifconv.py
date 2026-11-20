@@ -35,7 +35,7 @@ EAST_CAPE = 100
 HOURS = ("11", "13", "15")                # Makkah hours of the maps (08, 10, 12 UTC)
 AXIS_MIN = 3.0                            # convergence (1e-5 /s) along a drawn zone axis
 U_EAST = -2.0                             # plateau 850 hPa u at or below this: the collision holds on the edge
-PAST, NEXT = 7, 7
+PAST, NEXT = 7, 15   # 15 days ahead like the other maps (Fahad, 20 Nov 2026)
 WIND = [("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
 UP = [("u850", r":UGRD:850 mb:"), ("v850", r":VGRD:850 mb:"), ("cape", r":CAPE:surface:")]
 # afternoon surface CAPE (Fahad, 17 Nov 2026: third view of the card), J/kg; calm sequential scale on the dark map
@@ -98,7 +98,8 @@ def day_fields(gfs_fields, cycle, fh9, static=None):
         return tuple(np.mean([g[k] for g in got], axis=0) for k in ("u10", "v10", "cape"))
     a, lat, lon = _get(gfs_fields, cycle, fh9, [("ap1", rf":APCP:surface:0-{fh9} hour acc")] + ([] if static else STATIC))
     b, _, _ = _get(gfs_fields, cycle, fh9 + 3, W + UP)
-    c, _, _ = _get(gfs_fields, cycle, fh9 + 12, [("ap2", rf":APCP:surface:0-{fh9 + 12} hour acc")])
+    fe = min(fh9 + 12, 384)          # GFS ends at 384 h: the last day's rain stops there
+    c, _, _ = _get(gfs_fields, cycle, fe, [("ap2", rf":APCP:surface:0-{fe} hour acc")])
     H = {"11": at([fh9 - 1] if hourly else [fh9 - 3, fh9]), "13": at([fh9 + 1] if hourly else [fh9]),
          "15": (b["u10"], b["v10"], b["cape"])}
     f = {"lat": lat, "lon": lon, "H": H, "u12": b["u10"], "v12": b["v10"], "u850": b["u850"], "v850": b["v850"],
