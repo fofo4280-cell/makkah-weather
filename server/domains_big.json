@@ -1,0 +1,18 @@
+{
+  "_note": "Grid design. Nest offsets were computed for a Lambert grid on the WRF sphere (radius 6370 km). If you change a size or offset, keep (e_we-1) and (e_sn-1) divisible by the nest ratio.",
+  "map": {"map_proj": "lambert", "ref_lat": 24.0, "ref_lon": 45.5, "truelat1": 18.0, "truelat2": 30.0, "stand_lon": 45.0},
+  "e_vert": 45,
+  "p_top": 5000,
+  "time_step": 45,
+  "domains": [
+    {"id": "d01", "name": "المملكة", "res": "٩ كم", "dx": 9000, "e_we": 271, "e_sn": 241,
+     "parent": 0, "ratio": 1, "ips": 1, "jps": 1, "hours": 72, "geog": "default",
+     "max_dt": 54, "min_dt": 18, "cu": 3, "gwd": 1},
+    {"id": "d02", "name": "الغربية", "res": "٣ كم", "dx": 3000, "e_we": 205, "e_sn": 259,
+     "parent": 1, "ratio": 3, "ips": 50, "jps": 47, "hours": 72, "geog": "cop90+default",
+     "max_dt": 18, "min_dt": 6, "cu": 0, "gwd": 0},
+    {"id": "d03", "name": "مكة والطائف", "res": "٦٠٠ م", "dx": 600, "e_we": 191, "e_sn": 141,
+     "parent": 2, "ratio": 5, "ips": 54, "jps": 115, "hours": 30, "geog": "cop90+default",
+     "max_dt": 4, "min_dt": 1, "cu": 0, "gwd": 0}
+  ]
+}

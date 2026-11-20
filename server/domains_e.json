@@ -1,0 +1,54 @@
+{
+ "_note": "Regional 3 km run (شرق المملكة, about 22.0-29.6 N, 46.6-51.8 E) inside a 9 km parent with a 270 km margin; one of five regional grids that with the western highlands cover the Kingdom at 3 km (the eastern Empty Quarter excepted). 33 hours on two runners handing over at hour 16; only the 3 km grid is published, to the model-data-e branch under the id 'e'.",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 25.8,
+  "ref_lon": 49.2,
+  "truelat1": 20.8,
+  "truelat2": 30.8,
+  "stand_lon": 49.2
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {
+   "id": "d01",
+   "name": "محيط شرق المملكة",
+   "res": "٩ كم",
+   "dx": 9000,
+   "e_we": 119,
+   "e_sn": 154,
+   "parent": 0,
+   "ratio": 1,
+   "ips": 1,
+   "jps": 1,
+   "hours": 33,
+   "geog": "default",
+   "max_dt": 54,
+   "min_dt": 18,
+   "cu": 3,
+   "gwd": 1,
+   "publish": false
+  },
+  {
+   "id": "d02",
+   "pub": "e",
+   "name": "شرق المملكة",
+   "res": "٣ كم",
+   "dx": 3000,
+   "e_we": 175,
+   "e_sn": 280,
+   "parent": 1,
+   "ratio": 3,
+   "ips": 31,
+   "jps": 31,
+   "hours": 33,
+   "geog": "cop90+default",
+   "max_dt": 18,
+   "min_dt": 6,
+   "cu": 0,
+   "gwd": 0
+  }
+ ]
+}

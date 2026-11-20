@@ -1,0 +1,54 @@
+{
+ "_note": "Split-grid test: the western highlands 3 km grid cut in two at about 20.4 N (between Al-Baha and Taif) with 8 parent cells (72 km) of overlap, same 9 km parent. This part: المرتفعات الغربية الجنوبية, rows from parent cell 23, 166 points; the whole 33 hours on one runner.",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 20.0,
+  "ref_lon": 41.4,
+  "truelat1": 15.0,
+  "truelat2": 25.0,
+  "stand_lon": 41.4
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {
+   "id": "d01",
+   "name": "غرب المملكة",
+   "res": "٩ كم",
+   "dx": 9000,
+   "e_we": 127,
+   "e_sn": 136,
+   "parent": 0,
+   "ratio": 1,
+   "ips": 1,
+   "jps": 1,
+   "hours": 33,
+   "geog": "default",
+   "max_dt": 54,
+   "min_dt": 18,
+   "cu": 3,
+   "gwd": 1,
+   "publish": false
+  },
+  {
+   "id": "d02",
+   "name": "المرتفعات الغربية الجنوبية",
+   "res": "٣ كم",
+   "dx": 3000,
+   "e_we": 175,
+   "e_sn": 166,
+   "parent": 1,
+   "ratio": 3,
+   "ips": 34,
+   "jps": 23,
+   "hours": 33,
+   "geog": "cop90+default",
+   "max_dt": 18,
+   "min_dt": 6,
+   "cu": 0,
+   "gwd": 0,
+   "pub": "ws"
+  }
+ ]
+}

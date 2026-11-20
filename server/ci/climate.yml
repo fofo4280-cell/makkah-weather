@@ -1,0 +1,90 @@
+# Daily MJO, warm/cold event and moisture-surge products for the model page (the التذبذب tab).
+# Code: saudi-wrf branch, server/climate. Results: climate-data branch.
+# Everything on the page is refreshed once a day around midnight Makkah time (20:31 UTC) from the 12 UTC GFS run;
+# the job waits for that run to reach 15 days if it is not complete yet.
+name: Climate MJO
+
+on:
+  schedule:
+    - cron: '31 20 * * *'
+  push:
+    branches: [main]
+    paths: ['.github/workflows/climate.yml', 'model/climate-now.txt']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: climate
+  cancel-in-progress: false
+
+jobs:
+  daily:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 150
+    steps:
+      - name: Wait for today's GFS run
+        run: |
+          H=$(date -u +%H); D=$(date -u +%Y%m%d)
+          if [ "$H" -ge 17 ]; then C=12; elif [ "$H" -ge 5 ]; then C=00; else exit 0; fi
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.1p00.f360.idx"
+          for i in $(seq 1 80); do curl -sf -m 30 "$U" >/dev/null && exit 0; sleep 60; done
+
+      - name: Code
+        uses: actions/checkout@v4
+        with:
+          ref: saudi-wrf
+          path: code
+
+      - name: Python packages
+        run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
+
+      - name: Restore climatology
+        id: clim
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/clim
+          key: clim-r1-1991-2020-v2
+
+      - name: Build climatology (first run only)
+        if: steps.clim.outputs.cache-hit != 'true'
+        run: python3 code/server/climate/build_clim.py /home/runner/clim
+
+      - name: Keep climatology
+        if: steps.clim.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/clim
+          key: clim-r1-1991-2020-v2
+
+      - name: Restore recent analyses
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/mjo_state
+          key: mjo-hist-${{ github.run_id }}
+          restore-keys: mjo-hist-
+
+      - name: Previous results
+        run: |
+          git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out || mkdir -p /home/runner/out
+          rm -rf /home/runner/out/.git
+
+      - name: Compute
+        run: python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/out
+
+      - name: Keep recent analyses
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: /home/runner/mjo_state
+          key: mjo-hist-${{ github.run_id }}
+
+      - name: Publish
+        run: |
+          cd /home/runner/out
+          ls reports 2>/dev/null | sort | head -n -40 | xargs -r -I{} rm -f reports/{}
+          git init -q -b data
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data

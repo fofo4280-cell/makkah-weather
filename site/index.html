@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نموذج التنبؤ العددي عالي الدقة</title>
+<meta name="theme-color" content="#0b1d2c">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Readex+Pro:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css?v=20261109e">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">
+      <span class="brand-name">نموذج التنبؤ العددي عالي الدقة</span>
+      <span class="brand-sub" id="runLabel">تطوير فهد متعب العيسي</span>
+    </div>
+    <select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select>
+  </header>
+
+  <main class="panels">
+    <!-- map -->
+    <section class="panel" id="p-map">
+      <div id="map" dir="ltr"></div>
+      <div class="map-top">
+        <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
+        <select id="prodSelect" class="prod-select" aria-label="المنتج"></select>
+      </div>
+      <div class="map-empty" id="mapEmpty" hidden>
+        <div class="map-empty-box">
+          <strong>لا توجد خرائط بعد</strong>
+          <span id="mapEmptyMsg">النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.</span>
+        </div>
+      </div>
+      <div class="map-bottom">
+        <div class="legend" id="legend"></div>
+        <div class="timebar" dir="ltr">
+          <button class="icon-btn" id="btnPrev" aria-label="السابق">‹</button>
+          <button class="icon-btn play" id="btnPlay" aria-label="تشغيل">▶</button>
+          <button class="icon-btn" id="btnNext" aria-label="التالي">›</button>
+          <div class="time-box">
+            <div class="time-label" id="timeLabel" dir="rtl">—</div>
+            <input type="range" id="timeRange" min="0" max="0" value="0" dir="ltr" aria-label="الوقت">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- cities -->
+    <section class="panel scroll" id="p-cities" hidden>
+      <div class="wrap">
+        <p class="hint">لكل مدينة: الحرارة (خط)، ومطر كل ساعة (أعمدة)، وأقصى انعكاسية في دائرة نصف قطرها ٥ كم (الشريط الملوّن). تؤخذ القيم من أدق مجال يغطي المدينة.</p>
+        <input id="cityFilter" class="search" type="search" placeholder="ابحث عن مدينة">
+        <div id="cityList"></div>
+      </div>
+    </section>
+
+    <!-- MJO and warm/cold events -->
+    <section class="panel scroll" id="p-mjo" hidden>
+      <div class="wrap">
+        <div class="card report" id="mjoReport" hidden></div>
+        <div class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
+        <div class="card">
+          <h3>مخطط أطوار التذبذب</h3>
+          <div id="mjoPhase"></div>
+          <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مكتب الأرصاد الأسترالي، والمعيّنات السوداء كل أسبوع. الخط الأسود: توقع ١٥ يومًا من جي إف إس، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
+        </div>
+        <div class="card">
+          <h3>خريطة الحدث الدافئ والبارد</h3>
+          <div class="seg" id="mjoLayer">
+            <button data-l="wc" class="on">المؤشر</button><button data-l="wcd">التغير خلال ٢٤ ساعة</button><button data-l="pw">رطوبة الجزيرة العربية</button>
+          </div>
+          <div class="figwrap" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img id="mjoFig" alt="خريطة الحدث الدافئ والبارد"></a></div>
+          <div class="legend mjo-legend" id="mjoLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="mjoDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="mjoDayLabel"></span>
+          </div>
+          <p class="hint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.</p>
+        </div>
+        <div class="card" id="arCard" hidden>
+          <h3>تتبع الأنهار الجوية</h3>
+          <div class="figwrap fit" dir="ltr"><a id="arLink" target="_blank" rel="noopener"><img id="arFig" class="wavefig" alt="خريطة تتبع الأنهار الجوية"></a></div>
+          <div class="mjo-time">
+            <input type="range" id="arDay" min="0" max="96" value="0" dir="ltr" aria-label="اليوم">
+            <span id="arDayLabel"></span>
+          </div>
+          <div id="arList" class="ar-list"></div>
+          <p class="hint">نقل بخار الماء من سطح الأرض إلى ٦٠٠ هكتوباسكال، من توقع جي إف إس بدقة ربع درجة، لقطة كل ثلاث ساعات لاثني عشر يومًا. الخط الأسود: مسار أقوى نهر جوي من طرفه الذي يتكوّن منه إلى قلبه، والخط الأخضر: أقرب نهر إلى المملكة، والنجمة موقعه في الوقت المختار. الرسم السفلي: شدة كل قلب، والخط الأزرق المتقطع: أعلى نقل فوق المملكة. يبدأ النهر الجوي من ٢٥٠ كغ/م/ث.</p>
+        </div>
+        <div class="card">
+          <h3>موجات روسبي في الطبقة الوسطى</h3>
+          <div class="figwrap fit" dir="ltr"><a id="waveLink" target="_blank" rel="noopener"><img id="waveFig" class="wavefig" alt="خريطة موجات روسبي"></a></div>
+          <div class="legend mjo-legend" id="waveLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="waveDay" min="0" max="10" value="0" dir="ltr" aria-label="اليوم">
+            <span id="waveDayLabel"></span>
+          </div>
+          <div id="waveList"></div>
+          <p class="hint">ارتفاعات ٥٠٠ هكتوباسكال (٥٫٥ كم) بعد إبقاء الموجات السينوبتيكية فقط (الأرقام الموجية ٤ إلى ٨) من توقع جي إف إس. الأزرق أخاديد ومنخفضات، والبرتقالي مرتفعات. الأسهم: اتجاه انتقال طاقة الموجة (تدفق بلمب)، وتشير إلى حيث يتعمق الأخدود التالي.</p>
+        </div>
+        <div class="card">
+          <h3>مؤشر التذبذب القطبي</h3>
+          <div id="aoNow" class="ao-now"></div>
+          <div id="aoChart"></div>
+          <p class="hint">الأعمدة: الرصد اليومي في آخر ٩٠ يومًا (مركز التنبؤ المناخي الأمريكي). الخط المتقطع: متوسط توقع جي إف إس المجمّع (٣١ عضوًا) لأسبوعين، والظل حوله مدى ٨٠٪ من الأعضاء. من أكتوبر إلى أبريل: السالب يضعف الدوامة القطبية ويتموج التيار النفاث فتزيد فرص اندفاع المنخفضات الباردة جنوبًا، والموجب يحبس البرد في الشمال.</p>
+        </div>
+        <div class="card">
+          <h3>الرطوبة فوق المملكة</h3>
+          <div id="mjoPw"></div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، من توقع جي إف إس. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
+        </div>
+        <p class="hint" id="mjoUpdated"></p>
+      </div>
+    </section>
+
+    <!-- status -->
+    <section class="panel scroll" id="p-status" hidden>
+      <div class="wrap">
+        <div class="card" id="statusCard"></div>
+        <div class="card"><h3>آخر الدورات</h3><div id="historyList"></div></div>
+        <div class="card"><h3>السجلات</h3>
+          <div class="logs">
+            <a data-log="cycle" target="_blank">سجل الدورة</a>
+            <a data-log="wrf_rsl" target="_blank">سجل النموذج</a>
+            <a data-log="install" target="_blank">سجل التثبيت</a>
+            <a data-log="system" target="_blank">حالة الخادم</a>
+            <a data-log="task" target="_blank">مهمة الصيانة</a>
+          </div>
+        </div>
+        <div class="card about">
+          <h3>عن النموذج</h3>
+          <p>نموذج البحث والتنبؤ بالطقس يعمل مرتين يوميًا على خوادم جيت هب المجانية، ويأخذ حالته الابتدائية وحدوده من نموذج جي إف إس الأمريكي: دورة الثالثة فجرًا بتوقيت مكة وتجهز خرائطها قرابة العاشرة والنصف صباحًا قبل ذروة نشاط السحب الرعدية بعد الظهر، ودورة الثالثة عصرًا وتجهز خرائطها قرابة العاشرة والنصف ليلًا قبل نشاط الليل والفجر على الساحل.</p>
+          <p>ثلاثة مجالات متداخلة: غرب المملكة والبحر الأحمر بدقة ٩ كم، وداخله منطقة مكة المكرمة من القنفذة إلى رابغ ورنية بدقة ٣ كم، ومدة كل منهما ٢٧ ساعة. وداخلهما مجال بدقة ١ كم يغطي جدة ومكة والجموم ومدركة ورهاط وأطراف حرة رهاط والطائف والهدا والشفا، يعمل في ساعات الذروة فقط: من الظهر إلى السادسة مساءً في تشغيل الصباح، ومن الثالثة إلى التاسعة صباحًا في تشغيل المساء لنشاط الفجر الساحلي. في المجالين الداخليين تُحاكى العواصف الرعدية صراحة دون تقدير تقريبي للحمل، وتضاريسهما من نموذج الارتفاعات الرقمي كوبرنيكوس بدقة ٩٠ م.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-tab="map">الخريطة</button>
+    <button class="tab" data-tab="mjo">التذبذب</button>
+    <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
+  </nav>
+</div>
+<script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
+<script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="app.js?v=20261109e"></script>
+</body>
+</html>

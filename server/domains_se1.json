@@ -1,0 +1,54 @@
+{
+ "_note": "Split-grid test: the regional 3 km grid cut in two halves that overlap by about 7 parent cells (63 km), same 9 km parent as the whole grid. This part: جنوب شرق المملكة الغربي, columns from parent cell 31, 133 points; the whole 33 hours on one runner.",
+ "map": {
+  "map_proj": "lambert",
+  "ref_lat": 19.7,
+  "ref_lon": 47.1,
+  "truelat1": 14.7,
+  "truelat2": 24.7,
+  "stand_lon": 47.1
+ },
+ "e_vert": 45,
+ "p_top": 5000,
+ "time_step": 45,
+ "domains": [
+  {
+   "id": "d01",
+   "name": "محيط جنوب شرق المملكة",
+   "res": "٩ كم",
+   "dx": 9000,
+   "e_we": 142,
+   "e_sn": 132,
+   "parent": 0,
+   "ratio": 1,
+   "ips": 1,
+   "jps": 1,
+   "hours": 33,
+   "geog": "default",
+   "max_dt": 54,
+   "min_dt": 18,
+   "cu": 3,
+   "gwd": 1,
+   "publish": false
+  },
+  {
+   "id": "d02",
+   "pub": "se1",
+   "name": "جنوب شرق المملكة الغربي",
+   "res": "٣ كم",
+   "dx": 3000,
+   "e_we": 133,
+   "e_sn": 214,
+   "parent": 1,
+   "ratio": 3,
+   "ips": 31,
+   "jps": 31,
+   "hours": 33,
+   "geog": "cop90+default",
+   "max_dt": 18,
+   "min_dt": 6,
+   "cu": 0,
+   "gwd": 0
+  }
+ ]
+}
