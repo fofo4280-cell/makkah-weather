@@ -65,6 +65,8 @@ def load(dirs, day=None, log=print, t_a=None, t_b=None):
                 P = d.get("points")
                 if not P or not os.path.exists(os.path.join(root, "runs", r["run"], P["file"])):
                     continue
+                if any(P.get(k) is None for k in ("x00", "y00", "dx", "nx", "ny")):
+                    continue            # a domain still being written (no grid origin yet): skip it, do not crash
                 if P["dx"] > 5000:      # only the 3 km grids feed the reports (Fahad, 13 Nov 2026), not the 9 km ones
                     continue
                 ks = [(k, int((init + timedelta(hours=h) - t_a).total_seconds() // 3600))
