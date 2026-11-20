@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>نموذج التنبؤ العددي عالي الدقة</title>
+<meta name="theme-color" content="#111111">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
+<link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="style.css?v=20261120ja">
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <img class="logo" src="logo.png?v=1" alt="شعار فهد العيسى" width="38" height="38">
+    <div class="brand">
+      <span class="brand-name">نموذج التنبؤ العددي عالي الدقة</span>
+      <span class="brand-sub" id="runLabel"><span class="credit" dir="ltr" lang="en">Developed by Fahad AlEissa</span><span id="runState"></span></span>
+    </div>
+    <button class="burger" id="menuBtn" aria-label="القائمة" aria-expanded="false" aria-controls="menu"><i></i><i></i><span class="dot" id="menuDot"></span></button>
+    <nav class="menu" id="menu" role="tablist" aria-label="الأقسام" hidden>
+      <button class="tab active" data-tab="map">الخريطة</button>
+      <button class="tab" data-tab="mjo">التذبذب</button>
+      <button class="tab" data-tab="status">الحالة <span class="dot" id="statusDot"></span></button>
+    </nav>
+  </header>
+
+  <main class="panels">
+    <!-- map -->
+    <section class="panel" id="p-map">
+      <div id="map" dir="ltr"></div>
+      <div class="map-top">
+        <div class="chips" id="domChips" role="tablist" aria-label="المجال"></div>
+        <button type="button" class="map-menu-btn" id="mapMenuBtn" aria-label="خيارات الخريطة" aria-expanded="false" aria-controls="mapMenu"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
+        <div class="map-menu" id="mapMenu" hidden>
+          <div class="mm-row"><span class="mm-lbl">التشغيل</span><select id="runSelect" class="run-select" aria-label="اختيار التشغيل" hidden></select></div>
+          <div class="mm-row"><span class="mm-lbl">الرادار والتوقعات</span><label class="mpill"><span class="mpill-txt" id="prodTxt"></span><span class="mpill-caret">▾</span><select id="prodSelect" class="prod-select" aria-label="المنتج"></select></label></div>
+          <div class="mm-row"><span class="mm-lbl">النموذج</span><label class="mpill" id="modelTabs"><span class="mpill-txt" id="modelTxt">GFS</span><span class="mpill-caret">▾</span><select id="modelSelect" class="prod-select" aria-label="التشغيل"><option value="gfs">GFS</option><option value="ec">ECMWF</option></select></label></div>
+          <div class="mm-row"><span class="mm-lbl">التضاريس والخريطة</span><div id="mmBase"></div></div>
+        </div>
+      </div>
+      <div class="map-empty" id="mapEmpty" hidden>
+        <div class="map-empty-box">
+          <strong>لا توجد خرائط بعد</strong>
+          <span id="mapEmptyMsg">النظام قيد التجهيز، ويمكنك متابعة التقدم من تبويب الحالة.</span>
+        </div>
+      </div>
+      <div class="map-bottom">
+        <div class="legend mini" id="legend" role="button" tabindex="0" aria-label="مفتاح الألوان، اضغط للتكبير أو التصغير"></div>
+        <div class="timebar" dir="ltr">
+          <button class="icon-btn" id="btnPrev" aria-label="السابق">‹</button>
+          <button class="icon-btn play" id="btnPlay" aria-label="تشغيل">▶</button>
+          <button class="icon-btn" id="btnNext" aria-label="التالي">›</button>
+          <div class="time-box">
+            <div class="time-label" id="timeLabel" dir="rtl">—</div>
+            <input type="range" id="timeRange" min="0" max="0" value="0" dir="ltr" aria-label="الوقت">
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- cities -->
+    <section class="panel scroll" id="p-cities" hidden>
+      <div class="wrap">
+        <p class="hint">لكل مدينة: الحرارة (خط)، ومطر كل ساعة (أعمدة)، وأقصى انعكاسية في دائرة نصف قطرها ٥ كم (الشريط الملوّن). تؤخذ القيم من أدق مجال يغطي المدينة.</p>
+        <input id="cityFilter" class="search" type="search" placeholder="ابحث عن مدينة">
+        <div id="cityList"></div>
+      </div>
+    </section>
+
+    <!-- MJO and warm/cold events -->
+    <section class="panel scroll" id="p-mjo" hidden>
+      <div class="wrap">
+        <nav class="seg mjo-tabs" id="mjoTabs" aria-label="أقسام الصفحة">
+          <button type="button" data-s="report" class="on">التقرير</button>
+          <button type="button" data-s="phase">طور التذبذب</button>
+          <button type="button" data-s="ksa">الرياح</button>
+          <button type="button" data-s="pw">الرطوبة</button>
+          <button type="button" data-s="conv">الحمل الحراري</button>
+          <button type="button" data-s="waves">كلفن وروسبي</button>
+          <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
+        </nav>
+        <div data-sec="report" class="card report" id="mjoReport" hidden></div>
+        <div data-sec="phase" class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
+        <div data-sec="phase" class="card" id="olrCard" hidden>
+          <h3>الحمل الحراري المداري ومركز التذبذب</h3>
+          <div class="figwrap" dir="ltr"><a id="olrLink" target="_blank" rel="noopener"><img loading="lazy" id="olrFig" alt="خريطة الحمل الحراري المداري" style="width:100%"></a></div>
+          <div class="mjo-time" id="olrTime" hidden>
+            <input type="range" id="olrDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="olrDayLabel"></span>
+          </div>
+          <p class="hint">اليوم الأول: السحب الركامية في آخر ٢٤ ساعة من تحليلات جي إف إس، وبعده حرّك الشريط لترى الأيام القادمة من توقع جي إف إس حتى ١٥ يومًا، وكلما اشتد اللون كان الحمل أعمق. الخط الأصفر مركز التذبذب المداري حسب آخر رصد للوكالة اليابانية للأرصاد الجوية، وفي الأيام القادمة يتقدم بسرعته المعتادة. آخر الأيام أقل ثقة. أطوارنا الداعمة للأمطار الواسعة على المملكة ٧ و٨ و١، أي حين يبتعد الحمل شرقًا إلى غرب المحيط الهادئ ثم يعود إلى أفريقيا. تتحدث كل ليلة، والمس أي موضع فيها لترى خط العرض وخط الطول.</p>
+        </div>
+        <div data-sec="phase" class="card">
+          <h3>مخطط أطوار التذبذب</h3>
+          <div id="mjoPhase"></div>
+          <p class="hint">الخط الرمادي: الرصد في آخر ٤٠ يومًا من مؤشر الوكالة اليابانية للأرصاد الجوية (نفس مؤشر الدكتور خالد العتيبي)، والمعيّنات السوداء كل أسبوع. الخط الأسود: المسار المتوقع لخمسة عشر يومًا، من رياح جي إف إس العلوية، أو بسرعة التذبذب المعتادة من آخر رصد ياباني حين يضعف توافق رياح جي إف إس مع المؤشر الياباني، مقسومًا بثلاثة تواريخ. داخل الدائرة: تذبذب ضعيف.</p>
+        </div>
+        <div data-sec="waves" class="card" id="twCard" hidden>
+          <h3>موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال</h3>
+          <div class="figwrap tw-scroll" dir="ltr">
+            <div class="tw-panel"><h4>عائلة روسبي، متجهة غربًا</h4><div class="tw-stage" data-k="twr"><img loading="lazy" alt="عائلة روسبي"><img loading="lazy" alt=""></div></div>
+            <div class="tw-panel"><h4>موجات كلفن، متجهة شرقًا</h4><div class="tw-stage" data-k="twk"><img loading="lazy" alt="موجات كلفن"><img loading="lazy" alt=""></div></div>
+          </div>
+          <div class="mjo-time">
+            <input type="range" id="twDay" min="0" max="22" value="7" dir="ltr" aria-label="اليوم">
+            <span id="twDayLabel"></span>
+          </div>
+          <div class="wv-key"><span><i class="ln lo"></i>أزرق: يدعم الأمطار</span><span><i class="ln red"></i>أحمر: يكبتها</span><span><i class="ar">➜</i>الرياح المتباعدة في الأعلى</span></div>
+          <p class="hint">إذا كان الأزرق فوق المملكة في اليوم المختار فالموجة تساعد على الأمطار، وإذا كان الأحمر فهي تكبتها. روسبي تتحرك غربًا وكلفن شرقًا، فحرّك الشريط لترى متى يصل الأزرق أو يرحل. الأيام من أسبوع مضى إلى ١٥ يومًا قادمة، وآخرها أقل ثقة.</p>
+        </div>
+        <div data-sec="warm" class="card" id="beltCard" hidden>
+          <h3>اللوحة الاستوائية الشاملة</h3>
+          <div id="beltMarks" class="belt-marks"></div>
+          <div class="mjo-time">
+            <input type="range" id="beltDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="beltDayLabel"></span>
+          </div>
+          <div id="beltPanels"></div>
+          <div id="twChart"></div>
+          <p class="hint">أربع خرائط بإطار واحد (من ٣٥ جنوبًا إلى ٣٥ شمالًا حول الأرض)، فتقع الأطوال تحت بعضها، وتمر بها الخطوط الثلاثة نفسها: مركز غلاف التذبذب (أدنى مكوّنه على خط الاستواء)، والحدث الدافئ والبارد. موجات كلفن وعائلة روسبي من جهد السرعة عند ٢٠٠ هكتوباسكال في تحاليل جي إف إس لأكثر من سنة مع توقعه، بعد التصفية في الرقم الموجي والدورة والسرعة: كلفن متجهة شرقًا (٢ إلى ٣٠ يومًا، ٨ إلى ٦٠ م/ث)، وروسبي متجهة غربًا (٥ إلى ٩٠ يومًا، ٠٫٥ إلى ٢٥ م/ث)، والأرقام الموجية ١ إلى ٩. الأزرق تباعد في الأعلى يرفع الهواء ويدعم الحمل، والأحمر تقارب يكبته، والأسهم البيضاء الرياح المتباعدة تخرج من مراكز الأزرق. المخطط: العائلتان فوق المملكة في آخر ستين يومًا والتوقع، والأعمدة مساحة الأمطار. المس أي خريطة لفتحها بحجم كامل.</p>
+        </div>
+        <div data-sec="warm" class="card">
+          <h3>خريطة الحدث الدافئ والبارد</h3>
+          <div class="seg" id="mjoLayer">
+            <button data-l="wc" class="on">المؤشر</button><button data-l="lw" hidden>قرب الأرض والطاقة</button><button data-l="lwd" hidden>التغير خلال ٢٤ ساعة</button>
+          </div>
+          <div class="figwrap" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img loading="lazy" id="mjoFig" alt="خريطة الحدث الدافئ والبارد"></a></div>
+          <div class="legend mjo-legend" id="mjoLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="mjoDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="mjoDayLabel"></span>
+          </div>
+          <p class="hint" id="mjoHint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المس أي موضع فيها لترى خط العرض وخط الطول.</p>
+        </div>
+        <div data-sec="ksa" class="card" id="kwCard" hidden>
+          <h3>الرياح</h3>
+          <div class="seg" id="kwLayer">
+            <button data-l="7" class="on">٧٠٠ هكتوباسكال</button><button data-l="5">٥٠٠ هكتوباسكال</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="kwScroll"><div class="ksa-inner" id="kwInner"><img loading="lazy" id="kwFig" alt="الرياح فوق المملكة" draggable="false"><canvas id="kwArrows" class="kw-arrows"></canvas><i id="kwPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="kwIn" aria-label="تكبير">+</button><button id="kwOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="kwCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="kwLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="kwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="kwDayLabel"></span>
+          </div>
+          <p class="hint" id="kwHint"></p>
+        </div>
+        <div data-sec="ksa" class="card" id="tcCard" hidden>
+          <h3>تصادم الرياح السطحية</h3>
+          <div class="seg" id="tcLayer">
+            <button data-l="day" class="on">تصادم الرياح</button><button data-l="line">الخط الزمني</button><button data-l="sea" hidden>تدفق البحر الأحمر</button>
+          </div>
+          <div class="seg tc-hour" id="tcHour">
+            <button data-h="11" class="on">١١ صباحًا</button><button data-h="13">١ ظهرًا</button><button data-h="15">٣ عصرًا</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="tcScroll"><div class="ksa-inner" id="tcInner"><img loading="lazy" id="tcFig" alt="تصادم الرياح السطحية" draggable="false"><i id="tcPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom" id="tcZoom"><button id="tcIn" aria-label="تكبير">+</button><button id="tcOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="tcCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="tcLegend" hidden></div>
+          <div id="tcNow" class="ksa-low"></div>
+          <div class="mjo-time" id="tcTime" hidden>
+            <input type="range" id="tcDay" min="0" max="14" value="7" dir="ltr" aria-label="اليوم">
+            <span id="tcDayLabel"></span>
+          </div>
+          <p class="hint" id="tcHint"></p>
+        </div>
+        <div data-sec="phase" class="card" id="mjofCard" hidden>
+          <h3>مكوّن التذبذب المعزول</h3>
+          <div class="seg" id="mjofLayer">
+            <button data-l="mjoz" class="on">عند ٨٠٠ هكتوباسكال</button><button data-l="mjop">الأمطار المرتبطة به</button>
+          </div>
+          <div class="figwrap" dir="ltr"><a id="mjofLink" target="_blank" rel="noopener"><img loading="lazy" id="mjofFig" alt="مكوّن التذبذب المعزول"></a></div>
+          <div class="legend mjo-legend" id="mjofLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="mjofDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="mjofDayLabel"></span>
+          </div>
+          <div id="mjofChart" hidden></div>
+          <p class="hint">الأزرق يدعم الأمطار والأحمر يكبتها. انظر إلى لون المملكة في اليوم المختار، وحرّك الشريط لترى تقدّم التذبذب شرقًا خلال الأيام القادمة. وفي «الأمطار المرتبطة به» الأخضر زيادة في الأمطار بسبب التذبذب والبني نقص. آخر أيام التوقع أقل ثقة.</p>
+        </div>
+        <div data-sec="waves" class="card">
+          <h3>موجات روسبي في الطبقة الوسطى</h3>
+          <div class="figwrap" id="waveWrap" dir="ltr"><a id="waveLink" target="_blank" rel="noopener"><div class="wv-stage"><img loading="lazy" id="waveFig" alt="خريطة موجات روسبي"><img loading="lazy" alt=""></div></a></div>
+          <div class="mjo-time">
+            <input type="range" id="waveDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="waveDayLabel"></span>
+          </div>
+          <div class="wv-key"><span><i class="ln lo"></i>منخفض موجي (أخدود)</span><span><i class="ln hi"></i>مرتفع موجي</span><span><i class="ln zero"></i>خط الصفر</span><span><i class="ar">➜</i>اتجاه الرياح حول المراكز</span></div>
+          <div id="waveList"></div>
+          <p class="hint">ارتفاعات ٥٠٠ هكتوباسكال (٥٫٥ كم) بعد إبقاء الموجات السينوبتيكية فقط (الأرقام الموجية ٤ إلى ٨) من توقع جي إف إس. الخطوط الزرقاء منخفضات وأخاديد، والذهبية مرتفعات، كل خط عشرة أمتار وعليه قيمته، والخط الأبيض المتقطع خط الصفر. وتحت كل مركز قيمته بالمتر. الأسهم المنحنية تتبع دوران الرياح حول كل مركز: عكس عقارب الساعة حول المنخفض ومعها حول المرتفع. اسحب الخريطة يمينًا ويسارًا، أو المس أي موضع فيها لترى خط العرض وخط الطول.</p>
+        </div>
+        <div data-sec="pw" class="card">
+          <h3>الرطوبة فوق المملكة</h3>
+          <div id="mjoPw" class="pw-scroll"></div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة، <span class="pw-src">من توقع جي إف إس</span>. اسحب الجدول لترى الأيام الخمسة عشر. يُكتب تقرير المد الرطوبي حين يتجاوز ١٥٠٪.</p>
+        </div>
+        <div data-sec="pw" class="card" id="pwMapCard">
+          <h3>رطوبة الجزيرة العربية</h3>
+          <div class="figwrap fit" id="pwFigWrap" dir="ltr"><a id="pwFigLink" target="_blank" rel="noopener"><img loading="lazy" id="pwFig" alt="رطوبة الجزيرة العربية" style="width:100%;height:auto;display:block"></a></div>
+          <div class="legend mjo-legend" id="pwLegend"></div>
+          <div class="mjo-time">
+            <input type="range" id="pwDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="pwDayLabel"></span>
+          </div>
+          <p class="hint">الماء القابل للهطول نسبة إلى معدله في هذا الوقت من السنة فوق الجزيرة العربية وما حولها، <span class="pw-src" data-f="map">من توقع جي إف إس</span>. الأخضر والأزرق أرطب من المعتاد، والبني أجف. المس أي موضع فيها لترى خط العرض وخط الطول.</p>
+        </div>
+        <div data-sec="pw" class="card" id="ksaCard" hidden>
+          <h3>خرائط الرطوبة والحرارة فوق المملكة</h3>
+          <div class="seg" id="ksaLayer">
+            <button data-l="krh7" class="on">رطوبة ٧٠٠</button><button data-l="krh5">رطوبة ٥٠٠</button><button data-l="kt5">حرارة ٥٠٠</button>
+          </div>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="ksaScroll"><div class="ksa-inner" id="ksaInner"><img loading="lazy" id="ksaFig" alt="خريطة المملكة" draggable="false"><i id="ksaPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="ksaIn" aria-label="تكبير">+</button><button id="ksaOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="ksaCoord" class="ksa-coord" hidden></div>
+          <div class="legend mjo-legend" id="ksaLegend"></div>
+          <div id="ksaLow" class="ksa-low" hidden></div>
+          <div class="mjo-time">
+            <input type="range" id="ksaDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="ksaDayLabel"></span>
+          </div>
+          <p class="hint" id="ksaHint"></p>
+        </div>
+        <div data-sec="conv" class="card" id="rsCard" hidden>
+          <h3>تدفق البحر الأحمر نحو السواحل</h3>
+          <div class="figwrap" dir="ltr"><img loading="lazy" id="rsFig" alt="تدفق البحر الأحمر" style="width:100%;display:block;border-radius:12px"></div>
+          <div id="rsNow" class="ksa-low"></div>
+          <div class="mjo-time">
+            <input type="range" id="rsDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
+            <span id="rsDayLabel"></span>
+          </div>
+          <p class="hint" id="rsHint"></p>
+        </div>
+        <div data-sec="conv" class="card" id="tpCard" hidden>
+          <h3>توغّل طاقة الحمل من البحر الأحمر</h3>
+          <div class="ksa-map" dir="ltr">
+            <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img loading="lazy" id="tpFig" alt="توغّل طاقة الحمل" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
+            <div class="ksa-zoom"><button id="tpIn" aria-label="تكبير">+</button><button id="tpOut" aria-label="تصغير" disabled>−</button></div>
+          </div>
+          <div id="tpCoord" class="ksa-coord" hidden></div>
+          <div id="tpNow" class="ksa-low"></div>
+          <div class="mjo-time">
+            <input type="range" id="tpDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
+            <span id="tpDayLabel"></span>
+          </div>
+          <p class="hint" id="tpHint">طاقة الحمل من النموذج الأوروبي، أعلى قيمها بين ١٢ ظهرًا و٦ مساءً، بألوان خرائط الدكتور خالد العتيبي: الأخضر طاقة خفيفة، ثم الأصفر فالأحمر فالعنابي، والأسود والرمادي أعلاها. الخط المتقطع يحيط بالطاقة المتصلة بالبحر الأحمر (٥٠٠ فأكثر في الأوروبي، و١٠٠ فأكثر في الأمريكي)، فيُظهر إلى أين دخل تدفقها داخل الجزيرة نحو نجد والقصيم والوسطى، وهو ما يصحب مواسم الخصب. الأسهم الرياح القريبة من السطح. كبّر الخريطة بالزرين، والمس أي موضع لترى إحداثياته.</p>
+        </div>
+        <p class="hint" id="mjoUpdated"></p>
+      </div>
+    </section>
+
+    <!-- status -->
+    <section class="panel scroll" id="p-status" hidden>
+      <div class="wrap">
+        <div class="card" id="statusCard"></div>
+        <div class="card"><h3>آخر الدورات</h3><div id="historyList"></div></div>
+        <div class="card"><h3>السجلات</h3>
+          <div class="logs">
+            <a data-log="cycle" target="_blank">سجل الدورة</a>
+            <a data-log="wrf_rsl" target="_blank">سجل النموذج</a>
+            <a data-log="install" target="_blank">سجل التثبيت</a>
+            <a data-log="system" target="_blank">حالة الخادم</a>
+            <a data-log="task" target="_blank">مهمة الصيانة</a>
+          </div>
+        </div>
+        <div class="card about">
+          <h3>عن النموذج</h3>
+          <p>نموذج البحث والتنبؤ بالطقس يعمل مرة يوميًا على خوادم جيت هب المجانية، من دورة الثالثة عصرًا بتوقيت مكة، لنشاط الليل والفجر على الساحل ولليوم التالي كاملًا. ويعمل بنسختين متطابقتين في الشبكات والإعدادات: الأولى تأخذ حالتها الابتدائية وحدودها من النموذج الأمريكي (تبويب GFS) وتجهز خرائطها قرابة الثانية فجرًا، والثانية من النموذج الأوروبي بدقة ربع درجة (تبويب ECMWF) وتجهز قرابة الخامسة والنصف فجرًا لتأخر صدور بياناته. وتُنشر خرائط كل ساعة فور حسابها.</p>
+          <p>المرتفعات الغربية بدقة ٣ كم: مجال واحد يغطي سلسلة السروات وتهامتها من جازان مرورًا بعسير والباحة والطائف ومكة المكرمة حتى الحرّات شمال مكة، داخل مجال أم بدقة ٩ كم يشمل البحر الأحمر لأن حالة البحر تؤثر كثيرًا في أمطار المرتفعات وتهامتها. مدته ٣٣ ساعة، ولأنها أطول من مهلة خادم واحد يعمل على خادمين متتاليين: الأول يحسب حتى الساعة ١٥ وينشر خرائطها، ثم يسلّم ملفات الاستئناف للثاني فيكمل حتى الساعة ٣٣ دون انقطاع.</p>
+          <p>والمملكة كلها بدقة ٣ كم في ستة مجالات: المرتفعات الغربية، وخمسة مجالات إقليمية (الشمال الغربي، والشمال، والوسط، والشرق، والجنوب الشرقي)، كل منها على خادمين متتاليين بالطريقة نفسها، وتُعرض معًا خريطة واحدة باسم «المملكة ٣ كم»، عدا أطراف الربع الخالي الشرقية.</p>
+          <p>ومجال المملكة كاملة بدقة ٩ كم على خادم آخر، مدته ٣٣ ساعة. (أوقفنا مجال ١ كم مؤقتًا حتى تستقر مجالات ٣ كم.)</p>
+          <p>في مجالات ٣ كم تُحاكى العواصف الرعدية صراحة دون تقدير تقريبي للحمل، وتضاريسهما من نموذج الارتفاعات الرقمي كوبرنيكوس بدقة ٩٠ م.</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+</div>
+<script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
+<script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
+<script src="../vendor/leaflet/leaflet.js"></script>
+<script src="app.js?v=20261120ja2"></script>
+</body>
+</html>

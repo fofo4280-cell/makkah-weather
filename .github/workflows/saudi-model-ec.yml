@@ -1,0 +1,206 @@
+# The same Kingdom-wide 3 km model (western highlands + five regional grids, 9 km parents) driven by ECMWF IFS
+# open data (0.25 degree, 13 pressure levels, 3-hourly) instead of GFS: initial and boundary conditions written
+# straight to WPS intermediate files by server/ecmwf_ic.py (SWRF_IC=ecmwf). Added 15 Nov 2026 (Fahad) for the
+# GFS / ECMWF tabs of the model page. Published to model-data-ec (west) and model-data-ec-<id>; the reports and
+# the nightly climate run do not read these branches.
+# The 12 UTC cycle only: ECMWF's hour-33 file is out about 19:00-19:35 UTC, so the run ends about 02:30 UTC.
+name: Saudi model ECMWF
+
+on:
+  schedule:
+    # GitHub starts schedules late or not at all at times: four tries, and the keeper as a backstop
+    - cron: '47 18 * * *'
+    - cron: '13 19 * * *'
+    - cron: '41 19 * * *'
+    - cron: '7 20 * * *'
+  workflow_dispatch:
+    inputs:
+      cycle:
+        description: 'ECMWF cycle YYYYMMDDHH (empty: today 12 UTC)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saudi-model-ec
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    outputs:
+      go: ${{ steps.done.outputs.go }}
+      cycle: ${{ steps.done.outputs.cycle }}
+    steps:
+      - name: Already run?
+        id: done
+        run: |
+          go=yes
+          R="${{ inputs.cycle }}"
+          if [ -z "$R" ]; then
+            H=$(date -u +%H)
+            # only the 12 UTC cycle runs on schedule; a try GitHub fires after midnight UTC does nothing
+            if [ "$((10#$H))" -lt 12 ]; then echo "fired at $H UTC: nothing to run"; echo "go=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+            R="$(date -u +%Y%m%d)12"
+            s=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/model-data-ec/runs.json?$(date +%s)" \
+              | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo none)
+            echo "cycle $R on the page: $s"
+            [ "$s" != none ] && go=no
+          fi
+          echo "cycle=$R" >> "$GITHUB_OUTPUT"
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+      - name: Wait for the ECMWF cycle
+        if: steps.done.outputs.go == 'yes'
+        run: |
+          R=${{ steps.done.outputs.cycle }}; D=${R:0:8}; C=${R:8:2}
+          # the last file the run needs (hour 33); the AWS copy appears about 19:35 UTC for the 12 UTC cycle,
+          # data.ecmwf.int somewhat earlier: wait for either
+          A="https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/$D/${C}z/ifs/0p25/oper/${D}${C}0000-33h-oper-fc.index"
+          E="https://data.ecmwf.int/forecasts/$D/${C}z/ifs/0p25/oper/${D}${C}0000-33h-oper-fc.index"
+          for i in $(seq 1 280); do
+            if curl -sfI -m 30 "$E" >/dev/null || curl -sfI -m 30 "$A" >/dev/null; then echo "ECMWF $R ready"; exit 0; fi
+            sleep 60
+          done
+          echo "still waiting after 280 minutes"; exit 1
+
+  west:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data-ec
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  west2:
+    needs: west
+    if: always() && needs.west.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data-ec
+      resume: true
+      ic: ecmwf
+
+
+  r_se:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_se
+      domains: domains_se.json
+      branch: model-data-ec-se
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  r_se2:
+    needs: r_se
+    if: always() && needs.r_se.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_se
+      domains: domains_se.json
+      branch: model-data-ec-se
+      resume: true
+      ic: ecmwf
+
+  r_n:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_n
+      domains: domains_n.json
+      branch: model-data-ec-n
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  r_n2:
+    needs: r_n
+    if: always() && needs.r_n.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_n
+      domains: domains_n.json
+      branch: model-data-ec-n
+      resume: true
+      ic: ecmwf
+
+  r_c:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-ec-c
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  r_c2:
+    needs: r_c
+    if: always() && needs.r_c.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-ec-c
+      resume: true
+      ic: ecmwf
+
+  r_e:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_e
+      domains: domains_e.json
+      branch: model-data-ec-e
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  r_e2:
+    needs: r_e
+    if: always() && needs.r_e.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_e
+      domains: domains_e.json
+      branch: model-data-ec-e
+      resume: true
+      ic: ecmwf
+
+  r_nw:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_nw
+      domains: domains_nw.json
+      branch: model-data-ec-nw
+      cycle: ${{ needs.gate.outputs.cycle }}
+      ic: ecmwf
+      stop_h: '15'
+
+  r_nw2:
+    needs: r_nw
+    if: always() && needs.r_nw.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_nw
+      domains: domains_nw.json
+      branch: model-data-ec-nw
+      resume: true
+      ic: ecmwf

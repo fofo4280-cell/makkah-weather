@@ -1,0 +1,207 @@
+# Twice-daily high-resolution model (WRF) on GitHub runners; code on the saudi-wrf branch, maps shown at /model/.
+#   western highlands 3 km (Jazan to the harrats north of Makkah, with the Red Sea) in a 9 km parent, 33 hours:
+#     too long for one runner, so it runs in two parts that hand over WRF restart files at hour 15 (a boundary time: a restart between two 3-hourly boundary times blew up) -> model-data
+#   regional 3 km grids, split like the western one -> model-data-<id>: south-east, north, centre, east, north-west; with the western highlands they cover the Kingdom at 3 km
+#   (the 1 km nest over Jeddah-Makkah-Taif, domains.json -> model-data-1km, is paused until the 3 km runs settle)
+#   Kingdom-wide 9 km, 33 hours -> model-data-sa
+# Runs on the 12 UTC GFS cycle only since 15 Nov 2026 (was 00 and 12) (full radiosonde assimilation). GitHub often starts scheduled runs late,
+# so the schedule is early and the gate job waits for the GFS files; the model jobs then get their full time.
+name: Saudi model 3 km
+
+on:
+  schedule:
+    # GitHub sometimes starts a scheduled run very late or not at all (11 and 12 Nov 2026), so the cycle has
+    # three more tries; a try finds the cycle already run (or running) and does nothing.
+    # The 00 UTC (daytime) cycle was stopped on 15 Nov 2026 (Fahad): only the 12 UTC (evening) cycle runs.
+    - cron: '47 14 * * *'
+    - cron: '13 15 * * *'
+    - cron: '41 15 * * *'
+    - cron: '7 16 * * *'
+  push:
+    branches: [main]
+    paths: ['model/run-now.txt']
+  workflow_dispatch:
+    inputs:
+      cycle:
+        description: 'GFS cycle YYYYMMDDHH (leave empty for the newest available)'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+concurrency:
+  group: saudi-model
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    outputs:
+      go: ${{ steps.done.outputs.go }}
+    steps:
+      - name: Already run?
+        id: done
+        run: |
+          go=yes
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); R="$(date -u +%Y%m%d)$C"
+            # no daytime cycle (Fahad, 15 Nov 2026): a 12 UTC try GitHub fires after midnight UTC must not start 00
+            if [ "$C" = 00 ]; then echo "schedule fired at $H UTC: the 00 UTC cycle is stopped"; echo "go=no" >> "$GITHUB_OUTPUT"; exit 0; fi
+            s=$(curl -sf -m 30 "https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/model-data-sa/runs.json?$(date +%s)" \
+              | python3 -c "import json,sys; r=[x for x in json.load(sys.stdin)['runs'] if x['run']=='$R']; print(r[0]['status'] if r else 'none')" 2>/dev/null || echo none)
+            echo "cycle $R on the page: $s"
+            [ "$s" != none ] && go=no
+          fi
+          echo "go=$go" >> "$GITHUB_OUTPUT"
+      - name: Wait for the GFS cycle
+        if: steps.done.outputs.go == 'yes'
+        run: |
+          [ "${{ github.event_name }}" = "schedule" ] || exit 0
+          H=$(date -u +%H); C=$([ "$H" -lt 12 ] && echo 00 || echo 12); D=$(date -u +%Y%m%d)
+          # the same store the model reads (AWS lags NOMADS by some minutes). A schedule GitHub fires hours early
+          # (13 Nov 2026: the 02:47 try started at 12:06) waits here, not in the model jobs, whose clock starts
+          # when they start (they waited 2 hours, gave up 5 minutes before the files came, and the cycle was lost)
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f033.idx"
+          for i in $(seq 1 280); do
+            if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $D $C ready"; exit 0; fi
+            sleep 60
+          done
+          echo "still waiting after 280 minutes; the model job will wait or fall back"
+
+  west:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  west2:
+    needs: west
+    if: always() && needs.west.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      resume: true
+
+  kingdom:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: kingdom
+      domains: domains_sa.json
+      branch: model-data-sa
+      cycle: ${{ inputs.cycle }}
+
+  r_se:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_se
+      domains: domains_se.json
+      branch: model-data-se
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_se2:
+    needs: r_se
+    if: always() && needs.r_se.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_se
+      domains: domains_se.json
+      branch: model-data-se
+      resume: true
+
+  r_n:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_n
+      domains: domains_n.json
+      branch: model-data-n
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_n2:
+    needs: r_n
+    if: always() && needs.r_n.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_n
+      domains: domains_n.json
+      branch: model-data-n
+      resume: true
+
+  r_c:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-c
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_c2:
+    needs: r_c
+    if: always() && needs.r_c.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_c
+      domains: domains_c.json
+      branch: model-data-c
+      resume: true
+
+  r_e:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_e
+      domains: domains_e.json
+      branch: model-data-e
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_e2:
+    needs: r_e
+    if: always() && needs.r_e.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_e
+      domains: domains_e.json
+      branch: model-data-e
+      resume: true
+
+  r_nw:
+    needs: gate
+    if: needs.gate.outputs.go == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_nw
+      domains: domains_nw.json
+      branch: model-data-nw
+      cycle: ${{ inputs.cycle }}
+      stop_h: '15'
+
+  r_nw2:
+    needs: r_nw
+    if: always() && needs.r_nw.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: r_nw
+      domains: domains_nw.json
+      branch: model-data-nw
+      resume: true
