@@ -621,32 +621,68 @@ def main():
             traceback.print_exc()
             print("belt stack failed", k, repr(e), flush=True)
 
-    # 8. moisture over Saudi Arabia: precipitable water against the climatology
+    # 8. moisture over Saudi Arabia: precipitable water against the climatology. The report reads GFS (st.pw);
+    #    the page's table and Arabia map are ECMWF when its run is there (Fahad, 20 Nov 2026: «جدول الماء القابل
+    #    للهطول مع الخريطة اسفله في نفس الصفحة نكتفي بالاوروبي»), 16 days (IFS open data reaches 360 h)
     plat, plon = clim["pw_lat"], clim["pw_lon"]
-    pw_rows = []
-    for k, dt in enumerate(days):
-        row = {"d": dt.strftime("%Y-%m-%d")}
-        for key, (name, s, n, w, e) in BOXES.items():
-            g = box_mean(fc[dt]["pw"], LAT1, LON1, s, n, w, e)
-            c = box_mean(clim["pw"][doy(dt)], plat, plon, s, n, w, e)
-            row[key] = {"pw": round(g, 1), "clim": round(c, 1), "pct": int(round(100 * g / max(c, 1)))}
-        pw_rows.append(row)
-        # percent of normal map over Arabia
-        from scipy.ndimage import map_coordinates
-        cl = clim["pw"][doy(dt)]
-        J = (LAT1[:, None] - plat[0]) / (plat[1] - plat[0]) * np.ones((1, len(LON1)))
-        I = (LON1[None, :] - plon[0]) / (plon[1] - plon[0]) * np.ones((len(LAT1), 1))
-        clim1 = map_coordinates(cl, [J, I], order=1, mode="nearest")
-        pct = 100 * fc[dt]["pw"] / np.maximum(clim1, 1)
-        sub_j = (LAT1 >= 5) & (LAT1 <= 40)
-        sub_i = (LON1 >= 25) & (LON1 <= 65)
-        mercator_png(os.path.join(out, "pw", f"{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i], PWA,
-                     south=6, north=39, west=25, east=65, w=400)
-        try:
-            figures.draw(os.path.join(out, "fig", f"pw_{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i],
-                         "pw", (25, 65, 6, 39), width_px=1100)
-        except Exception as e:
-            print("figure failed pw", k, e, flush=True)
+    from scipy.ndimage import map_coordinates
+
+    def pw_rows_of(get):
+        rows_ = []
+        for k, dt in enumerate(days):
+            g_ = get(dt)
+            if g_ is None:
+                continue
+            row = {"d": dt.strftime("%Y-%m-%d")}
+            for key, (name, s, n, w, e) in BOXES.items():
+                g = box_mean(g_, LAT1, LON1, s, n, w, e)
+                c = box_mean(clim["pw"][doy(dt)], plat, plon, s, n, w, e)
+                row[key] = {"pw": round(g, 1), "clim": round(c, 1), "pct": int(round(100 * g / max(c, 1)))}
+            rows_.append(row)
+        return rows_
+
+    def pw_maps(get):
+        for k, dt in enumerate(days):
+            g_ = get(dt)
+            if g_ is None:
+                continue
+            cl = clim["pw"][doy(dt)]
+            J = (LAT1[:, None] - plat[0]) / (plat[1] - plat[0]) * np.ones((1, len(LON1)))
+            I = (LON1[None, :] - plon[0]) / (plon[1] - plon[0]) * np.ones((len(LAT1), 1))
+            clim1 = map_coordinates(cl, [J, I], order=1, mode="nearest")
+            pct = 100 * g_ / np.maximum(clim1, 1)
+            sub_j = (LAT1 >= 5) & (LAT1 <= 40)
+            sub_i = (LON1 >= 25) & (LON1 <= 65)
+            mercator_png(os.path.join(out, "pw", f"{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j], LON1[sub_i], PWA,
+                         south=6, north=39, west=25, east=65, w=400)
+            try:
+                figures.draw(os.path.join(out, "fig", f"pw_{k:02d}.png"), pct[np.ix_(sub_j, sub_i)], LAT1[sub_j],
+                             LON1[sub_i], "pw", (25, 65, 6, 39), width_px=1100)
+            except Exception as e:
+                print("figure failed pw", k, e, flush=True)
+
+    pw_rows = pw_rows_of(lambda dt: fc[dt]["pw"])
+    pw_ec, pw_model = None, "gfs"
+    try:
+        import ecmwf
+        if ecmwf.available(cycle, 360):
+            ecpw = {}
+            for dt in days:
+                fh_ = int((dt - t0).total_seconds() // 3600)
+                try:
+                    a_ = ecmwf._at(cycle, fh_, "tcwv", "")
+                    ecpw[dt] = np.asarray(a_, dtype=np.float32)[::4, ::4]   # 0.25 -> the 1 degree grid (same points)
+                except Exception as e:  # noqa: BLE001
+                    print("ECMWF PW failed", dt, repr(e)[:120], flush=True)
+            if len(ecpw) >= len(days) - 1:
+                pw_ec = pw_rows_of(lambda dt: ecpw.get(dt))
+                pw_model = "ecmwf"
+                pw_maps(lambda dt: ecpw.get(dt) if dt in ecpw else fc[dt]["pw"])
+    except Exception as e:  # noqa: BLE001
+        print("ECMWF PW failed", repr(e)[:160], flush=True)
+    if pw_ec is None:
+        pw_maps(lambda dt: fc[dt]["pw"])
+    print("PW table and map:", pw_model, flush=True)
 
     # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
     #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
@@ -949,7 +985,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "pw_ec": pw_ec, "pw_model": pw_model, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
