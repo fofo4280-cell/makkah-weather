@@ -1,0 +1,127 @@
+{
+ "phase": "idle",
+ "steps": [
+  {
+   "id": "wrf",
+   "label": "تشغيل النموذج الجزء الثاني",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-20T22:31:51Z",
+   "note": "الساعة 33 من 33",
+   "ended": "2026-11-21T00:58:53Z"
+  },
+  {
+   "id": "post",
+   "label": "الخرائط والنشر",
+   "state": "done",
+   "state_prev": "running",
+   "started": "2026-11-21T00:58:53Z",
+   "ended": "2026-11-21T00:58:54Z"
+  }
+ ],
+ "history": [
+  {
+   "cycle": "2026112012",
+   "ok": 1,
+   "minutes": 147,
+   "cores": 4,
+   "finished": "2026-11-21T00:58Z"
+  },
+  {
+   "cycle": "2026112012",
+   "ok": 1,
+   "minutes": 164,
+   "cores": 4,
+   "finished": "2026-11-20T22:30Z"
+  },
+  {
+   "cycle": "2026111912",
+   "ok": 1,
+   "minutes": 199,
+   "cores": 4,
+   "finished": "2026-11-20T01:54Z"
+  },
+  {
+   "cycle": "2026111912",
+   "ok": 1,
+   "minutes": 163,
+   "cores": 4,
+   "finished": "2026-11-19T22:33Z"
+  },
+  {
+   "cycle": "2026111812",
+   "ok": 1,
+   "minutes": 264,
+   "cores": 4,
+   "finished": "2026-11-19T02:51Z"
+  },
+  {
+   "cycle": "2026111812",
+   "ok": 1,
+   "minutes": 145,
+   "cores": 4,
+   "finished": "2026-11-18T22:25Z"
+  },
+  {
+   "cycle": "2026111712",
+   "ok": 1,
+   "minutes": 238,
+   "cores": 4,
+   "finished": "2026-11-18T02:20Z"
+  },
+  {
+   "cycle": "2026111712",
+   "ok": 1,
+   "minutes": 153,
+   "cores": 4,
+   "finished": "2026-11-17T22:20Z"
+  },
+  {
+   "cycle": "2026111612",
+   "ok": 1,
+   "minutes": 235,
+   "cores": 4,
+   "finished": "2026-11-17T02:15Z"
+  },
+  {
+   "cycle": "2026111612",
+   "ok": 1,
+   "minutes": 147,
+   "cores": 4,
+   "finished": "2026-11-16T22:18Z"
+  },
+  {
+   "cycle": "2026111512",
+   "ok": 1,
+   "minutes": 144,
+   "cores": 4,
+   "finished": "2026-11-16T01:08Z"
+  },
+  {
+   "cycle": "2026111512",
+   "ok": 1,
+   "minutes": 173,
+   "cores": 4,
+   "finished": "2026-11-15T22:42Z"
+  },
+  {
+   "cycle": "2026111500",
+   "ok": 1,
+   "minutes": 162,
+   "cores": 4,
+   "finished": "2026-11-15T17:15Z"
+  },
+  {
+   "cycle": "2026111500",
+   "ok": 1,
+   "minutes": 194,
+   "cores": 4,
+   "finished": "2026-11-15T14:31Z"
+  }
+ ],
+ "cycle": "2026112012",
+ "message": "اكتملت آخر دورة في 147 دقيقة",
+ "started": "2026-11-20T22:31:48Z",
+ "updated": "2026-11-21T00:58:54Z",
+ "finished": "2026-11-21T00:58:54Z"
+}

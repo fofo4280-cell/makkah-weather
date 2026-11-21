@@ -1,0 +1,7 @@
+[2026-11-20T22:31:48Z] cycle 2026112012 on 4 cores
+[2026-11-20T22:31:51Z] === step wrf: start
+[2026-11-20T22:31:51Z] going on from the restart files of hour 15
+[2026-11-21T00:58:53Z] === step wrf: done
+[2026-11-21T00:58:53Z] === step post: start
+[2026-11-21T00:58:54Z] === step post: done
+[2026-11-21T00:58:54Z] cycle 2026112012 finished in 147 min
