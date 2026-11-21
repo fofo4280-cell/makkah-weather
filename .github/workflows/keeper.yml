@@ -72,8 +72,8 @@ jobs:
             fi
             # the morning run over Makkah and Taif (17-19 Nov 2026) was removed on 19 Nov 2026 (Fahad)
             # the noon rain update was stopped on 14 Nov 2026 (Fahad): the midnight report is the only one
-            # the night climate run: from 21:00 UTC
-            if [ "$HM" -ge 2100 ] && [ "$HM" -le 2359 ]; then
+            # the night climate run: from 20:10 UTC (20 Nov 2026: compute now ~45 min with 15-day maps; publish before midnight Makkah)
+            if [ "$HM" -ge 2010 ] && [ "$HM" -le 2359 ]; then
               c=$(raw climate-data/mjo.json | python3 -c "import json,sys; print(json.load(sys.stdin).get('cycle',''))" 2>/dev/null || echo x)
               if [ "$c" != "${D}12" ] && [ "$c" != x ] && ! busy climate.yml; then
                 echo "$(date -u +%H:%M) night climate run missing (published $c): starting it"
