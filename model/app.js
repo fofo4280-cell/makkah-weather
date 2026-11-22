@@ -46,6 +46,28 @@
   // the morning run's 24-hour map holds its hours 9-18: noon to 9 PM Makkah
   const lab = (k) => LABELS[k];
   const SINGLE = ["rain24", "tsprob"];   // one map for the whole run
+  // chance of a severe storm, the next 8 Makkah days (Fahad, 22 Nov 2026): GFS 0.25 ingredients joined by a fit tested
+  // against satellite rain (saudi-wrf server/climate/svrprob.py), made by the nightly climate run on climate-data
+  // (svr.json + fig/svr_KK.png, pictures already in Web Mercator rows over EXTENT); the same for both model tabs
+  const SVR = { j: null, p: null, at: 0 };
+  const SVR_LABEL = "احتمال العاصفة الشديدة";
+  function svrLoad() {
+    if (SVR.j && Date.now() - SVR.at < 30 * 60e3) return Promise.resolve(SVR.j);
+    if (SVR.failed && Date.now() - SVR.failed < 5 * 60e3) return Promise.resolve(SVR.j);
+    if (!SVR.p) SVR.p = getJSON(CL + "svr.json").then((j) => {
+      j.days.forEach((x) => { const b = atob(x.vals || ""); x.v = Uint8Array.from(b, (ch) => ch.charCodeAt(0)); });
+      SVR.j = j; SVR.at = Date.now(); SVR.failed = 0; return j;
+    }).catch(() => { SVR.failed = Date.now(); return SVR.j; }).finally(() => { SVR.p = null; });
+    return SVR.p;
+  }
+  function svrAt(lat, lon) {   // the chance (%) at a point on the shown day, from the 0.25 degree values
+    const f = S.frames[S.idx], j = SVR.j;
+    if (!j || !f || f.svr == null) return null;
+    const g = j.grid, x = j.days[f.svr];
+    const r = Math.round((g.lat0 - lat) / g.d), c = Math.round((lon - g.lon0) / g.d);
+    if (!x || !x.v || r < 0 || c < 0 || r >= g.ny || c >= g.nx) return null;
+    return x.v[r * g.nx + c];
+  }
   const NO_H0 = new Set(["rain1h", "wind", "wup"]);
 
   const $ = (id) => document.getElementById(id);
@@ -304,6 +326,7 @@
 
   const cache = new Map();
   function preload(i) {
+    if (S.prod === "svr") { const x = SVR.j && S.frames[i] && SVR.j.days[S.frames[i].svr]; if (x) loadImg(svrURL(x)); return; }
     const d = S.man && S.man.domains[S.dom];
     const us = d && d.members ? d.members.map((m) => urlFor(m, S.frames[i])) : [frameURL(i)];
     for (const u of us) if (u) loadImg(u);
@@ -683,9 +706,29 @@
     if (vec.url === url && vec.layer) vec.layer.setData(all.flat());
   }
 
+  const svrURL = (x) => `${CL}fig/${x.file}?c=${SVR.j.cycle}`;
+  function svrShow() {
+    const f = S.frames[S.idx], x = f && SVR.j && SVR.j.days[f.svr];
+    if (!x) {
+      clearOverlay(); $("timeLabel").textContent = SVR.failed ? "لم تصدر الخريطة بعد" : "جارٍ التحميل…";
+      if (!SVR.j) svrLoad().then((j) => { if (j && S.prod === "svr") { buildFrames(false); drawLegend(); showFrame(); } });
+      return;
+    }
+    const e = SVR.j.extent;
+    MOS.token++; clearMulti(); overlayTo(svrURL(x), [[e[2], e[0]], [e[3], e[1]]]);
+    $("timeRange").max = S.frames.length - 1;
+    $("timeRange").value = S.idx;
+    const t = new Date(x.d + "T09:00:00Z");
+    $("timeLabel").textContent = `${fmtDay.format(t)} · النموذج الأمريكي`;
+    for (let k = 1; k <= 2; k++) preload(S.idx + k);
+    rvSync();
+    if (S.pointPopup && S.pointPopup.isOpen()) S.pointPopup.setContent(pointHTML(S.pointPopup._pt));
+  }
+
   function showFrame() {
     if (LX.on) return liShow();
     showVectors();
+    if (S.prod === "svr") return svrShow();
     const d = S.man && S.man.domains[S.dom];
     if (!d || !S.frames.length) { clearOverlay(); $("timeLabel").textContent = "—"; return; }
     S.idx = Math.max(0, Math.min(S.idx, S.frames.length - 1));
@@ -717,6 +760,13 @@
     if (LX.on) return;
     const d = S.man && S.man.domains[S.dom];
     const prevKey = keepTime && S.frames[S.idx] ? S.frames[S.idx] : null;
+    if (S.prod === "svr") {   // one map per Makkah day, opening on today
+      const j = SVR.j;
+      S.frames = j ? j.days.map((x, i) => ({ svr: i, d: x.d })) : [];
+      const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ }).format(new Date());
+      if (!prevKey || prevKey.svr == null) S.idx = Math.max(0, S.frames.findIndex((f) => f.d >= today));
+      return;
+    }
     if (!d) { S.frames = []; return; }
     // a domain may not have every product (the 1 km nest has hourly maps only)
     if (!LIVE(S.prod) && d.products && !d.products.includes(S.prod)) { S.prod = "refl"; $("prodSelect").value = "refl"; drawLegend(); }
@@ -733,7 +783,7 @@
   const rgba = (hex, a) => `rgba(${parseInt(hex.slice(1, 3), 16)},${parseInt(hex.slice(3, 5), 16)},${parseInt(hex.slice(5, 7), 16)},${(Math.max(a, 90) / 255).toFixed(2)})`;
   function drawLegend() {
     if (LX.on) return liLegend();
-    const p = S.man && S.man.products[S.prod];
+    const p = S.prod === "svr" ? SVR.j && { label: SVR_LABEL + " · النموذج الأمريكي", unit: "٪", legend: SVR.j.legend } : S.man && S.man.products[S.prod];
     if (!p) { $("legend").innerHTML = ""; return; }
     const lg = p.legend;
     const grad = lg.bands
@@ -805,9 +855,10 @@
     const P = (S.man && S.man.products) || {};
     const opt = (k) => (P[k] ? `<option value="${k}">${lab(k) || P[k].label}</option>` : "");
     // one flat list, live lightning first
-    sel.innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("");
+    sel.innerHTML = `<option value="radar">الرادار</option><option value="lightning">البرق</option>` + [...HOURLY, ...SINGLE, ...DAILY].map(opt).join("")
+      + `<option value="svr">${SVR_LABEL}</option>`;
     const listed = [...HOURLY, ...SINGLE, ...DAILY].includes(S.prod);
-    if ((!P[S.prod] || !listed) && !LIVE(S.prod)) S.prod = "refl";
+    if ((!P[S.prod] || !listed) && !LIVE(S.prod) && S.prod !== "svr") S.prod = "refl";
     sel.value = S.prod;
   }
 
@@ -1499,7 +1550,8 @@
     const h = f && f.h != null ? f.h : null;
     const at = (v) => { const r = (pt.series[v] || []).find((x) => x[0] === h); return r ? r[1] : null; };
     const res = (S.man.domains[pt.dom] || {}).res || "";
-    const now = h == null ? "" : `<div class="pt-now">
+    const sv = S.prod === "svr" ? svrAt(pt.lat, pt.lon) : null;
+    const now = S.prod === "svr" ? `<div class="pt-now"><span>${SVR_LABEL}: <b>${sv == null ? "—" : num(sv) + "٪"}</b></span></div>` : h == null ? "" : `<div class="pt-now">
         <span><b>${num(at("rain"), 1)}</b> ملم</span><span><b>${num(at("refl"))}</b> ديسيبل</span>
         <span><b>${num(at("t2"))}</b>°</span><span><b>${num(at("wind"))}</b> كم/س</span></div>`;
     return `<div class="pt-head"><strong>${num(pt.lat, 2)}° ش، ${num(pt.lon, 2)}° ق</strong><small>${res}</small></div>
