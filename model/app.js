@@ -1812,7 +1812,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); rivCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1990,6 +1990,7 @@
       ? "الأمطار المرتبطة بالتذبذب — النموذج الأمريكي" : "مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال — النموذج الأمريكي",
       "الأزرق يدعم الأمطار والأحمر يكبتها، فانظر إلى لون المملكة"],
     waveDayLabel: () => ["موجات روسبي عند ٥٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق أخدود منخفض والأحمر مرتفع، والأسهم اتجاه الرياح"],
+    rivDayLabel: () => ["النهر الجوي — النموذج الأوروبي", ""],
     pwDayLabel: () => [`رطوبة الجزيرة العربية — النموذج ${M.st && M.st.pw_model === "ecmwf" ? "الأوروبي" : "الأمريكي"}`, "الماء القابل للهطول نسبة إلى معدله: الأخضر والأزرق أرطب من المعتاد"],
   };
   function dayBadges() {
@@ -2523,6 +2524,31 @@
       rsCard.done = true;
       $("rsDay").oninput = show;
       $("rsDay").max = Math.max(0, rows.length - 1); $("rsDay").value = todayIdx(R.days);
+    }
+    show();
+  }
+  // the atmospheric river from the Arabian Sea, ECMWF only (Fahad, 22 Nov 2026: «النهر المتدفق بلون مميز يتحرك بتقدم
+  // الأيام بدون أسهم»): one picture per day (riv_KK.png), the day's line and the first arrival; only the shown day and
+  // the next one are fetched (never all frames at once)
+  function rivCard() {
+    const st = M.st, R = st.river, rows = R && R.rows ? R.rows : [];
+    $("rivCard").hidden = !rows.some((r) => r.g);
+    const tab = document.querySelector('#mjoTabs [data-s="river"]'); if (tab) tab.hidden = $("rivCard").hidden;
+    if ($("rivCard").hidden) return;
+    const url = (k) => `${CL}fig/riv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    const show = () => {
+      const k = +$("rivDay").value || 0, r = rows[k] || {};
+      $("rivFig").src = url(k);
+      if (rows[k + 1]) { const n = new Image(); n.src = url(k + 1); }
+      $("rivDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      const fut = r.d && r.d > todayISO() ? " (توقع)" : "";
+      $("rivNow").innerHTML = (r.text ? `<div><b>${r.text}${fut}.</b></div>` : "<div>لا تتوفر بيانات لهذا اليوم.</div>")
+        + (R.first_text ? `<div>${R.first_text}.</div>` : "");
+    };
+    if (!rivCard.done) {
+      rivCard.done = true;
+      $("rivDay").max = Math.max(0, rows.length - 1); $("rivDay").value = todayIdx(R.days);
+      $("rivDay").oninput = show;
     }
     show();
   }

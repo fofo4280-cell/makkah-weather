@@ -78,6 +78,7 @@
           <button type="button" data-s="phase">طور التذبذب</button>
           <button type="button" data-s="ksa">الرياح</button>
           <button type="button" data-s="pw">الرطوبة</button>
+          <button type="button" data-s="river">النهر الجوي</button>
           <button type="button" data-s="conv">الحمل الحراري</button>
           <button type="button" data-s="waves">كلفن وروسبي</button>
           <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
@@ -230,6 +231,16 @@
             <span id="ksaDayLabel"></span>
           </div>
           <p class="hint" id="ksaHint"></p>
+        </div>
+        <div data-sec="river" class="card" id="rivCard" hidden>
+          <h3>النهر الجوي من بحر العرب</h3>
+          <div class="figwrap" dir="ltr"><img loading="lazy" id="rivFig" alt="النهر الجوي" style="width:100%;display:block;border-radius:12px"></div>
+          <div id="rivNow" class="ksa-low"></div>
+          <div class="mjo-time">
+            <input type="range" id="rivDay" min="0" max="14" value="0" dir="ltr" aria-label="اليوم">
+            <span id="rivDayLabel"></span>
+          </div>
+          <p class="hint">من النموذج الأوروبي وحده، الساعة ٣ عصرًا بتوقيت مكة لكل يوم إلى ١٥ يومًا، بلا أسهم. اللون المضيء هو النهر الجوي: شدة تدفق بخار الماء من سطح الأرض إلى ارتفاع نحو ٤ كم، يبدأ خافتًا عند ١٠٠ ويزداد ضياءً حتى يقترب من الأبيض فوق ٤٥٠. السطر فوق الشريط يقول هل يصل النهر إلى جنوب البحر الأحمر، وجازان وعسير، وساحل جدة ومكة، ومتى يصل أول مرة. اختُبر على ٢٩١ يومًا من ثلاثة مواسم مقابل المطر المرصود: إذا وصل النهر إلى ساحل جدة ومكة ارتفعت فرصة المطر هناك من ١٠٪ إلى ٥٠٪، وثبت ذلك في المواسم الثلاثة. أما وصوله إلى جنوب البحر الأحمر وجازان وعسير فإشارته للمطر ضعيفة، لأن الجنوبية فوق جنوب البحر هي المعتادة في الشتاء، فهو يبيّن مكان النهر لا المطر. والنهر وقود فقط، لا يمطر إلا مع رافع كالأخدود أو الحدث الدافئ.</p>
         </div>
         <div data-sec="conv" class="card" id="rsCard" hidden>
           <h3>تدفق البحر الأحمر نحو السواحل</h3>
