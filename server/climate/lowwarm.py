@@ -301,6 +301,17 @@ def _cbar(fig, im, rect, ticks, cold, warm, fp, fb):
     fig.text((x0 + x1) / 2, yl, "بلا وحدة", fontproperties=fb, fontsize=9.5, color=MUTED, ha="center", va="top")
 
 
+def _save(fig, path):
+    """save, then pack to 256 colours (dithered): a third of the size, no visible change (the page loads one per day)"""
+    fig.savefig(path, facecolor=PAPER)
+    try:
+        from PIL import Image
+        im = Image.open(path).convert("RGB")
+        im.quantize(colors=256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.FLOYDSTEINBERG).save(path, optimize=True)
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _ticks(vmax):
     step = next(s for s in (.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100) if vmax / s <= 3.2)
     k = int(vmax // step)
@@ -363,7 +374,7 @@ def draw(i, ep, u, v, valid, path):
     _coasts(ax2)
     _cbar(fig, im2, [.26, y(b2 - .62), .48, y(.13)], [-120, -80, -40, 0, 40, 80, 120], "حدث بارد",
           "حدث دافئ ومعه طاقة عالية", fp, fb)
-    fig.savefig(path, facecolor=PAPER)
+    _save(fig, path)
     plt.close(fig)
 
 
@@ -390,5 +401,5 @@ def draw_change(di, u, v, valid, path):
            WARM_INK, fp)
     _cbar(fig, im, [.45, y(b - .62), .48, y(.13)], _ticks(vmax), "نحو حمل ضحل أو مكبوت (حدث بارد)",
           "نحو حمل عميق مهيأ (حدث دافئ)", fp, fb)
-    fig.savefig(path, facecolor=PAPER)
+    _save(fig, path)
     plt.close(fig)
