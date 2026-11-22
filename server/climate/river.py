@@ -300,7 +300,13 @@ def run(cycle, out_fig, log=print, gfs_fields=None):
         fh = int((datetime(d.year, d.month, d.day, 12) - t0).total_seconds() // 3600)
         r = {"d": d.isoformat()}
         try:
-            mag, qu, qv, lat, lon = fetch_step(cycle, fh)
+            try:
+                mag, qu, qv, lat, lon = fetch_step(cycle, fh)
+            except Exception as e:  # noqa: BLE001  (the open-data bucket answers 503 SlowDown at times: one more go)
+                log("river: retry", d, repr(e)[:100], flush=True)
+                import time
+                time.sleep(45)
+                mag, qu, qv, lat, lon = fetch_step(cycle, fh)
             if masks is None:
                 land, hgt = static_from(cycle, lat, lon, gfs_fields)
                 masks = gate_masks(lat, lon, land, hgt)
