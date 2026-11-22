@@ -111,7 +111,7 @@ def run(gfs_fields, cycle, days, fig_dir, log=print):
         kk = f"{k - 1:02d}"
         draw(i, ep, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lw_{kk}.png"))
         if prev is not None:
-            draw_change(i - prev, valid, os.path.join(fig_dir, f"lwd_{kk}.png"))
+            draw_change(i - prev, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lwd_{kk}.png"))
         prev = i
         out_days.append(d.isoformat())
         low, high = boxes(i, f["ps"])
@@ -156,6 +156,20 @@ def boxes(i, ps):
     return low, high
 
 
+# ------------------------------------------------------------------ drawing
+# The look (Fahad, 22 Nov 2026, after the global "Warm/Cold Event index (2m/800hPa)" maps Dr. Khalid shares): cream
+# paper, a smooth blue-white-red shading (dark navy cold .. dark red warm), white 800 hPa streamlines with a grid of
+# white dots, thin black coasts, a light grid, the four MJO sectors along the top, the title strip above the map, the
+# figures of the day in a box under it and the colour bar centred at the bottom. Style only: the numbers are unchanged.
+PAPER, INK, MUTED, GRID = "#faf8f3", "#1d1d1d", "#6b6b6b", "#c9c4b8"
+COLD_INK, WARM_INK = "#3b6aa8", "#c0392b"
+PALETTE = ["#13305e", "#2a568f", "#5a88c0", "#9dbbdc", "#d3e0ec", "#f6f2e9",
+           "#f4dcb0", "#eeb06c", "#e07f3d", "#c4512a", "#982519", "#5e0c10"]
+SECTORS = [(45, "قطاع التذبذب الشرقي ١", COLD_INK), (135, "قطاع التذبذب الشرقي ٢", COLD_INK),
+           (225, "قطاع التذبذب الغربي ١", WARM_INK), (315, "قطاع التذبذب الغربي ٢", WARM_INK)]
+UP = 4                      # display only: the 1 degree field is drawn smooth at a quarter degree
+
+
 def _fonts():
     from matplotlib import font_manager as fm
     return (fm.FontProperties(fname=os.path.join(HERE, "fonts", "IBMPlexSansArabic-SemiBold.ttf")),
@@ -164,101 +178,217 @@ def _fonts():
 
 def _when(valid):
     mk = valid + timedelta(hours=3)
-    return f"{DAYS[mk.weekday()]} {_n(mk.day)} {MONTHS[mk.month - 1]}، الثالثة عصرًا بتوقيت مكة"
+    return f"{DAYS[mk.weekday()]} {_n(mk.day)} {MONTHS[mk.month - 1]} {_n(mk.year)}، الثالثة عصرًا بتوقيت مكة"
 
 
 def _n(x):
     return str(x).translate(str.maketrans("0123456789-.", "٠١٢٣٤٥٦٧٨٩−٫"))
 
 
-def _axes(fig, rect):
+def _sn(x, nd=1):
+    """a number in Arabic digits, a negative one with the word «سالب» (a sign beside Arabic digits flips side)"""
+    t = _n(f"{abs(x):.{nd}f}")
+    return "سالب " + t if round(x, nd) < 0 else t
+
+
+def _lon_ar(lo):
+    lo = lo % 360
+    if lo == 0 or lo == 180:
+        return _n(int(lo))
+    return _n(int(lo if lo < 180 else 360 - lo)) + (" شرقًا" if lo < 180 else " غربًا")
+
+
+def _lat_ar(la):
+    if la == 0:
+        return "خط الاستواء"
+    return _n(int(abs(la))) + (" شمالًا" if la > 0 else " جنوبًا")
+
+
+def _cmap():
+    from matplotlib.colors import LinearSegmentedColormap
+    return LinearSegmentedColormap.from_list("lwscorp", PALETTE, N=512)
+
+
+def _hires(a):
+    """smooth display copy of a (rows 45 N .. 45 S, columns 0 .. 359 E): cubic, wrapped in longitude"""
+    from scipy.ndimage import zoom
+    p = np.concatenate([a[:, -3:], a, a[:, :3]], axis=1)
+    z = zoom(np.nan_to_num(p), UP, order=3)
+    return z[:, 3 * UP:3 * UP + a.shape[1] * UP]
+
+
+def _map(fig, rect, fp, fb):
+    """a cartopy map 0 .. 360 (centred on 180) by 45 N .. 45 S on cream paper, with grid, labels and sector boxes"""
     import cartopy.crs as ccrs
-    import cartopy.feature as cf
     ax = fig.add_axes(rect, projection=ccrs.PlateCarree(central_longitude=180))
-    ax.set_extent([0.01, 359.99, -35, 35], ccrs.PlateCarree())
-    ax.set_facecolor("#1b2330")
-    ax.coastlines("110m", lw=.6, color="#222")
-    ax.add_feature(cf.BORDERS.with_scale("110m"), lw=.3, edgecolor="#555")
-    ax.plot([0, 360], [0, 0], color="#444", lw=.5, ls="--", transform=ccrs.PlateCarree())
-    for x in range(0, 360, 60):
-        ax.text(x, -38, _n(x if x <= 180 else 360 - x) + ("°ش" if 0 < x < 180 else "°غ" if x > 180 else "°"),
-                transform=ccrs.PlateCarree(), ha="center", va="top", fontsize=8, color="#aaa", fontproperties=_fonts()[0])
+    ax.set_extent([0.01, 359.99, -45, 45], ccrs.PlateCarree())
+    ax.set_facecolor(PAPER)
+    for s in ax.spines.values():
+        s.set_edgecolor("#bdb7aa"); s.set_linewidth(.8)
+    P = ccrs.PlateCarree()
+    for la in (-30, 30):
+        ax.plot([0, 360], [la, la], color=GRID, lw=.6, transform=P, zorder=4)
+    ax.plot([0, 360], [0, 0], color="#555", lw=.8, transform=P, zorder=4)
+    for lo in (90, 180, 270):
+        ax.plot([lo, lo], [-45, 45], color="#9a958a", lw=.6, ls=(0, (4, 3)), transform=P, zorder=4)
+    for lo in (60, 120, 240, 300):
+        ax.plot([lo, lo], [-45, 45], color=GRID, lw=.4, alpha=.6, transform=P, zorder=4)
+    for la in (45, 30, 0, -30, -45):
+        ax.text(-.006, (la + 45) / 90, _lat_ar(la), transform=ax.transAxes, ha="right", va="center",
+                fontproperties=fb, fontsize=9.5, color=MUTED)
+    for lo in range(0, 361, 60):
+        ax.text(lo / 360, -.025, _lon_ar(lo), transform=ax.transAxes, ha="center", va="top",
+                fontproperties=fb, fontsize=9.5, color=MUTED)
+        ax.plot([lo / 360] * 2, [0, -.012], color="#9a958a", lw=.8, transform=ax.transAxes, clip_on=False)
+    for lo, name, c in SECTORS:
+        ax.text(lo / 360, .975, name, transform=ax.transAxes, ha="center", va="top", fontproperties=fb,
+                fontsize=8.5, color=c, zorder=9,
+                bbox={"boxstyle": "square,pad=0.25", "fc": (1, 1, 1, .78), "ec": c, "lw": .7})
     return ax
 
 
-def _cbar(fig, cm, rect, ticks, label, fp):
+def _shade(ax, a, vmax):
+    import cartopy.crs as ccrs
+    from matplotlib.colors import Normalize
+    im = ax.imshow(np.clip(_hires(a), -vmax, vmax), extent=(-180, 180, -45 - .5, 45 + .5), origin="upper",
+                   transform=ccrs.PlateCarree(central_longitude=180), cmap=_cmap(),
+                   norm=Normalize(-vmax, vmax), interpolation="bilinear", zorder=0)
+    return im
+
+
+def _flow(ax, u, v):
+    """white 800 hPa streamlines (thicker where faster) and a grid of white dots, in the map's own coordinates"""
+    from matplotlib.axes import Axes
+    lat = np.linspace(45, -45, u.shape[0])
+    xs = np.arange(u.shape[1], dtype=float) - 180.0
+    uu, vv = u[::-1], v[::-1]
+    spd = np.hypot(uu, vv)
+    lw = np.clip(.45 + 1.9 * spd / max(float(np.nanpercentile(spd, 98)), 1e-6), .45, 2.3)
+    Axes.streamplot(ax, xs, lat[::-1], uu, vv, density=(6.5, 1.9), color=(1, 1, 1, .9), linewidth=lw,
+                    arrowsize=.45, arrowstyle="-", minlength=.12, zorder=2)
+    gx, gy = np.meshgrid(np.arange(-178.0, 180, 4), np.arange(-43.0, 45, 4))
+    Axes.scatter(ax, gx.ravel(), gy.ravel(), s=3.2, c="white", alpha=.95, linewidths=0, zorder=2)
+
+
+def _coasts(ax):
+    ax.coastlines("50m", lw=.55, color="#111", zorder=5)
+
+
+def _title(fig, y, line1, line2, fp, fb):
+    fig.text(.985, y, line1, fontproperties=fb, fontsize=16.5, color=INK, ha="right", va="top")
+    fig.text(.015, y - .004, line2, fontproperties=fp, fontsize=11, color=MUTED, ha="left", va="top")
+
+
+def _stats(fig, x, y, lines, edge, fp):
+    fig.text(x, y, "\n".join(lines), fontproperties=fp, fontsize=10, color=INK, ha="left", va="top", linespacing=1.5,
+             bbox={"boxstyle": "square,pad=0.45", "fc": "white", "ec": edge, "lw": .8})
+
+
+def _cbar(fig, im, rect, ticks, cold, warm, fp, fb):
     import matplotlib.pyplot as plt
     cax = fig.add_axes(rect)
-    cb = plt.colorbar(cm, cax=cax, orientation="horizontal")
+    cb = plt.colorbar(im, cax=cax, orientation="horizontal")
     cb.set_ticks(ticks)
-    cb.set_ticklabels([_n(t) for t in ticks])
-    cb.outline.set_edgecolor("#555")
-    for t in cb.ax.get_xticklabels():
-        t.set_fontproperties(fp); t.set_color("#ddd"); t.set_fontsize(9)
-    cax.set_title(label, fontproperties=fp, fontsize=10, color="#bbb", pad=3)
+    cb.set_ticklabels([_n(f"{t:g}") for t in ticks])
+    cb.outline.set_edgecolor("#888"); cb.outline.set_linewidth(.6)
+    cax.tick_params(length=3, color="#888")
+    for t in cax.get_xticklabels():
+        t.set_fontproperties(fb); t.set_color(MUTED); t.set_fontsize(9.5)
+    x0, x1 = rect[0], rect[0] + rect[2]
+    yl = rect[1] - .36 / fig.get_figheight()
+    fig.text(x0, yl, cold, fontproperties=fb, fontsize=9.5, color=COLD_INK, ha="left", va="top")
+    fig.text(x1, yl, warm, fontproperties=fb, fontsize=9.5, color=WARM_INK, ha="right", va="top")
+    fig.text((x0 + x1) / 2, yl, "بلا وحدة", fontproperties=fb, fontsize=9.5, color=MUTED, ha="center", va="top")
+
+
+def _ticks(vmax):
+    step = next(s for s in (.5, 1, 2, 2.5, 5, 10, 20, 25, 50, 100) if vmax / s <= 3.2)
+    k = int(vmax // step)
+    return [step * j for j in range(-k, k + 1)]
+
+
+def _extremes(a):
+    """(fraction of the area above zero, area-weighted mean, (max, lon, lat), (min, lon, lat)) over 45 N .. 45 S"""
+    lat = np.linspace(45, -45, a.shape[0])
+    w = np.cos(np.radians(lat))[:, None] * np.ones_like(a)
+    ok = np.isfinite(a)
+    frac = float((w * (a > 0))[ok].sum() / w[ok].sum())
+    mean = float((w * a)[ok].sum() / w[ok].sum())
+    jx, ix = np.unravel_index(np.nanargmax(a), a.shape)
+    jn, i_n = np.unravel_index(np.nanargmin(a), a.shape)
+    return frac, mean, (float(a[jx, ix]), ix, lat[jx]), (float(a[jn, i_n]), i_n, lat[jn])
+
+
+def _where(lo, la):
+    return f"عند {_lon_ar(int(lo))} و{_lat_ar(int(round(la)))}"
+
+
+DOMAIN = "النطاق بين ٤٥ شمالًا و٤٥ جنوبًا"
 
 
 def draw(i, ep, u, v, valid, path):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import cartopy.crs as ccrs
-    from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
     fp, fb = _fonts()
-    lat = np.linspace(45, -45, i.shape[0])
-    lon = np.arange(i.shape[1], dtype=float)
-    fig = plt.figure(figsize=(15, 9.6), dpi=130, facecolor="#111")
-    fig.text(.5, .965, "الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) وطاقة الحمل", fontproperties=fb,
-             fontsize=17, color="#fff", ha="center")
-    fig.text(.5, .935, _when(valid) + "، من جي إف إس", fontproperties=fp, fontsize=11.5, color="#bbb", ha="center")
+    W, H = 15, 11.0
+    fig = plt.figure(figsize=(W, H), dpi=130, facecolor=PAPER)
+    y = lambda inch: inch / H                  # positions from the bottom, in inches
+    mw, mh = .9, .9 * W / 4                     # 360 by 90 degrees
+    _title(fig, y(H - .2), "مؤشر الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) وطاقة الحمل",
+           _when(valid) + " • النموذج الأمريكي", fp, fb)
     # panel 1: the index with 800 hPa streamlines
-    ax = _axes(fig, [.03, .53, .94, .36])
-    warm = LinearSegmentedColormap.from_list("w", ["#1b3a8f", "#3d6fd1", "#9fbbea", "#f2f2f2", "#f0a39a", "#d9433a", "#8a1414"])
-    lev = np.arange(-4, 4.01, .5)
-    cm = ax.contourf(lon, lat, np.clip(i, -3.99, 3.99), levels=lev, cmap=warm, norm=BoundaryNorm(lev, warm.N),
-                     transform=ccrs.PlateCarree(), zorder=0)
-    sl = slice(10, 81)          # 35 N .. 35 S
-    # in the map's own coordinates (longitude minus 180), so no regridding is needed
-    xs = lon - 180.0
-    from matplotlib.axes import Axes
-    Axes.streamplot(ax, xs, lat[sl][::-1], u[sl][::-1], v[sl][::-1], density=(3.2, 1.2),
-                  color="#ffffff", linewidth=.45, arrowsize=.6, zorder=2)
-    ax.coastlines("110m", lw=.6, color="#222", zorder=3)
-    ax.text(.995, 1.02, "مؤشر الحدث الدافئ والبارد قرب الأرض، وخطوط الرياح عند ٨٠٠ هكتوباسكال", transform=ax.transAxes,
-            ha="right", va="bottom", fontproperties=fb, fontsize=12, color="#eee")
-    _cbar(fig, cm, [.3, .475, .4, .016], [-4, -2, 0, 2, 4], "الأزرق حدث بارد يكبت الحمل، والأحمر حدث دافئ يهيئ للحمل العميق (بلا وحدة)", fp)
+    top = H - 1.0
+    fig.text(.985, y(top + .32), "المؤشر وخطوط الرياح عند ٨٠٠ هكتوباسكال", fontproperties=fb, fontsize=12.5,
+             color=INK, ha="right", va="top")
+    b1 = top - mh
+    ax = _map(fig, [.07, y(b1), mw, y(mh)], fp, fb)
+    im = _shade(ax, i, 4.0)
+    _flow(ax, u, v)
+    _coasts(ax)
+    fr, mn, hi, lo = _extremes(i)
+    _stats(fig, .07, y(b1 - .5), [f"المؤشر • حدث دافئ على {_n(round(fr * 100))}٪ من {DOMAIN} • المتوسط {_sn(mn, 2)}",
+                                  f"أقوى دافئ {_sn(hi[0])} {_where(hi[1], hi[2])} • أقوى بارد {_sn(lo[0])} {_where(lo[1], lo[2])}"],
+           WARM_INK, fp)
+    _cbar(fig, im, [.45, y(b1 - .62), .48, y(.13)], _ticks(4.0), "حمل ضحل أو مكبوت (حدث بارد)",
+          "حمل عميق مهيأ (حدث دافئ)", fp, fb)
     # panel 2: index x sqrt(CAPE)
-    ax2 = _axes(fig, [.03, .08, .94, .36])
-    en = LinearSegmentedColormap.from_list("e", ["#0f5d55", "#3fa392", "#a8dccf", "#f4f1ec", "#e7b9a6", "#b8577e", "#5b1a66"])
-    lev2 = np.arange(-120, 121, 15)
-    cm2 = ax2.contourf(lon, lat, np.clip(ep, -119, 119), levels=lev2, cmap=en, norm=BoundaryNorm(lev2, en.N),
-                       transform=ccrs.PlateCarree(), zorder=0)
-    ax2.coastlines("110m", lw=.6, color="#222", zorder=3)
-    ax2.text(.995, 1.02, "طاقة الحمل في الحدث: المؤشر مضروبًا في جذر طاقة عدم الاستقرار", transform=ax2.transAxes,
-             ha="right", va="bottom", fontproperties=fb, fontsize=12, color="#eee")
-    _cbar(fig, cm2, [.3, .03, .4, .016], [-120, -60, 0, 60, 120], "البنفسجي حدث دافئ ومعه طاقة عالية، والأخضر حدث بارد", fp)
-    fig.savefig(path, facecolor="#111")
+    top2 = b1 - 1.55
+    fig.text(.985, y(top2 + .32), "طاقة الحمل في الحدث: المؤشر مضروبًا في جذر طاقة عدم الاستقرار", fontproperties=fb,
+             fontsize=12.5, color=INK, ha="right", va="top")
+    b2 = top2 - mh
+    ax2 = _map(fig, [.07, y(b2), mw, y(mh)], fp, fb)
+    im2 = _shade(ax2, ep, 120.0)
+    _flow(ax2, u, v)
+    _coasts(ax2)
+    _cbar(fig, im2, [.26, y(b2 - .62), .48, y(.13)], [-120, -80, -40, 0, 40, 80, 120], "حدث بارد",
+          "حدث دافئ ومعه طاقة عالية", fp, fb)
+    fig.savefig(path, facecolor=PAPER)
     plt.close(fig)
 
 
-def draw_change(di, valid, path):
+def draw_change(di, u, v, valid, path):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    import cartopy.crs as ccrs
-    from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
     fp, fb = _fonts()
-    lat = np.linspace(45, -45, di.shape[0])
-    lon = np.arange(di.shape[1], dtype=float)
-    fig = plt.figure(figsize=(15, 5.4), dpi=130, facecolor="#111")
-    fig.text(.5, .93, "تغير الحدث الدافئ والبارد قرب الأرض خلال ٢٤ ساعة", fontproperties=fb, fontsize=17, color="#fff", ha="center")
-    fig.text(.5, .87, "حتى " + _when(valid), fontproperties=fp, fontsize=11.5, color="#bbb", ha="center")
-    ax = _axes(fig, [.03, .17, .94, .64])
-    cmap = LinearSegmentedColormap.from_list("c", ["#1d4f91", "#6c9bd2", "#cfdff0", "#f4f1ec", "#f3c9a0", "#e07b39", "#8c2d04"])
-    lev = np.arange(-3, 3.01, .5)
-    cm = ax.contourf(lon, lat, np.clip(di, -2.99, 2.99), levels=lev, cmap=cmap, norm=BoundaryNorm(lev, cmap.N),
-                     transform=ccrs.PlateCarree(), zorder=0)
-    ax.coastlines("110m", lw=.6, color="#222", zorder=3)
-    _cbar(fig, cm, [.3, .06, .4, .03], [-3, -2, -1, 0, 1, 2, 3], "البرتقالي اشتداد الحدث الدافئ أو ضعف البارد، والأزرق العكس", fp)
-    fig.savefig(path, facecolor="#111")
+    W, H = 15, 5.9
+    fig = plt.figure(figsize=(W, H), dpi=130, facecolor=PAPER)
+    y = lambda inch: inch / H
+    mw, mh = .9, .9 * W / 4
+    _title(fig, y(H - .2), "تغير مؤشر الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) — ملخص ٢٤ ساعة",
+           _when(valid) + " • النموذج الأمريكي", fp, fb)
+    b = H - .75 - mh
+    ax = _map(fig, [.07, y(b), mw, y(mh)], fp, fb)
+    vmax = max(1.0, float(np.ceil(np.nanpercentile(np.abs(di), 99.7) * 2) / 2))
+    im = _shade(ax, di, vmax)
+    _flow(ax, u, v)
+    _coasts(ax)
+    fr, mn, hi, lo = _extremes(di)
+    _stats(fig, .07, y(b - .5), [f"تغير ٢٤ ساعة • اشتداد على {_n(round(fr * 100))}٪ من {DOMAIN} • متوسط التغير {_sn(mn, 2)}",
+                                 f"أكبر ارتفاع {_sn(hi[0])} {_where(hi[1], hi[2])} • أكبر هبوط {_sn(abs(lo[0]))} {_where(lo[1], lo[2])}"],
+           WARM_INK, fp)
+    _cbar(fig, im, [.45, y(b - .62), .48, y(.13)], _ticks(vmax), "نحو حمل ضحل أو مكبوت (حدث بارد)",
+          "نحو حمل عميق مهيأ (حدث دافئ)", fp, fb)
+    fig.savefig(path, facecolor=PAPER)
     plt.close(fig)
