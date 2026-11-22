@@ -791,7 +791,16 @@ def main():
         traceback.print_exc()
         print("red sea flow failed:", repr(e), flush=True)
 
-    # 8a5. chance of a severe storm, the next 8 Makkah days, GFS 0.25 ingredients (Fahad, 22 Nov 2026; svrprob.py):
+    # 8a5. the atmospheric river from the Arabian Sea toward the Red Sea and the south-west, ECMWF only (river.py;
+    #      Fahad, 22 Nov 2026: «اعتمد ع الأوروبي فقط توضح فيها النهر المتدفق بلون مميز يتحرك بتقدم الأيام»)
+    river_out = None
+    try:
+        import river
+        river_out = river.run(cycle, os.path.join(out, "fig"), log=lambda *a, **k: print(*a, flush=True), gfs_fields=gfs_fields)
+    except Exception as e:  # noqa: BLE001
+        print("river failed:", repr(e), flush=True)
+
+    # 8a6. chance of a severe storm, the next 8 Makkah days, GFS 0.25 ingredients (Fahad, 22 Nov 2026; svrprob.py):
     #      svr.json + fig/svr_KK.png, read by the model page's «احتمال العاصفة الشديدة» layer
     try:
         import svrprob
@@ -1008,7 +1017,7 @@ def main():
         "geo": dict(figures.GEO), "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
-        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "taifc_gfs": taifc_gfs, "rsflow": rsflow_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
+        "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "taifc_gfs": taifc_gfs, "rsflow": rsflow_out, "river": river_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),
     }
     try:
         cnt = {}
