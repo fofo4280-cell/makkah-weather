@@ -377,7 +377,7 @@ def draw_change(di, u, v, valid, path):
     y = lambda inch: inch / H
     mw, mh = .9, .9 * W / 4
     _title(fig, y(H - .2), "تغير مؤشر الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) — ملخص ٢٤ ساعة",
-           "حتى " + _when(valid) + " • النموذج الأمريكي", fp, fb)
+           _when(valid) + " • النموذج الأمريكي", fp, fb)
     b = H - .75 - mh
     ax = _map(fig, [.07, y(b), mw, y(mh)], fp, fb)
     vmax = max(1.0, float(np.ceil(np.nanpercentile(np.abs(di), 99.7) * 2) / 2))
