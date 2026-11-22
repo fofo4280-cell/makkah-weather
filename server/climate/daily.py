@@ -791,6 +791,18 @@ def main():
         traceback.print_exc()
         print("red sea flow failed:", repr(e), flush=True)
 
+    # 8a5. chance of a severe storm, the next 8 Makkah days, GFS 0.25 ingredients (Fahad, 22 Nov 2026; svrprob.py):
+    #      svr.json + fig/svr_KK.png, read by the model page's «احتمال العاصفة الشديدة» layer
+    try:
+        import svrprob
+        svr_out = svrprob.run(cycle, os.path.join(out, "fig"))
+        with open(os.path.join(out, "svr.json"), "w") as fh_:
+            json.dump(svr_out, fh_, ensure_ascii=False, separators=(",", ":"))
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("severe storm chance failed:", repr(e), flush=True)
+
     # 8b. synoptic Rossby waves at 500 hPa (wavenumbers 4-8) and their activity flux
     wave_rows = []
     for k, dt in enumerate(days[:WAVE_DAYS + 1]):
