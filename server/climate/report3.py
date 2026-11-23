@@ -260,7 +260,7 @@ def cold_wave_blocks(st, day0, effect=True, W=None):
         elif nx:
             B.append({"p": "ويخرج محوره من المملكة غدًا، فهي موجة عابرة ليوم واحد."})
     else:
-        B.append({"p": "تظهر ملامح تبريد علوي ضعيف: هبوط وبرودة في الطبقات العليا دون أخدود واضح المحور فوق المملكة."})
+        B.append({"p": "تظهر ملامح تبريد علوي ضعيف: هبوط في سطح ٥٠٠ هكتوباسكال وبرودة في الطبقات العليا، دون أخدود واضح المحور فوق المملكة."})
     signs = []
     fl = [(W["falls"][r][0], r, W["falls"][r][1]) for r in ORDER if r in W["falls"]]
     if fl:
@@ -271,7 +271,8 @@ def cold_wave_blocks(st, day0, effect=True, W=None):
             parts.append(x)
         signs.append("هبط سطح ٥٠٠ هكتوباسكال خلال يوم نحو " + "، ".join(parts))
     for k, (nm, a, tt) in W["anom"].items():
-        signs.append(f"وحرارة ٥٠٠ فوق {nm} ‎−{n1(abs(tt))}°، أبرد من معدلها بـ{n1(abs(a))}°")
+        signs.append(f"وحرارة ٥٠٠ هكتوباسكال فوق {nm} {chr(0x200e) + '−' if tt < 0 else ''}{n1(abs(tt))}°، "
+                     f"{'أبرد' if a < 0 else 'أدفأ'} من معدلها بـ{n1(abs(a))}°")
     if signs:
         signs[0] = signs[0].removeprefix("و")
         B.append({"p": "العلامات: " + "، ".join(signs) + "."})
@@ -696,16 +697,16 @@ def weak_reasons(st, day0, W):
     m = v.get("m")
     if m and st.get("wet_season") is not False:
         if m["phase"] not in BP.WET_PHASES:
-            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} خارج أطوار الدعم")
+            out.append(f"التذبذب المداري متوقع اليوم في الطور {ar(m['phase'])}، وهو خارج أطوار الدعم")
         elif m["amp"] < 1.5:
-            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} بسعة ضعيفة ({n1(m['amp'])})")
+            out.append(f"التذبذب المداري متوقع اليوم في الطور {ar(m['phase'])} بسعة ضعيفة ({n1(m['amp'])})")
     if v.get("mf"):
         ref = (st.get("mjof") or {}).get("z_ref") or 10
         z = v["mf"][0]
         if z >= ref / 3:
-            out.append(f"مكوّن التذبذب فوق المملكة موجب ({n1(z)} م) {BR.mf_word(z, ref)}")
+            out.append(f"مكوّن التذبذب فوق المملكة موجب ({n1(z)} م)، فهو {BR.mf_word(z, ref)}")
     if v.get("w") and c["warm"] == 0 and not BP.favourable(v["w"][0]):
-        out.append(f"الحدث الدافئ مركزه عند {ar(round(v['w'][0]))}° شرقًا، خارج القطاع الداعم فوق غرب بحر العرب وشرق أفريقيا")
+        out.append(f"مركز الحدث الدافئ عند خط الطول {ar(round(v['w'][0]))}° شرقًا، خارج القطاع الداعم فوق غرب بحر العرب وشرق أفريقيا")
     T = (W or {}).get("trough")
     if T:
         k = T["k"]
@@ -716,8 +717,10 @@ def weak_reasons(st, day0, W):
     elif c["trough"] < 0.3:
         out.append("لا أخدود علوي مؤثر")
     dry = [n for n in ORDER if (pw_of(st, day0, n) or 100) < 100]
-    if dry:
-        out.append(f"الهواء جاف على {jl(dry)}")
+    if dry:   # a long list of regions reads badly: say "all" or "most" instead (wording only)
+        out.append("الهواء جاف على جميع مناطق المملكة" if len(dry) == len(ORDER) else
+                   f"الهواء جاف على معظم المناطق ({ar(len(dry))} من {ar(len(ORDER))})" if len(dry) >= 9 else
+                   f"الهواء جاف على {jl(dry)}")
     return out[:5]
 
 
@@ -764,7 +767,7 @@ def summary(st, rs, regs, day0):
         why.append("من المداريات " + jl(Tt))
     if Rr:
         why.append("من العروض الوسطى " + jl(Rr))
-    B.append({"p": f"البنية مع الصورة العامة: {LEVEL4[struct]}. تصنيف الحالة: {label}"
+    B.append({"p": f"بنية الحالة مع الصورة العامة {LEVEL4[struct]}، وتصنيفها: {label}"
                    + (f"، يسندها {'، و'.join(why)}" if why else "") + "."})
     # b. the regions where the reading finds a chance of rain
     if rows:
@@ -812,14 +815,15 @@ def summary(st, rs, regs, day0):
         B.append({"p": "لا تجتمع مكونات المطر على أي منطقة اليوم."})
     lwr = getattr(region_reading, "lowwarm", None) or {}
     if lwr.get("cold_regions"):
-        B.append({"p": f"حدث بارد قرب الأرض فوق {jl(lwr['cold_regions'])} يكبت الحمل، فلا تُتوقع هناك عواصف ولا أمطار غزيرة، "
-                       "وقد يبقى مطر خفيف واسع إن كان هناك صعود طبقي. (في ٣٨٣ يومًا مختبرة لم يبلغ المطر ٢٠ ملم في هذه الأيام إلا "
-                       "نادرًا جدًا.)"})
+        B.append({"p": f"حدث بارد قرب الأرض فوق {jl(lwr['cold_regions'])} يكبت الحمل الحراري، فلا تُتوقع هناك عواصف ولا أمطار غزيرة، "
+                       "وقد يبقى مطر خفيف واسع إن وُجد صعود طبقي (في ٣٨٣ يومًا مختبرًا ندر أن بلغ المطر ٢٠ ملم في أيام "
+                       "كهذه)."})
     if lwr.get("sides"):
         where = {"low": "سهول مكة وتهامة", "high": "هضبة الطائف وحافتي الهدا والشفا"}
-        B.append({"p": f"حدث بارد قرب الأرض فوق {' و'.join(where[x] for x in lwr['sides'])} يكبت الحمل، فلا يُتوقع هناك مطر "
-                       "يُذكر مهما اجتمعت المكونات الأخرى، وقد تمر زخات خفيفة. (في ٣٨٢ يومًا مختبرة لم يبلغ المطر ٢٠ ملم في أي يوم "
-                       "بارد كهذا.)"})
+        lead_ = "ويمتد الحدث البارد إلى" if lwr.get("cold_regions") else "حدث بارد قرب الأرض فوق"
+        B.append({"p": f"{lead_} {' و'.join(where[x] for x in lwr['sides'])}، فلا يُتوقع هناك مطر يُذكر مهما اجتمعت "
+                       "المكونات الأخرى، وقد تمر زخات خفيفة (في ٣٨٢ يومًا مختبرًا لم يبلغ المطر ٢٠ ملم في أي يوم بارد "
+                       "كهذا)."})
     if W:
         B += cold_wave_blocks(st, day0, effect=False, W=W)
         wn = {r["name"] for r in rows}
@@ -828,7 +832,7 @@ def summary(st, rs, regs, day0):
             B.insert(len(B) - 1, {"p": f"ولا يُتوقع مطر تحت الموجة على {jl(no)}، لجفاف الهواء أو غياب الرفع، فأثرها هناك برودة ورياح."})
     B.append({"note": "هذه القراءة من المكونات لا من مطر النماذج: الرطوبة، والتقاء الرياح على التضاريس، والتبريد العلوي، "
                       "وطاقة عدم الاستقرار، ورياح الطبقات المتوسطة. ودرجة كل منطقة من توافقها، ولا تُعطى «قوية» في يوم ضعيف "
-                      "الصورة الكبرى، والمنطقة بلا التقاء رياح زخاتها محتملة فقط. ومطر نموذجنا على الخريطة."})
+                      "الصورة الكبرى، والمنطقة التي لا تلتقي عليها الرياح زخاتها محتملة فقط. أما مطر نموذجنا فمكانه الخريطة."})
     return sec("الخلاصة", "sum", B)
 
 
@@ -1136,7 +1140,7 @@ def _lw_pro(sp):
         pro.append("حدث دافئ قرب الأرض" + (f" فوق {jl(rg)}" if rg else " فوق مكة المكرمة وتهامة")
                    + (" وغيرها" if len(w["regions"]) > 5 else ""))
     if sp and sp["cold"]:
-        con.append(f"حدث بارد قرب الأرض فوق {jl(sp['cold'][:4])} يلغي المطر الحملي فيها")
+        con.append(f"حدث بارد قرب الأرض في بعض أيامها فوق {jl(sp['cold'][:4])} يلغي المطر الحملي هناك")
     return pro, con
 
 
@@ -1200,12 +1204,16 @@ def waves(st, rs, regs, day0):
     span_of = lambda w: (ar_date(w["start"]) if w["start"] == w["end"] else R2.ar_span(w["start"], w["end"]).removeprefix("من "))
     spread_of = lambda w: ((R2.cover_pct(w["cover"]) + " من المملكة") if w.get("cover") and w["cover"] >= 0.01 else "أقل من ١٪ من المملكة")
     full = [w for w in wl if not w.get("sign")]
-    B.append({"p": f"نرصد حتى {ar_date(days[-1])}، وهو أقصى ما يغطيه التوقع، "
-                   + (("موجة مطرية واحدة" if len(full) == 1 else "موجتان مطريتان" if len(full) == 2
-                      else f"{ar(len(full))} موجات مطرية") if full else "لا موجة مطرية واسعة")
-                   + ((lambda k: " وإشارة أخدود ضعيفة واحدة" if k == 1 else " وإشارتا أخدود ضعيفتان" if k == 2
-                                  else f" و{ar(k)} إشارات أخدود ضعيفة")(len(wl) - len(full)) if len(wl) > len(full) else "")
-                   + "."})
+    nsig = len(wl) - len(full)
+    sig_t = ("إشارة أخدود ضعيفة واحدة" if nsig == 1 else "إشارتي أخدود ضعيفتين" if nsig == 2
+             else f"{ar(nsig)} إشارات أخدود ضعيفة") if nsig else ""
+    if full:
+        cnt = ("نرصد موجة مطرية واحدة" if len(full) == 1 else "نرصد موجتين مطريتين" if len(full) == 2
+               else f"نرصد {ar(len(full))} موجات مطرية" if len(full) <= 10 else f"نرصد {ar(len(full))} موجة مطرية")
+        cnt += f" و{sig_t}" if sig_t else ""
+    else:
+        cnt = "لا نرصد موجة مطرية واسعة" + (f"، بل {sig_t}" if sig_t else "")
+    B.append({"p": f"حتى {ar_date(days[-1])}، وهو أقصى ما يغطيه التوقع، {cnt}."})
     if wl:
         rows = []
         for w in wl:
@@ -1217,8 +1225,8 @@ def waves(st, rs, regs, day0):
         w = wl[0]
         lead = (w["peak"] - day0).days
         t = (f"{'أقرب إشارة' if w.get('sign') else 'أقرب موجة'}: {span_of(w)}، {KIND[w['kind']]}، قوتها {n1(w['top'])} من ٥ ({ar(round(20 * w['top']))}٪، "
-             f"{BR.grade(w['top'])})، وانتشارها المتوقع {spread_of(w)}، وتتأثر بها {jl(w['regions'])}. "
-             f"الثقة في توقيتها {BR.confidence(lead)} لأنها " + ("غدًا" if lead <= 1 else f"بعد {ar(lead)} أيام"))
+             f"{BR.grade(w['top'])})، وانتشارها المتوقع {spread_of(w)}، والمناطق المتأثرة بها: {jl(w['regions'])}. "
+             f"والثقة في توقيتها {BR.confidence(lead)} لأن ذروتها " + ("غدًا" if lead <= 1 else f"بعد {_days_word(lead)}"))
         if w.get("pro"):
             t += f"؛ يسندها {jl(w['pro'])}"
         if w.get("con"):
@@ -1230,7 +1238,7 @@ def waves(st, rs, regs, day0):
             ld = (nw["peak"] - day0).days
             t = (f"أقرب موجة مطرية: {span_of(nw)}، {KIND[nw['kind']]}، قوتها {n1(nw['top'])} من ٥ "
                  f"({ar(round(20 * nw['top']))}٪، {BR.grade(nw['top'])})، وانتشارها المتوقع {spread_of(nw)}، "
-                 f"وتتأثر بها {jl(nw['regions'])}، والثقة في توقيتها {BR.confidence(ld)}")
+                 f"والمناطق المتأثرة بها: {jl(nw['regions'])}، والثقة في توقيتها {BR.confidence(ld)}")
             if nw.get("pro"):
                 t += f"؛ يسندها {jl(nw['pro'])}"
             if nw.get("con"):
@@ -1239,11 +1247,17 @@ def waves(st, rs, regs, day0):
         for x in [w] + ([nw] if nw is not None and nw is not w else []):
             B.append({"p": wave_length(x)})
     # the next very wide fertile spell over Arabia: tropical and trough support together, several days, strong
+    nw0 = next((x for x in wl if not x.get("sign")), None)
     fert = next((w for w in wl if w["kind"] == "mixed" and (w["end"] - w["start"]).days >= 2 and w["top"] >= 2.6), None)
     if fert:
         conf = BR.confidence((fert["start"] - day0).days)
-        B.append({"p": f"أقرب فترة خصب واسعة على الجزيرة العربية: {R2.ar_span(fert['start'], fert['end'])}، قوتها "
-                       f"{n1(fert['top'])} من ٥، تتوافق عليها {jl(fert['pro'])}، والثقة {conf}."})
+        if any(fert is x for x in wl[:1]) or fert is nw0:
+            # the same spell as the wave just described: do not repeat its supports (Fahad, 23 Nov 2026)
+            B.append({"p": "وهذه الموجة نفسها هي أقرب فترة خصب واسعة على الجزيرة العربية، إذ يجتمع فيها الدعم المداري "
+                           f"والأخدودي عدة أيام، والثقة في بدايتها {conf}."})
+        else:
+            B.append({"p": f"أقرب فترة خصب واسعة على الجزيرة العربية: {R2.ar_span(fert['start'], fert['end'])}، قوتها "
+                           f"{n1(fert['top'])} من ٥، يتوافق عليها {jl(fert['pro'])}، والثقة في بدايتها {conf}."})
         if not any(fert is x for x in wl[:1]) and fert is not next((x for x in wl if not x.get("sign")), None):
             B.append({"p": wave_length(fert)})
     else:
@@ -1296,16 +1310,22 @@ def wave_length(w):
         sp_t = R2.ar_span(h["start"], h["end"]) if m > 1 else ar_date(h["start"])
         if h.get("last"):
             sp_t += "، أي حتى نهاية التوقع"
-        t += f"، ويعززها الحدث الدافئ قرب الأرض {_days_word(m)} ({sp_t.removeprefix('من ')})"
         before, after = (w["start"] - h["start"]).days, (h["end"] - w["end"]).days
+        if before <= 0 and after <= 0 and h["in_wave"] < n:
+            t += f"، ويعززها الحدث الدافئ قرب الأرض {_days_word(m)} من أيامها ({sp_t.removeprefix('من ')})"
+        else:
+            t += ("، ويرافقها حدث دافئ قرب الأرض طوال أيامها" if before == 0 and after == 0 else
+                  f"، ويرافقها حدث دافئ قرب الأرض {sp_t if m > 1 else 'يوم ' + sp_t}")
         if before > 0 or after > 0:
+            # say once how long the warm setting lasts, without repeating the same number of days
             tot = (max(w["end"], h["end"]) - min(w["start"], h["start"])).days + 1
-            t += ("، يبدأ قبلها" if before > 0 else "") + (" ويبقى بعدها" if after > 0 else "") \
-                + f"، فبيئتها الدافئة الداعمة تمتد {_days_word(tot)}"
-        elif h["in_wave"] < n:
-            t += " من أيامها"
+            ex = ["يبدأ قبلها " + ("بيوم واحد" if before == 1 else "بيومين" if before == 2 else f"بـ{_days_word(before)}") if before > 0 else "",
+                  f"يبقى بعدها {_days_word(after)}" if after > 0 else ""]
+            t += "، و" + " و".join(x for x in ex if x)
+            if tot != m:
+                t += f"، فتمتد بيئتها الدافئة الداعمة {_days_word(tot)}"
     elif sp and sp["cold"]:
-        t += f"، ولا حدث دافئ قرب الأرض يعززها، بل حدث بارد فوق {jl(sp['cold'][:4])} يلغي المطر الحملي فيها"
+        t += f"، ولا حدث دافئ قرب الأرض يعززها، بل حدث بارد فوق {jl(sp['cold'][:4])} يلغي المطر الحملي هناك"
     else:
         t += "، ولا حدث دافئ قرب الأرض يعززها"
     return t + "."
