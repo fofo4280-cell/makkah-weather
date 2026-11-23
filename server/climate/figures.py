@@ -1160,17 +1160,17 @@ def card_cities(ax, transform=None, names=None, fontsize=None, skip=()):
     fam = _ar_font()
     fs = fontsize or ax.figure.get_figwidth() * 1.2
     kw = {"transform": transform} if transform is not None else {}
-    halo = [pe.withStroke(linewidth=2.4, foreground="#0c1118")]
+    halo = [pe.withStroke(linewidth=1.5, foreground=(0.05, 0.07, 0.09, 0.7))]   # softer (Fahad, 23 Nov 2026)
     gap = 0.22
     for name, la, lo, where, _ in city_points(names):
         if name in skip:
             continue
-        ax.plot(lo, la, marker="o", markersize=fs * 0.36, color="#ffffff", markeredgecolor="#0c1118",
-                markeredgewidth=0.7, zorder=8, **kw)
+        ax.plot(lo, la, marker="o", markersize=fs * 0.30, color="#dfe5ea", markeredgecolor="#0c1118",
+                markeredgewidth=0.5, zorder=8, **kw)
         dx, dy, ha, va = {"n": (0, gap, "center", "bottom"), "s": (0, -gap, "center", "top"),
                           "e": (gap, 0, "left", "center"), "w": (-gap, 0, "right", "center")}[where]
-        ax.text(lo + dx, la + dy, _rtl(name), ha=ha, va=va, fontsize=fs, color="#e6ebf0", family=fam,
-                path_effects=halo, zorder=8, **kw)
+        ax.text(lo + dx, la + dy, _rtl(name), ha=ha, va=va, fontsize=fs * 0.92, color="#cfd7de", family=fam,
+                fontweight="normal", path_effects=halo, zorder=8, **kw)
 
 
 def card_frame(fig, title, when, lines=(), legend=None):
