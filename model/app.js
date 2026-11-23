@@ -719,7 +719,9 @@
     $("timeRange").max = S.frames.length - 1;
     $("timeRange").value = S.idx;
     const t = new Date(x.d + "T09:00:00Z");
-    $("timeLabel").textContent = `${fmtDay.format(t)} · النموذج الأمريكي`;
+    // a quiet day leaves the map almost empty: say so, so the layer never looks broken (Fahad, 23 Nov 2026)
+    $("timeLabel").textContent = `${fmtDay.format(t)} · ` + (x.max >= 5 ? `أعلى احتمال ${num(x.max)}٪`
+      : `لا عاصفة شديدة متوقعة (أعلى احتمال ${num(x.max)}٪)`);
     for (let k = 1; k <= 2; k++) preload(S.idx + k);
     rvSync();
     if (S.pointPopup && S.pointPopup.isOpen()) S.pointPopup.setContent(pointHTML(S.pointPopup._pt));
