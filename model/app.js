@@ -2537,7 +2537,7 @@
     $("rivCard").hidden = !rows.some((r) => r.g);
     const tab = document.querySelector('#mjoTabs [data-s="river"]'); if (tab) tab.hidden = $("rivCard").hidden;
     if ($("rivCard").hidden) return;
-    const url = (k) => `${CL}fig/riv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+    const url = (k) => `${CL}fig/riv_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + (R.ver || ""))}`;   // ver: a hand redraw
     const show = () => {
       const k = +$("rivDay").value || 0, r = rows[k] || {};
       $("rivFig").src = url(k);
