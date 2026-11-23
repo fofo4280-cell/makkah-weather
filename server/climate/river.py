@@ -4,8 +4,8 @@
 
 The river is the water-vapour transport from the ground up to 600 hPa (IVT, kg per metre per second): q*|V|/g
 integrated over pressure, every layer cut at the ground (surface pressure), from the IFS 0.25 open data of the
-evening (12 UTC) run, 12 UTC of each of the 15 days. It glows sky blue on a dark map from 100 and turns white near
-450 (the regional scale of the river maps Fahad compared). No arrows.
+evening (12 UTC) run, 12 UTC of each of the 15 days. It is drawn in the fixed regional bands 150/260/370/480/560/670
+(ICON ARIP colours, Fahad 23 Nov 2026) on a light map. No arrows.
 
 The daily line says whether the river reaches three gates and when it first does:
   • جنوب البحر الأحمر (the sea from Bab al-Mandab to off Al-Qunfudhah),
@@ -30,7 +30,9 @@ LEVELS = [1000, 925, 850, 700, 600]
 EXTENT = (30.0, 78.0, -2.0, 34.0)                 # west, east, south, north of the map
 G = 9.80665
 DAYS = 15                                         # day 0 .. 14 at 12 UTC: steps 24 .. 360 of the 12 UTC run
-GLOW = (100.0, 450.0)                             # where the colour starts and where it turns white
+# the fixed regional IVT bands of the river maps Fahad compares (ICON ARIP 1-6), and their colours
+CATS = [150, 260, 370, 480, 560, 670]
+CAT_COLS = ["#5ea4d8", "#f2c14e", "#f7922e", "#e8635a", "#8a4ccc", "#151a33"]
 GATE_IVT = {"rs": 230.0, "sw": 100.0, "hj": 200.0}   # per gate, from the test (see the module text)
 GATES = {   # name, (south, north, west, east), "sea" / "land" / "low" (sea + land below 600 m), land ceiling in m
     "rs": ("جنوب البحر الأحمر", (12.6, 19.5, 38.0, 43.6), "sea"),
@@ -42,9 +44,9 @@ PLACES = [("مكة", 21.42, 39.83, "e"), ("جدة", 21.54, 39.17, "w"), ("جاز
           ("الرياض", 24.71, 46.68, "e"), ("مقديشو", 2.05, 45.32, "e"), ("مومباي", 19.08, 72.88, "e"), ("المدينة", 24.47, 39.61, "e")]
 SEAS = [("بحر العرب", 14.5, 63.0), ("البحر الأحمر", 19.3, 38.6), ("خليج عدن", 11.6, 48.6), ("المحيط الهندي", 3.0, 66.0),
         ("الخليج العربي", 27.0, 51.6)]
-BG = "#0a0f17"
-LAND = "#1b2230"
-SEA = "#0c121c"
+PAPER = "#ffffff"
+LAND = "#f3ecd3"
+SEA = "#dcebf7"
 
 
 # ---------------------------------------------------------------- data
@@ -205,13 +207,15 @@ def _blend(rgb, col, a):
 
 
 def draw(path, mag, lat, lon, land, hgt, width_px=1200):
-    """a clean dark map with the river glowing sky blue; no box over the map (the page writes the day above it)"""
+    """a light map with the river in the fixed regional IVT bands (Fahad, 23 Nov 2026: the glow was disturbing, «اجعلها
+    بهذه الألوان» = the ICON ARIP chart: light blue 150, yellow 260, orange 370, coral 480, violet 560, navy 670);
+    no box over the map (the page writes the day above it), the key in a strip under the map"""
     import math
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib import patheffects as pe
-    from matplotlib.colors import LightSource, to_rgb
+    from matplotlib.colors import BoundaryNorm, ListedColormap, to_rgb
     from scipy.ndimage import gaussian_filter, zoom
     import figures as F
     fam = _font()
@@ -222,65 +226,59 @@ def draw(path, mag, lat, lon, land, hgt, width_px=1200):
     sb = lambda a: a[np.ix_(j, i)]
     kx = math.cos(math.radians((S + N) / 2))
     asp = (N - S) / ((E - W) * kx)
-    leg_h = 0.10                                     # a strip under the map for the colour key (not over the map)
+    leg_h = 0.11
     fig = plt.figure(figsize=(width_px / 200, width_px / 200 * asp * (1 + leg_h)), dpi=200)
-    fig.patch.set_facecolor(BG)
+    fig.patch.set_facecolor(PAPER)
     ax = fig.add_axes([0, leg_h / (1 + leg_h), 1, 1 / (1 + leg_h)])
-    ax.set_facecolor(BG)
+    ax.set_facecolor(SEA)
     up = 4
     ext = [lo[0], lo[-1], la[-1], la[0]]
-    lf = np.clip(gaussian_filter(zoom(sb(land).astype(float), up, order=1), 1.2), 0, 1)
-    h = gaussian_filter(zoom(np.clip(sb(hgt), 0, None), up, order=1), 2)
-    shade = LightSource(azdeg=315, altdeg=45).hillshade(h, vert_exag=0.012, dx=1, dy=1)
+    lf = np.clip(gaussian_filter(zoom(sb(land).astype(float), up, order=1), 1.0), 0, 1)
     sea, ground = np.array(to_rgb(SEA)), np.array(to_rgb(LAND))
     rgb = sea[None, None, :] * (1 - lf[..., None]) + ground[None, None, :] * lf[..., None]
-    rgb = rgb * (0.82 + 0.36 * (shade[..., None] - 0.5) * lf[..., None] + 0.18)
-    m = gaussian_filter(zoom(sb(mag), up, order=1), 1.5)
-    t = np.clip((m - GLOW[0]) / (GLOW[1] - GLOW[0]), 0, 1)
-    halo = np.clip(gaussian_filter(t, 7) * 1.1, 0, 1)
-    rgb = _blend(rgb, to_rgb("#1d6fa8"), 0.55 * halo ** 1.2)          # the soft halo round the river
-    rgb = _blend(rgb, to_rgb("#27b8e6"), np.clip(t * 1.6, 0, 1) ** 1.4 * 0.95)   # the river itself
-    rgb = _blend(rgb, to_rgb("#9ff0ff"), np.clip((t - 0.45) / 0.45, 0, 1) ** 1.5 * 0.9)
-    rgb = _blend(rgb, to_rgb("#ffffff"), np.clip((t - 0.8) / 0.2, 0, 1) ** 2 * 0.85)
-    ax.imshow(np.clip(rgb, 0, 1), extent=ext, interpolation="bilinear", zorder=0)
+    ax.imshow(rgb, extent=ext, interpolation="bilinear", zorder=0)
     flo, fla = np.linspace(lo[0], lo[-1], lf.shape[1]), np.linspace(la[0], la[-1], lf.shape[0])
-    ax.contour(flo, fla, lf, levels=[0.5], colors=["#4f5f73"], linewidths=[.5], zorder=3)
-    txt = [pe.withStroke(linewidth=2.4, foreground=BG)]
+    m = gaussian_filter(zoom(sb(mag), up, order=1), 1.2)
+    cm = ListedColormap(CAT_COLS)
+    lv = CATS + [5000]
+    ax.contourf(flo, fla, m, levels=lv, cmap=cm, norm=BoundaryNorm(lv, cm.N), zorder=1, antialiased=True)
+    ax.contour(flo, fla, m, levels=[CATS[0]], colors=["#2f6f9f"], linewidths=[.35], alpha=.6, zorder=2)
+    ax.contour(flo, fla, lf, levels=[0.5], colors=["#5d6670"], linewidths=[.55], zorder=3)
+    txt = [pe.withStroke(linewidth=2.2, foreground="#ffffff")]
     for nm, y, x in SEAS:
-        ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=9, color="#7489a0", family=fam, zorder=5,
-                path_effects=txt, fontweight="normal")
+        ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=9, color="#4f6f8f", family=fam, zorder=5,
+                path_effects=txt)
     for nm, y, x, side in PLACES:
-        ax.plot(x, y, "o", ms=3.2, color="#ffcf70", mec=BG, mew=.4, zorder=6)
+        ax.plot(x, y, "o", ms=3.2, color="#1f2a36", mec="#ffffff", mew=.6, zorder=6)
         dx = .45 if side == "e" else -.45
         ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=9.5,
-                color="#dbe4ec", family=fam, path_effects=txt, zorder=6, fontweight="normal")
+                color="#1f2a36", family=fam, path_effects=txt, zorder=6)
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
     ax.set_aspect(1 / kx)
     ax.axis("off")
-    # the colour key in its own strip under the map
-    y0 = 0.40 * leg_h / (1 + leg_h)
-    bx = fig.add_axes([0.25, y0, 0.40, 0.13 * leg_h / (1 + leg_h)])
-    tt = np.linspace(0, 1, 400)
-    bar = np.tile(np.array(to_rgb(SEA))[None, None, :], (1, 400, 1))
-    bar = _blend(bar, to_rgb("#27b8e6"), (np.clip(tt * 1.6, 0, 1) ** 1.4 * 0.95)[None, :])
-    bar = _blend(bar, to_rgb("#9ff0ff"), (np.clip((tt - 0.45) / 0.45, 0, 1) ** 1.5 * 0.9)[None, :])
-    bar = _blend(bar, to_rgb("#ffffff"), (np.clip((tt - 0.8) / 0.2, 0, 1) ** 2 * 0.85)[None, :])
-    bx.imshow(bar, aspect="auto", extent=[0, 1, 0, 1])
-    bx.set_axis_off()
-    for v in (100, 200, 300, 450):
-        x = 0.25 + 0.40 * (v - GLOW[0]) / (GLOW[1] - GLOW[0])
-        fig.text(x, 0.17 * leg_h / (1 + leg_h), F.ar_num(v), ha="center", va="center", fontsize=8.5,
-                 color="#93a3b4", family=fam)
-    fig.text(0.665, y0 + 0.065 * leg_h / (1 + leg_h), F._rtl("شدة تدفق الرطوبة (كجم/م/ث)"),
-             ha="left", va="center", fontsize=8.5, color="#93a3b4", family=fam)
+    # the key: six bands in a strip under the map
+    hh = leg_h / (1 + leg_h)
+    x0, wbar = 0.10, 0.80
+    n = len(CATS)
+    for k, (c, v) in enumerate(zip(CAT_COLS, CATS)):
+        bx = fig.add_axes([x0 + wbar * k / n, 0.46 * hh, wbar / n, 0.18 * hh])
+        bx.set_facecolor(c)
+        bx.set_xticks([]); bx.set_yticks([])
+        for sp_ in bx.spines.values():
+            sp_.set_visible(False)
+        rng = f"{F.ar_num(v)}–{F.ar_num(CATS[k + 1] - 1)}" if k + 1 < n else f"{F.ar_num(v)} فأكثر"
+        fig.text(x0 + wbar * (k + .5) / n, 0.26 * hh, F._rtl(rng), ha="center", va="center", fontsize=8,
+                 color="#33414f", family=fam)
+    fig.text(0.5, 0.84 * hh, F._rtl("شدة تدفق الرطوبة نحو الأعلى حتى ارتفاع ٤ كم تقريبًا، كجم/م/ث"), ha="center",
+             va="center", fontsize=8.5, color="#33414f", family=fam)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-    fig.savefig(path, dpi=200, facecolor=BG)
+    fig.savefig(path, dpi=200, facecolor=PAPER)
     plt.close(fig)
     try:
         from PIL import Image
         im = Image.open(path).convert("RGB")
-        im.quantize(colors=256, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
+        im.quantize(colors=96, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:  # noqa: BLE001
         pass
 
