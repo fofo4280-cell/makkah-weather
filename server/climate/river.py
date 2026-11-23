@@ -27,7 +27,8 @@ from datetime import datetime, timedelta
 import numpy as np
 
 LEVELS = [1000, 925, 850, 700, 600]
-EXTENT = (30.0, 78.0, -2.0, 34.0)                 # west, east, south, north of the map
+EXTENT = (20.0, 100.0, -20.0, 35.0)               # west, east, south, north: the Indian Ocean and East Africa, to read
+                                                  # the river with the MJO (Fahad, 23 Nov 2026)
 G = 9.80665
 DAYS = 15                                         # day 0 .. 14 at 12 UTC: steps 24 .. 360 of the 12 UTC run
 # the fixed regional IVT bands of the river maps Fahad compares (ICON ARIP 1-6), and their colours
@@ -41,9 +42,11 @@ GATES = {   # name, (south, north, west, east), "sea" / "land" / "low" (sea + la
 }
 PLACES = [("مكة", 21.42, 39.83, "e"), ("جدة", 21.54, 39.17, "w"), ("جازان", 16.89, 42.55, "e"), ("أبها", 18.22, 42.50, "e"),
           ("عدن", 12.79, 45.03, "e"), ("صنعاء", 15.37, 44.19, "e"), ("سقطرى", 12.47, 53.87, "e"), ("مسقط", 23.59, 58.41, "e"),
-          ("الرياض", 24.71, 46.68, "e"), ("مقديشو", 2.05, 45.32, "e"), ("مومباي", 19.08, 72.88, "e"), ("المدينة", 24.47, 39.61, "e")]
-SEAS = [("بحر العرب", 14.5, 63.0), ("البحر الأحمر", 19.3, 38.6), ("خليج عدن", 11.6, 48.6), ("المحيط الهندي", 3.0, 66.0),
-        ("الخليج العربي", 27.0, 51.6)]
+          ("الرياض", 24.71, 46.68, "e"), ("مقديشو", 2.05, 45.32, "e"), ("مومباي", 19.08, 72.88, "e"), ("المدينة", 24.47, 39.61, "e"),
+          ("نيروبي", -1.29, 36.82, "e"), ("دار السلام", -6.80, 39.28, "e"), ("أديس أبابا", 9.03, 38.74, "w"),
+          ("كراتشي", 24.86, 67.00, "e"), ("كولومبو", 6.93, 79.86, "e"), ("ماليه", 4.18, 73.51, "e")]
+SEAS = [("بحر العرب", 14.5, 63.0), ("البحر الأحمر", 19.3, 38.6), ("خليج عدن", 11.6, 48.6), ("المحيط الهندي", -8.0, 70.0),
+        ("خليج البنغال", 15.0, 88.0), ("الخليج العربي", 27.0, 51.6)]
 PAPER = "#ffffff"
 LAND = "#f3ecd3"
 SEA = "#dcebf7"
@@ -206,7 +209,7 @@ def _blend(rgb, col, a):
     return rgb * (1 - a) + np.asarray(col, dtype=float)[None, None, :] * a
 
 
-def draw(path, mag, lat, lon, land, hgt, width_px=1200):
+def draw(path, mag, lat, lon, land, hgt, width_px=1400):
     """a light map with the river in the fixed regional IVT bands (Fahad, 23 Nov 2026: the glow was disturbing, «اجعلها
     بهذه الألوان» = the ICON ARIP chart: light blue 150, yellow 260, orange 370, coral 480, violet 560, navy 670);
     no box over the map (the page writes the day above it), the key in a strip under the map"""
@@ -244,15 +247,15 @@ def draw(path, mag, lat, lon, land, hgt, width_px=1200):
     ax.contourf(flo, fla, m, levels=lv, cmap=cm, norm=BoundaryNorm(lv, cm.N), zorder=1, antialiased=True)
     ax.contour(flo, fla, m, levels=[CATS[0]], colors=["#2f6f9f"], linewidths=[.35], alpha=.6, zorder=2)
     ax.contour(flo, fla, lf, levels=[0.5], colors=["#5d6670"], linewidths=[.55], zorder=3)
-    txt = [pe.withStroke(linewidth=2.2, foreground="#ffffff")]
+    txt = [pe.withStroke(linewidth=1.4, foreground=(1, 1, 1, 0.75))]     # soft names (Fahad, 23 Nov 2026)
     for nm, y, x in SEAS:
-        ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=9, color="#4f6f8f", family=fam, zorder=5,
-                path_effects=txt)
+        ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=8, color="#7a93ab", family=fam, zorder=5,
+                path_effects=txt, fontweight="normal", alpha=0.9)
     for nm, y, x, side in PLACES:
-        ax.plot(x, y, "o", ms=3.2, color="#1f2a36", mec="#ffffff", mew=.6, zorder=6)
-        dx = .45 if side == "e" else -.45
-        ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=9.5,
-                color="#1f2a36", family=fam, path_effects=txt, zorder=6)
+        ax.plot(x, y, "o", ms=2.4, color="#5b6673", mec="#ffffff", mew=.4, zorder=6)
+        dx = .55 if side == "e" else -.55
+        ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=7.6,
+                color="#4a5562", family=fam, path_effects=txt, zorder=6, fontweight="normal")
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
     ax.set_aspect(1 / kx)
