@@ -662,6 +662,7 @@ def main():
                 print("figure failed pw", k, e, flush=True)
 
     pw_rows = pw_rows_of(lambda dt: fc[dt]["pw"])
+    ecpw_q = {}
     pw_ec, pw_model = None, "gfs"
     try:
         import ecmwf
@@ -672,6 +673,7 @@ def main():
                 try:
                     a_ = ecmwf._at(cycle, fh_, "tcwv", "")
                     ecpw[dt] = np.asarray(a_, dtype=np.float32)[::4, ::4]   # 0.25 -> the 1 degree grid (same points)
+                    ecpw_q[dt] = np.asarray(a_, dtype=np.float32)          # 0.25 for the regions' table (pwreg)
                 except Exception as e:  # noqa: BLE001
                     print("ECMWF PW failed", dt, repr(e)[:120], flush=True)
             if len(ecpw) >= len(days) - 1:
@@ -683,6 +685,27 @@ def main():
     if pw_ec is None:
         pw_maps(lambda dt: fc[dt]["pw"])
     print("PW table and map:", pw_model, flush=True)
+    # the page's table by region (Fahad, 25 Nov 2026: «قسمها الى مناطق افضل»): the thirteen regions, Makkah and
+    # Madinah split into coast and inland; ECMWF 0.25 when the table is ECMWF, else GFS 1 degree; the boxes above stay
+    pw_reg = None
+    try:
+        import pwreg
+        lat_q, lon_q = np.linspace(90, -90, 721), np.arange(0, 360, 0.25)
+        rows_ = []
+        for dt in days:
+            if pw_model == "ecmwf" and dt in ecpw_q:
+                f_, la_, lo_ = ecpw_q[dt], lat_q, lon_q
+            elif pw_model == "gfs" and fc.get(dt) is not None:
+                f_, la_, lo_ = fc[dt]["pw"], LAT1, LON1
+            else:
+                continue
+            rows_.append({"d": dt.strftime("%Y-%m-%d"), **pwreg.row(f_, la_, lo_, clim["pw"][doy(dt)], plat, plon)})
+        if rows_:
+            pw_reg = {"model": pw_model, "names": pwreg.names(), "rows": rows_}
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("PW by region failed", repr(e)[:160], flush=True)
 
     # 8a2. the Kingdom maps (Fahad, 17 Nov 2026): humidity at 700 and 500 hPa, where the surface winds meet with any
     #      surface low over the Red Sea or land, and the 500 hPa temperature; GFS 0.25, 12 UTC of every day of the page
@@ -1006,7 +1029,7 @@ def main():
         "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
         "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
-        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "pw_ec": pw_ec, "pw_model": pw_model, "ao": ao, "ao_cold": ao_cold,
+        "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "pw_ec": pw_ec, "pw_model": pw_model, "pw_reg": pw_reg, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
         "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
                 "first_fc": t0.strftime("%Y-%m-%d")},
