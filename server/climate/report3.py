@@ -1356,9 +1356,10 @@ def ref_compare(st, w, day0):
     nm = "الإشارة" if w.get("sign") else "الموجة"
     sp_ = R2.ar_span(w["start"], w["end"]).removeprefix("من ").removeprefix("يوم ")
     st["ref_cmp"] = {"a": w["start"].isoformat(), "b": w["end"].isoformat(),
-                     "title": f"أقوى مناطق هطول {nm} القادمة: {sp_}",
-                     "sub": f"الدوائر الصفراء أقوى مناطقها، والمتقطعة البيضاء الموجة المرجعية {ar_date(rd, weekday=False)}، "
-                            "والألوان قوة مكونات الهطول (رطوبة ورفع وعدم استقرار)"}
+                     "title": f"{nm} القادمة بجانب الموجة المرجعية",
+                     "head": f"{nm} القادمة: {sp_}",
+                     "sub": "قوة مكونات الهطول (رطوبة ورفع وعدم استقرار) في أشد أماكنها فقط، "
+                            "وعلى كل خريطة أسماء أقوى مناطقها"}
     core = lambda x: ar(int(round(x.get("core") or 0)))
     t = (f"مقارنة بالموجة المرجعية ({ar_date(rd, weekday=False)}، أقوى موجة واسعة في سجلنا: أقوى هطولها في "
          f"{jl(RW.strongest(ref))}، وقوة مكونات الهطول في قلبها {core(ref)} من ١٠٠، وانتشارها المقدّر "

@@ -157,6 +157,8 @@ def update(prev, d, m):
     if m and (ref is None or score(m) > score(ref)) and m["cover"] >= 0.05:
         new = {k: v for k, v in m.items() if k != "areas"}
         new["d"] = d
+        if d in GRIDS:   # its map, for the picture beside the coming wave
+            new["grid"] = np.round(GRIDS[d]).astype(int).tolist()
         return new, True
     return ref, False
 
@@ -186,29 +188,20 @@ def label(r):
     return (r["part"] + " " + r["name"]) if r.get("part") and r["part"] != "وسط" else r["name"]
 
 
-def draw(path, rain, m, ref, title, sub, ref_day=""):
-    """the Kingdom with the wave's rain-making index (its strongest over the wave days, x 100) and circles on its strongest areas (solid), and the
-    reference wave's areas (dashed); the title strip above the map, never over it (Fahad, 20 Nov 2026)"""
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
+LEVELS = [50, 60, 70, 80, 90]          # only the strongest places are coloured, in dark shades (Fahad, 25 Nov 2026)
+DARK = ["#1d5e34", "#7a5c00", "#9a3b0c", "#841424", "#4b136e"]
+
+
+def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
+    """one map of the Kingdom: the index (x 100) where it reaches LEVELS[0], dark shades, and the strongest areas named"""
     from matplotlib import patheffects as pe
-    from matplotlib.colors import LinearSegmentedColormap, BoundaryNorm
-    from matplotlib.patches import Circle, Rectangle
-    from scipy.ndimage import zoom
-    from shapely.ops import unary_union
+    from matplotlib.colors import ListedColormap, BoundaryNorm
+    from scipy.ndimage import zoom, gaussian_filter
+    from shapely import contains_xy
     import figures as F
     import ingredients as ING
-    import sa_geo
-    fam = F._ar_font()
-    A = F._ar
     W, E, S, N = 34.0, 56.5, 15.5, 32.6
-    regs = sa_geo.regions()
-    fig = plt.figure(figsize=(7.2, 7.2 * ((N - S) / (E - W)) * 1.04 + 1.15), dpi=170)
-    fig.patch.set_facecolor("#111111")
-    H = fig.get_figheight()
-    top = 1.0 / H   # inches of the title strip as a share
-    ax = fig.add_axes([0.0, 0.0, 1.0, 1 - top * 1.08])
+    ax = fig.add_axes(rect)
     ax.set_facecolor("#1a2330")
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
@@ -218,77 +211,86 @@ def draw(path, rain, m, ref, title, sub, ref_day=""):
         from PIL import Image
         rw, re_, rs, rn = F.RELIEF["box"]
         rel = np.asarray(Image.open(F.RELIEF["path"]).convert("L"))
-        ax.imshow(rel, extent=[rw, re_, rs, rn], origin="upper", cmap="gray", vmin=0, vmax=255, alpha=0.55,
+        ax.imshow(rel, extent=[rw, re_, rs, rn], origin="upper", cmap="gray", vmin=0, vmax=255, alpha=0.6,
                   interpolation="lanczos", zorder=0)
     except Exception as ex:  # noqa: BLE001
         print("relief unavailable:", str(ex)[:80])
-    ksa = unary_union([r["geom"] for r in regs])
-    # the rain, finer, inside the Kingdom only
-    if rain is not None and np.nanmax(rain) > 0:
+    if grid is not None:
         up = 6
-        from scipy.ndimage import gaussian_filter
-        fine = np.clip(gaussian_filter(zoom(rain, up, order=3), 2.5), 0, None)
+        g = np.asarray(grid, float)
+        fine = np.clip(gaussian_filter(zoom(g, up, order=3), 2.5), 0, None)
         la = np.linspace(ING.LAT[0], ING.LAT[-1], fine.shape[0])
         lo = np.linspace(ING.LON[0], ING.LON[-1], fine.shape[1])
-        from shapely import contains_xy
         LA, LO = np.meshgrid(la, lo, indexing="ij")
         inside = contains_xy(ksa, LO.ravel(), LA.ravel()).reshape(LA.shape)
-        lv = [20, 30, 40, 50, 60, 70, 80, 90]
-        fine = np.where(inside & (fine >= lv[0]), fine, np.nan)
-        cols = ["#9ad1f5", "#4fa3e8", "#2f6fd6", "#2fae5a", "#f3d33a", "#f28c28", "#e0402c", "#b02a8f"]
-        cmap = LinearSegmentedColormap.from_list("r", cols, N=len(cols))
-        cmap.set_over("#4a1a6e")
-        ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=cmap,
-                  norm=BoundaryNorm(lv + [200], cmap.N, extend="neither"), alpha=0.85, interpolation="bilinear", zorder=1)
-        # the colour key, bottom right over the sea
-        kx = fig.add_axes([0.60, 0.06, 0.36, 0.022])
-        kx.imshow(np.arange(len(cols))[None, :], cmap=cmap, aspect="auto", extent=[0, len(cols), 0, 1])
-        kx.set_xticks(range(len(cols) + 1))
-        kx.set_xticklabels([str(x).translate(F.AR_DIG) for x in lv] + [""], fontsize=6.5,
-                           color="#e8edf2", fontfamily=fam)
-        kx.set_yticks([])
-        kx.tick_params(length=0, pad=1.5)
-        for sp in kx.spines.values():
-            sp.set_visible(False)
-        kx.set_title(A("قوة مكونات الهطول (من ١٠٠)"), fontsize=7, color="#e8edf2", fontfamily=fam, pad=2)
+        fine = np.where(inside & (fine >= LEVELS[0]), fine, np.nan)
+        ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=ListedColormap(DARK),
+                  norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.95, interpolation="bilinear", zorder=1)
     for r in regs:
-        gs = getattr(r["geom"], "geoms", [r["geom"]])
-        for g in gs:
-            x, y = g.exterior.xy
-            ax.plot(x, y, color="#e8edf2", linewidth=0.45, alpha=0.55, zorder=2)
-    for g in getattr(ksa, "geoms", [ksa]):
-        x, y = g.exterior.xy
-        ax.plot(x, y, color="#f4f6f8", linewidth=1.1, alpha=0.9, zorder=2)
+        for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
+            x, y = g_.exterior.xy
+            ax.plot(x, y, color="#e8edf2", linewidth=0.4, alpha=0.5, zorder=2)
+    for g_ in getattr(ksa, "geoms", [ksa]):
+        x, y = g_.exterior.xy
+        ax.plot(x, y, color="#f4f6f8", linewidth=1.0, alpha=0.9, zorder=2)
     try:
-        F.draw_cities(ax, ax.transData, fontsize=6.2, wide=True)
+        F.draw_cities(ax, ax.transData, fontsize=5.6, wide=True)
     except Exception as ex:  # noqa: BLE001
         print("cities:", repr(ex)[:80])
-    halo = [pe.withStroke(linewidth=2.6, foreground="#111111")]
-    asp = 1 / np.cos(np.radians(24))
-    from matplotlib.patches import Ellipse
+    halo = [pe.withStroke(linewidth=2.4, foreground="#111111")]
+    if m:   # the strongest areas named on the map (no circles: Fahad, 25 Nov 2026)
+        for r in strongest_regs(m, 3):
+            if "lat" in r:
+                ax.text(r["lon"], r["lat"], A(label(r)), ha="center", va="center", fontsize=8, fontweight="bold",
+                        color="#ffffff", fontfamily=fam, path_effects=halo, zorder=6)
+    ax.text(0.5, 0.985, A(head), transform=ax.transAxes, ha="center", va="top", fontsize=10, fontweight="bold",
+            color="#ffffff", fontfamily=fam, path_effects=halo, zorder=7)
+    return ax
 
-    def ring(r, col, ls, lw, txt, below):
-        e = Ellipse((r["lon"], r["lat"]), 2 * r["rad"] * asp, 2 * r["rad"], fill=False, edgecolor=col, linewidth=lw,
-                    linestyle=ls, zorder=5, path_effects=[pe.withStroke(linewidth=lw + 2.2, foreground="#111111")])
-        ax.add_patch(e)
-        if txt:
-            ax.text(r["lon"], r["lat"] + (-1 if below else 1) * (r["rad"] + 0.25), A(txt), ha="center",
-                va="top" if below else "bottom", fontsize=8.2, fontweight="bold", color=col, fontfamily=fam,
-                path_effects=halo, zorder=6)
-    if ref:
-        rr = [r for r in strongest_regs(ref, 3) if "lat" in r]
-        low = min(rr, key=lambda r: r["lat"] - r["rad"]) if rr else None
-        for r in rr:   # one label, under the lowest ring
-            ring(r, "#ffffff", (0, (4, 3)), 1.3, f"الموجة المرجعية {ref_day}" if r is low else "", True)
-    for r in strongest_regs(m, 3):
-        if "lat" in r:
-            ring(r, "#ffd23f", "solid", 2.2, label(r), False)
-    # the title strip
-    tx = fig.add_axes([0, 1 - top * 1.08, 1, top * 1.08])
+
+def draw(path, panels, title, sub):
+    """two maps side by side in one picture (Fahad, 25 Nov 2026: «احذف الدوائر ودائما ضع خريطتين في صورة واحدة بجانب
+    بعض.. أشد أماكن الهطول لونها بألوان غامقه فقط»): panels = [(grid x 100, metrics, heading), ...], right to left,
+    the coming wave first (on the right); the title strip above the maps, never over them"""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.colors import ListedColormap
+    from matplotlib.patches import Rectangle
+    from shapely.ops import unary_union
+    import figures as F
+    import sa_geo
+    fam = F._ar_font()
+    A = F._ar
+    regs = sa_geo.regions()
+    ksa = unary_union([r["geom"] for r in regs])
+    n = len(panels)
+    pw = 6.0                                       # inches per map
+    ph = pw * (32.6 - 15.5) / (56.5 - 34.0) * 1.1
+    head, foot = 0.95, 0.75
+    fig = plt.figure(figsize=(pw * n, ph + head + foot), dpi=160)
+    fig.patch.set_facecolor("#111111")
+    H = fig.get_figheight()
+    for k, (grid, m, hd) in enumerate(panels):
+        x0 = (n - 1 - k) / n                       # the first panel on the right (Arabic reading order)
+        _panel(fig, [x0 + 0.004, foot / H, 1 / n - 0.008, ph / H], grid, m, hd, regs, ksa, fam, A)
+    tx = fig.add_axes([0, 1 - head / H, 1, head / H])
     tx.axis("off")
     tx.add_patch(Rectangle((0, 0), 1, 1, color="#161b22", transform=tx.transAxes))
-    tx.text(0.97, 0.70, A(title), ha="right", va="center", fontsize=12.5, fontweight="bold", color="#ffffff", fontfamily=fam)
-    tx.text(0.97, 0.30, A(sub), ha="right", va="center", fontsize=8.0, color="#b8c0c8", fontfamily=fam)
+    tx.text(0.985, 0.68, A(title), ha="right", va="center", fontsize=14, fontweight="bold", color="#ffffff", fontfamily=fam)
+    tx.text(0.985, 0.27, A(sub), ha="right", va="center", fontsize=8.6, color="#b8c0c8", fontfamily=fam)
+    # the colour key along the bottom
+    kx = fig.add_axes([0.30, 0.45 * foot / H, 0.40, 0.22 * foot / H])
+    kx.imshow(np.arange(len(DARK))[None, :], cmap=ListedColormap(DARK), aspect="auto", extent=[0, len(DARK), 0, 1])
+    kx.set_xticks(np.arange(len(DARK)) + 0.5)
+    kx.set_xticklabels([str(v).translate(F.AR_DIG) for v in LEVELS],
+                       fontsize=7, color="#e8edf2", fontfamily=fam)
+    kx.set_yticks([])
+    kx.tick_params(length=0, pad=1.5)
+    for sp_ in kx.spines.values():
+        sp_.set_visible(False)
+    fig.text(0.71, 0.56 * foot / H, A("قوة مكونات الهطول من ١٠٠ (الأشد فقط)"), ha="left", va="center", fontsize=7.5,
+             color="#e8edf2", fontfamily=fam)
     fig.savefig(path, facecolor=fig.get_facecolor())
     plt.close(fig)
     try:   # fewer colours, a lighter picture (as the low-level maps, 22 Nov 2026)
@@ -299,9 +301,11 @@ def draw(path, rain, m, ref, title, sub, ref_day=""):
 
 
 def draw_wave(out_dir, st):
-    """the map of the wave the report compared (st['ref_cmp'], set by report3.ref_compare) from GRIDS -> file name or None"""
+    """the picture of the wave the report compared (st['ref_cmp'], set by report3.ref_compare), beside the reference
+    wave, from GRIDS and the reference's stored grid -> file name or None"""
     import os
     from datetime import date
+    import sa_geo
     c = st.get("ref_cmp")
     if not c or not GRIDS:
         return None
@@ -309,11 +313,12 @@ def draw_wave(out_dir, st):
     days = [d for d in GRIDS if a.isoformat() <= d <= b.isoformat()]
     if not days:
         return None
-    rain = np.max([GRIDS[d] for d in days], axis=0)
+    grid = np.max([GRIDS[d] for d in days], axis=0)
     m = wave_metrics(st.get("wave_rain") or [], a, b)
     ref = st.get("ref_wave") or current(None)
+    panels = [(grid, m, c["head"])]
+    if ref:
+        panels.append((ref.get("grid"), ref, "الموجة المرجعية " + sa_geo.ar_date(date.fromisoformat(ref["d"]), weekday=False)))
     os.makedirs(os.path.join(out_dir, "fig"), exist_ok=True)
-    import sa_geo
-    draw(os.path.join(out_dir, "fig", "refwave.png"), rain, m, ref, c["title"], c["sub"],
-         sa_geo.ar_date(date.fromisoformat(ref["d"]), weekday=False) if ref else "")
+    draw(os.path.join(out_dir, "fig", "refwave.png"), panels, c["title"], c["sub"])
     return "refwave.png"
