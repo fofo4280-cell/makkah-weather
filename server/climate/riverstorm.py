@@ -175,9 +175,11 @@ def draw_track(ax, cores, days, k, fam, F, colour_="#1d2530"):
             seg = []
         seg.append((i, c))
     ax.plot([q[1][1] for q in seg], [q[1][0] for q in seg], color=colour_, lw=1.3, zorder=7, path_effects=halo)
+    placed = [cores[k][:2]] if 0 <= k < len(cores) and cores[k] is not None else []
     for i, c in pts:
         ax.plot(c[1], c[0], "o", ms=2.6, color=colour_, mec="white", mew=0.5, zorder=8)
-        if i % 2 == 0 and i != k:
+        if i != k and all(abs(c[0] - p[0]) > 1.6 or abs(c[1] - p[1]) > 4.5 for p in placed):   # no piled-up dates
+            placed.append(c[:2])
             dd = days[i]
             ax.text(c[1], c[0] + 0.9, F._rtl(f"{F.ar_num(dd.day)} {F.MONTH_AR[dd.month - 1]}"), ha="center",
                     va="bottom", fontsize=6.2, color="#33414f", family=fam, path_effects=halo, zorder=8)
@@ -228,7 +230,7 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
     import figures as F
     import river as RV
     fam = RV._font()
-    W, E, S, N = RV.EXTENT
+    S, N, W, E = STORM_BOX                    # the storm map covers only where the chance was made and tested
     j = (lat >= S) & (lat <= N)
     i = (lon >= W) & (lon <= E)
     la, lo = lat[j], lon[i]
@@ -252,16 +254,15 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
     flo, fla = np.linspace(lo[0], lo[-1], lf.shape[1]), np.linspace(la[0], la[-1], lf.shape[0])
     if mag is not None:                       # the river itself: its 260 and 480 outlines (the ARIP yellow and coral)
         mm = gaussian_filter(zoom(sb(mag), up, order=1), 1.2)
-        ax.contour(flo, fla, mm, levels=[260, 480], colors=["#3f6fa0", "#26476e"], linewidths=[.7, 1.0], alpha=.75,
+        ax.contour(flo, fla, mm, levels=[260, 480], colors=["#2b5f93", "#17324f"], linewidths=[1.0, 1.4], alpha=.9,
                    zorder=4)
-    s_, n_, w_, e_ = STORM_BOX                # where the chance is drawn
-    ax.plot([w_, e_, e_, w_, w_], [s_, s_, n_, n_, s_], color="#9aa5b1", lw=.5, ls=(0, (3, 3)), zorder=4)
     ax.contour(flo, fla, lf, levels=[0.5], colors=["#5d6670"], linewidths=[.5], zorder=3)
     txt = [pe.withStroke(linewidth=1.4, foreground=(1, 1, 1, 0.75))]
-    for nm, y, x in RV.SEAS:
+    inside = lambda y, x: S + 1 < y < N - 1 and W + 1 < x < E - 1  # noqa: E731
+    for nm, y, x in [q for q in RV.SEAS if inside(q[1], q[2])]:
         ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=8, color="#7a93ab", family=fam, zorder=5,
                 path_effects=txt, fontweight="normal", alpha=0.9)
-    for nm, y, x, side in RV.PLACES:
+    for nm, y, x, side in [q for q in RV.PLACES if inside(q[1], q[2])]:
         ax.plot(x, y, "o", ms=2.4, color="#5b6673", mec="#ffffff", mew=.4, zorder=6)
         dx = .55 if side == "e" else -.55
         ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=7.6,
