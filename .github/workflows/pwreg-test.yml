@@ -1,0 +1,17 @@
+name: pwreg one-off
+on: { push: { branches: [pwreg-test] } }
+permissions: { contents: write }
+jobs:
+  t:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        with: { ref: feat/pw-regions, path: code }
+      - run: pip install -q numpy scipy pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi shapely
+      - uses: actions/cache/restore@v4
+        with: { path: /home/runner/clim, key: clim-r1-1991-2020-v2 }
+      - run: python3 run.py 2026112412
+      - run: |
+          cd o && git init -q -b x && git -c user.name=bot -c user.email=a@b add -A && git -c user.name=bot -c user.email=a@b commit -qm out
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:pwreg-out
