@@ -25,39 +25,43 @@ def cut(a):
     return a[j0:j1 + 1, BOX[2]:BOX[3] + 1]
 
 
-def _div(u, v, lat):
+def _div(u, v, lat, step=1.0):
     """horizontal divergence (1e-5 /s) on the 1 degree grid, smoothed"""
     from scipy.ndimage import gaussian_filter
     a = 6.371e6
     phi = np.radians(lat)[:, None]
-    d = np.radians(1.0)
-    u, v = gaussian_filter(u, 1.0), gaussian_filter(v, 1.0)
+    d = np.radians(step)
+    u, v = gaussian_filter(u, 1.0 / step), gaussian_filter(v, 1.0 / step)   # smoothed over 1 degree on any grid
     dudx = np.gradient(u, d, axis=1) / (a * np.cos(phi))
     dvdy = -np.gradient(v * np.cos(phi), d, axis=0) / (a * np.cos(phi))   # rows run north to south
     return (dudx + dvdy) * 1e5
 
 
-def _vort(u, v, lat):
+def _vort(u, v, lat, step=1.0):
     """relative vorticity (1e-5 /s), positive cyclonic (troughs), smoothed"""
     from scipy.ndimage import gaussian_filter
     a = 6.371e6
     phi = np.radians(lat)[:, None]
-    d = np.radians(1.0)
-    u, v = gaussian_filter(u, 1.0), gaussian_filter(v, 1.0)
+    d = np.radians(step)
+    u, v = gaussian_filter(u, 1.0 / step), gaussian_filter(v, 1.0 / step)   # smoothed over 1 degree on any grid
     dvdx = np.gradient(v, d, axis=1) / (a * np.cos(phi))
     dudy = -np.gradient(u * np.cos(phi), d, axis=0) / (a * np.cos(phi))
     return (dvdx - dudy) * 1e5
 
 
-def features(f, pw_normal=None):
-    """{name: 2-D array on LAT x LON} of the ingredients from the fields f (cut to BOX)"""
+def features(f, pw_normal=None, lat=None, step=1.0):
+    """{name: 2-D array on LAT x LON} of the ingredients from the fields f (cut to BOX); another grid (rows north to
+    south, spacing step degrees) with its lat (hijaz.py runs it at 0.25 degree)"""
+    LAT = globals()["LAT"] if lat is None else np.asarray(lat, float)
+    _v = lambda u, v, la: _vort(u, v, la, step)     # noqa: E731
+    _d = lambda u, v, la: _div(u, v, la, step)      # noqa: E731
     out = {
         "pw": f["pw"],
         "lapse": f["t925"] - f["t500"],            # K, steeper is less stable
         "t500": f["t500"] - 273.15,                # deg C, cold aloft
-        "vort500": _vort(f["u500"], f["v500"], LAT),
-        "conv925": -_div(f["u925"], f["v925"], LAT),
-        "div200": _div(f["u200"], f["v200"], LAT),
+        "vort500": _v(f["u500"], f["v500"], LAT),
+        "conv925": -_d(f["u925"], f["v925"], LAT),
+        "div200": _d(f["u200"], f["v200"], LAT),
         "rh700": f["rh700"],
         "cape": np.log1p(np.maximum(f["cape"], 0)),
         "high": np.clip((95000 - f["psfc"]) / 10000, 0, 1.5),   # how high the ground is (0 at 950 hPa)

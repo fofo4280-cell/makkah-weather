@@ -4,19 +4,24 @@
 الساحل اكتب سواحل منطقة مكة»).
 
 The moisture box «west» (19-26 N, 38-43 E) covers both regions and their coasts, so a wave that reaches it used to be
-written «الحجاز وغرب المملكة». Here the GFS day rain of the nightly cycle at 0.25 degree (the 1 degree grid of
-ingredients.py has no land cell on the coast at Jeddah or Yanbu) is split into:
+written «الحجاز وغرب المملكة». Here the places come from a reading of the ingredients, never from model rain (Fahad, 25
+Nov 2026: «المهم ان تحديدك لاماكن الهطول لم يكن مبنى على تراكمي الأمريكي بل على دراستك لجميع خرائط التذبذب وبناء ذلك
+بشكل علمي ودقيق … نحن لا نعتمد على النماذج السطحية بل على قراءة عميقة لمكونات الحالة»): the rain-making index of
+refwave.index (moisture x lift x instability) on the GFS fields of ingredients.FIELDS at 12 UTC of each day, taken at
+0.25 degree here (the 1 degree grid has no land cell on the coast at Jeddah or Yanbu; winds smoothed over 1 degree as
+on the 1 degree grid), split into:
   - the coastal strip of each region (region land cells with sea within 0.5 degree to the west), cut into well-known
     stretches from north to south (Makkah: رابغ، ثول وشمال جدة، جدة، الشعيبة، الليث، القنفذة; Madinah: ينبع، الرايس);
   - the rest of each region (inland).
-Day k = the 24 hours from the cycle time + 24 k h (the same days as status["ingr"] and status["wave_rain"]).
-A stretch is wet when 30 % of its cells (two cells or more on the short ones) get 2 mm or more; the inland part when a tenth does.
+Day k = the cycle date + k at 12 UTC (the same days as status["wave_rain"]). A point makes rain when its index is 0.40
+or more (refwave.WET); a stretch counts when 30 % of its cells do (two cells or more on the short ones), the inland
+part when a tenth does.
 """
 import numpy as np
 
-BOX = (18.0, 28.0, 36.0, 43.5)   # lat0, lat1, lon0, lon1
+BOX = (16.0, 30.0, 34.0, 46.0)   # lat0, lat1, lon0, lon1 (wider than the two regions: the winds are smoothed)
 RES = 0.25
-WET_MM, COAST_SHARE, INLAND_SHARE = 2.0, 0.3, 0.10
+WET_I, COAST_SHARE, INLAND_SHARE = 0.40, 0.3, 0.10
 MAKKAH, MADINAH = "مكة المكرمة", "المدينة المنورة"
 # (key, name, lat from, lat to), north to south
 MK_COAST = [("rabigh", "رابغ", 22.55, 99), ("thuwal", "ثول", 21.65, 22.55), ("jeddah", "جدة", 21.3, 21.65),
@@ -70,33 +75,32 @@ def cut(a):
     return a[j0:j1 + 1, i0:i1 + 1]
 
 
-def day_shares(rain):
-    """{zone key: share of its cells with WET_MM or more} for one day's rain on the box"""
-    return {k: round(float((rain[z] >= WET_MM).mean()), 3) for k, z in zones().items() if z.any()}
+def day_shares(I):
+    """{zone key: share of its cells where the rain-making index is WET_I or more} for one day's index on the box"""
+    return {k: round(float((I[z] >= WET_I).mean()), 3) for k, z in zones().items() if z.any()}
 
 
 def fetch(cycle, days, gfs_fields):
-    """[{d, s: day_shares}] for days 0..days-1 of the cycle (GFS 0.25 APCP from the run start)"""
+    """[{d, s: day_shares}] for days 0..days of the cycle: GFS 0.25 ingredients at 12 UTC, rain-making index"""
     from datetime import datetime, timedelta
+    import ingredients as ING
+    import refwave
     t0 = datetime.strptime(cycle[:8], "%Y%m%d").date()
-    P = [("apcp", r":APCP:surface:0-")]
-    prev, rows = None, []
+    la, lo = _grid()
+    rows = []
     for k in range(days + 1):
-        a = None
-        if k:
-            for _t in range(3):
-                try:
-                    a = cut(gfs_fields(cycle, 24 * k, res="0p25", fields=P)["apcp"])
-                    break
-                except Exception as e:  # noqa: BLE001
-                    print("hijaz rain download failed", k, repr(e)[:120], flush=True)
-            if a is None:
+        g = None
+        for _t in range(3):
+            try:
+                g = {n: cut(a) for n, a in gfs_fields(cycle, 24 * k, res="0p25", fields=ING.FIELDS).items()}
                 break
-            day = np.maximum(a - (prev if prev is not None else 0.0), 0)
-            rows.append({"d": (t0 + timedelta(days=k - 1)).isoformat(), "s": day_shares(day)})
-        else:
-            a = None
-        prev = a
+            except Exception as e:  # noqa: BLE001
+                print("hijaz ingredients download failed", k, repr(e)[:120], flush=True)
+        if g is None:
+            break
+        d = t0 + timedelta(days=k)
+        I = refwave.index(g, d, la, lo, RES)
+        rows.append({"d": d.isoformat(), "s": day_shares(I)})
     return rows
 
 
@@ -167,9 +171,10 @@ def names(keys):
 
 
 def wave_parts(st, d0, d1):
-    """the words that replace the «west» box in a wave's regions, from the GFS rain of the wave's days; falls back to
-    the two regions by the rain-spread index (st["ingr"]), then to both regions by name"""
-    ks = wet(st.get("hijaz_rain"), d0, d1)
+    """the words that replace the «west» box in a wave's regions, from the ingredients' reading of the wave's days;
+    falls back to the two regions by the ingredients' rain-spread potential (st["ingr"] regions, not its GFS rain),
+    then to both regions by name"""
+    ks = wet(st.get("hijaz_read"), d0, d1)
     out = names(ks)
     if out:
         return out
@@ -177,7 +182,7 @@ def wave_parts(st, d0, d1):
     for r in st.get("ingr") or []:
         if str(d0) <= r["d"] <= str(d1):
             for nm in (MAKKAH, MADINAH):
-                if max((r.get("regions") or {}).get(nm, 0), (r.get("gfs_regions") or {}).get(nm, 0)) >= 0.03:
+                if (r.get("regions") or {}).get(nm, 0) >= 0.03:
                     regs.add(nm)
     if regs:
         return ["منطقة " + nm for nm in (MAKKAH, MADINAH) if nm in regs]

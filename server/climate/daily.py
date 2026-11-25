@@ -1079,13 +1079,13 @@ def main():
                 refwave.GRIDS[m_["d"]] = 100 * I
                 wr.append(m_)
             status["wave_rain"] = wr
-            # the same days at 0.25 degree over Makkah and Madinah regions and their coasts (hijaz.py, 25 Nov 2026)
+            # the same reading at 0.25 degree over Makkah and Madinah regions and their coasts (hijaz.py, 25 Nov 2026)
             try:
                 import hijaz
-                status["hijaz_rain"] = hijaz.fetch(cycle, FC_DAYS, gfs_fields)
-                print("hijaz rain:", [(r["d"][5:], sorted(hijaz.wet([r], r["d"], r["d"]))) for r in status["hijaz_rain"]], flush=True)
+                status["hijaz_read"] = hijaz.fetch(cycle, FC_DAYS, gfs_fields)
+                print("hijaz reading:", [(r["d"][5:], sorted(hijaz.wet([r], r["d"], r["d"]))) for r in status["hijaz_read"]], flush=True)
             except Exception as e:  # noqa: BLE001
-                print("hijaz rain failed:", repr(e), flush=True)
+                print("hijaz reading failed:", repr(e), flush=True)
             try:
                 prev_ref = json.load(open(os.path.join(out, "mjo.json"))).get("ref_wave")
             except Exception:  # noqa: BLE001

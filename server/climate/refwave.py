@@ -24,8 +24,8 @@ WET, HEAVY = 40.0, 70.0      # index x 100: the rain-making threshold (fitted on
 PW0, RH0 = 15.0, 50.0
 
 
-def _t500_normal(d):
-    """the 12 UTC 500 hPa temperature normal (deg C) of pattern.py on ingredients' grid"""
+def _t500_normal(d, lat=None, lon=None):
+    """the 12 UTC 500 hPa temperature normal (deg C) of pattern.py on ingredients' grid (or on lat x lon)"""
     import pattern
     import ingredients as ING
     from scipy.interpolate import RegularGridInterpolator
@@ -35,17 +35,18 @@ def _t500_normal(d):
     if la[0] > la[-1]:
         la, n = la[::-1], n[::-1]
     f = RegularGridInterpolator((la, lo), n, bounds_error=False, fill_value=None)
-    LA, LO = np.meshgrid(ING.LAT, ING.LON, indexing="ij")
+    LA, LO = np.meshgrid(ING.LAT if lat is None else lat, ING.LON if lon is None else lon, indexing="ij")
     return f((LA, LO))
 
 
-def index(g, d):
-    """the rain-making index 0..1 on ingredients' grid from the fields g (ingredients.FIELDS, cut) of day d"""
+def index(g, d, lat=None, lon=None, step=1.0):
+    """the rain-making index 0..1 on ingredients' grid from the fields g (ingredients.FIELDS, cut) of day d; on another
+    grid (lat north to south, lon, spacing step degrees) when given (hijaz.py, 0.25 degree)"""
     import ingredients as ING
     cl = lambda x: np.clip(x, 0, 1)
-    ft = ING.features(g)
+    ft = ING.features(g, lat=lat, step=step)
     moist = cl((g["pw"] - PW0) / 15) * cl((g["rh700"] - RH0) / 40)
-    ta = g["t500"] - 273.15 - _t500_normal(d)
+    ta = g["t500"] - 273.15 - _t500_normal(d, lat, lon)
     dyn = 1 - (1 - cl(-ta / 2.5)) * (1 - cl(ft["vort500"] / 3)) * (1 - cl(ft["div200"] / 2.5))
     lift = dyn * (0.5 + 0.5 * cl(ft["conv925"] / 1.5))
     inst = cl((ft["lapse"] - 20) / 10)
