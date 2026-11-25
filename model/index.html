@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261125pw">
+<link rel="stylesheet" href="style.css?v=20261125lw">
 </head>
 <body>
 <div class="app">
@@ -81,7 +81,8 @@
           <button type="button" data-s="river">النهر الجوي</button>
           <button type="button" data-s="conv">الحمل الحراري</button>
           <button type="button" data-s="waves">كلفن وروسبي</button>
-          <button type="button" data-s="warm">الحدث الدافئ والاستواء</button>
+          <button type="button" data-s="warm">الحدث الدافئ السطحي</button>
+          <button type="button" data-s="lwe">طاقة الحمل</button>
         </nav>
         <div data-sec="report" class="card report" id="mjoReport" hidden></div>
         <div data-sec="phase" class="card" id="mjoNow"><p class="muted">جارٍ التحميل…</p></div>
@@ -123,18 +124,26 @@
           <div id="twChart"></div>
           <p class="hint">أربع خرائط بإطار واحد (من ٣٥ جنوبًا إلى ٣٥ شمالًا حول الأرض)، فتقع الأطوال تحت بعضها، وتمر بها الخطوط الثلاثة نفسها: مركز غلاف التذبذب (أدنى مكوّنه على خط الاستواء)، والحدث الدافئ والبارد. موجات كلفن وعائلة روسبي من جهد السرعة عند ٢٠٠ هكتوباسكال في تحاليل جي إف إس لأكثر من سنة مع توقعه، بعد التصفية في الرقم الموجي والدورة والسرعة: كلفن متجهة شرقًا (٢ إلى ٣٠ يومًا، ٨ إلى ٦٠ م/ث)، وروسبي متجهة غربًا (٥ إلى ٩٠ يومًا، ٠٫٥ إلى ٢٥ م/ث)، والأرقام الموجية ١ إلى ٩. الأزرق تباعد في الأعلى يرفع الهواء ويدعم الحمل، والأحمر تقارب يكبته، والأسهم البيضاء الرياح المتباعدة تخرج من مراكز الأزرق. المخطط: العائلتان فوق المملكة في آخر ستين يومًا والتوقع، والأعمدة مساحة الأمطار. المس أي خريطة لفتحها بحجم كامل.</p>
         </div>
-        <div data-sec="warm" class="card">
-          <h3>خريطة الحدث الدافئ والبارد</h3>
+        <div data-sec="warm" class="card" id="lwCard" hidden>
+          <h3>الحدث الدافئ والبارد قرب الأرض</h3>
           <div class="seg" id="mjoLayer">
-            <button data-l="wc" class="on">المؤشر</button><button data-l="lw" hidden>قرب الأرض والطاقة</button><button data-l="lwd" hidden>التغير خلال ٢٤ ساعة</button>
+            <button data-l="lw" class="on">المؤشر</button><button data-l="lwd">التغير خلال ٢٤ ساعة</button>
           </div>
-          <div class="figwrap" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img loading="lazy" id="mjoFig" alt="خريطة الحدث الدافئ والبارد"></a></div>
-          <div class="legend mjo-legend" id="mjoLegend"></div>
+          <div class="figwrap lw-mid" id="mjoFigWrap" dir="ltr"><a id="mjoFigLink" target="_blank" rel="noopener"><img loading="lazy" id="mjoFig" alt="خريطة الحدث الدافئ والبارد قرب الأرض"></a></div>
           <div class="mjo-time">
             <input type="range" id="mjoDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
             <span id="mjoDayLabel"></span>
           </div>
-          <p class="hint" id="mjoHint">الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المس أي موضع فيها لترى خط العرض وخط الطول.</p>
+          <p class="hint" id="mjoHint"></p>
+        </div>
+        <div data-sec="lwe" class="card" id="lweCard" hidden>
+          <h3>طاقة الحمل في الحدث</h3>
+          <div class="figwrap lw-mid" dir="ltr"><a id="lweFigLink" target="_blank" rel="noopener"><img loading="lazy" id="lweFig" alt="خريطة طاقة الحمل"></a></div>
+          <div class="mjo-time">
+            <input type="range" id="lweDay" min="0" max="15" value="0" dir="ltr" aria-label="اليوم">
+            <span id="lweDayLabel"></span>
+          </div>
+          <p class="hint" id="lweHint"></p>
         </div>
         <div data-sec="ksa" class="card" id="kwCard" hidden>
           <h3>الرياح</h3>
@@ -310,7 +319,7 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261125pw"></script>
+<script src="app.js?v=20261125lw"></script>
 <script src="mapvideo.js?v=20261125wa1"></script>
 </body>
 </html>
