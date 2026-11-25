@@ -1065,6 +1065,30 @@ def main():
                 rows.append(row)
             status["ingr"] = rows
             print("rain-spread potential:", [(r["d"][5:], r["ksa"]) for r in rows], flush=True)
+        # the GFS day rain measured the same way as the reference wave (refwave.py, Fahad 25 Nov 2026)
+        try:
+            import refwave
+            ds_ = sorted(fc)
+            wr = []
+            for k_, dt in enumerate(ds_[:-1]):
+                if fc[ds_[k_ + 1]].get("apcp") is None:
+                    continue
+                a0 = fc[dt]["apcp"] if fc[dt].get("apcp") is not None else 0.0
+                m_ = refwave.day_metrics(ING.cut(np.maximum(fc[ds_[k_ + 1]]["apcp"] - a0, 0)))
+                m_["d"] = dt.strftime("%Y-%m-%d")
+                wr.append(m_)
+            status["wave_rain"] = wr
+            try:
+                prev_ref = json.load(open(os.path.join(out, "mjo.json"))).get("ref_wave")
+            except Exception:  # noqa: BLE001
+                prev_ref = None
+            ref_, new_ = refwave.update(prev_ref, wr[0]["d"], wr[0]) if wr else (refwave.current(prev_ref), False)
+            status["ref_wave"] = ref_
+            print("reference wave:", ref_ and ref_["d"], "replaced" if new_ else "kept", flush=True)
+        except Exception as e:  # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            print("wave rain metrics failed:", repr(e), flush=True)
     except Exception as e:  # noqa: BLE001
         import traceback
         traceback.print_exc()
