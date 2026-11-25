@@ -2434,7 +2434,7 @@
       tcZoomSetup.off = true; $("tcZoom").hidden = true;
       if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true;
       const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = true;
-      $("tcFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tcFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""))}`;
       $("tcDayLabel").textContent = r.d ? dayLab(r.d) : "";
       $("tcHint").textContent = "خريطة ساحلية من النموذج الأوروبي، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال.";
       $("tcNow").innerHTML = r.text ? `<div><b>${r.text[0]}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("")
@@ -2516,7 +2516,7 @@
     if ($("rsCard").hidden) return;
     const show = () => {
       const k = +$("rsDay").value || 0, r = rows[k] || {};
-      $("rsFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("rsFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""))}`;
       $("rsDayLabel").textContent = r.d ? dayLab(r.d) : "";
       const mdl = r.src === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
       $("rsHint").textContent = `خريطة ساحلية من ${mdl}، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال.`;
@@ -2589,7 +2589,7 @@
       clear: "توغّل واضح لطاقة البحر داخل الجزيرة، ومعه تزيد فرصة مطر واسع في الداخل" };
     const show = () => {
       const k = +$("tpDay").value || 0, r = rows[k] || {};
-      $("tpFig").src = `${CL}fig/rsc_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tpFig").src = `${CL}fig/rsc_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""))}`;
       $("tpDayLabel").textContent = r.d ? dayLab(r.d) : "";
       if (r.src === "gfs") $("tpHint").textContent = $("tpHint").textContent.replace("من النموذج الأوروبي", "من النموذج الأمريكي");
       $("tpNow").innerHTML = r.inland_share == null ? "<div>لا تتوفر خريطة لهذا اليوم.</div>"
