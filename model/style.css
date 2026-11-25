@@ -230,6 +230,7 @@ a { color: var(--sea); }
 .pwt.wide { width: max-content; min-width: 100%; table-layout: auto; }
 .pwt.wide th, .pwt.wide td { padding: 4px 6px; }
 .pwt.wide th:first-child, .pwt.wide td:first-child { position: sticky; right: 0; background: var(--surface); z-index: 1; white-space: nowrap; }
+.pwt tr.grp td { border-top: 2px solid var(--muted, #888); }
 .pwt th:first-child, .pwt td:first-child { width: 28%; text-align: start; padding-inline-start: 6px; font-weight: 500; }
 .ao-now { display: flex; gap: 10px; flex-wrap: wrap; font-size: .88rem; margin-bottom: 6px; }
 .ao-now b { color: var(--sea); }
