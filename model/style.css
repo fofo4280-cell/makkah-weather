@@ -347,6 +347,8 @@ a { color: var(--sea); }
 .report .rbrand span { opacity: .75; font-size: .85em; }
 .report ul.rlist { margin: 4px 0 8px; padding-inline-start: 1.2em; }
 .report ul.rlist li { margin: 2px 0; }
+.report .rfig { margin: 10px 0 14px; }
+.report .rfig img { display: block; width: 100%; height: auto; border-radius: 10px; border: 1px solid rgba(127,127,127,.25); }
 .report table.rgen { min-width: 100%; border-collapse: collapse; font-size: .75rem; line-height: 1.45; table-layout: auto; }
 .report table.rgen th, .report table.rgen td { padding: 5px 6px; border-bottom: 1px solid rgba(127,127,127,.25); text-align: start; white-space: nowrap; vertical-align: top; }
 .report table.rgen thead th { color: var(--muted); background: var(--surface-2); font-weight: 700; }
