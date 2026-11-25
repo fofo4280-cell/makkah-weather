@@ -1781,7 +1781,7 @@
 
   // ------------------------------------------------------------------ MJO and warm/cold events
   const CL = window.SWRF_CLIMATE || DATA0.replace("/model-data/", "/climate-data/");
-  const M = { st: null, map: null, layer: "wc", day: 0, img: null, vec: null, vecs: null, loaded: 0 };
+  const M = { st: null, map: null, layer: "lw", day: 0, img: null, vec: null, vecs: null, loaded: 0 };
   const AR_AREA = { 1: "أفريقيا ونصف الكرة الغربي", 2: "غرب المحيط الهندي", 3: "شرق المحيط الهندي", 4: "القارة البحرية (إندونيسيا)",
                     5: "القارة البحرية (إندونيسيا)", 6: "غرب المحيط الهادئ", 7: "غرب المحيط الهادئ", 8: "نصف الكرة الغربي وأفريقيا" };
   const fmtDayD = new Intl.DateTimeFormat(LOC, { timeZone: "UTC", weekday: "long", day: "numeric", month: "long" });
@@ -1814,7 +1814,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); rivCard(); rstCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); lweCard(); rivCard(); rstCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1887,8 +1887,6 @@
         <div class="mjo-row"><span>${now === st.rmm_now ? "آخر رصد" : now.d === todayISO() ? "اليوم (تقدير من جي إف إس)" : "تقدير جي إف إس"}</span><span>${fmtDayD.format(dOf(now.d))}</span></div>` +
         (st.rmm_today && obsNow ? `<div class="mjo-row"><span>آخر رصد رسمي</span><span>${fmtDayD.format(dOf(obsNow.d))}: الطور ${num(obsNow.phase)} بشدة ${num(obsNow.amp, 1)}</span></div>` : "");
     }
-    html += `<div class="mjo-row"><span>الحدث الدافئ الآن</span><span>${st.warm.region}</span></div>
-      <div class="mjo-row"><span>الحدث البارد الآن</span><span>${st.cold.region}</span></div>`;
     if (st.rmm_fc && st.rmm_fc.length) {
       const i0 = Math.max(0, st.rmm_fc.findIndex((x) => x.d === now.d));
       const f = st.rmm_fc[Math.min(i0 + 10, st.rmm_fc.length - 1)];
@@ -1987,8 +1985,6 @@
   const MAP_BOX = {
     twDayLabel: () => ["موجات كلفن وعائلة روسبي عند ٢٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق فوق المملكة يدعم الأمطار، والأحمر يكبتها"],
     beltDayLabel: () => ["اللوحة الاستوائية الشاملة — النموذج الأمريكي", "حول الأرض من ٣٥ جنوبًا إلى ٣٥ شمالًا، والخطوط مراكز الموجات"],
-    mjoDayLabel: () => (M.layer === "lw" || M.layer === "lwd") ? null
-      : ["الحدث الدافئ والبارد عند ٢٠٠ هكتوباسكال — النموذج الأمريكي", "الأحمر حدث دافئ يدعم الحمل العميق، والأزرق حدث بارد يكبته"],
     mjofDayLabel: () => [($("mjofLayer").querySelector(".on") || {}).dataset?.l === "mjop"
       ? "الأمطار المرتبطة بالتذبذب — النموذج الأمريكي" : "مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال — النموذج الأمريكي",
       "الأزرق يدعم الأمطار والأحمر يكبتها، فانظر إلى لون المملكة"],
@@ -2633,58 +2629,43 @@
   // "after 3 days" with the Arabic number agreement
   function after(k) { return k === 1 ? "بعد يوم" : k === 2 ? "بعد يومين" : k <= 10 ? `بعد ${num(k)} أيام` : `بعد ${num(k)} يومًا`; }
 
-  const WC_HINT = "الأحمر: حدث دافئ يدعم الحمل العميق (تباعد هوائي في الأعلى). الأزرق: حدث بارد يكبت الحمل. الخطوط البيضاء: اتجاه التدفق في الأعلى عند ٢٠٠ هكتوباسكال. اسحب الخريطة يمينًا ويسارًا لترى بقية العالم، أو المسها لفتحها بحجم كامل.";
-  const LW_HINT = "الحدث الدافئ والبارد قرب الأرض: حرارة الهواء ورطوبته معًا عند ٢ متر و٨٠٠ هكتوباسكال مقارنة بمعدل التاريخ (٢٠٢١-٢٠٢٥)، الثالثة عصرًا. الأحمر بيئة تهيئ للحمل العميق، والأزرق حدث بارد يكبته. اللوحة الثانية المؤشر مضروبًا في جذر طاقة عدم الاستقرار. اختُبر على ٣٨٢ يومًا حول مكة وتهامة والطائف: في الحدث البارد (١- أو أقل) لم يبلغ المطر ٢٠ ملم في أي يوم، فهو يلغي المطر في التقرير، أما الدافئ فمعزز يرفع الثقة مع المكونات الأخرى ولا يصنع مطرًا وحده.";
+  // the upper (200 hPa) warm/cold event map was removed on 25 Nov 2026 (Fahad, after Dr. Khalid: «نحتاج فقط السطحية»);
+  // the low-level event and its convective energy are two tabs, each with its own map
+  const LW_HINT = "الحدث الدافئ والبارد قرب الأرض: حرارة الهواء ورطوبته معًا عند ٢ متر و٨٠٠ هكتوباسكال مقارنة بمعدل التاريخ (٢٠٢١-٢٠٢٥)، الثالثة عصرًا. الأحمر بيئة تهيئ للحمل العميق، والأزرق حدث بارد يكبته، والخطوط البيضاء الرياح عند ٨٠٠ هكتوباسكال. اختُبر على ٣٨٢ يومًا حول مكة وتهامة والطائف: في الحدث البارد (١ سالب أو أقل) لم يبلغ المطر ٢٠ ملم في أي يوم، فهو يلغي المطر في التقرير، أما الدافئ فمعزز يرفع الثقة مع المكونات الأخرى ولا يصنع مطرًا وحده. المس أي موضع لترى خط العرض وخط الطول.";
   const LWD_HINT = "تغير مؤشر الحدث الدافئ والبارد قرب الأرض خلال ٢٤ ساعة حتى الثالثة عصرًا. البرتقالي اشتداد الحدث الدافئ أو ضعف البارد، والأزرق العكس.";
+  const LWE_HINT = "طاقة الحمل في الحدث: مؤشر الحدث الدافئ والبارد قرب الأرض مضروبًا في جذر طاقة عدم الاستقرار (من ١٨٠ هكتوباسكال فوق الأرض إلى سطحها)، الثالثة عصرًا. الأحمر الداكن حدث دافئ معه طاقة عالية، أي هواء مهيأ للحمل العميق، والأزرق حدث بارد يكبت الحمل مهما كانت الطاقة. في اختبارنا لم تُضف الطاقة إلى المؤشر وحده إلا قليلًا، فهي تبيّن أين تتركز الطاقة داخل الحدث الدافئ. المس أي موضع لترى خط العرض وخط الطول.";
+  // the index of a page day in the low-level event's own list of days
+  const lwIdx = (st, k) => { const lw = st.lowwarm; const i = lw && lw.days ? lw.days.indexOf((st.days || [])[k]) : -1; return String(Math.max(0, i)).padStart(2, "0"); };
   function mjoShow() {
-    const st = M.st, k = M.day, lay = M.layer, kk = String(k).padStart(2, "0");
-    const figs = st.figs || {};
-    // the low-level warm event (Fahad, 19 Nov 2026, after Dr. Khalid's 2 m / 800 hPa maps): its own list of days
+    const st = M.st, k = M.day, lay = M.layer;
     const lw = st.lowwarm && st.lowwarm.days && st.lowwarm.days.length ? st.lowwarm : null;
-    document.querySelectorAll('#mjoLayer [data-l="lw"], #mjoLayer [data-l="lwd"]').forEach((b) => { b.hidden = !lw; });
-    let fk = kk;
-    if (lay === "lw" || lay === "lwd") {
-      const i = lw ? lw.days.indexOf(st.days[k]) : -1;
-      fk = String(Math.max(0, i)).padStart(2, "0");
-    }
-    const url = `${CL}fig/${lay}_${fk}.png?v=${encodeURIComponent(st.updated)}`;
+    $("lwCard").hidden = !lw;
+    if (!lw) return;
+    const url = `${CL}fig/${lay}_${lwIdx(st, k)}.png?v=${encodeURIComponent(st.updated)}`;
     $("mjoFig").src = url; $("mjoFigLink").href = url;
-    $("mjoFigWrap").classList.toggle("fit", lay === "pw");
-    $("mjoFigWrap").classList.toggle("lw-tall", lay === "lw");
-    $("mjoFigWrap").classList.toggle("lw-mid", lay === "lwd");
-    $("mjoHint").textContent = lay === "lw" ? LW_HINT : lay === "lwd" ? LWD_HINT : WC_HINT;
+    $("mjoHint").textContent = lay === "lwd" ? LWD_HINT : LW_HINT;
     const d = st.days[k];
     $("mjoDayLabel").textContent = d ? dayLab(d) : "";
-    const lg = figs[lay];
-    if (!lg) { $("mjoLegend").innerHTML = ""; return; }
-    const grad = lg.stops.map((x) => `${x.c} ${(x.p * 100).toFixed(1)}%`).join(", ");
-    const ticks = lg.ticks.map((v) => `<span style="left:${((v - lg.vmin) / (lg.vmax - lg.vmin) * 100).toFixed(1)}%">${num(v)}</span>`).join("");
-    $("mjoLegend").innerHTML = `<div class="legend-title"><span>${lg.label}</span><span>${lg.unit}</span></div>
-      <div class="legend-bar" style="background:linear-gradient(to right, ${grad})"></div><div class="legend-ticks">${ticks}</div>`;
   }
 
-  function mjoHov() {
-    const st = M.st, h = st.hov, cv = $("mjoHov");
-    if (!h || !h.v.length) return;
-    const w = cv.clientWidth || 340, rowH = 4, top = 18, left = 46, H = top + h.v.length * rowH + 4;
-    const dpr = window.devicePixelRatio || 1;
-    cv.width = w * dpr; cv.height = H * dpr; cv.style.height = H + "px";
-    const c = cv.getContext("2d"); c.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const lg = (st.figs && st.figs.wc) || st.legends.wc, n = h.v[0].length, cw = (w - left - 4) / n;
-    h.v.forEach((row, j) => row.forEach((v, i) => { c.fillStyle = scaleColor(lg, v); c.fillRect(left + i * cw, top + j * rowH, cw + 0.6, rowH + 0.6); }));
-    const fcRow = h.days.indexOf(h.first_fc);
-    c.font = "10px -apple-system, \"IBM Plex Sans Arabic\", sans-serif"; c.fillStyle = getComputedStyle(document.body).color; c.textAlign = "center";
-    for (let lon = 0; lon < 360; lon += 60) {
-      const x = left + (lon / h.dlon) * cw;
-      c.fillText(lon === 0 ? "٠" : lon <= 180 ? `${num(lon)}ش` : `${num(360 - lon)}غ`, x, 11);
-      c.strokeStyle = "rgba(255,255,255,.25)"; c.beginPath(); c.moveTo(x, top); c.lineTo(x, H - 4); c.stroke();
-    }
-    c.textAlign = "right";
-    h.days.forEach((d, j) => { if (j % 10 === 0 || j === fcRow) c.fillText(`${num(+d.slice(8))}/${num(+d.slice(5, 7))}`, left - 4, top + j * rowH + 8); });
-    if (fcRow >= 0) {
-      c.setLineDash([5, 4]); c.strokeStyle = "#ffffff"; c.lineWidth = 1.2;
-      c.beginPath(); c.moveTo(left, top + fcRow * rowH); c.lineTo(w - 4, top + fcRow * rowH); c.stroke(); c.setLineDash([]);
-    }
+  // the convective energy of the event, its own tab (Fahad, 25 Nov 2026); maps fig/lwe_KK.png from that night on
+  function lweCard() {
+    const st = M.st, days = st.days || [];
+    const lw = st.lowwarm && st.lowwarm.days && st.lowwarm.days.length ? st.lowwarm : null;
+    const have = !!(lw && (lw.energy || (st.fig_count && st.fig_count.lwe)));
+    $("lweCard").hidden = !have;
+    if (!have) return;
+    $("lweHint").textContent = LWE_HINT;
+    const show = () => {
+      const k = +$("lweDay").value || 0;
+      const url = `${CL}fig/lwe_${lwIdx(st, k)}.png?v=${encodeURIComponent(st.updated)}`;
+      $("lweFig").src = url; $("lweFigLink").href = url;
+      $("lweDayLabel").textContent = days[k] ? dayLab(days[k]) : "";
+    };
+    $("lweDay").max = Math.max(0, days.length - 1);
+    if (!lweCard.init) { lweCard.init = true; $("lweDay").value = todayIdx(days); }
+    $("lweDay").oninput = show;
+    show();
   }
 
   // Rossby waves at 500 hPa: daily figure, and the troughs near the Kingdom
