@@ -16,12 +16,12 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SEED_BOX = (0.0, 30.0, 38.0, 76.0)        # south, north, west, east: where the core is looked for and followed (the
+SEED_BOX = (3.0, 24.0, 38.0, 75.0)        # south, north, west, east: where the core is looked for and followed (the
                                           # river toward Arabia, not the Bay of Bengal one)
 STORM_BOX = (0.0, 36.0, 30.0, 80.0)       # south, north, west, east: the chance is shown only here, around the area
                                           # the fit was made and tested on (2-33 N, 34-75 E)
-STEP_DEG = 8.0
 CORE_MIN = 250.0
+JUMP_KM = 1200.0                          # the centre moves less than this in a day, or it is another river
 RADIUS_KM = 500.0
 PAL = [(2, "#e8e6fb", 0), (5, "#c9c3f5", 140), (10, "#7fc8e8", 190), (15, "#27d7d0", 210), (20, "#8cf37a", 225),
        (25, "#f4ee1d", 235), (30, "#ffb000", 240), (40, "#ff5810", 245), (50, "#e20000", 248), (60, "#8a0012", 250),
@@ -92,32 +92,49 @@ def _km(la0, lo0, la, lo):
 
 
 def track(mags, lat, lon):
-    """[(lat, lon, ivt) or None] per day"""
-    from scipy.ndimage import gaussian_filter
+    """[(lat, lon, ivt) or None] per day: the centre of the river over the Arabian Sea and its approaches to Arabia
+    (SEED_BOX): the transport-weighted centre of the part >= CORE_MIN (smoothed over ~1 degree), so it moves with the
+    body of the river instead of jumping between separate maxima; ivt = the largest value there"""
+    from scipy.ndimage import gaussian_filter, label
     LA, LO = np.meshgrid(lat, lon, indexing="ij")
-    out, prev = [], None
+    s, n, w, e = SEED_BOX
+    prev = None
+    box = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
+    out = []
     for m in mags:
         if m is None:
             out.append(None)
             continue
         sm = gaussian_filter(m, 3)
-        if prev is not None:
-            s, n, w, e = SEED_BOX
-            near = (_km(prev[0], prev[1], LA, LO) <= STEP_DEG * 111) & (LA >= s - 4) & (LA <= n + 4) & (LO >= w - 4) \
-                & (LO <= e)
-            cand = np.where(near, sm, -1)
-            j, i = np.unravel_index(np.argmax(cand), cand.shape)
-            if cand[j, i] >= CORE_MIN:
-                prev = (float(lat[j]), float(lon[i]), float(cand[j, i]))
-                out.append(prev)
-                continue
-        s, n, w, e = SEED_BOX
-        box = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
-        cand = np.where(box, sm, -1)
-        j, i = np.unravel_index(np.argmax(cand), cand.shape)
-        prev = (float(lat[j]), float(lon[i]), float(cand[j, i])) if cand[j, i] >= CORE_MIN else None
-        out.append(prev)
+        wt = np.where(box, np.clip(sm - CORE_MIN, 0, None), 0.0)
+        lab, nl = label(wt > 0)
+        new = prev is None
+        if nl == 0:
+            out.append(None)
+            continue
+        size = np.bincount(lab.ravel(), weights=wt.ravel())
+        size[0] = 0
+        if prev is not None:                      # keep with the same body when it is still there
+            cen = [(_centre(lab == q, wt, LA, LO), q) for q in range(1, nl + 1) if size[q] > 0.25 * size.max()]
+            c, q = min(cen, key=lambda c: _km(prev[0], prev[1], c[0][0], c[0][1]))
+            if _km(prev[0], prev[1], c[0], c[1]) > JUMP_KM:   # no body near yesterday's: a new river, a new line
+                q, new = int(np.argmax(size)), True
+        else:
+            q = int(np.argmax(size))
+        if (lab == q).sum() < 40:                 # less than ~2.5 square degrees: no river body
+            out.append(None)
+            prev = None
+            continue
+        wt = np.where(lab == q, wt, 0.0)
+        out.append((float((wt * LA).sum() / wt.sum()), float((wt * LO).sum() / wt.sum()), float(sm[wt > 0].max()),
+                    bool(new)))
+        prev = out[-1]
     return out
+
+
+def _centre(mask, wt, LA, LO):
+    w = np.where(mask, wt, 0.0)
+    return float((w * LA).sum() / w.sum()), float((w * LO).sum() / w.sum())
 
 
 def around(p, core, lat, lon):
@@ -153,7 +170,7 @@ def draw_track(ax, cores, days, k, fam, F, colour_="#1d2530"):
     halo = [pe.withStroke(linewidth=2.2, foreground=(1, 1, 1, 0.85))]
     seg = []
     for i, c in pts:
-        if seg and i - seg[-1][0] > 1:
+        if seg and (i - seg[-1][0] > 1 or (len(c) > 3 and c[3])):
             ax.plot([q[1][1] for q in seg], [q[1][0] for q in seg], color=colour_, lw=1.3, zorder=7, path_effects=halo)
             seg = []
         seg.append((i, c))
