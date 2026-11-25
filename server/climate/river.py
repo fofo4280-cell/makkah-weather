@@ -27,8 +27,9 @@ from datetime import datetime, timedelta
 import numpy as np
 
 LEVELS = [1000, 925, 850, 700, 600]
-EXTENT = (20.0, 100.0, -20.0, 35.0)               # west, east, south, north: the Indian Ocean and East Africa, to read
-                                                  # the river with the MJO (Fahad, 23 Nov 2026)
+EXTENT = (20.0, 100.0, -15.0, 45.0)               # west, east, south, north: the Indian Ocean and East Africa, to read
+                                                  # the river with the MJO (Fahad, 23 Nov 2026), north to 45 like Dr.
+                                                  # Khalid's river maps (25 Nov 2026)
 G = 9.80665
 DAYS = 15                                         # day 0 .. 14 at 12 UTC: steps 24 .. 360 of the 12 UTC run
 # the fixed regional IVT bands of the river maps Fahad compares (ICON ARIP 1-6), and their colours
@@ -44,9 +45,12 @@ PLACES = [("مكة", 21.42, 39.83, "e"), ("جدة", 21.54, 39.17, "w"), ("جاز
           ("عدن", 12.79, 45.03, "e"), ("صنعاء", 15.37, 44.19, "e"), ("سقطرى", 12.47, 53.87, "e"), ("مسقط", 23.59, 58.41, "e"),
           ("الرياض", 24.71, 46.68, "e"), ("مقديشو", 2.05, 45.32, "e"), ("مومباي", 19.08, 72.88, "e"), ("المدينة", 24.47, 39.61, "e"),
           ("نيروبي", -1.29, 36.82, "e"), ("دار السلام", -6.80, 39.28, "e"), ("أديس أبابا", 9.03, 38.74, "w"),
-          ("كراتشي", 24.86, 67.00, "e"), ("كولومبو", 6.93, 79.86, "e"), ("ماليه", 4.18, 73.51, "e")]
+          ("كراتشي", 24.86, 67.00, "e"), ("كولومبو", 6.93, 79.86, "e"), ("ماليه", 4.18, 73.51, "e"),
+          ("القاهرة", 30.04, 31.24, "e"), ("بغداد", 33.31, 44.36, "e"), ("طهران", 35.69, 51.39, "e"),
+          ("كابل", 34.53, 69.17, "e"), ("دلهي", 28.61, 77.21, "e")]
 SEAS = [("بحر العرب", 14.5, 63.0), ("البحر الأحمر", 19.3, 38.6), ("خليج عدن", 11.6, 48.6), ("المحيط الهندي", -8.0, 70.0),
-        ("خليج البنغال", 15.0, 88.0), ("الخليج العربي", 27.0, 51.6)]
+        ("خليج البنغال", 15.0, 88.0), ("الخليج العربي", 27.0, 51.6),
+        ("البحر المتوسط", 33.6, 24.5), ("بحر قزوين", 41.6, 50.9)]
 PAPER = "#ffffff"
 LAND = "#f3ecd3"
 SEA = "#dcebf7"
@@ -209,7 +213,7 @@ def _blend(rgb, col, a):
     return rgb * (1 - a) + np.asarray(col, dtype=float)[None, None, :] * a
 
 
-def draw(path, mag, lat, lon, land, hgt, width_px=1400):
+def draw(path, mag, lat, lon, land, hgt, width_px=1400, track=None):
     """a light map with the river in the fixed regional IVT bands (Fahad, 23 Nov 2026: the glow was disturbing, «اجعلها
     بهذه الألوان» = the ICON ARIP chart: light blue 150, yellow 260, orange 370, coral 480, violet 560, navy 670);
     no box over the map (the page writes the day above it), the key in a strip under the map"""
@@ -256,6 +260,9 @@ def draw(path, mag, lat, lon, land, hgt, width_px=1400):
         dx = .55 if side == "e" else -.55
         ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=7.6,
                 color="#4a5562", family=fam, path_effects=txt, zorder=6, fontweight="normal")
+    if track is not None:                         # the path of the river core (riverstorm.py), star on this day
+        import riverstorm as RS
+        RS.draw_track(ax, *track, fam, F)
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
     ax.set_aspect(1 / kx)
@@ -288,42 +295,77 @@ def draw(path, mag, lat, lon, land, hgt, width_px=1400):
 
 # ---------------------------------------------------------------- nightly
 def run(cycle, out_fig, log=print, gfs_fields=None):
-    """called by daily.py with the 12 UTC cycle; returns the mjo.json "river" block (None if ECMWF is missing)"""
+    """called by daily.py with the 12 UTC cycle; returns the mjo.json "river" block (None if ECMWF is missing).
+    Two passes: the transport of every day first (gates, core track), then the pictures: the river with the core
+    path, and the thunderstorm outlook along it (riverstorm.py, rst_KK.png, when stormec_coef.json is present)."""
     import ecmwf
+    import riverstorm as RS
     if not ecmwf.available(cycle, 360):
         log("river: ECMWF run not complete, skipped", flush=True)
         return None
     t0 = datetime.strptime(cycle, "%Y%m%d%H")
     d0 = (t0 + timedelta(days=1)).date() if t0.hour >= 12 else t0.date()
-    rows, masks, land, hgt = [], None, None, None
-    for k in range(DAYS):
-        d = d0 + timedelta(days=k)
-        fh = int((datetime(d.year, d.month, d.day, 12) - t0).total_seconds() // 3600)
-        r = {"d": d.isoformat()}
+    rows, masks, land, hgt, mags, grid = [], None, None, None, [], None
+    days = [d0 + timedelta(days=k) for k in range(DAYS)]
+    fhs = [int((datetime(d.year, d.month, d.day, 12) - t0).total_seconds() // 3600) for d in days]
+    for d, fh in zip(days, fhs):
+        r, m = {"d": d.isoformat()}, None
         try:
             try:
-                mag, qu, qv, lat, lon = fetch_step(cycle, fh)
+                m, qu, qv, lat, lon = fetch_step(cycle, fh)
             except Exception as e:  # noqa: BLE001  (the open-data bucket answers 503 SlowDown at times: one more go)
                 log("river: retry", d, repr(e)[:100], flush=True)
                 import time
                 time.sleep(45)
-                mag, qu, qv, lat, lon = fetch_step(cycle, fh)
+                m, qu, qv, lat, lon = fetch_step(cycle, fh)
+            grid = (lat, lon)
             if masks is None:
                 land, hgt = static_from(cycle, lat, lon, gfs_fields)
                 masks = gate_masks(lat, lon, land, hgt)
-            r["g"] = gate_values(mag, qu, qv, masks)
-            sea = ~land
-            r["peak"] = round(float(np.nanmax(np.where(sea, mag, np.nan))), 0)
-            draw(os.path.join(out_fig, f"riv_{k:02d}.png"), mag, lat, lon, land, hgt)
+            r["g"] = gate_values(m, qu, qv, masks)
+            r["peak"] = round(float(np.nanmax(np.where(~land, m, np.nan))), 0)
             log("river", d, r["g"], r["peak"], flush=True)
         except Exception as e:  # noqa: BLE001
             log("river failed", d, repr(e)[:160], flush=True)
+            m = None
         rows.append(r)
+        mags.append(m)
+    cores = RS.track(mags, *grid) if grid is not None else [None] * DAYS
+    for r, c in zip(rows, cores):
+        r["core"] = None if c is None else [round(c[0], 2), round(c[1], 2), round(c[2])]
+    # thunderstorm chance per UTC day (00-24 UTC = steps fh-12 .. fh+12), where the run reaches the day's end
+    C, probs = RS.coef(), [None] * DAYS
+    if C is not None and grid is not None:
+        js, is_, _, _ = _cut_box()
+        for k, (d, fh) in enumerate(zip(days, fhs)):
+            try:
+                raw = RS.fetch_day(cycle, fh - 12, js, is_)
+                if raw is not None:
+                    probs[k] = RS.limit(RS.probability(raw, hgt, land, d.timetuple().tm_yday, C), *grid)
+            except Exception as e:  # noqa: BLE001
+                log("river storms failed", d, repr(e)[:160], flush=True)
+    for r, p, c in zip(rows, probs, cores):
+        pk, mn = RS.around(p, c, *grid) if grid is not None else (None, None)
+        r["storm"] = None if pk is None else [round(pk), round(mn, 1)]
+    peak = [None if r.get("storm") is None else r["storm"][0] for r in rows]
+    mean = [None if r.get("storm") is None else r["storm"][1] for r in rows]
+    for k, m in enumerate(mags):
+        if m is None:
+            continue
+        try:
+            draw(os.path.join(out_fig, f"riv_{k:02d}.png"), m, *grid, land, hgt, track=(cores, days, k))
+            if probs[k] is not None:
+                RS.draw(os.path.join(out_fig, f"rst_{k:02d}.png"), probs[k], *grid, land, cores, days, k, peak, mean,
+                        mag=m)
+        except Exception as e:  # noqa: BLE001
+            log("river picture failed", days[k], repr(e)[:160], flush=True)
     texts, first = lines(rows)
     for r, t in zip(rows, texts):
         r["text"] = t
+    storm_days = sum(p is not None for p in probs)
     return {"days": [r["d"] for r in rows], "rows": rows, "first": first, "first_text": first_line(first, d0),
-            "extent": list(EXTENT), "gate": GATE_IVT, "model": "ecmwf"}
+            "extent": list(EXTENT), "gate": GATE_IVT, "model": "ecmwf", "storm_days": storm_days,
+            "storm_box": list(RS.STORM_BOX)}
 
 
 def static_from(cycle, lat, lon, gfs_fields=None):

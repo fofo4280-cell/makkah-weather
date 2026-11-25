@@ -29,8 +29,8 @@ from datetime import datetime, timedelta
 import numpy as np
 
 NEXT = 15         # same 16 days as the other maps of the page (Fahad, 20 Nov 2026)
-EXTENT = (33.5, 45.5, 14.0, 28.5)          # west, east, south, north of the map
-CUT = (12.0, 36.0, 28.0, 52.0)             # south, north, west, east of the data
+EXTENT = (30.0, 52.0, 11.0, 31.0)          # west, east, south, north of the map (widened 25 Nov 2026, Fahad)
+CUT = (8.0, 38.0, 26.0, 62.0)              # south, north, west, east of the data
 FIELDS = [("u925", r":UGRD:925 mb:"), ("v925", r":VGRD:925 mb:"), ("u10", r":UGRD:10 m above ground:"),
           ("v10", r":VGRD:10 m above ground:"), ("v500", r":VGRD:500 mb:"), ("cape", r":CAPE:180-0 mb above ground:"),
           ("pw", r":PWAT:entire atmosphere")]
@@ -40,7 +40,9 @@ COAST = [(16.9, "جازان"), (18.2, "الشقيق"), (19.1, "القنفذة"),
          (24.1, "ينبع"), (25.0, "أملج"), (26.2, "الوجه"), (27.4, "ضباء")]
 PLACES = [("جدة", 21.54, 39.17), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("الليث", 20.15, 40.27),
           ("القنفذة", 19.13, 41.08), ("جازان", 16.89, 42.55), ("ينبع", 24.09, 38.06), ("المدينة", 24.47, 39.61),
-          ("الباحة", 20.01, 41.47), ("أبها", 18.22, 42.50), ("رابغ", 22.80, 39.03), ("الوجه", 26.2, 36.47)]
+          ("الباحة", 20.01, 41.47), ("أبها", 18.22, 42.50), ("رابغ", 22.80, 39.03), ("الوجه", 26.2, 36.47),
+          ("صنعاء", 15.37, 44.19), ("عدن", 12.79, 45.03), ("بورتسودان", 19.62, 37.22), ("الرياض", 24.71, 46.68),
+          ("القاهرة", 30.04, 31.24), ("تبوك", 28.38, 36.57)]
 CAPE_COLS = [(0, "#00000000"), (.03, "#00000000"), (.08, "#2c7f8c"), (.2, "#3fa79a"), (.38, "#a9cf6a"),
              (.55, "#e9cf55"), (.75, "#e58a4c"), (1, "#c2445a")]
 CAPE_MAX = 3500
@@ -130,7 +132,7 @@ INLAND_LEVELS = (2.0, 3.0)                 # % : «بداية دخول», «تو
 # Threshold 100 J/kg, levels set to keep EC's day counts: >= 4.5 %: 69 days, mean wet 21.9 %, 61 % wide (EC 19.7 / 54);
 # >= 10.5 %: 40 days, 26.6 %, 72 % wide (EC 24.8 / 64); others 3.5 %; corr 0.46 (EC 0.43). 500 J/kg on GFS: corr 0.30.
 INLAND_SRC = {"ec": (500, (2.0, 3.0)), "gfs": (100, (4.5, 10.5))}
-IN_EXTENT = (32.5, 51.5, 14.0, 32.5)
+IN_EXTENT = (28.0, 60.0, 10.0, 36.0)       # widened 25 Nov 2026 (Fahad)
 DR_MAX = 3600
 DR_COLS = [(0, "#00000000"), (140 / DR_MAX, "#00000000"), (150 / DR_MAX, "#2e9e3a"), (300 / DR_MAX, "#6cc04a"),
            (450 / DR_MAX, "#c8e04a"), (600 / DR_MAX, "#f3e33b"), (750 / DR_MAX, "#f7b22c"), (900 / DR_MAX, "#f07a22"),
@@ -139,7 +141,9 @@ DR_COLS = [(0, "#00000000"), (140 / DR_MAX, "#00000000"), (150 / DR_MAX, "#2e9e3
 IN_PLACES = [("جدة", 21.54, 39.17), ("مكة", 21.42, 39.83), ("الطائف", 21.27, 40.42), ("المدينة", 24.47, 39.61),
              ("تبوك", 28.38, 36.57), ("حائل", 27.52, 41.69), ("بريدة", 26.33, 43.97), ("الرياض", 24.71, 46.68),
              ("أبها", 18.22, 42.5), ("جازان", 16.89, 42.55), ("نجران", 17.49, 44.13), ("الدوادمي", 24.5, 44.39),
-             ("بيشة", 19.99, 42.6), ("الدمام", 26.42, 50.09)]
+             ("بيشة", 19.99, 42.6), ("الدمام", 26.42, 50.09), ("صنعاء", 15.37, 44.19), ("عدن", 12.79, 45.03),
+             ("مسقط", 23.59, 58.41), ("الكويت", 29.37, 47.98), ("عمّان", 31.95, 35.93), ("القاهرة", 30.04, 31.24),
+             ("بورتسودان", 19.62, 37.22), ("بغداد", 33.31, 44.36)]
 
 
 def inland(cape, m, thr=None):
@@ -154,7 +158,7 @@ def inland(cape, m, thr=None):
     return float(conn[interior].mean() * 100), conn
 
 
-def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300, thr=INLAND_CAPE, card=None):
+def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1700, thr=INLAND_CAPE, card=None):
     """Dr. Khalid's colours (green, yellow, red, maroon, black, grey) over light terrain; dashed line round the
     sea-joined energy"""
     import matplotlib
@@ -191,7 +195,7 @@ def draw_inland(path, lat, lon, u, v, cape, m, hgt, conn, width_px=1300, thr=INL
     cf = gaussian_filter(zoom(sb(conn).astype(float), up, order=1), 2)
     if cf.max() > .5:
         ax.contour(flo, fla, cf, levels=[.5], colors=["#1d2a3a"], linewidths=[1.3], linestyles=[(0, (4, 3))], zorder=3)
-    st = 4
+    st = 6
     LOg, LAg = np.meshgrid(lo[::st], la[::st])
     ax.quiver(LOg, LAg, sb(u)[::st, ::st], sb(v)[::st, ::st], color="#26303b", alpha=.6, scale=230, width=0.0028,
               headwidth=3.4, zorder=4)
@@ -315,7 +319,7 @@ def _font():
         return "sans-serif"
 
 
-def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX, card=None):
+def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1600, cmax=CAPE_MAX, card=None):
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -346,7 +350,7 @@ def draw(path, lat, lon, u, v, cape, m, hgt, z, width_px=1100, cmax=CAPE_MAX, ca
     flo, fla = np.linspace(lo[0], lo[-1], h.shape[1]), np.linspace(la[0], la[-1], h.shape[0])
     ax.contour(flo, fla, lf, levels=[0.5], colors=["#7d8a99"], linewidths=[.6], zorder=2)
     ax.contour(flo, fla, h, levels=[1500], colors=["#aab3bd"], linewidths=[.4], zorder=2)
-    st = 3
+    st = 4
     uu, vv = sb(u)[::st, ::st], sb(v)[::st, ::st]
     LO, LA = np.meshgrid(lo[::st], la[::st])
     al = -0.5 * uu + 0.866 * vv
