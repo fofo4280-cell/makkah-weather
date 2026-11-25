@@ -1814,7 +1814,7 @@
       }
       mjoText(); mjoPhase(); mjoPwTable();
     }
-    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); rivCard(); waveCard(); mjofCard(); twCard(); beltCard();
+    mjoMap(); pwMapCard(); olrCard(); setTimeout(dayBadges, 0); geoTapSetup(); ksaCard(); kwCard(); tcCard(); rsCard(); tpCard(); rivCard(); rstCard(); waveCard(); mjofCard(); twCard(); beltCard();
     mjoSec(M.sec || (() => { try { return localStorage.getItem("mjoSec"); } catch (e) { return null; } })() || "report", true);
   }
 
@@ -1993,6 +1993,7 @@
       "الأزرق يدعم الأمطار والأحمر يكبتها، فانظر إلى لون المملكة"],
     waveDayLabel: () => ["موجات روسبي عند ٥٠٠ هكتوباسكال — النموذج الأمريكي", "الأزرق أخدود منخفض والأحمر مرتفع، والأسهم اتجاه الرياح"],
     rivDayLabel: () => ["النهر الجوي — النموذج الأوروبي", ""],
+    rstDayLabel: () => ["العواصف الرعدية على مسار النهر — النموذج الأوروبي", ""],
     pwDayLabel: () => [`رطوبة الجزيرة العربية — النموذج ${M.st && M.st.pw_model === "ecmwf" ? "الأوروبي" : "الأمريكي"}`, "الماء القابل للهطول نسبة إلى معدله: الأخضر والأزرق أرطب من المعتاد"],
   };
   function dayBadges() {
@@ -2551,6 +2552,31 @@
       rivCard.done = true;
       $("rivDay").max = Math.max(0, rows.length - 1); $("rivDay").value = todayIdx(R.days);
       $("rivDay").oninput = show;
+    }
+    show();
+  }
+  // the thunderstorm outlook along the river (Fahad, 25 Nov 2026, after Dr. Khalid's "Atmospheric River Tracking -
+  // Thunderstorm Outlook": «ضيفها لتبويب الجوي لكن باستخدام الأوروبي»): rst_KK.png per day, the chance around the core
+  function rstCard() {
+    const st = M.st, R = st.river, rows = R && R.rows ? R.rows : [];
+    const n = rows.filter((r) => r.storm !== undefined).length ? rows.findLastIndex((r) => r.storm) + 1 : 0;
+    $("rstCard").hidden = !n;
+    if (!n) return;
+    const AR = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
+    const url = (k) => `${CL}fig/rst_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + (R.ver || ""))}`;
+    const show = () => {
+      const k = +$("rstDay").value || 0, r = rows[k] || {};
+      $("rstFig").src = url(k);
+      if (k + 1 < n) { const im = new Image(); im.src = url(k + 1); }
+      $("rstDayLabel").textContent = r.d ? dayLab(r.d) : "";
+      const s = r.storm, c = r.core;
+      $("rstNow").innerHTML = s ? `<div><b>حول قلب النهر: أعلى احتمال لعاصفة شديدة ${AR(s[0])}٪، ومتوسطه ${AR(s[1])}٪.</b></div>`
+        : (c ? "<div>قلب النهر خارج منطقة الحساب في هذا اليوم.</div>" : "<div>لا نهر واضحًا في هذا اليوم.</div>");
+    };
+    if (!rstCard.done) {
+      rstCard.done = true;
+      $("rstDay").max = n - 1; $("rstDay").value = Math.min(n - 1, todayIdx(R.days));
+      $("rstDay").oninput = show;
     }
     show();
   }
