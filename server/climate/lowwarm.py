@@ -10,10 +10,11 @@ Dr. Khalid has not published his formula; this is our reading of it, tested befo
 three earlier seasons, PERSIANN rain over Tihama and around Makkah: Makkah-area days with 10 mm or more 44 % when
 I >= 1 against 11-20 % otherwise; earlier seasons 24 % against 2 %; the energy panel adds little to I alone).
 
-    run(gfs_fields, cycle, days, fig_dir) -> {"days": [...], "low": [...], "high": [...]}; writes fig/lw_KK.png and
-    fig/lwd_KK.png. In the report (Fahad, 19 Nov 2026): a cold event (-1 or less) over the low ground or over the Taif
-    plateau cancels the rain there (382 days tested: no day with 20 mm, 2-5 % with 5 mm); a warm event (1 or more) only
-    adds confidence to the other ingredients.
+    run(gfs_fields, cycle, days, fig_dir) -> {"days": [...], "low": [...], "high": [...], ...}; writes
+    fig/lw_KK.png (the index), fig/lwe_KK.png (the energy: its own map and page tab since 25 Nov 2026, Fahad) and
+    fig/lwd_KK.png (24 h change). In the report (Fahad, 19 Nov 2026): a cold event (-1 or less) over the low ground
+    or over the Taif plateau cancels the rain there (382 days tested: no day with 20 mm, 2-5 % with 5 mm); a warm
+    event (1 or more) only adds confidence to the other ingredients.
 """
 import os
 from datetime import datetime, timedelta, timezone
@@ -109,7 +110,8 @@ def run(gfs_fields, cycle, days, fig_dir, log=print):
             continue
         ep = i * np.sqrt(np.maximum(f["cape"], 0))
         kk = f"{k - 1:02d}"
-        draw(i, ep, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lw_{kk}.png"))
+        draw(i, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lw_{kk}.png"))
+        draw_energy(ep, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lwe_{kk}.png"))
         if prev is not None:
             draw_change(i - prev, f["u8"], f["v8"], valid, os.path.join(fig_dir, f"lwd_{kk}.png"))
         prev = i
@@ -123,7 +125,7 @@ def run(gfs_fields, cycle, days, fig_dir, log=print):
         except Exception as e:  # noqa: BLE001
             log("lowwarm regions failed:", repr(e))
     log("lowwarm maps:", len(out_days), "makkah low ground", box[:3], "taif", hbox[:3])
-    return {"days": out_days, "low": box, "high": hbox, "regions": regs}
+    return {"days": out_days, "low": box, "high": hbox, "regions": regs, "energy": True}   # energy: lwe maps exist
 
 
 _RMASK = {}
@@ -337,45 +339,47 @@ def _where(lo, la):
 DOMAIN = "النطاق بين ٤٥ شمالًا و٤٥ جنوبًا"
 
 
-def draw(i, ep, u, v, valid, path):
+def _single(field, vmax, ticks, u, v, valid, path, title, stats, cold, warm, cbar_x=.45):
+    """one map with its title strip above, streamlines, a stats box and the colour bar under it"""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     fp, fb = _fonts()
-    W, H = 15, 11.0
+    W, H = 15, 5.9
     fig = plt.figure(figsize=(W, H), dpi=130, facecolor=PAPER)
-    y = lambda inch: inch / H                  # positions from the bottom, in inches
-    mw, mh = .9, .9 * W / 4                     # 360 by 90 degrees
-    _title(fig, y(H - .2), "مؤشر الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) وطاقة الحمل",
-           _when(valid) + " • النموذج الأمريكي", fp, fb)
-    # panel 1: the index with 800 hPa streamlines
-    top = H - 1.0
-    fig.text(.985, y(top + .32), "المؤشر وخطوط الرياح عند ٨٠٠ هكتوباسكال", fontproperties=fb, fontsize=12.5,
-             color=INK, ha="right", va="top")
-    b1 = top - mh
-    ax = _map(fig, [.07, y(b1), mw, y(mh)], fp, fb)
-    im = _shade(ax, i, 4.0)
+    y = lambda inch: inch / H
+    mw, mh = .9, .9 * W / 4
+    _title(fig, y(H - .2), title, _when(valid) + " • النموذج الأمريكي", fp, fb)
+    b = H - .75 - mh
+    ax = _map(fig, [.07, y(b), mw, y(mh)], fp, fb)
+    im = _shade(ax, field, vmax)
     _flow(ax, u, v)
     _coasts(ax)
-    fr, mn, hi, lo = _extremes(i)
-    _stats(fig, .07, y(b1 - .5), [f"المؤشر • حدث دافئ على {_n(round(fr * 100))}٪ من {DOMAIN} • المتوسط {_sn(mn, 2)}",
-                                  f"أقوى دافئ {_sn(hi[0])} {_where(hi[1], hi[2])} • أقوى بارد {_sn(lo[0])} {_where(lo[1], lo[2])}"],
-           WARM_INK, fp)
-    _cbar(fig, im, [.45, y(b1 - .62), .48, y(.13)], _ticks(4.0), "حمل ضحل أو مكبوت (حدث بارد)",
-          "حمل عميق مهيأ (حدث دافئ)", fp, fb)
-    # panel 2: index x sqrt(CAPE)
-    top2 = b1 - 1.55
-    fig.text(.985, y(top2 + .32), "طاقة الحمل في الحدث: المؤشر مضروبًا في جذر طاقة عدم الاستقرار", fontproperties=fb,
-             fontsize=12.5, color=INK, ha="right", va="top")
-    b2 = top2 - mh
-    ax2 = _map(fig, [.07, y(b2), mw, y(mh)], fp, fb)
-    im2 = _shade(ax2, ep, 120.0)
-    _flow(ax2, u, v)
-    _coasts(ax2)
-    _cbar(fig, im2, [.26, y(b2 - .62), .48, y(.13)], [-120, -80, -40, 0, 40, 80, 120], "حدث بارد",
-          "حدث دافئ ومعه طاقة عالية", fp, fb)
+    _stats(fig, .07, y(b - .5), stats, WARM_INK, fp)
+    _cbar(fig, im, [cbar_x, y(b - .62), .48, y(.13)], ticks, cold, warm, fp, fb)
     _save(fig, path)
     plt.close(fig)
+
+
+def draw(i, u, v, valid, path):
+    """the index alone with the 800 hPa streamlines (fig/lw_KK.png); the energy is its own map since 25 Nov 2026"""
+    fr, mn, hi, lo = _extremes(i)
+    _single(i, 4.0, _ticks(4.0), u, v, valid, path,
+            "مؤشر الحدث الدافئ والبارد قرب الأرض (٢ متر و٨٠٠ هكتوباسكال) وخطوط الرياح عند ٨٠٠ هكتوباسكال",
+            [f"المؤشر • حدث دافئ على {_n(round(fr * 100))}٪ من {DOMAIN} • المتوسط {_sn(mn, 2)}",
+             f"أقوى دافئ {_sn(hi[0])} {_where(hi[1], hi[2])} • أقوى بارد {_sn(lo[0])} {_where(lo[1], lo[2])}"],
+            "حمل ضحل أو مكبوت (حدث بارد)", "حمل عميق مهيأ (حدث دافئ)")
+
+
+def draw_energy(ep, u, v, valid, path):
+    """the convective energy of the event: the index times the square root of CAPE (fig/lwe_KK.png; Fahad, 25 Nov 2026:
+    the index and the energy each in its own tab and map)"""
+    fr, mn, hi, lo = _extremes(ep)
+    _single(ep, 120.0, [-120, -80, -40, 0, 40, 80, 120], u, v, valid, path,
+            "طاقة الحمل في الحدث: مؤشر الحدث قرب الأرض مضروبًا في جذر طاقة عدم الاستقرار",
+            [f"طاقة الحمل • موجبة على {_n(round(fr * 100))}٪ من {DOMAIN} • المتوسط {_sn(mn, 1)}",
+             f"أعلى طاقة {_sn(hi[0], 0)} {_where(hi[1], hi[2])} • أشد كبت {_sn(lo[0], 0)} {_where(lo[1], lo[2])}"],
+            "حدث بارد يكبت الحمل", "حدث دافئ ومعه طاقة عالية")
 
 
 def draw_change(di, u, v, valid, path):
