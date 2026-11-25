@@ -699,7 +699,7 @@ def main():
                 f_, la_, lo_ = fc[dt]["pw"], LAT1, LON1
             else:
                 continue
-            rows_.append({"d": dt.strftime("%Y-%m-%d"), **pwreg.row(f_, la_, lo_, clim["pw"][doy(dt)], plat, plon)})
+            rows_.append({"d": dt.strftime("%Y-%m-%d"), **pwreg.row(f_, la_, lo_, doy(dt), pw_model)})
         if rows_:
             pw_reg = {"model": pw_model, "names": pwreg.names(), "rows": rows_}
     except Exception as e:  # noqa: BLE001

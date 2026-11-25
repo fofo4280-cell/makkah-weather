@@ -6,11 +6,20 @@ This table is the page's finer split: the thirteen administrative regions (sa_re
 Madinah regions cut into their coast and their inland part (the same coastal strip as hijaz.py: region land with the
 Red Sea within 0.5 degree to the west), so Jeddah's coast and the Makkah-Taif inland are read apart.
 
-Each value is the mean PW over the region's 0.25 degree land cells divided by the mean climatology there (NCEP
-1991-2020 daily climatology of clim.npz, interpolated to the same cells), in %. A field on the 1 degree grid (the GFS
-fallback) is interpolated to the 0.25 degree cells first.
+Each value is the mean PW over the region's 0.25 degree land cells divided by that region's normal for the day, in %.
+The normal (pwreg_clim.npz, built once): GFS 12 UTC analyses of PW at 0.25 degree every second day, 23 Mar 2021 -
+23 Nov 2026, the region mean, fitted with the mean plus three annual harmonics. The NCEP 2.5 degree climatology of the
+boxes is too coarse here: it does not see the mountains (Asir, Taif and Al-Madinah read 45-55 % on an ordinary day) nor
+the coastal plains (Jazan read 160 %). ECMWF analyses are 3-6 % moister than GFS over the regions, so for ECMWF the
+normal is multiplied by ec_ratio (the ECMWF/GFS ratio of the region means on 498 paired 12 UTC analyses, every second
+day 2 Mar 2024 - 22 Nov 2026, mean plus one annual harmonic). A field on the 1 degree grid (the GFS fallback) is
+interpolated to the cells.
 """
+import os
+
 import numpy as np
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 RES = 0.25
 LAT0, LAT1, LON0, LON1 = 16.0, 32.5, 34.5, 56.0
@@ -81,15 +90,33 @@ def _on_grid(field, lat, lon):
     return map_coordinates(np.asarray(field, float), [J, I], order=1, mode="nearest")
 
 
-def row(field, lat, lon, clim, clat, clon):
-    """{key: {pw, clim, pct}} for one day"""
+_CLIM = None
+
+
+def normal(doy, model="gfs"):
+    """{key: normal region-mean PW (mm)} for day of year 0..364, as GFS or ECMWF would analyse it"""
+    global _CLIM
+    if _CLIM is None:
+        d = np.load(os.path.join(HERE, "pwreg_clim.npz"))
+        _CLIM = (d["coef"], [str(k) for k in d["keys"]], d["ec_ratio"])
+    coef, keys, ratio = _CLIM
+    w = 2 * np.pi * doy / 365.0
+    x = np.array([1.0] + [f(n * w) for n in (1, 2, 3) for f in (np.cos, np.sin)])
+    v = x @ coef
+    if model == "ecmwf":
+        v = v * (x[:3] @ ratio)
+    return dict(zip(keys, v.tolist()))
+
+
+def row(field, lat, lon, doy, model="gfs"):
+    """{key: {pw, clim, pct}} for one day (doy 0..364 as daily.doy) of a GFS or ECMWF field"""
     g = _on_grid(field, lat, lon)
-    c = _on_grid(clim, clat, clon)
+    c = normal(doy, model)
     out = {}
     for key, z in masks().items():
-        if not z.any():
+        if not z.any() or key not in c:
             continue
-        a, b = float(g[z].mean()), float(c[z].mean())
+        a, b = float(g[z].mean()), float(c[key])
         out[key] = {"pw": round(a, 1), "clim": round(b, 1), "pct": int(round(100 * a / max(b, 1)))}
     return out
 
