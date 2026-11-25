@@ -1148,6 +1148,25 @@ def _days_word(n):
     return "يومًا واحدًا" if n == 1 else "يومين" if n == 2 else f"{ar(n)} أيام" if n <= 10 else f"{ar(n)} يومًا"
 
 
+def hijaz_regions(st, regions, d0, d1):
+    """the «west» moisture box of a wave's regions written as Makkah and Madinah regions and their coasts apart
+    (hijaz.py, Fahad 25 Nov 2026); the list is left as it was if that fails"""
+    import bigreport as BR
+    west = BR.BOX_NAME["west"]
+    if west not in regions:
+        return regions
+    try:
+        import hijaz
+        parts = hijaz.wave_parts(st, d0, d1)
+    except Exception as e:  # noqa: BLE001
+        print("hijaz parts failed:", repr(e), flush=True)
+        return regions
+    out = []
+    for r in regions:
+        out.extend(parts if r == west else [r])
+    return list(dict.fromkeys(out))
+
+
 def waves(st, rs, regs, day0):
     """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
     أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
@@ -1191,6 +1210,7 @@ def waves(st, rs, regs, day0):
                    "sign": BR.trough_word(-v / 10)})
     wl.sort(key=lambda w: w["start"])
     for w in wl:
+        w["regions"] = hijaz_regions(st, w["regions"], w["start"], w["end"])
         try:
             w["lw"] = lowwarm_spell(st, w["start"], w["end"])
         except Exception as e:  # noqa: BLE001

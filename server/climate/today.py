@@ -477,7 +477,7 @@ def situation(day, our_dirs, state_dir, st=None, om=None, log=print):
 BOX_OF = {"SA-02": "west", "SA-03": "west", "SA-09": "southwest", "SA-14": "southwest", "SA-10": "southwest",
           "SA-11": "southwest", "SA-01": "central", "SA-05": "central", "SA-04": "east", "SA-06": "north",
           "SA-12": "north", "SA-08": "north", "SA-07": "north"}
-BOX_NAME = {"west": "الحجاز وغرب المملكة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
+BOX_NAME = {"west": "منطقتي مكة المكرمة والمدينة المنورة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
             "east": "شرق المملكة", "north": "شمال المملكة"}
 
 

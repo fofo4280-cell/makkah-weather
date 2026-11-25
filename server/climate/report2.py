@@ -18,7 +18,7 @@ from sa_geo import ar, num, ar_date, ar_span
 BRAND = "نموذج التنبؤ العددي عالي الدقة"
 CREDIT = "Developed by Fahad AlEissa"
 ORD = ["الأولى", "الثانية", "الثالثة", "الرابعة", "الخامسة", "السادسة"]
-BOX_NAME = {"west": "الحجاز وغرب المملكة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
+BOX_NAME = {"west": "منطقتي مكة المكرمة والمدينة المنورة", "southwest": "جنوب غرب المملكة", "central": "وسط المملكة",
             "east": "شرق المملكة", "north": "شمال المملكة"}
 # the edges and plains of the Makkah section, in the order of the table (short names for a phone-wide table)
 # Fahad 17 Nov 2026: «سروات مكة احذفها.. ركز على حافة الهدا والشفا والسيل وحرة رهاط وحرة شمنصير»
