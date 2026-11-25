@@ -1065,17 +1065,18 @@ def main():
                 rows.append(row)
             status["ingr"] = rows
             print("rain-spread potential:", [(r["d"][5:], r["ksa"]) for r in rows], flush=True)
-        # the GFS day rain measured the same way as the reference wave (refwave.py, Fahad 25 Nov 2026)
+        # the rain-making reading of each day from the ingredients, never model rain (refwave.py; Fahad 25 Nov 2026)
         try:
             import refwave
-            ds_ = sorted(fc)
             wr = []
-            for k_, dt in enumerate(ds_[:-1]):
-                if fc[ds_[k_ + 1]].get("apcp") is None:
+            for dt in sorted(fc):
+                g = fc[dt].get("ingr")
+                if not g or len(g) < len(ING.FIELDS):
                     continue
-                a0 = fc[dt]["apcp"] if fc[dt].get("apcp") is not None else 0.0
-                m_ = refwave.day_metrics(ING.cut(np.maximum(fc[ds_[k_ + 1]]["apcp"] - a0, 0)))
+                I = refwave.index(g, dt.date())
+                m_ = refwave.reading(I)
                 m_["d"] = dt.strftime("%Y-%m-%d")
+                refwave.GRIDS[m_["d"]] = 100 * I
                 wr.append(m_)
             status["wave_rain"] = wr
             # the same days at 0.25 degree over Makkah and Madinah regions and their coasts (hijaz.py, 25 Nov 2026)
@@ -1153,6 +1154,13 @@ def main():
         print("cover history failed:", repr(e), flush=True)
     import report2
     status["report"] = report2.build(status["report"], status)
+    try:   # the map of the wave compared with the reference wave (refwave.py)
+        import refwave
+        print("reference wave map:", refwave.draw_wave(out, status), flush=True)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("reference wave map failed:", repr(e), flush=True)
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"]:
