@@ -2907,12 +2907,17 @@
   function mjoPwTable() {
     pwModelHints();
     // ECMWF when the night's run had it (Fahad, 20 Nov 2026), 16 days; the report keeps reading GFS (st.pw)
-    const st = M.st, rows = (st.pw_ec || st.pw || []).filter((r) => r.d >= todayISO()).slice(0, 16);
+    // by region since 25 Nov 2026 (Fahad: «قسمها الى مناطق افضل»): st.pw_reg = the thirteen regions, Makkah and Madinah
+    // split into coast and inland (server pwreg.py); an older mjo.json without it keeps the five boxes
+    const st = M.st, rg = st.pw_reg && st.pw_reg.rows && st.pw_reg.rows.length ? st.pw_reg : null;
+    const rows = (rg ? rg.rows : (st.pw_ec || st.pw || [])).filter((r) => r.d >= todayISO()).slice(0, 16);
     if (!rows.length) return;
-    const names = { west: "الحجاز والغرب", southwest: "الجنوب الغربي", central: "الوسط", east: "الشرق", north: "الشمال" };
+    const list = rg ? rg.names.filter((n) => rows[0][n[0]])
+      : [["west", "الحجاز والغرب"], ["southwest", "الجنوب الغربي"], ["central", "الوسط"], ["east", "الشرق"], ["north", "الشمال"]];
     let t = `<table class="pwt${rows.length > 10 ? " wide" : ""}"><tr><th></th>${rows.map((r) => `<th>${fmtDM.format(dOf(r.d))}</th>`).join("")}</tr>`;
-    for (const k of Object.keys(names)) {
-      t += `<tr><td>${names[k]}</td>` + rows.map((r) => {
+    for (const [k, name, grp] of list) {
+      t += `<tr${grp && k !== list[0][0] ? ' class="grp"' : ""}><td>${name}</td>` + rows.map((r) => {
+        if (!r[k]) return "<td></td>";
         // shades of the site's blue on the dark page (Fahad, 16 Nov 2026): faint at 110 %, full from about 180 %
         const v = r[k].pct, a = Math.min(1, Math.max(0.16, (v - 100) / 80));
         const bg = v >= 110 ? `rgba(74,134,245,${a.toFixed(2)})` : "transparent", fw = v >= 130 ? 700 : 400;
