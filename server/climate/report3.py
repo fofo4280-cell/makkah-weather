@@ -1271,6 +1271,10 @@ def waves(st, rs, regs, day0):
             t = ref_compare(st, nw if nw is not None else w, day0)
             if t:
                 B.append({"p": t})
+                # its map (drawn by the nightly run, refwave.draw_wave; Fahad 25 Nov 2026: «ارسم صورة المملكة كخريطة
+                # وحدد دائرة على المنطقة المذكورة»)
+                B.append({"img": "refwave.png", "v": st.get("cycle") or "",
+                          "alt": "خريطة أقوى مناطق هطول الموجة القادمة مقارنة بالموجة المرجعية"})
         except Exception as e:  # noqa: BLE001
             import traceback
             traceback.print_exc()
@@ -1336,12 +1340,13 @@ def _mm(x):
 
 
 def ref_compare(st, w, day0):
-    """the coming wave against the reference wave of strong, wide rain (refwave.py): its strongest rain areas, how
-    strong its rain is and how wide over the Kingdom, the same GFS measure for both"""
+    """the coming wave against the reference wave of strong, wide rain (refwave.py): its strongest rain areas, its
+    strength and its spread over the Kingdom, from the reading of the ingredients for both (never model rain;
+    Fahad, 25 Nov 2026)"""
     import refwave as RW
     from datetime import date as _d
     ref = st.get("ref_wave") or RW.current(None)
-    rows = st.get("wave_rain") or []
+    rows = [r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"]
     if not ref or not rows:
         return None
     m = RW.wave_metrics(rows, w["start"], w["end"])
@@ -1349,31 +1354,39 @@ def ref_compare(st, w, day0):
         return None
     rd = _d.fromisoformat(ref["d"])
     nm = "الإشارة" if w.get("sign") else "الموجة"
-    t = (f"مقارنة بالموجة المرجعية ({ar_date(rd, weekday=False)}، وهي أقوى موجة واسعة في سجلنا، "
-         f"أقوى هطولها في {jl(RW.strongest(ref))}، وانتشارها {_pct(ref['cover'])} من المملكة، ومتوسط هطولها "
-         f"{_mm(ref['mean'])} على المناطق الممطرة وأعلاه نحو {_mm(ref['max'])}): ")
+    sp_ = R2.ar_span(w["start"], w["end"]).removeprefix("من ").removeprefix("يوم ")
+    st["ref_cmp"] = {"a": w["start"].isoformat(), "b": w["end"].isoformat(),
+                     "title": f"أقوى مناطق هطول {nm} القادمة: {sp_}",
+                     "sub": f"الدوائر الصفراء أقوى مناطقها، والمتقطعة البيضاء الموجة المرجعية {ar_date(rd, weekday=False)}، "
+                            "والألوان قوة مكونات الهطول (رطوبة ورفع وعدم استقرار)"}
+    core = lambda x: ar(int(round(x.get("core") or 0)))
+    t = (f"مقارنة بالموجة المرجعية ({ar_date(rd, weekday=False)}، أقوى موجة واسعة في سجلنا: أقوى هطولها في "
+         f"{jl(RW.strongest(ref))}، وقوة مكونات الهطول في قلبها {core(ref)} من ١٠٠، وانتشارها المقدّر "
+         f"{_pct(ref['cover'])} من المملكة): ")
     if m["cover"] < 0.01:
-        t += (f"لا يظهر لهذه {nm} في مطر النموذج الأمريكي حتى الآن هطول يُذكر (٥ ملم فأكثر) على أكثر من ١٪ من المملكة، "
-              "فهي أضعف بكثير وأضيق من المرجعية")
+        t += (f"لا تجتمع في هذه {nm} حتى الآن الرطوبة والرفع وعدم الاستقرار على أكثر من ١٪ من المملكة، وقوة مكوناتها في "
+              f"قلبها {core(m)} من ١٠٠، فهي أضعف بكثير وأضيق من المرجعية")
     else:
         pk = _d.fromisoformat(m["d"])
-        rc, ri = m["cover"] / max(ref["cover"], 1e-3), m["mean"] / max(ref["mean"], 0.1)
+        rc, ri = m["cover"] / max(ref["cover"], 1e-3), (m.get("core") or 0) / max(ref.get("core") or 0, 0.1)
         cw = ("أوسع من المرجعية" if rc >= 1.15 else "قريب من انتشار المرجعية" if rc >= 0.85 else
               "نحو نصف انتشار المرجعية" if 0.4 <= rc < 0.6 else f"نحو {ar(round(100 * rc))}٪ من انتشار المرجعية"
               if rc >= 0.15 else "أضيق بكثير من المرجعية")
-        iw = ("أشد من المرجعية" if ri >= 1.15 else "قريبة من شدة المرجعية" if ri >= 0.85 else
-              "نحو نصف شدة المرجعية" if 0.4 <= ri < 0.6 else f"نحو {ar(round(100 * ri))}٪ من شدة المرجعية"
+        iw = ("أقوى من المرجعية" if ri >= 1.1 else "قريبة من المرجعية" if ri >= 0.9 else
+              "نحو نصف قوة المرجعية" if 0.4 <= ri < 0.6 else f"نحو {ar(round(100 * ri))}٪ من قوة المرجعية"
               if ri >= 0.25 else "أضعف بكثير من المرجعية")
-        t += (f"أقوى مناطق هطول هذه {nm} {jl(RW.strongest(m))}، وأوسع أيامها مطرًا {ar_date(pk)}؛ "
-              f"ومتوسط هطولها نحو {_mm(m['mean'])} على المناطق الممطرة وأعلاه نحو {_mm(m['max'])}، "
-              f"فشدتها {iw}؛ وانتشارها {_pct(m['cover'])} من المملكة، فانتشارها {cw}")
+        t += (f"تجتمع مكونات الهطول في هذه {nm} أقوى ما تجتمع فوق {jl(RW.strongest(m))}، وأوسع أيامها {ar_date(pk)}؛ "
+              f"وقوة مكوناتها في قلبها {core(m)} من ١٠٠، فهي {iw}؛ وانتشارها المقدّر {_pct(m['cover'])} من المملكة، "
+              f"فانتشارها {cw}")
         big = RW.score(m) / max(RW.score(ref), 1e-3)
         t += ("، وهي في الجملة أقوى من المرجعية، فإن تحققت صارت هي المرجع الجديد" if big >= 1.1 else
               "، وهي في الجملة قريبة من المرجعية" if big >= 0.8 else
               "، وهي في الجملة أضعف من المرجعية")
         if (pk - day0).days > 7:
             t += "، والمقارنة تقريبية لبعد الموجة وتتضح كلما اقتربت"
-    return t + ". (المقياس واحد للموجتين: مطر النموذج الأمريكي اليومي ٥ ملم فأكثر، فقد يختلف الانتشار هنا عن جدول الموجات الذي يجمع المطر ومؤشر مكونات الجو.)"
+    return (t + ". (القراءة من مكونات الجو لا من مطر النماذج: الرطوبة في عمود الهواء وفي المستوى المتوسط، والبرودة "
+            "والأخاديد في الأعلى، وتباعد الرياح العليا، والتقاء الرياح قرب الأرض، وعدم الاستقرار؛ وفي اختبارها على "
+            "أيام ١٠ إلى ١٨ نوفمبر قدّرت انتشار ١٠ نوفمبر ١٢٪ والمرصود ١٣٪، وحددت غرب نجد والقصيم كما رُصد.)")
 
 
 def wave_length(w):
