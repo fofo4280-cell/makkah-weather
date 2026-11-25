@@ -35,7 +35,7 @@ def outlook(st, day0, log=print):
     obs = st.get("rmm_obs") or []
     fc = [x for x in (st.get("rmm_fc") or []) if x["d"] >= day0.isoformat()]
     rmm = {x["d"]: x for x in obs + (st.get("rmm_fc") or [])}
-    w1 = B.wave1(st["hov"]) if st.get("hov") else []
+    w1 = B.wave1(st["hov"]) if st.get("hov") and B.USE_UPPER_WARM else []   # upper warm event removed 25 Nov 2026
     warm = {d: (lon, amp) for d, lon, amp in (B.warm(st["hov"]) if st.get("hov") else [])}
     end15 = day0 + timedelta(days=15)
     good_m = lambda x: x is not None and x["amp"] >= 1 and x["phase"] in B.WET_PHASES
@@ -63,7 +63,7 @@ def outlook(st, day0, log=print):
     both = [x for x in fav if x[1] and x[2]]
     either = [x for x in fav if x[1] or x[2]]
     leave, last_good = None, None
-    head = f"خلال ١٥ يومًا (قراءة من {SRC_RMM}، ومن {SRC_WARM}): "
+    head = f"خلال ١٥ يومًا (قراءة من {SRC_RMM}): "
     if fav[0][1] or fav[0][2]:
         k = 0
         while k + 1 < len(fav) and (fav[k + 1][1] or fav[k + 1][2]):
@@ -94,7 +94,7 @@ def outlook(st, day0, log=print):
                      + (f" (الطور {ar(x[3]['phase'])} بشدة {num(x[3]['amp'], 1)})" if x[3] else "")
                      + (f"، والحدث الدافئ فوق {B.region_name(x[4][0])}" if x[4] else "") + ".")
     else:
-        lines.append(head + "لا يعود التذبذب ولا الحدث الدافئ إلى الأطوار المحفزة للجزيرة العربية في مدى الإسقاط.")
+        lines.append(head + "لا يعود التذبذب إلى الأطوار المحفزة للجزيرة العربية في مدى الإسقاط.")
 
     # 3. 15 to 45 days: inference from the eastward speed of both over the last month (analyses and projection)
     infer = []

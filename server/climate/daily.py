@@ -393,29 +393,13 @@ def main():
     for dt, r in sorted({**hist, **fc}.items()):
         series[dt] = sphere.smooth(-(anom(dt, r) - bias) / 1e6)   # warm event positive, 10^6 m^2/s, planetary scales
 
-    # 4. maps for the forecast days (and the day before for the change)
-    vec_all = {}
-    wc_stream = {}
+    # 4. the forecast days. The upper (200 hPa) warm/cold event map, its 24 h change, its Hovmoller and its use in the
+    #    report were removed on 25 Nov 2026 (Fahad, after Dr. Khalid: «نحتاج فقط السطحية»); only the low-level event
+    #    (lowwarm.py) is kept. The 200 hPa velocity potential series stays: the Kelvin/Rossby filter and the RMM
+    #    projection are built on it.
     days = sorted(fc)
-    for k, dt in enumerate(days):
-        W = series[dt]
-        mercator_png(os.path.join(out, "wc", f"{k:02d}.png"), W, LAT1, LON1, WARM)
-        prev = series.get(dt - timedelta(days=1))
-        if prev is not None:
-            mercator_png(os.path.join(out, "wcd", f"{k:02d}.png"), W - prev, LAT1, LON1, CHANGE)
-        u, v = sphere.divergent_wind(-W * 1e6, LAT1)   # anomalous outflow at 200 hPa
-        vec_all[k] = arrows(u, v, LAT1, LON1)
-        wc_stream[k] = (u, v)          # the belt maps are drawn after the MJO component (their marker lines)
-    json.dump(vec_all, open(os.path.join(out, "wc_vec.json"), "w"), separators=(",", ":"))
 
-    # 5. Hovmoller: 15S-15N mean, 2.5 degree steps, last 60 days + forecast
     band = (LAT1 >= -15) & (LAT1 <= 15)
-    hov_days = [dt for dt in sorted(series) if dt >= t0 - timedelta(days=60)]
-    lon25 = np.arange(0, 360, 2.5)
-    hov = []
-    for dt in hov_days:
-        prof = series[dt][band].mean(0)
-        hov.append([round(float(x), 1) for x in np.interp(lon25, np.append(LON1, 360), np.append(prof, prof[0]))])
 
     # 6. RMM: observed, and a forecast through the wave-1 of the equatorial index
     rmm = read_rmm()
@@ -479,14 +463,10 @@ def main():
     obs = [{"d": d.isoformat(), "r1": round(r1, 2), "r2": round(r2, 2), "phase": ph, "amp": round(amp, 2)}
            for d, r1, r2, ph, amp in rmm if d >= t0.date() - timedelta(days=60)]
 
-    # 7. where the warm and cold events are now
-    prof = series[t0][band].mean(0)
-    warm_lon, cold_lon = float(LON1[int(np.argmax(prof))]), float(LON1[int(np.argmin(prof))])
-
-    # the marker lines of the belt maps: the MJO core (the component's equatorial minimum), the warm and cold events
+    # the marker line of the belt maps: the MJO core (the component's equatorial minimum); the upper warm/cold event
+    # lines were removed on 25 Nov 2026 with the upper index
     def marks_for(dt):
-        p = series[dt][band].mean(0)
-        m = {"core": None, "warm": float(LON1[int(np.argmax(p))]), "cold": float(LON1[int(np.argmin(p))])}
+        m = {"core": None}
         if mjof and dt.date().isoformat() in mjof["days"]:
             m["core"] = mjof["core"][mjof["days"].index(dt.date().isoformat())]
         return m
@@ -579,13 +559,7 @@ def main():
     for k, dt in enumerate(days):
         mk = marks_for(dt)
         belt_marks.append({"d": dt.strftime("%Y-%m-%d"), **mk})
-        W = series[dt]
-        prev = series.get(dt - timedelta(days=1))
         try:
-            figures.draw_belt(os.path.join(out, "fig", f"wc_{k:02d}.png"), W, LAT1, LON1, "wc", marks=mk,
-                              stream=wc_stream.get(k))
-            if prev is not None:
-                figures.draw_belt(os.path.join(out, "fig", f"wcd_{k:02d}.png"), W - prev, LAT1, LON1, "wcd", marks=mk)
             if wk is not None:
                 i = tw["days"].index(dt.date().isoformat())
                 for fam in ("kel", "ros"):
@@ -599,14 +573,11 @@ def main():
             if wk is not None and dt.date() in mjoz_by_d:
                 i = tw["days"].index(dt.date().isoformat())
                 stamp = f"GFS  •  35°S–35°N  •  {dt:%Y-%m-%d} 12:00 UTC" + ("" if dt <= t0 else "  •  forecast")
-                pans = [{"field": W, "lat": LAT1, "lon": LON1, "kind": "wc", "stream": wc_stream.get(k),
-                         "title": "١. الحدث الدافئ والبارد (الأحمر دافئ)",
-                         "sub": "warm/cold event index  •  χ200 anomaly  •  200 hPa streamlines"},
-                        {"field": mjoz_by_d[dt.date()], "lat": mjofilt.LAT, "lon": mjofilt.LON, "kind": "mjoz",
-                         "title": "٢. مكوّن التذبذب عند ٨٠٠ (الأزرق داعم)",
+                pans = [{"field": mjoz_by_d[dt.date()], "lat": mjofilt.LAT, "lon": mjofilt.LON, "kind": "mjoz",
+                         "title": "١. مكوّن التذبذب عند ٨٠٠ (الأزرق داعم)",
                          "sub": "MJO component  •  z800, eastward k 1–3, 20–100 d"}]
-                for fam, t_ in (("kel", "٣. عائلة كلفن، شرقًا (الأزرق داعم)"),
-                                ("ros", "٤. عائلة روسبي، غربًا (الأزرق داعم)")):
+                for fam, t_ in (("kel", "٢. عائلة كلفن، شرقًا (الأزرق داعم)"),
+                                ("ros", "٣. عائلة روسبي، غربًا (الأزرق داعم)")):
                     p_ = wkfilt.FAMILIES[fam]
                     a = wk[fam][i]
                     pans.append({"field": a / 1e6, "lat": wla, "lon": LON1, "kind": fam, "contours": True,
@@ -1026,18 +997,12 @@ def main():
         "rmm_now": now_obs, "rmm_obs": obs, "rmm_fc": fc_rmm, "fit": fit,
         # the official index lags by two days; today's value is the calibrated GFS estimate
         "rmm_today": next((x for x in fc_rmm if x["d"] == t0.strftime("%Y-%m-%d")), None),
-        "warm": {"lon": warm_lon, "region": region_name(warm_lon), "value": round(float(prof.max()), 1)},
-        "cold": {"lon": cold_lon, "region": region_name(cold_lon), "value": round(float(prof.min()), 1)},
         "waves": wave_rows, "conv": conv_rows, "collide": collide_out, "plains": plains_out, "strat": strat_out, "pattern": pattern_out, "ar": ar_data,
         "wet_season": wet_season, "enso": enso, "rmm_jma": rmm_jma, "olr": olr_out, "lowwarm": lw_out, "cold_season": cold_season, "surge": surge, "pw": pw_rows, "pw_ec": pw_ec, "pw_model": pw_model, "pw_reg": pw_reg, "ao": ao, "ao_cold": ao_cold,
         "days": [dt.strftime("%Y-%m-%d") for dt in days],
-        "hov": {"lon0": 0, "dlon": 2.5, "days": [dt.strftime("%Y-%m-%d") for dt in hov_days], "v": hov,
-                "first_fc": t0.strftime("%Y-%m-%d")},
-        "legends": {"wc": legend(WARM, "مؤشر الحدث الدافئ والبارد", "مليون م²/ث", -12, 12),
-                    "wcd": legend(CHANGE, "تغير المؤشر خلال ٢٤ ساعة", "مليون م²/ث", -6, 9),
-                    "pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
-        "bounds": {"wc": [[-45, 0], [45, 360]], "pw": [[6, 25], [39, 65]]},
-        "geo": dict(figures.GEO), "figs": {**{k: figures.legend(k) for k in ("wc", "wcd", "pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
+        "legends": {"pw": legend(PWA, "الماء القابل للهطول نسبة إلى المعدل", "٪", -100, 300)},
+        "bounds": {"pw": [[6, 25], [39, 65]]},
+        "geo": dict(figures.GEO), "figs": {**{k: figures.legend(k) for k in ("pw", "wave", "conv", "mjoz", "mjop", "kel", "ros", "twr",
                                                    "twk") if k in figures.SCALES},
                  **{k: ksa_legend(k) for k in ("krh7", "krh5", "kconv", "kt5", "kw7", "kw5")}},
         "marks": belt_marks, "tw": tw, "twf": twf, "ksa": ksa_out, "taifc": taifc_out, "taifc_gfs": taifc_gfs, "rsflow": rsflow_out, "river": river_out, "belt_stack": os.path.exists(os.path.join(out, "fig", "belt_00.png")),

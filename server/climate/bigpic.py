@@ -13,6 +13,7 @@ import math
 import numpy as np
 
 WET_PHASES = {7, 8, 1, 2}
+USE_UPPER_WARM = False          # the upper warm event left the report on 25 Nov 2026 (Fahad)
 SECTOR = (250.0, 55.0)          # favourable longitudes of the warm-event centre, through 0
 
 
@@ -48,7 +49,11 @@ def warm(hov):
     falls in the favourable sector while the actual divergence maximum (the profile smoothed to zonal wavenumbers
     1-5) lies outside it, the centre is the maximum. The wave-1 phase of a profile that is not one clean wave can sit
     far from the real centre: on 19 Nov 2026 (GFS) wave-1 put it at 49E while the maximum was over the Bay of
-    Bengal (90E), and the report wrongly called the event favourable (Fahad, 16 Nov 2026)."""
+    Bengal (90E), and the report wrongly called the event favourable (Fahad, 16 Nov 2026).
+    REMOVED 25 Nov 2026 (Fahad, after Dr. Khalid: only the low-level event is needed): returns nothing, so no report
+    line, wave score or outlook reads the upper (200 hPa) warm event any more, even from an older mjo.json."""
+    if not USE_UPPER_WARM:
+        return []
     out = []
     for (d, lo, a), row in zip(wave1(hov), hov["v"]):
         v = np.asarray(row, float)
