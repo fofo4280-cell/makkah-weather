@@ -11,7 +11,10 @@
   const P = document.getElementById("p-mjo");
   if (!P) return;
   const AR = (n) => String(n).replace(/\d/g, (d) => "٠١٢٣٤٥٦٧٨٩"[d]);
-  const SEC_PER_DAY = 1, FPS = 5;
+  // WhatsApp-friendly (25 Nov 2026, Fahad: the video was sharp on the phone but poor once sent on WhatsApp): long side at
+  // most 1280 px (WhatsApp's own HD size, so it is not scaled down again), sides multiples of 16, H.264 High 4.0 4:2:0,
+  // 10 frames a second with a key frame at every day, modest bitrate, moov at the start (fastStart).
+  const SEC_PER_DAY = 1, FPS = 10, MAXSIDE = 1280;
   const wait = (ms) => new Promise((r) => setTimeout(r, ms));
   const CAM = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="13" height="12" rx="2"/><path d="M15 10l6-3v10l-6-3z"/></svg>';
   let busy = false;
@@ -166,15 +169,16 @@
     const x0 = Math.min(...L.map((q) => q.b.left)), y0 = Math.min(...L.map((q) => q.b.top));
     const x1 = Math.max(...L.map((q) => q.b.right)), y1 = Math.max(...L.map((q) => q.b.bottom));
     if (!size.W) {
-      // natural sharpness of the biggest picture, then kept within what phones play (about 1920 px wide, 2 million pixels)
+      // natural sharpness of the biggest picture, then kept within WhatsApp's HD size (long side 1280 px)
       const im = L.filter((q) => q.e.tagName === "IMG").sort((a, b) => b.b.width - a.b.width)[0];
       let s = im ? im.e.naturalWidth / im.b.width : 2;
       s = Math.max(1, Math.min(s, 4));
       let W = (x1 - x0) * s, Hm = (y1 - y0) * s;
       const H0 = Math.max(70, Math.round(W * 0.075));
-      const k = Math.min(1, 1920 / W, 1920 / (Hm + H0), Math.sqrt(2000000 / (W * (Hm + H0))));
-      size.s = s * k; size.W = Math.round(W * k / 2) * 2; size.H0 = Math.round(H0 * k / 2) * 2;
-      size.H = size.H0 + Math.round(Hm * k / 2) * 2;
+      const k = Math.min(1, MAXSIDE / W, MAXSIDE / (Hm + H0));
+      const r16 = (v) => Math.max(16, Math.ceil(v / 16) * 16);   // macroblock size: no padded edges after re-encoding
+      size.s = s * k; size.W = Math.min(MAXSIDE, r16(W * k)); size.H0 = Math.round(H0 * k / 2) * 2;
+      size.H = Math.min(MAXSIDE, r16(size.H0 + Hm * k));
       size.cv = document.createElement("canvas");
       size.cv.width = size.W; size.cv.height = size.H;
     }
@@ -212,11 +216,32 @@
   }
 
   async function avcConfig(W, H) {
-    for (const codec of ["avc1.640034", "avc1.640028", "avc1.4d0028", "avc1.42002a"]) {
-      const c = { codec, width: W, height: H, bitrate: Math.min(8e6, W * H * 3), framerate: FPS, avc: { format: "avc" } };
+    for (const codec of ["avc1.640028", "avc1.4d0028", "avc1.42002a"]) {
+      const c = { codec, width: W, height: H, bitrate: Math.min(3.5e6, W * H * 3), framerate: FPS, latencyMode: "quality", avc: { format: "avc" } };
       try { const r = await VideoEncoder.isConfigSupported(c); if (r.supported) return c; } catch (e) {}
     }
     return null;
+  }
+
+  // the canvas as I420 in the usual TV range (16-235, BT.709): a canvas handed to the encoder as it is comes out
+  // full range (yuvj420p), which WhatsApp and some players treat badly
+  const CS = { primaries: "bt709", transfer: "bt709", matrix: "bt709", fullRange: false };
+  function i420(cv) {
+    const W = cv.width, H = cv.height, d = cv.getContext("2d").getImageData(0, 0, W, H).data;
+    const buf = new Uint8Array(W * H * 3 / 2), U = W * H, V = U + U / 4;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const o = (y * W + x) * 4;
+      buf[y * W + x] = 16 + ((47 * d[o] + 157 * d[o + 1] + 16 * d[o + 2]) >> 8);
+    }
+    for (let y = 0; y < H; y += 2) for (let x = 0; x < W; x += 2) {
+      let r = 0, g = 0, bl = 0;
+      for (const [dx, dy] of [[0, 0], [1, 0], [0, 1], [1, 1]]) { const o = ((y + dy) * W + x + dx) * 4; r += d[o]; g += d[o + 1]; bl += d[o + 2]; }
+      r /= 4; g /= 4; bl /= 4;
+      const k = (y / 2) * (W / 2) + x / 2;
+      buf[U + k] = Math.max(16, Math.min(240, Math.round(128 + (-0.1006 * r - 0.3386 * g + 0.4392 * bl))));
+      buf[V + k] = Math.max(16, Math.min(240, Math.round(128 + (0.4392 * r - 0.3989 * g - 0.0403 * bl))));
+    }
+    return buf;
   }
 
   // WebCodecs path: frames are encoded as they are drawn
@@ -240,8 +265,12 @@
       if (!cv) cv = await onFrame(i);
       if (!cv) continue;
       const reps = (i === frames - 1 ? 2 : 1) * SEC_PER_DAY * FPS;   // the last day stays a little longer
+      let yuv = null;
+      try { yuv = i420(cv); } catch (e) {}
       for (let k = 0; k < reps; k++) {
-        const vf = new VideoFrame(cv, { timestamp: Math.round(n * step), duration: Math.round(step) });
+        const vf = yuv
+          ? new VideoFrame(yuv, { format: "I420", codedWidth: size.W, codedHeight: size.H, colorSpace: CS, timestamp: Math.round(n * step), duration: Math.round(step) })
+          : new VideoFrame(cv, { timestamp: Math.round(n * step), duration: Math.round(step) });
         enc.encode(vf, { keyFrame: k === 0 });
         vf.close(); n++;
         if (err) throw err;
@@ -270,7 +299,7 @@
     const ctx = out.getContext("2d");
     ctx.drawImage(pics[0], 0, 0);
     const st = out.captureStream(FPS);
-    const rec = new MediaRecorder(st, { mimeType: mime, videoBitsPerSecond: 6e6 });
+    const rec = new MediaRecorder(st, { mimeType: mime, videoBitsPerSecond: 3.5e6 });
     const parts = [];
     rec.ondataavailable = (e) => { if (e.data.size) parts.push(e.data); };
     const done = new Promise((r) => { rec.onstop = r; });
@@ -331,7 +360,8 @@
     const canShare = file && navigator.canShare && navigator.canShare({ files: [file] });
     out.innerHTML = `<video controls playsinline muted loop src="${url}"></video>
       <div class="vid-row">${canShare ? '<button type="button" class="vid-act vid-share">مشاركة أو حفظ</button>' : ""}
-      <a class="vid-act ${canShare ? "alt" : ""}" href="${url}" download="${name.replace(/"/g, "")}">تنزيل الفيديو</a></div>`;
+      <a class="vid-act ${canShare ? "alt" : ""}" href="${url}" download="${name.replace(/"/g, "")}">تنزيل الفيديو</a></div>
+      <p class="vid-msg vid-tip">للإرسال في واتساب بأعلى جودة: نزّل الفيديو، ثم في المحادثة اختر «＋» ثم «مستند» واختر الملف، فيصل كما هو دون ضغط. وإن أرسلته فيديو عاديًا فاختر الجودة العالية قبل الإرسال.</p>`;
     if (canShare) out.querySelector(".vid-share").onclick = () => navigator.share({ files: [file], title: name.replace(/\.mp4$/, "") }).catch(() => {});
     const mb = blob.size / 1048576;
     msg(`جاهز: ${AR(frames - skipped)} ${frames - skipped > 10 ? "يومًا" : "أيام"} في ${AR(Math.round((frames - skipped + 1) * SEC_PER_DAY))} ${Math.round((frames - skipped + 1) * SEC_PER_DAY) > 10 ? "ثانية" : "ثوانٍ"}، الحجم ${AR(mb < 10 ? mb.toFixed(1).replace(".", "٫") : Math.round(mb))} ميغابايت.${skipped ? ` تعذّر تحميل ${AR(skipped)} من الأيام فتُركت.` : ""}`);
