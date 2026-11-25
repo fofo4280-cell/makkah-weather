@@ -16,11 +16,10 @@ from concurrent.futures import ThreadPoolExecutor
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SEED_BOX = (0.0, 30.0, 38.0, 76.0)        # south, north, west, east: where the core is looked for and followed (the
+SEED_BOX = (3.0, 30.0, 38.0, 75.0)        # south, north, west, east: where the core is looked for and followed (the
                                           # river toward Arabia, not the Bay of Bengal one)
 STORM_BOX = (0.0, 36.0, 30.0, 80.0)       # south, north, west, east: the chance is shown only here, around the area
                                           # the fit was made and tested on (2-33 N, 34-75 E)
-STEP_DEG = 8.0
 CORE_MIN = 250.0
 RADIUS_KM = 500.0
 PAL = [(2, "#e8e6fb", 0), (5, "#c9c3f5", 140), (10, "#7fc8e8", 190), (15, "#27d7d0", 210), (20, "#8cf37a", 225),
@@ -92,31 +91,24 @@ def _km(la0, lo0, la, lo):
 
 
 def track(mags, lat, lon):
-    """[(lat, lon, ivt) or None] per day"""
+    """[(lat, lon, ivt) or None] per day: the centre of the river over the Arabian Sea and its approaches to Arabia
+    (SEED_BOX): the transport-weighted centre of the part >= CORE_MIN (smoothed over ~1 degree), so it moves with the
+    body of the river instead of jumping between separate maxima; ivt = the largest value there"""
     from scipy.ndimage import gaussian_filter
     LA, LO = np.meshgrid(lat, lon, indexing="ij")
-    out, prev = [], None
+    s, n, w, e = SEED_BOX
+    box = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
+    out = []
     for m in mags:
         if m is None:
             out.append(None)
             continue
         sm = gaussian_filter(m, 3)
-        if prev is not None:
-            s, n, w, e = SEED_BOX
-            near = (_km(prev[0], prev[1], LA, LO) <= STEP_DEG * 111) & (LA >= s - 4) & (LA <= n + 4) & (LO >= w - 4) \
-                & (LO <= e)
-            cand = np.where(near, sm, -1)
-            j, i = np.unravel_index(np.argmax(cand), cand.shape)
-            if cand[j, i] >= CORE_MIN:
-                prev = (float(lat[j]), float(lon[i]), float(cand[j, i]))
-                out.append(prev)
-                continue
-        s, n, w, e = SEED_BOX
-        box = (LA >= s) & (LA <= n) & (LO >= w) & (LO <= e)
-        cand = np.where(box, sm, -1)
-        j, i = np.unravel_index(np.argmax(cand), cand.shape)
-        prev = (float(lat[j]), float(lon[i]), float(cand[j, i])) if cand[j, i] >= CORE_MIN else None
-        out.append(prev)
+        wt = np.where(box, np.clip(sm - CORE_MIN, 0, None), 0.0)
+        if (wt > 0).sum() < 40:                   # less than ~2.5 square degrees: no river body
+            out.append(None)
+            continue
+        out.append((float((wt * LA).sum() / wt.sum()), float((wt * LO).sum() / wt.sum()), float(sm[wt > 0].max())))
     return out
 
 

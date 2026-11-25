@@ -129,11 +129,17 @@ def pdir(d, lat, lon):
     from scipy.ndimage import maximum_filter
     for n in (f"pdirnow1d{d:%y%m%d}.bin.gz",):
         raw = gzip.decompress(get(PDIR + n))
-        a = np.frombuffer(raw, dtype=">i2").reshape(3000, 9000).astype(np.float32)
-        a = np.where(a < 0, np.nan, a / 100.0)
-        if not (1 < np.nanmax(a) < 2000):
-            a = np.frombuffer(raw, dtype="<i2").reshape(3000, 9000).astype(np.float32)
-            a = np.where(a < 0, np.nan, a / 100.0)
+        a = None
+        for dt in (">f4", "<f4", ">i2", "<i2"):     # the daily file is float32 mm (obs_rain.py tries the same list)
+            if len(raw) != 3000 * 9000 * np.dtype(dt).itemsize:
+                continue
+            t = np.frombuffer(raw, dtype=dt).reshape(3000, 9000).astype(np.float32)
+            t = np.where(t < 0, np.nan, t / (100.0 if dt.endswith("i2") else 1.0))
+            if np.isfinite(t).any() and 1 < np.nanmax(t) < 2000:
+                a = t
+                break
+        if a is None:
+            raise ValueError(f"PDIR {n}: {len(raw)} bytes not understood")
         # 25 km ~ 6 cells of 0.04 deg
         yy, xx = np.mgrid[-6:7, -6:7]
         mx = maximum_filter(np.nan_to_num(a, nan=-1), footprint=(yy ** 2 + xx ** 2 <= 36), mode="nearest")
