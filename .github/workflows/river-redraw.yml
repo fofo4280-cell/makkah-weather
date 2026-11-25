@@ -1,0 +1,53 @@
+# Redraw the «النهر الجوي» tab by hand (river maps + thunderstorm outlook along the river, river.py/riverstorm.py) for
+# the 12 UTC cycle already on the page, and publish only those pictures and mjo.json "river" to climate-data.
+# The nightly climate run does the same every night; this is for redraws in the day (ECMWF open data answers 503 to
+# the cloud container, not to the runners).
+name: River redraw
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref: {description: 'code branch', default: 'saudi-wrf'}
+
+permissions:
+  contents: write
+
+concurrency: {group: river-redraw, cancel-in-progress: false}
+
+jobs:
+  redraw:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+          path: code
+      - run: pip install -q numpy scipy pillow pygrib matplotlib cartopy arabic-reshaper python-bidi
+      - name: Draw
+        run: |
+          git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" out
+          cd code/server/climate
+          python3 - <<'PY'
+          import json, os, time, sys
+          sys.path.insert(0, ".")
+          import daily, river
+          out = os.path.abspath("../../../out")
+          m = json.load(open(f"{out}/mjo.json"))
+          cyc = m.get("cycle") or ""
+          print("cycle", cyc, flush=True)
+          r = river.run(cyc, f"{out}/fig", gfs_fields=daily.gfs_fields)
+          if r is None or not any(x.get("g") for x in r["rows"]):
+              sys.exit("river: nothing drawn")
+          r["ver"] = "h" + time.strftime("%H%M")
+          m = json.load(open(f"{out}/mjo.json"))
+          m["river"] = r
+          json.dump(m, open(f"{out}/mjo.json", "w"), ensure_ascii=False, separators=(",", ":"))
+          print("storm days", r.get("storm_days"), flush=True)
+          PY
+      - name: Publish
+        run: |
+          cd out
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A fig mjo.json
+          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "river redraw $(date -u +%Y-%m-%dT%H:%MZ)"
+          for i in 1 2 3; do git push -q "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data && break; sleep 20; git pull -q --rebase origin climate-data; done
