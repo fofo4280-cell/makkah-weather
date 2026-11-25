@@ -188,8 +188,8 @@ def label(r):
     return (r["part"] + " " + r["name"]) if r.get("part") and r["part"] != "وسط" else r["name"]
 
 
-LEVELS = [50, 60, 70, 80, 90]          # only the strongest places are coloured, in dark shades (Fahad, 25 Nov 2026)
-DARK = ["#1d5e34", "#7a5c00", "#9a3b0c", "#841424", "#4b136e"]
+LEVELS = [20, 30, 40, 50, 60, 70, 80, 90]   # the full scale, as Fahad chose on 25 Nov 2026 («الالوان اجعلها هكذا»)
+DARK = ["#9ad1f5", "#4fa3e8", "#2f6fd6", "#2fae5a", "#f3d33a", "#f28c28", "#e0402c", "#b02a8f"]
 
 
 def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
@@ -225,7 +225,7 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
         inside = contains_xy(ksa, LO.ravel(), LA.ravel()).reshape(LA.shape)
         fine = np.where(inside & (fine >= LEVELS[0]), fine, np.nan)
         ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=ListedColormap(DARK),
-                  norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.95, interpolation="bilinear", zorder=1)
+                  norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
     for r in regs:
         for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
             x, y = g_.exterior.xy
@@ -238,11 +238,7 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
     except Exception as ex:  # noqa: BLE001
         print("cities:", repr(ex)[:80])
     halo = [pe.withStroke(linewidth=2.4, foreground="#111111")]
-    if m:   # the strongest areas named on the map (no circles: Fahad, 25 Nov 2026)
-        for r in strongest_regs(m, 3):
-            if "lat" in r:
-                ax.text(r["lon"], r["lat"], A(label(r)), ha="center", va="center", fontsize=8, fontweight="bold",
-                        color="#ffffff", fontfamily=fam, path_effects=halo, zorder=6)
+    # no area names or circles on the map: the regions' borders and the cities say it (Fahad, 25 Nov 2026)
     ax.text(0.5, 0.985, A(head), transform=ax.transAxes, ha="center", va="top", fontsize=10, fontweight="bold",
             color="#ffffff", fontfamily=fam, path_effects=halo, zorder=7)
     return ax
@@ -289,7 +285,7 @@ def draw(path, panels, title, sub):
     kx.tick_params(length=0, pad=1.5)
     for sp_ in kx.spines.values():
         sp_.set_visible(False)
-    fig.text(0.71, 0.56 * foot / H, A("قوة مكونات الهطول من ١٠٠ (الأشد فقط)"), ha="left", va="center", fontsize=7.5,
+    fig.text(0.71, 0.56 * foot / H, A("قوة مكونات الهطول من ١٠٠"), ha="left", va="center", fontsize=7.5,
              color="#e8edf2", fontfamily=fam)
     fig.savefig(path, facecolor=fig.get_facecolor())
     plt.close(fig)
