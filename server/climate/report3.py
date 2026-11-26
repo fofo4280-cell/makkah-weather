@@ -24,7 +24,19 @@ BOX_OF = {"عسير": "southwest", "الباحة": "southwest", "جازان": "s
           "الحدود الشمالية": "north", "حائل": "north", "القصيم": "central", "الرياض": "central", "الشرقية": "east"}
 
 
+PW_REG = {"الباحة": ("baha",), "عسير": ("asir",), "جازان": ("jazan",), "نجران": ("najran",), "الرياض": ("riyadh",),
+          "القصيم": ("qassim",), "الشرقية": ("east",), "حائل": ("hail",), "تبوك": ("tabuk",), "الجوف": ("jouf",),
+          "الحدود الشمالية": ("nb",), "مكة المكرمة": ("mk_in", "mk_coast"), "المدينة المنورة": ("md_in", "md_coast")}
+
+
 def pw_of(st, day0, region):
+    """the region's precipitable water, % of normal: each region its own (ECMWF, the trusted model for moisture;
+    Fahad 26 Nov 2026: three regions showed the same 126 % of one wide box), else the wide box (GFS)"""
+    pr = st.get("pw_reg") or {}
+    row = next((r for r in pr.get("rows") or [] if r["d"] == day0.isoformat()), None)
+    ks = PW_REG.get(region)
+    if row and ks and all(k in row for k in ks):
+        return max(row[k]["pct"] for k in ks)
     row = next((r for r in st.get("pw", []) if r["d"] == day0.isoformat()), None)
     b = BOX_OF.get(region)
     return row[b]["pct"] if row and b in row else None
@@ -297,8 +309,8 @@ def cold_wave_blocks(st, day0, effect=True, W=None):
     if eff and effect:
         eff[0] = eff[0].removeprefix("و")
         B.append({"p": "الأثر: " + "، ".join(eff) + "."})
-    B.append({"p": "التوجيه: تؤخذ أماكن المطر واتساعه من تشغيل نموذجنا بالأوروبي (يكتمل قرابة السادسة صباحًا)، "
-                   "وتُتابع مواضع العواصف الرعدية وشدتها على خريطة تشغيل نموذجنا بالأمريكي."})
+    # no «التوجيه» line sending the rain places to a model run (doctrine, Fahad 25 Nov 2026): the note under the
+    # summary already says the places come from the ingredients and model rain stays on the map
     return B
 
 
@@ -715,7 +727,9 @@ def weak_reasons(st, day0, W):
             out.append(f"الأخدود مركزه خارج المملكة ولا يصل منه إلى الحجاز إلا طرف ضحل ({_dam(k['tip_v'])} ديكامتر)"
                        + ("، ويخرج غدًا" if not nx.get("k") else ""))
     elif c["trough"] < 0.3:
-        out.append("لا أخدود علوي مؤثر")
+        # a shallow trough named by the case kind is weak, not absent: say it so the summary does not contradict itself
+        Rk = R2.case_kind(st, day0)[2]
+        out.append("الأخدود العلوي ضحل ضعيف الأثر" if any("ضحل" in x for x in Rk) else "لا أخدود علوي مؤثر")
     dry = [n for n in ORDER if (pw_of(st, day0, n) or 100) < 100]
     if dry:   # a long list of regions reads badly: say "all" or "most" instead (wording only)
         out.append("الهواء جاف على جميع مناطق المملكة" if len(dry) == len(ORDER) else
@@ -1167,6 +1181,54 @@ def hijaz_regions(st, regions, d0, d1):
     return list(dict.fromkeys(out))
 
 
+PULSE_CORE, PULSE_COVER = 20.0, 0.01   # an ingredients day is active from core 20/100 or 1 % of the Kingdom
+
+
+def ingr_pulses(st, wl, day0, fac):
+    """each wave window of the big drivers cut to its pulses of rain-making ingredients (Fahad, 26 Nov 2026: the
+    window of 28 Nov-10 Dec with its peak after 8 days and spread under 1 % contradicted the ingredients reading
+    of 30 Nov at 5 %). The drivers tell when the setting supports rain; the days, the peak (the widest day), the
+    spread and the areas come from the nightly ingredients rows (refwave), never from model rain."""
+    import bigreport as BR
+    import refwave as RW
+    from datetime import date as _d, timedelta
+    rows = {r["d"]: r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"}
+    if not rows:
+        return wl
+    act = lambda d: (lambda r: r is not None and ((r.get("core") or 0) >= PULSE_CORE or (r.get("cover") or 0) >= PULSE_COVER))(rows.get(d.isoformat()))
+    out = []
+    for w in wl:
+        wd = [w["start"] + timedelta(days=k) for k in range((w["end"] - w["start"]).days + 1)]
+        runs = BR._runs(wd, act)
+        if not runs:
+            # no day of the window gathers the ingredients yet: keep the window, its spread from the ingredients
+            cv = {d: (rows.get(d.isoformat()) or {}).get("cover") or 0 for d in wd}
+            sc = {d: BR.wave_score(st, d, day0, BR.strength(st, d), cv[d])["score"] for d in wd}
+            w["peak"] = max(wd, key=lambda d: sc[d])
+            w["cover"], w["top"] = max(cv.values()), sc[w["peak"]]
+            w["pro"], w["con"] = BR.wave_pro_con(st, w["peak"])
+            out.append(w)
+            continue
+        for k, (a, b) in enumerate(runs):
+            m = RW.wave_metrics(list(rows.values()), a, b)
+            pk = _d.fromisoformat(m["d"])
+            c = BR.strength(st, pk)
+            pro, con = BR.wave_pro_con(st, pk, c)
+            pd = [a + timedelta(days=j) for j in range((b - a).days + 1)]
+            allk = set().union(*({x for x, _ in fac.get(d, [])} for d in pd))
+            T, R = allk & {"mjo", "warm"}, allk & {"trough", "cold"}
+            kind = "mixed" if T and R else "tropical" if T else "troughs" if R else w["kind"]
+            regs = [RW.label(g) for g in m["regions"] if g["cover"] >= 0.05 or g["w"] >= 30][:5] or RW.strongest(m)
+            out.append({"start": a, "end": b, "peak": pk, "cover": m.get("cover") or 0,
+                        "top": BR.wave_score(st, pk, day0, c, m.get("cover") or 0)["score"], "drivers": c["total"],
+                        "kind": kind, "regions": regs, "pro": pro, "con": con, "ingr": True,
+                        # the window of supportive drivers, said once after the last pulse
+                        "win": (w["start"], w["end"]),
+                        "window": (w["start"], w["end"]) if k == len(runs) - 1 else None})
+    return out
+
+
+
 def waves(st, rs, regs, day0):
     """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
     أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
@@ -1186,12 +1248,14 @@ def waves(st, rs, regs, day0):
     _, last = BR.drivers_timeline(st, day0, days)
     days = [d for d in days if d <= last]
     score = {}
+    ir0 = {r["d"]: r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"}
     for d in days:
-        c = BR.combined(st, d, day0)
-        score[d] = BR.wave_score(st, d, day0, BR.strength(st, d), None if c is None else c["ksa"])["score"]
-    wl = BR.wave_list(st, day0, days, fac, cur_end)
+        # the spread of the ingredients reading, never model rain (doctrine, Fahad 25 Nov 2026)
+        c = (ir0.get(d.isoformat()) or {}).get("cover") if ir0 else None
+        score[d] = BR.wave_score(st, d, day0, BR.strength(st, d), c)["score"]
+    wl = ingr_pulses(st, BR.wave_list(st, day0, days, fac, cur_end), day0, fac)
     # weak signs outside the waves: a trough over the Red Sea or the Kingdom (15 m or deeper)
-    inw = lambda d: any(w["start"] <= d <= w["end"] for w in wl)
+    inw = lambda d: any((w.get("win") or (w["start"], w["end"]))[0] <= d <= (w.get("win") or (w["start"], w["end"]))[1] for w in wl)
     sig = []
     for d in days[1:]:
         wv = next((x for x in st.get("waves", []) if x["d"] == d.isoformat()), None)
@@ -1203,14 +1267,17 @@ def waves(st, rs, regs, day0):
             else:
                 sig.append([d, d, tr["area"], tr["v"]])
     for a, b, area, v in sig:
-        c = [BR.combined(st, d, day0) for d in days if a <= d <= b]
+        # the spread from the ingredients rows, not from model rain (doctrine, Fahad 25 Nov 2026)
+        ir = {r["d"]: r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"}
+        cv = max([(ir.get(d.isoformat()) or {}).get("cover") or 0 for d in days if a <= d <= b] or [0])
         pk = max([d for d in days if a <= d <= b], key=lambda d: score[d])
-        wl.append({"start": a, "end": b, "peak": pk, "top": score[pk], "cover": max([x["ksa"] for x in c if x] or [0]),
+        wl.append({"start": a, "end": b, "peak": pk, "top": score[pk], "cover": cv,
                    "kind": "troughs", "regions": [area], "pro": [f"أخدود {BR.trough_word(-v / 10)} فوق {area}"], "con": [],
                    "sign": BR.trough_word(-v / 10)})
     wl.sort(key=lambda w: w["start"])
     for w in wl:
-        w["regions"] = hijaz_regions(st, w["regions"], w["start"], w["end"])
+        if not w.get("ingr"):   # the ingredients' areas are already parts of regions
+            w["regions"] = hijaz_regions(st, w["regions"], w["start"], w["end"])
         try:
             w["lw"] = lowwarm_spell(st, w["start"], w["end"])
         except Exception as e:  # noqa: BLE001
@@ -1266,6 +1333,10 @@ def waves(st, rs, regs, day0):
             B.append({"p": t + "."})
         for x in [w] + ([nw] if nw is not None and nw is not w else []):
             B.append({"p": wave_length(x)})
+            win = x.get("window")
+            if win and win[1] > x["end"] and not any(y["start"] > x["end"] for y in wl if not y.get("sign")):
+                B.append({"p": f"وتبقى العوامل الكبرى داعمة بعدها حتى {ar_date(win[1])}، لكن مكونات الهطول لا تجتمع "
+                               "في تلك الأيام بعد في توقع الليلة، فتُتابع كل ليلة."})
         # against the reference wave (Fahad, 25 Nov 2026)
         try:
             t = ref_compare(st, nw if nw is not None else w, day0)

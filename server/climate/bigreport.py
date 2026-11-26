@@ -766,6 +766,42 @@ def wave_regions(st, wd, f, kind):
 KINDS = {"mixed": "مدارية تسندها أخاديد", "tropical": "مدارية دون أخاديد", "troughs": "من الأخاديد دون دعم مداري"}
 
 
+def wave_pro_con(st, peak, c=None):
+    """the drivers for and against a wave, named from their values on its peak day"""
+    c = c if c is not None else strength(st, peak)
+    ref = (st.get("mjof") or {}).get("z_ref") or 10
+    v = _vals(st, peak)
+    pro, con = [], []
+    m = v["m"]
+    if m and c.get("mjo", 0) > 0:
+        pro.append(f"التذبذب المداري في الطور {ar(m['phase'])}" + (" (دعم ضعيف)" if m["phase"] == 2 else ""))
+    if v["w"] and warm_ok(*v["w"]):
+        pro.append(f"الحدث الدافئ في القطاع الداعم (فوق {B.region_name(v['w'][0])})")
+    elif v["w"]:
+        con.append(f"الحدث الدافئ خارج القطاع الداعم (فوق {B.region_name(v['w'][0])})")
+    if v["pw"] and v["pw"][0] >= 110:
+        pro.append(f"{'مد رطوبي' if v['pw'][0] >= 150 else 'رطوبة فوق المعدل'} ({ar(v['pw'][0])}٪ فوق {BOX_NAME[v['pw'][1]]})")
+    elif v["pw"]:
+        con.append(f"الرطوبة {'قريبة من المعدل' if v['pw'][0] >= 80 else 'دون المعدل'} ({ar(v['pw'][0])}٪ في أرطب الأجزاء)")
+    # the trough by its place and depth (the 500 hPa wave band), counted only from 25 m as in the drivers' line
+    tr = v["tr"]
+    if tr and tr[0] <= -25:
+        dam = -tr[0] / 10
+        pro.append(f"أخدود {trough_word(dam)} فوق {tr[1]} ({num(dam, 1)} ديكامتر)")
+    mf = v["mf"]
+    if mf and mf[0] <= -ref / 3:
+        pro.append(f"مكوّن التذبذب داعم ({n1(mf[0])} م)")
+    elif mf and mf[0] >= ref / 3:
+        con.append(f"مكوّن التذبذب كابح ({n1(mf[0])} م)")
+    for fam in ("ros", "kel"):
+        x = _tw(st, peak, fam)
+        if x and x[0] <= -x[1] / 3:
+            pro.append(f"{TW_NAME[fam]} ({n1(x[0])})")
+        elif x and x[0] >= x[1] / 3:
+            con.append(f"{TW_NAME[fam]} كابحة ({n1(x[0])})")
+    return pro, con
+
+
 def wave_list(st, day0, days, f, cur_end):
     """Every wave in the range of the data: [{start, end, peak, top, kind, regions, for, against}]. Each driver is
     named for or against from its value on the peak day, by the same rules as the drivers' lines."""
@@ -784,35 +820,7 @@ def wave_list(st, day0, days, f, cur_end):
         kind = "mixed" if T and R else "tropical" if T else "troughs"
         peak = max(wd, key=lambda d: ws[d]["score"])
         c = sc[peak]
-        v = _vals(st, peak)
-        pro, con = [], []
-        m = v["m"]
-        if m and c.get("mjo", 0) > 0:
-            pro.append(f"التذبذب المداري في الطور {ar(m['phase'])}" + (" (دعم ضعيف)" if m["phase"] == 2 else ""))
-        if v["w"] and warm_ok(*v["w"]):
-            pro.append(f"الحدث الدافئ في القطاع الداعم (فوق {B.region_name(v['w'][0])})")
-        elif v["w"]:
-            con.append(f"الحدث الدافئ خارج القطاع الداعم (فوق {B.region_name(v['w'][0])})")
-        if v["pw"] and v["pw"][0] >= 110:
-            pro.append(f"{'مد رطوبي' if v['pw'][0] >= 150 else 'رطوبة فوق المعدل'} ({ar(v['pw'][0])}٪ فوق {BOX_NAME[v['pw'][1]]})")
-        elif v["pw"]:
-            con.append(f"الرطوبة {'قريبة من المعدل' if v['pw'][0] >= 80 else 'دون المعدل'} ({ar(v['pw'][0])}٪ في أرطب الأجزاء)")
-        # the trough by its place and depth (the 500 hPa wave band), counted only from 25 m as in the drivers' line
-        tr = v["tr"]
-        if tr and tr[0] <= -25:
-            dam = -tr[0] / 10
-            pro.append(f"أخدود {trough_word(dam)} فوق {tr[1]} ({num(dam, 1)} ديكامتر)")
-        mf = v["mf"]
-        if mf and mf[0] <= -ref / 3:
-            pro.append(f"مكوّن التذبذب داعم ({n1(mf[0])} م)")
-        elif mf and mf[0] >= ref / 3:
-            con.append(f"مكوّن التذبذب كابح ({n1(mf[0])} م)")
-        for fam in ("ros", "kel"):
-            x = _tw(st, peak, fam)
-            if x and x[0] <= -x[1] / 3:
-                pro.append(f"{TW_NAME[fam]} ({n1(x[0])})")
-            elif x and x[0] >= x[1] / 3:
-                con.append(f"{TW_NAME[fam]} كابحة ({n1(x[0])})")
+        pro, con = wave_pro_con(st, peak, c)
         out.append({"start": a, "end": b, "peak": peak, "top": ws[peak]["score"], "drivers": c["total"],
                     "cover": rc.get(peak), "kind": kind, "regions": wave_regions(st, wd, f, kind), "pro": pro, "con": con})
     return out
