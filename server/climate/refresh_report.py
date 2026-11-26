@@ -59,6 +59,11 @@ def main():
     except Exception as e:  # noqa: BLE001
         print("cover history failed:", repr(e), flush=True)
     import report2
+    try:
+        import report4
+        report4.OUT_DIR = out
+    except Exception as e:  # noqa: BLE001
+        print("report4 import failed:", repr(e), flush=True)
     rep = report2.build(rep, st)
     st["report"] = rep
     json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
