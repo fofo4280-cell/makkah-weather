@@ -1145,6 +1145,15 @@ def main():
         status["prev_watch"] = json.load(open(os.path.join(out, "mjo.json"))).get("wave_watch") or {}
     except Exception:
         status["prev_watch"] = {}
+    try:   # the last run's snapshot, for the chief analyst's run-to-run comparison (report4, 26 Nov 2026)
+        status["prev_snap"] = json.load(open(os.path.join(out, "mjo.json"))).get("analyst_snap")
+    except Exception:
+        status["prev_snap"] = None
+    try:
+        import report4
+        report4.OUT_DIR = out     # the ECMWF humidity file of the site's maps (ksa_vals.bin)
+    except Exception as e:  # noqa: BLE001
+        print("report4 import failed:", repr(e), flush=True)
     try:
         big = bigreport.report(status, day0)
     except Exception as e:
