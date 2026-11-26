@@ -369,8 +369,12 @@ def s_moist(C):
         if "low" in (lw.get("sides") or []):
             where.append("سهول مكة وتهامة")
         B.append({"p": f"الحدث قرب الأرض: هواء أبرد وأجف من معدله في الطبقة السفلى فوق {jl(where)}، يرفع الكبح ويخفض طاقة "
-                       "الحمل، فلا تُتوقع هناك عواصف ولا أمطار غزيرة (في ٣٨٢ يومًا مختبرًا بأمطار الأقمار الصناعية لم "
-                       "يبلغ المطر ٢٠ ملم حول مكة والطائف في أي يوم بارد كهذا)."})
+                       "الحمل، فيحدّ من شدة الخلايا ولا يلغيها: لا عواصف قوية ولا أمطار غزيرة، وقد تنشأ خلايا خفيفة إلى "
+                       "متوسطة حيث يصعد هواء البحر الحواف تحت طبقة وسطى رطبة. ففي مكة والطائف والجنوب الغربي أساس المطر "
+                       "التضاريس والتسخين السطحي والرطوبة، فإن توافقت نشأت الخلايا، والحدث قرب الأرض عامل ثانوي يحدّ "
+                       "شدتها لا وجودها (في ٣٨٢ يومًا مختبرًا بأمطار الأقمار "
+                       "الصناعية لم يبلغ المطر ٢٠ ملم حول مكة والطائف في أي يوم بارد كهذا، وهذه الأمطار تُضعف تقدير "
+                       "خلايا الجبال الصغيرة)."})
     # the fuel
     fuel = [r for r in rows if not r.get("vague") and r["cape"] >= 150]
     if fuel:
@@ -405,6 +409,8 @@ def tests(r):
     p = r["parts"]
     pw_ok, lift, fuel = p.get("الرطوبة", 0), p.get("التقاء الرياح", 0), p.get("الطاقة", 0)
     causes = [c for c in r["why"].values() if c]
+    if any("طبقة وسطى رطبة" in c for c in causes):
+        pw_ok = max(pw_ok, 0.5)     # a moist 700 hPa layer over the climbing sea air (26 Nov 2026 edge cells)
     if pw_ok >= 1 and lift >= 1 and fuel >= 1:
         sp = ("متحقق", "الرطوبة والرفع والطاقة فوق المكان نفسه")
     elif lift >= 1 and (pw_ok >= 0.5 or fuel >= 0.5):
@@ -458,8 +464,17 @@ def factors(r, C):
     sp = []
     if C["sc"].get("mjo", 0) == 0 and C["weak"]:
         sp.append("الصورة الكبرى على مستوى المملكة (" + C["weak"][0].split("،")[0] + ")")
-    if p.get("الرطوبة", 0) == 0:
+    if p.get("الرطوبة", 0) == 0 and not any("طبقة وسطى رطبة" in c for c in r["why"].values() if c):
         sp.append("جفاف الهواء")
+    elif p.get("الرطوبة", 0) == 0:
+        lim.append("جفاف العمود فوق الطبقة الوسطى الرطبة")
+    if r["name"] in (C["lw"].get("cold_regions") or []) or (r["name"] == "مكة المكرمة" and C["lw"].get("sides")):
+        # Fahad 26 Nov 2026: in Makkah, Taif and the southwest the rain rests on terrain, surface heating and
+        # moisture; the low-level event is secondary there, it limits the intensity only
+        if r["name"] == "مكة المكرمة" or r["name"] in R3.SOUTH:
+            lim.append("الحدث البارد قرب الأرض (عامل ثانوي يحدّ الشدة)")
+        else:
+            sp.append("الحدث البارد قرب الأرض (يحدّ الشدة ولا يلغي الخلايا)")
     return sup, lim, sp
 
 
@@ -513,7 +528,7 @@ def s_geo(C):
         m = RD.get("meet")
         if m and lw.get("cut"):
             why.append(f"فالتقاء الرياح بعد الظهر {'شمال الطائف وشرقه' if m[0] != 'edge' else 'على حافتي الهدا والشفا'}"
-                       + (f" قرب {m[1]}" if m[1] else "") + " يلغيه الحدث البارد قرب الأرض فوق الهضبة")
+                       + (f" قرب {m[1]}" if m[1] else "") + " يُضعفه الحدث البارد قرب الأرض فوق الهضبة")
         elif m and m[0] == "east_dry":
             why.append(f"فالرياح تلتقي شرق الطائف قرب {m[1]} والطاقة هناك ضعيفة")
         s = RD.get("steer")
@@ -559,7 +574,7 @@ def s_cells(C):
             t += (f"، والطاقة على الحواف ({ar(int(round(RD.get('cape_edge') or 0, -1)))} جول/كغ) أعلى منها عند الالتقاء "
                   f"({ar(int(round(RD.get('cape_east') or 0, -1)))} جول/كغ)")
         if lw.get("cut"):
-            t += "؛ لكن الحدث البارد قرب الأرض فوق الهضبة يلغي هذا الالتقاء اليوم، فلا خلية تُعتد بها على الهدا والشفا والسيل"
+            t += "؛ والحدث البارد قرب الأرض فوق الهضبة يحدّ من شدته، فالخلايا إن نشأت على الهدا والشفا خفيفة إلى متوسطة"
         else:
             t += "؛ فهو موضع نشوء الخلايا اليوم، وحرتا رهاط وشمنصير خارج الحكم ما لم يهبط سطح ٥٠٠ هكتوباسكال"
         s = RD.get("steer")
