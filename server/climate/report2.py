@@ -376,6 +376,13 @@ SEC_NAMES = {"s1": "١. الخلاصة التنفيذية", "s2": "٢. توقع�
 # ------------------------------------------------------------------ the whole report
 def build(rep, st):
     """the new layout only (Fahad, 17 Nov 2026): a section that fails is replaced by a note, never by the old text"""
+    try:   # the chief analyst's nine sections (Fahad, 26 Nov 2026; docs/ANALYST.md on main)
+        import report4
+        return report4.build(rep, st)
+    except Exception as e:  # noqa: BLE001
+        import traceback
+        traceback.print_exc()
+        print("report4: build failed, the short layout instead:", repr(e), flush=True)
     try:   # the short report (Fahad, 18 Nov 2026): summary, Makkah, other regions, big picture, waves
         import report3
         return report3.build(rep, st)
