@@ -36,8 +36,11 @@ FIELDS = [("cape", r":CAPE:surface:"), ("cin", r":CIN:surface:"),
           ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
           ("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:"),
           ("u700", r":UGRD:700 mb:"), ("u500", r":UGRD:500 mb:"), ("rh700", r":RH:700 mb:"), ("land", r":LAND:surface:")]
-LEVELS = (0.25, 0.45, 0.65)   # weak, medium, likely (set by the test of 26 Nov 2026, see PROJECT.md)
-WORD = {1: "ضعيفة", 2: "متوسطة", 3: "مرجحة"}
+# test of 26 Nov 2026 (1 Oct-24 Nov 2026 nights, GFS 12 UTC +6..+18 h, PERSIANN-PDIR-Now >= 1 mm on 15 % of the
+# stretch or its sea strip): index < 0.25 -> 3 % of nights wet, 0.25-0.65 -> 18 %, >= 0.65 -> 56 % (all 8 %)
+LEVELS = (0.25, 0.65)
+WORD = {1: "محتملة", 2: "مرجحة"}
+PLAIN_MIN = 0.25   # Makkah and Al-Jumum: never above 0.45 in the test, so one level only
 _MASKS = None
 
 
@@ -111,15 +114,18 @@ def features(g):
     return out
 
 
+def parts(f):
+    """the five ingredients of one stretch at one time, each 0..1"""
+    cl = lambda x: float(np.clip(x, 0, 1))
+    return {"fuel": cl((f["cape"] - 500) / 2500) * (1.0 if f["cin"] >= -50 else 0.5 if f["cin"] >= -150 else 0.0),
+            "moist": cl((f["pw"] - 22) / 15), "trig": cl(f["conv"] / 2.0), "carry": cl(f["steer"] / 6.0),
+            "mid": cl((f["rh700"] - 20) / 40)}
+
+
 def index(f):
     """0..1 from one stretch's ingredients of one time"""
-    cl = lambda x: float(np.clip(x, 0, 1))
-    fuel = cl((f["cape"] - 500) / 2500) * (1.0 if f["cin"] >= -50 else 0.5 if f["cin"] >= -150 else 0.0)
-    moist = cl((f["pw"] - 22) / 15)
-    trig = cl(f["conv"] / 2.0)
-    carry = cl(f["steer"] / 6.0)
-    mid = cl((f["rh700"] - 20) / 40)
-    return round(fuel * moist * (0.35 + 0.65 * trig) * (0.3 + 0.7 * carry) * (0.5 + 0.5 * mid), 3)
+    p = parts(f)
+    return round(p["fuel"] * p["moist"] * (0.35 + 0.65 * p["trig"]) * (0.3 + 0.7 * p["carry"]) * (0.5 + 0.5 * p["mid"]), 3)
 
 
 def plain_index(night):
@@ -177,9 +183,93 @@ def level(x):
     return sum(1 for t in LEVELS if x >= t)
 
 
-def reasons(r, key):
-    """the ingredients of the stretch at its strongest time, in words"""
+HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا"}
+MISSING = {"fuel": "طاقة البحر ضعيفة", "moist": "الهواء فوق البحر غير رطب بما يكفي",
+           "trig": "لا التقاء للرياح فوق البحر يرفع الهواء", "carry": "رياح الطبقات المتوسطة لا تحمل الخلايا نحو الساحل",
+           "mid": "الطبقات المتوسطة جافة"}
+
+
+def _num(x):
+    from report2 import ar
+    return ar(int(round(x)))
+
+
+def _best(r, key):
     t = max(r["times"], key=lambda t: t["si"].get(key, 0))
-    f = t["f"][key]
-    hh = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا"}.get(t["h"], "")
-    return f, hh
+    return t, t["f"][key]
+
+
+def why(f):
+    """the ingredients in words, with their numbers"""
+    from report2 import num
+    t = f"طاقة عدم الاستقرار فوق البحر نحو {_num(round(f['cape'], -2))} جول/كغ، والماء القابل للهطول {_num(f['pw'])} ملم، "
+    t += (f"والتقاء الرياح قرب السطح فوق البحر {num(f['conv'], 1)} (×١٠⁻⁵/ث)، " if f["conv"] >= 0.5
+          else "ولا التقاء يُذكر للرياح فوق البحر، ")
+    t += (f"ورياح الطبقات المتوسطة تحمل الخلايا نحو الساحل بنحو {_num(f['steer'])} م/ث، " if f["steer"] >= 1.5
+          else "ورياح الطبقات المتوسطة لا تحملها نحو الساحل، ")
+    return t + f"والرطوبة على ٧٠٠ هكتوباسكال {_num(f['rh700'])}٪"
+
+
+def lines(rows, d0, d1):
+    """{d: ([(level, stretch key)], Makkah/Al-Jumum level)} for the nights d0..d1 with a weak chance or more"""
+    out = {}
+    for r in rows or []:
+        if not (str(d0) <= r["d"] <= str(d1)) or not r.get("times"):
+            continue
+        xs = [(level(v), k) for k, v in r["si"].items() if level(v) >= 1]
+        pl = 1 if r.get("plain", 0) >= PLAIN_MIN else 0
+        if xs or pl:
+            out[r["d"]] = (sorted(xs, key=lambda x: -x[0]), pl)
+    return out
+
+
+def _stretch_words(xs):
+    from report2 import jl
+    by = {}
+    for lv, k in xs:
+        by.setdefault(lv, []).append(NAME[k])
+    return "، و".join(f"{WORD[lv]} على {jl(by[lv])}" for lv in sorted(by, reverse=True))  # «مرجحة على …، ومحتملة على …»
+
+
+def tonight(rows, d):
+    """the report's day: one paragraph on tonight's sea cells, or why there are none"""
+    r = next((x for x in rows or [] if x["d"] == str(d)), None)
+    if r is None or not r.get("times"):
+        return None
+    L = lines([r], d, d).get(str(d))
+    key = max(r["si"], key=lambda k: r["si"][k])
+    t, f = _best(r, key)
+    if not L:
+        p = parts(f)
+        miss = sorted(p, key=lambda k: p[k])[:2]
+        return ("الخلايا البحرية الليلة: لا تجتمع مكوناتها على سواحل الحجاز، لأن " + " و".join(MISSING[m] for m in miss)
+                + f" (أقربها {NAME[key]}: {why(f)}).")
+    xs, pl = L
+    txt = "الخلايا البحرية الليلة (من التاسعة مساءً إلى التاسعة صباحًا): " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
+    txt += f"، وأقواها نحو {HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}."
+    return txt + (" وقد تبلغ بعض خلاياها مكة والجموم وقد ضعفت." if pl else " ولا يُتوقع أن تبلغ مكة والجموم.")
+
+
+def coming(rows, d0, d1):
+    """the nights after the report's day: one paragraph"""
+    from datetime import date
+    from report2 import ar_date
+    L = lines(rows, d0, d1)
+    if not L:
+        return ("الخلايا البحرية الليلية على سواحل الحجاز: لا تجتمع مكوناتها في الليالي القادمة حتى "
+                f"{ar_date(date.fromisoformat(str(d1)))} في توقع الليلة.")
+    ps = []
+    for d, (xs, pl) in sorted(L.items()):
+        # the weak chances only on a night with nothing stronger, to keep the line short
+        t = f"ليلة {ar_date(date.fromisoformat(d))}: " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
+        if pl:
+            t += "، وقد تبلغ بعض خلاياها مكة والجموم"
+        ps.append(t)
+    bd = max(L, key=lambda d: sum(next(x for x in rows if x["d"] == d)["si"].values()))
+    r = next(x for x in rows if x["d"] == bd)
+    key = max(r["si"], key=lambda k: r["si"][k])
+    t, f = _best(r, key)
+    return ("الخلايا البحرية الليلية على سواحل الحجاز (حمل حراري لا يحتاج إلى أخدود، يولد فوق البحر الدافئ ليلًا وتحمله "
+            "الرياح إلى الساحل): " + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
+            f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. (في اختبار ليالي ١ أكتوبر إلى ٢٤ نوفمبر بأمطار الأقمار "
+            "الصناعية: ما قُرئ «مرجحة» أمطر في ٥٦٪ من الليالي، و«محتملة» في ١٨٪، والمعتاد ٨٪.)")

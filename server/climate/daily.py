@@ -1074,6 +1074,13 @@ def main():
                 print("hijaz reading:", [(r["d"][5:], sorted(hijaz.wet([r], r["d"], r["d"]))) for r in status["hijaz_read"]], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("hijaz reading failed:", repr(e), flush=True)
+            # the night sea cells of the Red Sea onto the Hijaz coasts, Makkah and Al-Jumum (seacell.py; Fahad 26 Nov 2026)
+            try:
+                import seacell
+                status["seacell"] = seacell.fetch(cycle, 8, gfs_fields)
+                print("sea cells:", [(r["d"][5:], r["si"], r["plain"]) for r in status["seacell"]], flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("sea cells failed:", repr(e), flush=True)
             try:
                 prev_ref = json.load(open(os.path.join(out, "mjo.json"))).get("ref_wave")
             except Exception:  # noqa: BLE001
