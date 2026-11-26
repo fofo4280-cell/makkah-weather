@@ -1392,6 +1392,13 @@ def waves(st, rs, regs, day0):
                 B.append({"p": seacell.coming(st["seacell"], day0 + timedelta(days=1), day0 + timedelta(days=7))})
         except Exception as e:  # noqa: BLE001
             print("sea cells (waves) failed:", repr(e), flush=True)
+        try:
+            import analogs
+            t = analogs.text(st.get("analogs"), day0)
+            if t:
+                B.append({"p": t})
+        except Exception as e:  # noqa: BLE001
+            print("analogs (waves) failed:", repr(e), flush=True)
         # against the reference wave (Fahad, 25 Nov 2026)
         try:
             t = ref_compare(st, nw if nw is not None else w, day0)

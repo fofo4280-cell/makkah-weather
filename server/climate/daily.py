@@ -1081,6 +1081,19 @@ def main():
                 print("sea cells:", [(r["d"][5:], r["si"], r["plain"]) for r in status["seacell"]], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("sea cells failed:", repr(e), flush=True)
+            # the historical analogs of the wave of 29 Nov-2 Dec 2026, followed nightly until it starts (analogs.py;
+            # Fahad 26 Nov 2026: «تابع التحديثات اليومين القادمة واذكرها في التقرير كل يوم حتى بداية الحالة»)
+            try:
+                import analogs
+                if day0 <= analogs.LAST_DAY:
+                    try:
+                        prev_an = json.load(open(os.path.join(out, "mjo.json"))).get("analogs")
+                    except Exception:  # noqa: BLE001
+                        prev_an = None
+                    status["analogs"] = analogs.fetch(cycle, prev_an)
+                    print("analogs:", status["analogs"], flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("analogs failed:", repr(e), flush=True)
             try:
                 prev_ref = json.load(open(os.path.join(out, "mjo.json"))).get("ref_wave")
             except Exception:  # noqa: BLE001
