@@ -469,7 +469,15 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             if e["region"] != nm:
                 continue
             f = e.get("flags") or {}
-            if nm == "مكة المكرمة" and e["key"] in ("hada", "shafa") and not (meet_mk and meet_mk[0] == "edge"):
+            # the terrain trigger on the escarpment itself (26 Nov 2026 case: strong cells over Al-Hada/Ash-Shafa at 5 PM
+            # while the plateau meeting sat east of Taif, PW 93 %, GFS CAPE 60-137, a low-level cold event -1.3 on
+            # the plateau): sea air climbing the edge with a moist middle layer and cold aloft or some fuel makes cells
+            # on the edge whatever the plateau meeting does
+            f_ = e.get("flags") or {}
+            up_ = (e.get("upper") or {}).get("flags", {})
+            trig = (f_.get("upslope") and (e.get("rh700") or 0) >= 60
+                    and (up_.get("cold") or up_.get("fall") or (e.get("cape") or 0) >= 100))
+            if nm == "مكة المكرمة" and e["key"] in ("hada", "shafa") and not (meet_mk and meet_mk[0] == "edge") and not trig:
                 continue                # Fahad: the edges of Al-Hada and Ash-Shafa only when the winds meet there
             sail_meet = e["key"] == "sail" and meet_mk and meet_mk[0] != "edge"
             lift = f.get("upslope") or sail_meet
@@ -479,7 +487,16 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             fall = (e.get("upper") or {}).get("fall")
             if harra and not (strat_here or (fall is not None and fall <= -10 and big >= 0.6)):
                 continue                # 10-19 Nov test: Harrat Rahat named 13-17 Nov without a real height fall, all dry
-            if f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
+            edge_trig = (not harra and f.get("upslope") and (e.get("rh700") or 0) >= 60
+                         and (up_cold or fuel >= 100))
+            if edge_trig and not f.get("moist"):
+                # moist middle layer instead of a moist column: the trigger is the climb, the fuel the cold aloft
+                lv = "moderate" if (e.get("rh700") or 0) >= 65 else "light"
+                add(lv, _towns(e["name"]), "هواء البحر يصعد الحافة تحت طبقة وسطى رطبة",
+                    (lambda bx: ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)(BOXES.get(e["key"])), "high")
+                capes.append(fuel)
+                meets.append("هواء البحر يصعد " + P_short(e["name"]))
+            elif f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
                 lv = _cape_word(fuel)
                 if lv == "heavy" and not (up_cold and big >= 0.6):
                     lv = "moderate"     # heavy only with the cooling aloft and a supportive big picture
@@ -571,40 +588,33 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
         lw_cut = []
         if nm == "مكة المكرمة" and (lw_low is not None or lw_high is not None):
             cl, ch = lw_low is not None and lw_low <= LW_COLD, lw_high is not None and lw_high <= LW_COLD
-            for k in row:
-                keep = []
-                for p_ in row[k]:
-                    z_ = zone.get(p_)
-                    if (z_ == "low" and cl) or (z_ == "high" and ch) or (z_ is None and cl and ch):
-                        lw_cut.append(p_)
-                    else:
-                        keep.append(p_)
-                row[k] = keep
-            plains_at = [p_ for p_ in plains_at if p_ not in lw_cut]
+            # 26 Nov 2026 (strong cells over Al-Hada/Ash-Shafa under -1.3 on the plateau): the cold event weakens the
+            # cells, it never removes a place by itself (the 382-day test rested on infrared satellite rain, which
+            # misses small mountain storms; and the charter: no single index decides). Fahad: the cells were moderate,
+            # about 5 mm at most -> the cold event caps the intensity at moderate, places kept.
+            for p_ in list(row["heavy"]):
+                z_ = zone.get(p_)
+                if (z_ == "low" and cl) or (z_ == "high" and ch) or (z_ is None and cl and ch):
+                    row["heavy"].remove(p_)
+                    row["moderate"].append(p_)
+            for p_ in row["moderate"] + row["light"]:
+                z_ = zone.get(p_)
+                if ((z_ == "low" and cl) or (z_ == "high" and ch) or (z_ is None and cl and ch)) and p_ not in lw_cut:
+                    lw_cut.append(p_)
             if cl or ch:
                 region_reading.lowwarm["cut"] = lw_cut
                 region_reading.lowwarm["sides"] = [s_ for s_, c_ in (("low", cl), ("high", ch)) if c_]
-            if cl and ch:
-                continue                # no showers either, vague or not
         # the other regions (Fahad: «ماذا عن بقية السعودية»; 383 days, PERSIANN, each region's own mean): on cold days
         # (-1 or less) a spot of 20 mm came 4 times in about 1,600 region-days, so the convective places go; wide light
         # rain under the cold air still came in Dec-May in the north and centre (Hail 11 of 92 days), so the stratiform
         # places stay, light
         lv_reg = lowwarm_region(st, day0, nm) if nm != "مكة المكرمة" else None
         if lv_reg is not None and lv_reg <= LW_COLD:
-            strat_cause = "صعود واسع لهواء رطب عميق في الطبقات الوسطى (مطر طبقي)"
-            for k in ("heavy", "moderate"):
-                for p_ in list(row[k]):
-                    row[k].remove(p_)
-                    if why.get(p_) == strat_cause:
-                        row["light"].append(p_)
-                    else:
-                        lw_cut.append(p_)
-            for p_ in list(row["light"]):
-                if why.get(p_) != strat_cause:
-                    row["light"].remove(p_)
-                    lw_cut.append(p_)
-            plains_at = [p_ for p_ in plains_at if p_ not in lw_cut]
+            # capped at moderate, never removed (26 Nov 2026 lesson, see the Makkah rule above)
+            for p_ in list(row["heavy"]):
+                row["heavy"].remove(p_)
+                row["moderate"].append(p_)
+                lw_cut.append(p_)
             region_reading.lowwarm.setdefault("cold_regions", []).append(nm)
             if not any(row.values()):
                 continue
@@ -829,15 +839,16 @@ def summary(st, rs, regs, day0):
         B.append({"p": "لا تجتمع مكونات المطر على أي منطقة اليوم."})
     lwr = getattr(region_reading, "lowwarm", None) or {}
     if lwr.get("cold_regions"):
-        B.append({"p": f"حدث بارد قرب الأرض فوق {jl(lwr['cold_regions'])} يكبت الحمل الحراري، فلا تُتوقع هناك عواصف ولا أمطار غزيرة، "
-                       "وقد يبقى مطر خفيف واسع إن وُجد صعود طبقي (في ٣٨٣ يومًا مختبرًا ندر أن بلغ المطر ٢٠ ملم في أيام "
-                       "كهذه)."})
+        B.append({"p": f"حدث بارد قرب الأرض فوق {jl(lwr['cold_regions'])} يحدّ من شدة الحمل الحراري ولا يلغيه: لا تُتوقع هناك "
+                       "عواصف قوية ولا أمطار غزيرة، وقد تنشأ خلايا خفيفة إلى متوسطة حيث يجتمع الرفع والرطوبة "
+                       "(في ٣٨٣ يومًا مختبرًا بأمطار الأقمار الصناعية ندر أن بلغ المطر ٢٠ ملم في أيام كهذه)."})
     if lwr.get("sides"):
         where = {"low": "سهول مكة وتهامة", "high": "هضبة الطائف وحافتي الهدا والشفا"}
         lead_ = "ويمتد الحدث البارد إلى" if lwr.get("cold_regions") else "حدث بارد قرب الأرض فوق"
-        B.append({"p": f"{lead_} {' و'.join(where[x] for x in lwr['sides'])}، فلا يُتوقع هناك مطر يُذكر مهما اجتمعت "
-                       "المكونات الأخرى، وقد تمر زخات خفيفة (في ٣٨٢ يومًا مختبرًا لم يبلغ المطر ٢٠ ملم في أي يوم بارد "
-                       "كهذا)."})
+        B.append({"p": f"{lead_} {' و'.join(where[x] for x in lwr['sides'])}، فيحدّ من شدة الخلايا ولا يلغيها، فأساس "
+                       "المطر هنا التضاريس والتسخين السطحي والرطوبة والحدث عامل ثانوي: إن صعد هواء البحر الحافة تحت طبقة وسطى رطبة نشأت خلايا خفيفة إلى متوسطة بلا أمطار غزيرة "
+                       "(في ٣٨٢ يومًا مختبرًا بأمطار الأقمار الصناعية لم يبلغ المطر ٢٠ ملم في أي يوم بارد كهذا، وهي "
+                       "تُضعف تقدير خلايا الجبال الصغيرة)."})
     # tonight's sea cells over the Hijaz coasts, Makkah and Al-Jumum (no trough needed; Fahad 26 Nov 2026)
     try:
         import seacell
@@ -1162,7 +1173,7 @@ def _lw_pro(sp):
         pro.append("حدث دافئ قرب الأرض" + (f" فوق {jl(rg)}" if rg else " فوق مكة المكرمة وتهامة")
                    + (" وغيرها" if len(w["regions"]) > 5 else ""))
     if sp and sp["cold"]:
-        con.append(f"حدث بارد قرب الأرض في بعض أيامها فوق {jl(sp['cold'][:4])} يلغي المطر الحملي هناك")
+        con.append(f"حدث بارد قرب الأرض في بعض أيامها فوق {jl(sp['cold'][:4])} يحدّ من شدة المطر الحملي هناك")
     return pro, con
 
 
@@ -1557,7 +1568,7 @@ def wave_length(w):
             if tot != m:
                 t += f"، فتمتد بيئتها الدافئة الداعمة {_days_word(tot)}"
     elif sp and sp["cold"]:
-        t += f"، ولا حدث دافئ قرب الأرض يعززها، بل حدث بارد فوق {jl(sp['cold'][:4])} يلغي المطر الحملي هناك"
+        t += f"، ولا حدث دافئ قرب الأرض يعززها، بل حدث بارد فوق {jl(sp['cold'][:4])} يحدّ من شدة المطر الحملي هناك"
     else:
         t += "، ولا حدث دافئ قرب الأرض يعززها"
     return t + "."
