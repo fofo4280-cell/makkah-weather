@@ -838,12 +838,20 @@ def summary(st, rs, regs, day0):
         B.append({"p": f"{lead_} {' و'.join(where[x] for x in lwr['sides'])}، فلا يُتوقع هناك مطر يُذكر مهما اجتمعت "
                        "المكونات الأخرى، وقد تمر زخات خفيفة (في ٣٨٢ يومًا مختبرًا لم يبلغ المطر ٢٠ ملم في أي يوم بارد "
                        "كهذا)."})
+    # tonight's sea cells over the Hijaz coasts, Makkah and Al-Jumum (no trough needed; Fahad 26 Nov 2026)
+    try:
+        import seacell
+        t = seacell.tonight(st.get("seacell"), day0)
+        if t:
+            B.append({"p": t})
+    except Exception as e:  # noqa: BLE001
+        print("sea cells (summary) failed:", repr(e), flush=True)
     if W:
         B += cold_wave_blocks(st, day0, effect=False, W=W)
         wn = {r["name"] for r in rows}
         no = [n for n in W["regions"] if n not in wn and n not in ((getattr(region_reading, "lowwarm", None) or {}).get("cold_regions") or [])]
         if no:
-            B.insert(len(B) - 1, {"p": f"ولا يُتوقع مطر تحت الموجة على {jl(no)}، لجفاف الهواء أو غياب الرفع، فأثرها هناك برودة ورياح."})
+            B.append({"p": f"ولا يُتوقع مطر تحت الموجة على {jl(no)}، لجفاف الهواء أو غياب الرفع، فأثرها هناك برودة ورياح."})
     B.append({"note": "هذه القراءة من المكونات لا من مطر النماذج: الرطوبة، والتقاء الرياح على التضاريس، والتبريد العلوي، "
                       "وطاقة عدم الاستقرار، ورياح الطبقات المتوسطة. ودرجة كل منطقة من توافقها، ولا تُعطى «قوية» في يوم ضعيف "
                       "الصورة الكبرى، والمنطقة التي لا تلتقي عليها الرياح زخاتها محتملة فقط. أما مطر نموذجنا فمكانه الخريطة."})
@@ -1229,6 +1237,38 @@ def ingr_pulses(st, wl, day0, fac):
 
 
 
+def north_break(st, w):
+    """the blocked trough read from its axis and the ridge east of it (Fahad's «كسير شمالي», 26 Nov 2026): the trough
+    stays west of the Red Sea while a ridge over Iran and the Gulf holds it, so its northern half breaks off to the
+    north-east with the moisture and its southern tail lags west, with no cut-off low over the Red Sea for Makkah"""
+    from datetime import timedelta
+    wd = {(w["start"] + timedelta(days=k)).isoformat() for k in range((w["end"] - w["start"]).days + 1)}
+    tips = []
+    for sy in st.get("troughs") or []:
+        for x in sy.get("days") or []:
+            if x["d"] in wd and x.get("tip") and 20 <= x["tip"][1] <= 45:
+                tips.append(x)
+    ridges = [x["ridge"] for x in st.get("waves") or [] if x["d"] in wd and x.get("ridge") and x["ridge"]["lon"] >= 48]
+    if not tips:
+        return None
+    lon_max = max(x["tip"][1] for x in tips)
+    lat_min = min(x["tip"][0] for x in tips)
+    rv = max([r["v"] for r in ridges] or [0])
+    if lon_max <= 34 and rv >= 50:
+        lo = sorted({int(round(x["tip"][1])) for x in tips})
+        t = (f"نمط الموجة: الأخدود محجوز، يقف طرفه عند خط الطول {ar(lo[0])}" + (f" إلى {ar(lo[-1])}" if lo[-1] != lo[0] else "")
+             + f" شرقًا غرب البحر الأحمر، والمرتفع فوق إيران والخليج يبلغ {ar(int(round(rv)))} م فيصده عن التقدم. فالأرجح "
+             f"كسير شمالي: ينكسر نصفه الشمالي ويُسحب نحو الشمال الشرقي حاملًا المد الرطوبي إلى {jl(w['regions'])}، ويبقى "
+             f"ذيله الجنوبي فوق مصر عند خط العرض {ar(int(round(lat_min)))} شمالًا تقريبًا، فلا يُتوقع منه منخفض معزول فوق "
+             "البحر الأحمر يبلغ مكة، ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية.")
+        return t
+    if lon_max > 34 and lat_min <= 24:
+        return ("نمط الموجة: يعبر طرف الأخدود البحر الأحمر جنوبًا حتى خط العرض "
+                f"{ar(int(round(lat_min)))} شمالًا، فيُتابع احتمال انفصال منخفض معزول فوقه، وهو أهم ما يرفع فرص مكة.")
+    return None
+
+
+
 def waves(st, rs, regs, day0):
     """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
     أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
@@ -1289,7 +1329,8 @@ def waves(st, rs, regs, day0):
     KIND = {"mixed": "مدارية أخدودية", "tropical": "مدارية", "troughs": "أخدودية"}
     B = []
     span_of = lambda w: (ar_date(w["start"]) if w["start"] == w["end"] else R2.ar_span(w["start"], w["end"]).removeprefix("من "))
-    spread_of = lambda w: ((R2.cover_pct(w["cover"]) + " من المملكة") if w.get("cover") and w["cover"] >= 0.01 else "أقل من ١٪ من المملكة")
+    # whole percents, as in the reference comparison below, so the two never read differently (5.2 % vs 5 %)
+    spread_of = lambda w: (f"نحو {ar(int(round(100 * w['cover'])))}٪ من المملكة" if w.get("cover") and w["cover"] >= 0.01 else "أقل من ١٪ من المملكة")
     full = [w for w in wl if not w.get("sign")]
     nsig = len(wl) - len(full)
     sig_t = ("إشارة أخدود ضعيفة واحدة" if nsig == 1 else "إشارتي أخدود ضعيفتين" if nsig == 2
@@ -1337,6 +1378,20 @@ def waves(st, rs, regs, day0):
             if win and win[1] > x["end"] and not any(y["start"] > x["end"] for y in wl if not y.get("sign")):
                 B.append({"p": f"وتبقى العوامل الكبرى داعمة بعدها حتى {ar_date(win[1])}، لكن مكونات الهطول لا تجتمع "
                                "في تلك الأيام بعد في توقع الليلة، فتُتابع كل ليلة."})
+        # the pattern of the wave and the night sea cells of the Hijaz coasts (Fahad, 26 Nov 2026: «ماذا عن النظام
+        # الحملي والتخاريج البحرية» … «ما هي فرص الكسير الشمالي»)
+        try:
+            t = north_break(st, nw if nw is not None else w)
+            if t:
+                B.append({"p": t})
+        except Exception as e:  # noqa: BLE001
+            print("north break failed:", repr(e), flush=True)
+        try:
+            import seacell
+            if st.get("seacell"):
+                B.append({"p": seacell.coming(st["seacell"], day0 + timedelta(days=1), day0 + timedelta(days=7))})
+        except Exception as e:  # noqa: BLE001
+            print("sea cells (waves) failed:", repr(e), flush=True)
         # against the reference wave (Fahad, 25 Nov 2026)
         try:
             t = ref_compare(st, nw if nw is not None else w, day0)
@@ -1386,7 +1441,7 @@ def waves(st, rs, regs, day0):
                   f"التذبذب في طور داعم ومكوّنه داعم، وقوة الأيام {n1(score[pk])} من ٥ في أحسنها، فهي بداية دورة جديدة "
                   f"لا موجة خصب بعد، والثقة {BR.confidence((back[0] - day0).days)}")
         B.append({"p": t + "."})
-    B.append({"note": "القوة من ٥ (والنسبة ٢٠٪ لكل درجة) تجمع العوامل الكبرى وانتشار المطر المتوقع. "
+    B.append({"note": "القوة من ٥ (والنسبة ٢٠٪ لكل درجة) تجمع العوامل الكبرى وانتشار المطر المقدّر من مكونات الجو. "
                       "الثقة عالية حتى ٥ أيام، ومتوسطة حتى ١٠ أيام، ومنخفضة بعدها. وتُحدّث كل ليلة."})
     # the seasonal outlook first (Fahad, 19 Nov 2026: «اجعلها داخل تبويب أقرب موجة قادمة وغيرها الى النظرة الموسمية
     # وأقرب موجة قادمة»); a failure leaves the waves part alone
