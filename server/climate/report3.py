@@ -1269,10 +1269,8 @@ def north_break(st, w):
 
 
 
-def waves(st, rs, regs, day0):
-    """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
-    أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
-    التي تتأثر بها»)"""
+def wave_set(st, day0):
+    """the waves to come: (wave list, forecast days, day scores, day factors), shared by waves() and report4"""
     import bigreport as BR
     from datetime import timedelta
     days = [day0 + timedelta(days=k) for k in range(16)]
@@ -1326,6 +1324,16 @@ def waves(st, rs, regs, day0):
         p_, c_ = _lw_pro(w["lw"])
         w["pro"] = list(w.get("pro") or []) + p_
         w["con"] = list(w.get("con") or []) + c_
+    return wl, days, score, fac
+
+
+def waves(st, rs, regs, day0):
+    """the study of the waves to come (Fahad, 18 Nov 2026 evening: «تكلم عن أقرب موجة ترصدها ومدى ثقتك بالموجة ومتى
+    أقرب فترة خصب واسعة جدا على الجزيرة العربية، ونسب كل موجة وتوقعاتك وثقتك بها، وكم وأي موجة ترصدها، ما هي الديار
+    التي تتأثر بها»)"""
+    import bigreport as BR
+    from datetime import timedelta
+    wl, days, score, fac = wave_set(st, day0)
     KIND = {"mixed": "مدارية أخدودية", "tropical": "مدارية", "troughs": "أخدودية"}
     B = []
     span_of = lambda w: (ar_date(w["start"]) if w["start"] == w["end"] else R2.ar_span(w["start"], w["end"]).removeprefix("من "))
