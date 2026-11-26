@@ -163,8 +163,10 @@ def blocks(st, day0):
         calm = [w for w in ws if w["b"] < sp[0] and w["cls"] == "supr"]
         v = "الحكم: "
         if sp[0] > day0:
-            v += (f"{'هدوء نسبي' if calm else 'أمطار متفرقة كالمعتاد'} حتى نحو "
-                  f"{ar_date(sp[0] - timedelta(days=1), weekday=False)}، ")
+            # the day before the spell is today: say «اليوم», not «حتى نحو» today's date (Fahad, 26 Nov 2026)
+            v += (f"{'هدوء نسبي' if calm else 'أمطار متفرقة كالمعتاد'} " +
+                  ("اليوم، " if (sp[0] - day0).days == 1 else
+                   f"حتى نحو {ar_date(sp[0] - timedelta(days=1), weekday=False)}، "))
         v += (f"ثم فترة خصب واسعة متوقعة على المملكة {ar_span(sp[0], sp[1])} "
               f"({wk_t}) بإذن الله")
         if o["enso"] and o["enso"]["v"] >= 0.5:
