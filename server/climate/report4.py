@@ -60,6 +60,16 @@ def read(st, rep):
     C["sc"] = BR.strength(st, day0)
     C["ws"] = C["sc"]["total"]
     rows = R3.region_reading(st, None, [], day0, C["W"], big=min(1.0, C["ws"] / 3))
+    # the charter: no high level from a partial agreement. A region with two of the four coincidence tests or fewer
+    # fully met stays «متوسطة» at most, three of four «مرجحة» at most
+    for r in rows:
+        if r.get("vague"):
+            continue
+        full = sum(1 for a, _ in tests(r) if a == "متحقق")
+        cap = "متوسطة" if full <= 2 else "مرجحة" if full == 3 else "قوية"
+        if R3.LEVEL4.index(r["level"]) > R3.LEVEL4.index(cap):
+            r["cover"] *= R3.COVER_OF[cap] / max(R3.COVER_OF[r["level"]], 1e-6)
+            r["level0"], r["level"] = r["level"], cap
     rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", -R3.LEVEL4.index(r["level"])))
     C["rows"] = rows
     C["lw"] = dict(getattr(R3.region_reading, "lowwarm", None) or {})
@@ -438,7 +448,7 @@ def s_geo(C):
                     trs.append([r["name"] if first else "", pl_, LVW[k], _time_of(c), c])
                     first = False
         B.append({"table": {"head": ["المنطقة", "المكان", "الشدة", "التوقيت", "الآلية"], "rows": trs}})
-        tr = [[r["name"]] + [f"{a}: {b}" for a, b in tests(r)] for r in named]
+        tr = [[r["name"]] + [a for a, _ in tests(r)] for r in named]
         B.append({"h": "اختبار التوافق"})
         B.append({"table": {"head": ["المنطقة", "المكاني", "الزماني", "الرياح ومسار الخلايا", "الآلية"], "rows": tr}})
         for r in named:
@@ -446,8 +456,13 @@ def s_geo(C):
             t = f"{r['name']}: الداعم {jl(sup) if sup else 'لا عامل مكتمل'}"
             t += f"، والمحدد {jl(lim)}" if lim else ""
             t += f"، والكابح {jl(sp)}" if sp else "، ولا كابح محلي"
-            full = sum(1 for a, _ in tests(r) if a == "متحقق")
-            t += f". تحقق {ar(full)} من ٤ شروط، فالفرصة {r['level']}"
+            ts = tests(r)
+            full = sum(1 for a, _ in ts if a == "متحقق")
+            TN = ("المكاني", "الزماني", "الرياح", "الآلية")
+            nt = [f"{TN[i]} {a} ({b})" for i, (a, b) in enumerate(ts) if a != "متحقق"]
+            t += f". تحقق {ar(full)} من ٤ شروط" + (f"، و{'؛ و'.join(nt)}" if nt else "") + f"؛ فالفرصة {r['level']}"
+            if r.get("level0"):
+                t += f" لا {r['level0']}، لأن التوافق غير مكتمل"
             if r.get("pw") and r["pw"] < 110 and r["level"] in ("مرجحة", "قوية"):
                 t += " في نطاق الحواف وحدها، لا على المنطقة كلها"
             B.append({"p": t + "."})
