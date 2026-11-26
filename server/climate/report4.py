@@ -62,14 +62,24 @@ def read(st, rep):
     rows = R3.region_reading(st, None, [], day0, C["W"], big=min(1.0, C["ws"] / 3))
     # the charter: no high level from a partial agreement. A region with two of the four coincidence tests or fewer
     # fully met stays «متوسطة» at most, three of four «مرجحة» at most
+    W = C["W"] or {}
+    C["no_trough"] = not W.get("trough") and not W.get("falls")
+    a_min = min([x[1] for x in (W.get("anom") or {}).values()] or [0])
+    for r in rows:
+        # cooling aloft counts only with a real 500 hPa fall over the region or 1 degree below normal or more
+        if r.get("trough") and not (W.get("trough") or r["name"] in (W.get("falls") or {}) or a_min <= -1):
+            r["cool_weak"] = True
     for r in rows:
         if r.get("vague"):
             continue
         full = sum(1 for a, _ in tests(r) if a == "متحقق")
-        cap = "متوسطة" if full <= 2 else "مرجحة" if full == 3 else "قوية"
+        cap = "ضعيفة" if full <= 1 else "متوسطة" if full == 2 else "مرجحة" if full == 3 else "قوية"
         if R3.LEVEL4.index(r["level"]) > R3.LEVEL4.index(cap):
             r["cover"] *= R3.COVER_OF[cap] / max(R3.COVER_OF[r["level"]], 1e-6)
             r["level0"], r["level"] = r["level"], cap
+            if cap == "ضعيفة":       # passing showers: no place is moderate or heavy
+                r["row"]["light"] = list(dict.fromkeys(r["row"]["heavy"] + r["row"]["moderate"] + r["row"]["light"]))
+                r["row"]["heavy"], r["row"]["moderate"] = [], []
     rows.sort(key=lambda r: (r["name"] != "مكة المكرمة", -R3.LEVEL4.index(r["level"])))
     C["rows"] = rows
     C["lw"] = dict(getattr(R3.region_reading, "lowwarm", None) or {})
@@ -131,7 +141,7 @@ def _sea_places(r, lv_min=1):
 def s_exec(C):
     import bigreport as BR
     day0, rows = C["day0"], C["rows"]
-    lab = C["kind"][0]
+    lab = C["kind"][0] if not C.get("no_trough") else "حمل حراري تضاريسي محلي بلا أخدود"
     B = []
     t = (f"اليوم {ar_date(day0)}: حالة {BR.grade(C['ws'])} (قوتها {R2.n1(C['ws'])} من ٥)، تصنيفها {lab}، "
          f"وانتشار المطر المقدّر {C['band']}.")
@@ -139,7 +149,7 @@ def s_exec(C):
     if named:
         mech = {r["why"].get(p) for r in named for k in ("heavy", "moderate", "light") for p in r["row"][k]}
         mech = [m for m in mech if m]
-        t += (" والمطر المحتمل محصور في " + jl([f"{r['name']} (فرصة {r['level']})" for r in named])
+        t += (" والمطر المحتمل محصور في " + jl([f"{r['name']} ({'زخات متفرقة محتملة' if r['level'] == 'ضعيفة' else 'فرصة ' + r['level']})" for r in named])
               + (f"، وآليته {jl(sorted(mech)[:2])}" if mech else "") + "، بعد الظهر حتى المغرب.")
     else:
         t += " ولا تجتمع مكونات المطر على أي منطقة."
@@ -178,7 +188,7 @@ def _factor_table(C):
            "موجات روسبي الاستوائية": "توقع جي إف إس، ٢٠٠ هكتوباسكال",
            "موجات كلفن": "توقع جي إف إس، ٢٠٠ هكتوباسكال",
            "الحدث الدافئ (التباعد العلوي)": "توقع جي إف إس، ٢٠٠ هكتوباسكال",
-           "الرطوبة": "توقع جي إف إس",
+           "الرطوبة": "توقع الأوروبي" if C["st"].get("pw_model") == "ecmwf" else "توقع جي إف إس",
            "الأخدود عند ٥٠٠ هكتوباسكال": "توقع جي إف إس",
            "حرارة ٥٠٠ هكتوباسكال فوق الحجاز (التبريد العلوي)": "توقع جي إف إس"}
     shallow = any("ضحل" in x for x in C["kind"][2])
@@ -197,8 +207,14 @@ def s_dyn(C):
     # the upper systems: the cold wave reading (its own sub-heading dropped: this whole section is the diagnosis)
     if W:
         for b in R3.cold_wave_blocks(st, day0, effect=False, W=W):
-            if "h" not in b:
-                B.append(b)
+            if "h" in b:
+                continue
+            if "p" in b and not W.get("falls") and "هبوط في سطح ٥٠٠" in b["p"]:
+                # no height fall was found: say only what the signs show (no exaggeration)
+                a = min([x[1] for x in (W.get("anom") or {}).values()] or [0])
+                b = {"p": "لا موجة علوية باردة بالمعنى الكامل: لا أخدود واضح المحور فوق المملكة ولا هبوط يُعتد به في سطح "
+                          f"٥٠٠ هكتوباسكال، بل برودة طفيفة في الطبقات العليا ({R2.n1(abs(a))}° دون المعدل)."}
+            B.append(b)
     wv = next((x for x in st.get("waves") or [] if x["d"] == day0.isoformat()), {})
     if wv.get("ridge"):
         B.append({"p": f"وعند ٥٠٠ هكتوباسكال مرتفع شذوذه {ar(int(round(wv['ridge']['v'])))} م قرب خط الطول "
@@ -206,9 +222,13 @@ def s_dyn(C):
     cues = RD.get("cue_aloft") or []
     jet = [c for c in cues if "النفاث" in c]
     if jet:
-        B.append({"p": f"و{jet[0]} (توقع جي إف إس)، فالتباعد في مقدمته يساند الرفع فوق الحجاز إن وُجدت رطوبة تحته."})
+        B.append({"p": f"و{jet[0]} (توقع جي إف إس)، ولا يُقرأ الليلة موضع التباعد حول محوره، فلا يُبنى عليه رفع."})
     B.append({"table": {"head": ["العنصر", "قيمته اليوم", "أثره", "المصدر"], "rows": _factor_table(C)}})
     lab, Tt, Rr = C["kind"]
+    weak = list(C["weak"])
+    if C.get("no_trough"):
+        Rr = ["برودة علوية طفيفة بلا أخدود"]
+        weak = [("لا أخدود علوي مؤثر" if "الأخدود العلوي ضحل" in x else x) for x in weak]
     sup = __import__("bigreport")._supported(C["fac0"])
     struct = 3 if sup and C["ws"] >= 3 else 2 if sup and C["ws"] >= 1.8 else 1 if (sup or Tt or Rr) else 0
     t = f"التفسير: بنية الحالة مع الصورة العامة {R3.LEVEL4[struct]}"
@@ -219,8 +239,8 @@ def s_dyn(C):
         why.append("من العروض الوسطى " + jl(Rr))
     if why:
         t += "، يسندها " + "، و".join(why)
-    if C["weak"]:
-        t += "، ويكبحها " + "، و".join(C["weak"])
+    if weak:
+        t += "، ويكبحها " + "، و".join(weak)
     # what the pieces mean together
     shallow = not W or not any(k in (W.get("trough") or {}) for k in ("cutoff",)) and C["sc"].get("trough", 0) < 0.3
     if shallow and C["ws"] < 1.8:
@@ -295,13 +315,18 @@ def s_moist(C):
     if pw:
         hi = sorted([(n, v) for n, v in pw.items() if v["pct"] >= 110], key=lambda x: -x[1]["pct"])
         lo = sorted([(n, v) for n, v in pw.items() if v["pct"] < 90], key=lambda x: x[1]["pct"])
-        t = f"الماء القابل للهطول اليوم (توقع {src}): "
+        t = f"الماء القابل للهطول اليوم (توقع {src}، متوسط كل منطقة): "
         t += ("فوق معدله على " + jl([f"{n} ({ar(v['pct'])}٪، {ar(int(round(v['pw'])))} ملم)" for n, v in hi[:4]])
               if hi else "لا منطقة فوق ١١٠٪ من معدلها")
         if lo:
             t += "، ودون معدله بوضوح على " + jl([f"{n} ({ar(v['pct'])}٪)" for n, v in lo[:4]]) + (
                 " وغيرها" if len(lo) > 4 else "")
-        B.append({"p": t + "."})
+        box = next((r for r in st.get("pw") or [] if r["d"] == day0.isoformat()), {}).get("southwest")
+        sw = [pw[n]["pct"] for n in ("الباحة", "عسير") if n in pw]
+        if box and sw and box["pct"] - max(sw) >= 15:
+            t += (f". أما صندوق جنوب غرب المملكة كاملًا بسواحله فـ{ar(box['pct'])}٪، فالرطوبة الزائدة على سهول تهامة "
+                  f"والبحر، والحواف نفسها قريبة من معدلها ({jl([ar(x) + '٪' for x in sw])}).")
+        B.append({"p": t + ("" if t.endswith(".") else ".")})
     # depth of the moist layer: the site's ECMWF RH700/RH500 maps (region means), GFS only when they cannot be read
     want = [r["name"] for r in rows[:4]]
     if "مكة المكرمة" not in want:
@@ -387,8 +412,10 @@ def tests(r):
         sp = ("جزئي", "الرفع قائم و" + jl(miss) + " دون الكافي")
     else:
         sp = ("غائب", "لا يجتمع الرفع مع الرطوبة والطاقة")
-    if r.get("trough") and lift >= 1:
+    if r.get("trough") and lift >= 1 and not r.get("cool_weak"):
         tm = ("متحقق", "التبريد العلوي فوق المنطقة وقت ذروة التسخين بعد الظهر")
+    elif r.get("trough") and lift >= 1:
+        tm = ("جزئي", "التسخين النهاري مع برودة علوية طفيفة لا تكفي لدعم متزامن")
     elif lift >= 1:
         tm = ("جزئي", "التسخين النهاري وحده، بلا دعم علوي متزامن")
     else:
@@ -421,8 +448,11 @@ PART_W = {"الرطوبة": "الرطوبة", "الصورة الكبرى": "ال
 def factors(r, C):
     """(supporting, limiting, suppressing) for one region"""
     p = r["parts"]
-    sup = [PART_W[k] for k, v in p.items() if v >= 1 and k != "الصورة الكبرى"]
+    sup = [PART_W[k] for k, v in p.items() if v >= 1 and k != "الصورة الكبرى"
+           and not (k == "التبريد العلوي" and r.get("cool_weak"))]
     lim = [PART_W[k] for k, v in p.items() if 0 < v < 1 and k != "الصورة الكبرى"]
+    if r.get("cool_weak"):
+        lim.append("ضعف التبريد العلوي")
     if r.get("steer") and "الشرق" in r["steer"] and any("يصعد" in c for c in r["why"].values()):
         lim.append("انتقال الخلايا عن الحافة")
     sp = []
@@ -451,21 +481,25 @@ def s_geo(C):
         tr = [[r["name"]] + [a for a, _ in tests(r)] for r in named]
         B.append({"h": "اختبار التوافق"})
         B.append({"table": {"head": ["المنطقة", "المكاني", "الزماني", "الرياح ومسار الخلايا", "الآلية"], "rows": tr}})
+        groups = {}
         for r in named:
             sup, lim, sp = factors(r, C)
-            t = f"{r['name']}: الداعم {jl(sup) if sup else 'لا عامل مكتمل'}"
+            t = f"الداعم {jl(sup) if sup else 'لا عامل مكتمل'}"
             t += f"، والمحدد {jl(lim)}" if lim else ""
             t += f"، والكابح {jl(sp)}" if sp else "، ولا كابح محلي"
             ts = tests(r)
             full = sum(1 for a, _ in ts if a == "متحقق")
             TN = ("المكاني", "الزماني", "الرياح", "الآلية")
             nt = [f"{TN[i]} {a} ({b})" for i, (a, b) in enumerate(ts) if a != "متحقق"]
-            t += f". تحقق {ar(full)} من ٤ شروط" + (f"، و{'؛ و'.join(nt)}" if nt else "") + f"؛ فالفرصة {r['level']}"
+            t += f". تحقق {ar(full)} من ٤ شروط" + (f"، و{'؛ و'.join(nt)}" if nt else "")
+            t += "؛ فهي زخات متفرقة محتملة" if r["level"] == "ضعيفة" else f"؛ فالفرصة {r['level']}"
             if r.get("level0"):
-                t += f" لا {r['level0']}، لأن التوافق غير مكتمل"
+                t += f" لا فرصة {r['level0']}، لأن التوافق غير مكتمل"
             if r.get("pw") and r["pw"] < 110 and r["level"] in ("مرجحة", "قوية"):
                 t += " في نطاق الحواف وحدها، لا على المنطقة كلها"
-            B.append({"p": t + "."})
+            groups.setdefault(t, []).append(r["name"])
+        for t, names in groups.items():   # regions read the same way are written once (no repetition)
+            B.append({"p": f"{jl(names)}: {t}."})
     vague = [r["name"] for r in rows if r.get("vague")]
     if vague:
         B.append({"p": f"وعلى {jl(vague)} رطوبة وتبريد علوي بلا آلية رفع تحدد مكانًا، فالزخات هناك عابرة متفرقة."})
@@ -574,7 +608,7 @@ def scenarios(C):
     cv = f"نحو {ar(int(round(100 * cov)))}٪" if cov >= 0.01 else "أقل من ١٪"
     regs = jl(w["regions"][:3])
     B = [{"h": "السيناريوهات"}]
-    base = f"الأساسي (الأرجح): القراءة أعلاه كما هي، أمطار على {regs} أوسعها {pk} بانتشار {cv}"
+    base = f"الأساسي (الأرجح): القراءة أعلاه كما هي ({cv} أوسعها {pk})"
     if nb and nb["blocked"]:
         base += ("، والأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، ونصيب سواحل الحجاز خلايا بحرية ليلية "
                  "ومكة والجموم أطرافها")
@@ -870,7 +904,7 @@ def conf_rows(C):
     named = [r for r in C["rows"] if not r.get("vague")]
     if named:
         place = "عالية" if all(r["meets"] for r in named) else "متوسطة"
-        inten = "متوسطة" if max(r["cape"] for r in named) >= 500 and any(r.get("trough") for r in named) else "منخفضة"
+        inten = "متوسطة" if max(r["cape"] for r in named) >= 500 and any(r.get("trough") and not r.get("cool_weak") for r in named) else "منخفضة"
         spread = "عالية" if C["spread"] < 0.03 and C["ws"] < 1.8 else "متوسطة"
         rows.append(["اليوم", "عالية", place, inten, spread])
         why.append("اليوم: التوقيت يحكمه التسخين النهاري والمكان تحدده التضاريس، أما الشدة فتتوقف على خلايا منفردة")
