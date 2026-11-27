@@ -1118,6 +1118,14 @@ def main():
                                         for r in status["troughreach"]], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("trough reach failed:", repr(e), flush=True)
+            # the same zones every 3 hours of the Makkah day: when the ingredients meet, peak and end, and where the
+            # cells go (timing.py; Fahad 28 Nov 2026: «لدينا حركة ساعاتيه مستمره»)
+            try:
+                import timing
+                status["timing"] = timing.fetch(cycle, day0, 6, gfs_fields)
+                print("timing:", [(r["d"][5:], len(next(iter(r["z"].values())))) for r in status["timing"]["days"]], flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("timing failed:", repr(e), flush=True)
             # the vertical reading of the column, zone by zone (vertical.py; Fahad 27 Nov 2026, the central charter part 6)
             try:
                 import vertical
