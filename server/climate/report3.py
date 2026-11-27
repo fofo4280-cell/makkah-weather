@@ -1117,7 +1117,7 @@ def _strength_word(w):
             "متوسطة" if cov >= 0.05 or w["top"] >= 2.6 else "خفيفة")
 
 
-def lowwarm_spell(st, a, b):
+def lowwarm_spell(st, a, b, day0=None):
     """the low-level warm/cold event around a wave (Fahad, 20 Nov 2026: «في أقرب موجة لا تنسى تضيف الحدث الدافئ ضمن
     نقاط قوة الموجة وكم تستمر الموجة من أيام مع معززاتها»): the warm run of days (3+ regions at I >= 1, or Makkah low
     ground) that overlaps the wave days a..b, whole even where it runs past them, and the cold regions inside the
@@ -1131,6 +1131,8 @@ def lowwarm_spell(st, a, b):
     low = lw.get("low") or []
     warm_on = {}
     for k, d in enumerate(ds):
+        if day0 and d < day0:   # a forecast never starts in the past (audit 6; 28 Nov 2026 report blocked by «من الجمعة ٢٧ نوفمبر»)
+            continue
         w = [n for n, v in R.items() if k < len(v) and v[k] is not None and v[k] >= LW_WARM]
         mk = k < len(low) and low[k] is not None and low[k] >= LW_WARM
         if len(w) >= 3 or mk:
@@ -1350,7 +1352,7 @@ def wave_set(st, day0):
         if not w.get("ingr"):   # the ingredients' areas are already parts of regions
             w["regions"] = hijaz_regions(st, w["regions"], w["start"], w["end"])
         try:
-            w["lw"] = lowwarm_spell(st, w["start"], w["end"])
+            w["lw"] = lowwarm_spell(st, w["start"], w["end"], day0)
         except Exception as e:  # noqa: BLE001
             print("lowwarm spell failed:", repr(e), flush=True)
             w["lw"] = None
