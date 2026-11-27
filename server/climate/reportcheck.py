@@ -101,8 +101,13 @@ def check(report, st, img=None):
         wsec = secs[SEC["waves"]]["blocks"]
         m = re.search(r"أقرب موجة: ([^،]+)،", summ)
         tab = next((b["table"] for b in wsec if "table" in b and b["table"]["head"][0] == "الفترة"), None)
-        para = next((b["p"] for b in wsec if b.get("p", "").startswith("أقرب موجة: ")), "")
-        per = tab["rows"][0][0] if tab else (re.search(r"أقرب موجة: ([^،]+)،", para) or [None, None])[1]
+        # the nearest RAIN wave: the table's first row may be a weaker trough signal («أقرب إشارة»), so the wave's own
+        # paragraph («أقرب موجة: …» or «أقرب موجة مطرية: …») wins over the first row (28 Nov 2026 report was blocked)
+        para = next((b["p"] for b in wsec if re.match(r"أقرب موجة( مطرية)?: ", b.get("p", ""))), "")
+        mp = re.match(r"أقرب موجة(?: مطرية)?: ([^،]+)،", para)
+        per = mp.group(1) if mp else (tab["rows"][0][0] if tab else None)
+        if tab and per and per.strip() not in [str(r[0]).strip() for r in tab["rows"]]:
+            err.append(f"nearest wave {per!r} is not a row of the waves table")
         if m and per and m.group(1).strip() != per.strip():
             err.append(f"nearest wave: summary says {m.group(1)!r}, waves section {per!r}")
         c = st.get("ref_cmp")
