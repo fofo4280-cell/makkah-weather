@@ -135,6 +135,13 @@ def blocks(st, day0):
         t += f"، بعد مكوث طويل في الطورين ٣ و٤ الكابحين ({ar(dwell)} يومًا من آخر {ar(len(hist))})"
     if ob["amp"] >= 1:
         t += f"، ويتقدم شرقًا نحو الطورين {nxt[0]} و{nxt[1]}"
+    try:   # the phase the rest of the report gives for today (28 Nov 2026: observed 6 here, 7 in sections 1-2)
+        import bigpic as BP
+        mt = BP.rmm_on(st, day0)
+        if mt and mt.get("phase") and mt["phase"] != ob["phase"] and day0 > od:
+            t += f"، ويُقدَّر بسرعته المعتادة في الطور {ar(mt['phase'])} اليوم"
+    except Exception as e:  # noqa: BLE001
+        print("season: today's phase not read:", repr(e), flush=True)
     B.append({"p": t + ". أطوارنا الداعمة للأمطار الواسعة على المملكة هي ٧ و٨ و١، والأطوار ٣ و٤ و٥ أكثرها كبحًا."})
     sp = o["spell"]
     if sp:
@@ -167,7 +174,8 @@ def blocks(st, day0):
             v += (f"{'هدوء نسبي' if calm else 'أمطار متفرقة كالمعتاد'} " +
                   ("اليوم، " if (sp[0] - day0).days == 1 else
                    f"حتى نحو {ar_date(sp[0] - timedelta(days=1), weekday=False)}، "))
-        v += f"ثم فترة خصب واسعة متوقعة على المملكة {ar_span(sp[0], sp[1])} بإذن الله"
+        # «ثم» only after a calm stretch; a spell that starts today is said as it is (28 Nov 2026: «الحكم: ثم فترة»)
+        v += ("ثم " if sp[0] > day0 else "") + f"فترة خصب واسعة متوقعة على المملكة {ar_span(sp[0], sp[1])} بإذن الله"
         if o["enso"] and o["enso"]["v"] >= 0.5:
             v += "، والنينيو يسندها"
         v += "."

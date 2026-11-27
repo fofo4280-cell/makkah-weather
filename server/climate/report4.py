@@ -270,7 +270,7 @@ def s_exec(C):
         t = (f"أقرب موجة: {R3.span_of_(w) if w['start'] != w['end'] else ar_date(w['start'])}، {KIND[w['kind']]}، "
              f"أوسع أيامها {ar_date(w['peak'])}")
         if R_:
-            t += (f"، يقودها أخدود قوي من الشمال الغربي يبلغ تأثيره أمام محوره {reach_brief(R_)}"
+            t += (f"، يقودها أخدود من الشمال الغربي يبلغ تأثيره أمام محوره {reach_brief(R_)}"
                   + ("، وإن بقي محوره غرب البحر الأحمر" if C["nb"] and C["nb"]["blocked"] else ""))
         if ws_:
             rest = R3.land_rest(w)
@@ -295,9 +295,12 @@ def s_exec(C):
                     out_[-1] = (nm_, out_[-1][1], dd)       # the same places on the next night: one item
                 else:
                     out_.append((nm_, dd, dd))
-        out_ = [f"{n} ليلة {ar_date(a - timedelta(days=1))}" if a == b else
-                f"{n} من ليلة {ar_date(a - timedelta(days=1))} إلى ليلة {ar_date(b - timedelta(days=1))}"
-                for n, a, b in out_]
+        # the same places on separate nights named once (28 Nov 2026: «ساحل الخليج ليلة …؛ وساحل الخليج ليلة …»)
+        grp_ = {}
+        for n, a, b in out_:
+            grp_.setdefault(n, []).append(f"ليلة {ar_date(a - timedelta(days=1))}" if a == b else
+                                          f"من ليلة {ar_date(a - timedelta(days=1))} إلى ليلة {ar_date(b - timedelta(days=1))}")
+        out_ = [f"{n} " + " و".join(v) for n, v in grp_.items()]
         if out_:
             B.append({"p": "وخارج الموجة يقرأ مسح المملكة زخات رعدية ممكنة على " + "؛ و".join(out_[:4])
                            + f" (جدول المسح في القسم {S['waves']})."})
@@ -522,10 +525,12 @@ def s_moist(C):
     if vals:
         dw = {_depth_word(a7, a5) for a7, a5 in vals.values()}
         one = len(dw) == 1 and len(vals) > 1     # the same depth everywhere: said once
-        bits = [f"{n} {ar(int(round(a7)))}٪ عند ٧٠٠ و{ar(int(round(a5)))}٪ عند ٥٠٠"
-                + ("" if one else f" ({_depth_word(a7, a5)})") for n, (a7, a5) in vals.items()]
-        B.append({"p": f"عمق الطبقة الرطبة (متوسط الرطوبة النسبية لكل منطقة، توقع {src}): " + "، و".join(bits)
-                       + (f"؛ فهي {next(iter(dw))} في كلها" if one else "") + "."})
+        # each depth said once, with its regions (28 Nov 2026: the depth word was repeated after every region)
+        grp = {}
+        for n, (a7, a5) in vals.items():
+            grp.setdefault(_depth_word(a7, a5), []).append(f"{n} ({ar(int(round(a7)))}٪ و{ar(int(round(a5)))}٪)")
+        B.append({"p": f"عمق الطبقة الرطبة (متوسط الرطوبة النسبية لكل منطقة عند ٧٠٠ ثم ٥٠٠ هكتوباسكال، توقع {src}): "
+                       + "؛ و".join(f"{k} على {jl(v)}" for k, v in grp.items()) + "."})
     else:
         B.append({"p": "عمق الطبقة الرطبة: تعذرت الليلة قراءة الرطوبة عند ٧٠٠ و٥٠٠ هكتوباسكال، فلم يُبنَ عليها حكم."})
     # the two models side by side, never averaged (the central charter, part 2)
@@ -743,7 +748,7 @@ def s_cells(C):
         if t:
             B.append({"p": t})
         if st.get("seacell"):
-            B.append({"p": seacell.coming(st["seacell"], day0 + timedelta(days=1), day0 + timedelta(days=7))})
+            B += seacell.coming_blocks(st["seacell"], day0 + timedelta(days=1), day0 + timedelta(days=7))
     except Exception as e:  # noqa: BLE001
         print("report4: sea cells failed:", repr(e), flush=True)
     # the terrain cells of Makkah, zone by zone (Hada, Shafa, Sail, Rahat, Shamnasir)
@@ -819,7 +824,7 @@ def _wave_blocks(st, day0):
             if multi:               # the table already names the areas of each wave
                 p_ = re.sub(r"، والمناطق المتأثرة بها: .*?(?=\. |، والثقة)", "", p_)
             if p_.startswith("تستمر الموجة"):   # the window is in the table: keep only the warm event's days
-                p_ = re.sub(r"^تستمر الموجة [^(]*\([^)]*\)، ويرافقها حدث دافئ قرب الأرض", "ويمتد هذا الحدث الدافئ", p_)
+                p_ = re.sub(r"^تستمر الموجة [^(]*\([^)]*\)، ويرافقها حدث دافئ قرب الأرض", "ويرافق الموجة حدث دافئ قرب الأرض", p_)
             p_ = re.sub(r"، وحدث دافئ قرب الأرض فوق [^.]*?(?=\.|$)", "، وحدث دافئ قرب الأرض", p_)
             b = dict(b, p=p_)
         out.append(b)
@@ -1048,7 +1053,14 @@ def changes(prev, now):
                  + (f"، وانتقلت ذروتها من {ar_date(pp)} إلى {ar_date(np_)}" if pp != np_ else ""))
             if prev.get("method") != "ingr":
                 t += "؛ وجزء من هذا التغير منهجي لا جوي، إذ صارت أيام الموجة تُحدد من نبضات مكونات الهطول لا من نافذة العوامل الكبرى"
-            out.append({"w": 5, "text": t, "short": f"الموجة صارت {R2.ar_span(ns, ne).removeprefix('من ')}"})
+            sh = ("الموجة تبدأ مبكرة " + ("يومًا" if (ps - ns).days == 1 else R3._days_word((ps - ns).days)) if ns < ps and (ps - ns).days <= 3
+                  else "الموجة تتأخر " + ("يومًا" if (ns - ps).days == 1 else R3._days_word((ns - ps).days)) if ps < ns and (ns - ps).days <= 3
+                  else "الموجة صارت")
+            sh += f"، فصارت {R2.ar_span(ns, ne).removeprefix('من ')} بعد أن كانت {R2.ar_span(ps, pe).removeprefix('من ')}" \
+                if sh != "الموجة صارت" else f" {R2.ar_span(ns, ne).removeprefix('من ')} بعد أن كانت {R2.ar_span(ps, pe).removeprefix('من ')}"
+            if pp != np_:
+                sh += f"، وذروتها {ar_date(np_)}"
+            out.append({"w": 5, "text": t, "short": sh})
         dc = (nw.get("cover") or 0) - (pw.get("cover") or 0)
         if abs(dc) >= 0.02:
             out.append({"w": 4, "text": f"انتشار الموجة المقدّر {'اتسع' if dc > 0 else 'ضاق'} من نحو {ar(int(round(100 * pw['cover'])))}٪ "
@@ -1238,7 +1250,8 @@ def conf_rows(C):
         agree = g is not None and cov > 0 and 0.5 <= (g / cov if cov else 0) <= 2
         sp = pl if agree else _down(pl)
         rows.append(["الموجة القادمة", t, pl, inten, sp])
-        why.append(f"الموجة: بدايتها بعد {R3._days_word(lead)} فالتوقيت أوثق من المكان"
+        why.append("الموجة: بدايتها " + ("اليوم" if lead <= 0 else "غدًا" if lead == 1 else f"بعد {R3._days_word(lead)}")
+                   + " فالتوقيت أوثق من المكان"
                    + ("، والشدة رهينة الرطوبة الوسطى دون حدها" if a and a.get("rh") is not None and a["rh"] < 45 else "")
                    + ("" if agree else "، والانتشار مختلف بين قراءة المكونات ومطر جي إف إس العددي"))
     return rows, why
@@ -1493,36 +1506,62 @@ def vert_table(C, items):
 
 
 def vert_answers(C, items):
-    """the six questions of the charter, answered from the vertical rows of the given items"""
+    """the six questions of the charter, answered from the vertical rows of the given items: one paragraph per day
+    (today, the wave's peak), each place named once per answer without its day (28 Nov 2026: the old single sentence
+    repeated «اليوم» and «١ ديسمبر» after every place)"""
+    import troughreach as TR
     import vertical as V
-    vs = []
+    byday = {}
     for lab, z, d in items:
         r = _vrow(C, d)
         if r and z in r["z"]:
-            vs.append((lab, r["z"][z]))
-    if not vs:
+            byday.setdefault(d, []).append((TR.NAME.get(z, lab), r["z"][z]))
+    if not byday:
         return None
+    paras, said_pulse = [], False
+    for d in sorted(byday):
+        vs = byday[d]
 
-    def group(f):
-        by = {}
+        names = [lab for lab, _ in vs]
+        # the conclusions only (the numbers are in the table above), each place once: where moisture, lift and energy
+        # meet in the same depth, and for the others what is missing, places with the same gap said together
+        same = [lab for lab, v in vs if V.depth(v) in ("عميقة", "حتى ٧٠٠ وجفاف فوقها") and V.lift(v) != "غائب"
+                and v["sbcape"] >= 300]
+        out = []
+        if same:
+            out.append(("تجتمع الرطوبة والرفع والطاقة في العمق نفسه على " + jl(same)) if len(same) < len(names)
+                       or len(names) == 1 else "تجتمع الرطوبة والرفع والطاقة في العمق نفسه عليها كلها")
+        gaps = {}
         for lab, v in vs:
-            by.setdefault(f(v), []).append(lab)
-        return "؛ ".join(f"{k} على {jl(n)}" for k, n in by.items() if k)
-    out = ["عمق الرطوبة: " + group(lambda v: V.DEPTH_W[V.depth(v)])]
-    dl = group(lambda v: V.dry_layer(v) or "")
-    out.append("الطبقة الجافة الحادة من النمو: " + (dl if dl else "لا طبقة جافة حادة بين الطبقات المقروءة"))
-    out.append("الرفع: " + group(lambda v: {"عبر العمود": "يمتد عبر العمود مع تباعد علوي",
-                                             "في الطبقة الوسطى فقط": "في الطبقة الوسطى دون دعم علوي متكامل",
-                                             "غائب": "لا رفع يُعتد به"}[V.lift(v)]))
-    out.append("الطبقة الكابحة: " + group(lambda v: V.cap(v)))
-    same = [lab for lab, v in vs if V.depth(v) in ("عميقة", "حتى ٧٠٠ وجفاف فوقها") and V.lift(v) != "غائب"
-            and v["sbcape"] >= 300]
-    out.append("تزامن الرطوبة والرفع والطاقة في العمق نفسه: "
-               + (f"متحقق على {jl(same)}" if same else "غير متحقق على أي منها"))
-    org = [lab for lab, v in vs if v["shear"] >= 10]
-    out.append("ما يسمح بالنمو والاستمرار: " + (f"قص يكفي لتنظيم الخلايا على {jl(org)}، وفي غيرها " if org else "")
-               + "قص ضعيف، فالخلايا نبضية قصيرة العمر يحكمها التسخين والتضاريس، وتتبدد بعد الغروب")
-    return out
+            if lab in same:
+                continue
+            g = []
+            if V.depth(v) not in ("عميقة", "حتى ٧٠٠ وجفاف فوقها"):
+                g.append(V.DEPTH_W[V.depth(v)])
+            if V.lift(v) == "غائب":
+                g.append("لا رفع يُعتد به")
+            if v["sbcape"] < 300:
+                g.append("طاقة ضعيفة")
+            gaps.setdefault(" و".join(g) or "تزامن غير مكتمل", []).append(lab)
+        if gaps:
+            out.append(("ولا تجتمع على غيرها" if same else "لا تجتمع الرطوبة والرفع والطاقة في العمق نفسه على أي منها") + ": "
+                       + "، و".join(f"{k} على {jl(n)}" for k, n in gaps.items()))
+        dry = [lab for lab, v in vs if V.dry_layer(v)]
+        capd = [lab for lab, v in vs if v["cin"] <= -50]
+        if dry:
+            out.append(f"والجفاف فوق الطبقة الرطبة يحد نمو السحب عموديًا على {jl(dry) if len(dry) < len(names) else 'جميعها'}")
+        out.append(f"والكابح متوسط أو أقوى على {jl(capd)}" if capd else "ولا كابح يمنع الحمل")
+        org = [lab for lab, v in vs if v["shear"] >= 10]
+        weak = [lab for lab, v in vs if v["shear"] < 10]
+        t = "والقص " + (f"يكفي لتنظيم الخلايا على {jl(org) if len(org) < len(names) else 'جميعها'}" if org else "")
+        if weak:
+            t += ("، وضعيف في غيرها" if org else "ضعيف") + (
+                "" if said_pulse else "، فالخلايا نبضية قصيرة العمر يحكمها التسخين والتضاريس، وتتبدد بعد الغروب")
+            said_pulse = True
+        out.append(t)
+        head = "اليوم" if d == C["day0"] else f"في ذروة الموجة {ar_date(d)}"
+        paras.append(f"{head}: " + "؛ ".join(out) + ".")
+    return paras
 
 
 def vert_items(C):
@@ -1566,8 +1605,8 @@ def s_vert(C):
             B.append({"p": f"والرطوبة في هذا الجدول من جي إف إس ليبقى العمود من نموذج واحد؛ والمعتمد في الحكم على الرطوبة "
                            f"الأوروبي، ويختلف عنه بوضوح على {jl(big[:3])} (القسم {S['moist']})، فتُقرأ رطوبة هذا الجدول هناك بحذر."})
         ans = vert_answers(C, items)
-        if ans:
-            B.append({"p": "؛ و".join(ans) + "."})
+        for a_ in ans or []:
+            B.append({"p": a_})
         B.append({"note": VERT_RULES})
     else:
         B.append({"p": "التصور الرأسي: تعذرت الليلة قراءة الحقول الرأسية، فلم يُبنَ على الطبقات حكم."})
@@ -1643,10 +1682,15 @@ def sea_kind(C):
 def tropic_split(C):
     sc, st = C["sc"], C["st"]
     m = st.get("rmm_today") or st.get("rmm_now") or {}
+    try:   # today's phase as the rest of the report gives it (the last observation carried at its usual speed)
+        import bigreport as BR
+        m = BR._vals(st, C["day0"]).get("m") or m
+    except Exception:  # noqa: BLE001
+        pass
     ph, amp = m.get("phase"), m.get("amp")
     if ph is None:
         return None
-    t = (f"الفصل بين الإشارة والاستجابة: الإشارة المدارية الواسعة هي التذبذب في الطور {ar(int(ph))} بشدة {n1(amp)}؛ "
+    t = (f"الفصل بين الإشارة والاستجابة: الإشارة المدارية الواسعة هي التذبذب في الطور {ar(int(ph))} اليوم بشدة {n1(amp)}؛ "
          "وأثرها المحتمل على الجزيرة العربية يمر عبر تباعد الرياح العليا فوقها وتقوية المد الرطوبي من الجنوب، لا مباشرة؛ ")
     act = []
     if sc.get("ros", 0) > 0:
