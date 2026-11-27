@@ -2357,6 +2357,7 @@
   // where the afternoon winds collide around Taif (Fahad, 17 Nov 2026): the Al-Hada / Ash-Shafa edge or east and
   // north-east of Taif; 7 days before today, today and 7 after (taifconv.py on the nightly run)
   const TC_WHERE = { edge: "التصادم على حافة الهدا والشفا", east: "التصادم شرق الطائف وشماله الشرقي (السيل والهضبة)", weak: "التصادم ضعيف حول الطائف", eastdry: "التصادم شمال الطائف وشرقه، والطاقة أعلى على الحواف فتقوى السحب عليها مع تقدم النهار" };
+  const TC_HINT_H = "البرتقالي والأحمر تصادم الرياح السطحية فوق المملكة في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا لتظهر تصادمات الليل والفجر فوق البحر والسهول، والخط المتقطع محور منطقة التصادم، والخطوط البيضاء اتجاه الرياح، من النموذج الأمريكي لليوم وما بعده. اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر، وكبّر الخريطة والمس أي موضع لترى إحداثياته. والسطر الأول تحت الخريطة لتلك الساعة، وما بعده قراءة اليوم حول الطائف بين ١١ صباحًا و١ ظهرًا.";
   const TC_HINT = {
     line: "مؤشر واحد للمنطقة الغربية (الطائف ومكة وجدة والجموم والحرات وجنوب مكة والبحر الأحمر المجاور): أين أقوى تصادم للرياح السطحية بين ١١ صباحًا و١ ظهرًا. الموجب البرتقالي: التصادم على الطائف نفسه وهضبته وشماله الشرقي والحرات، فالسحب تنشأ فوق الهضبة ولا تنزل على الحافة. السالب الأزرق: التصادم على الحافة والجبال (الهدا والشفا وجبال جنوب مكة) وما تحتها من السهول (مكة والجموم). الفيروزي المموّج: التصادم فوق البحر نفسه، فالسحب بحرية تنشأ فوق البحر وقد تدخل على الساحل. النقطة الرمادية: لا تصادم يُذكر. الرقم فوق العمود قوة التصادم، والخط المتقطع اليوم وما بعده توقع من النموذج الأمريكي.",
     cape: "طاقة عدم الاستقرار السطحية في الساعة المختارة من النموذج الأمريكي، والخط المتقطع محور تصادم الرياح، والخطوط الباهتة اتجاه الرياح. التصادم فوق طاقة جيدة (٢٥٠ فأكثر) يعني سحبًا رعدية أقوى. انتقل بين الأيام بالسهمين، وكبّر الخريطة والمس أي موضع لترى إحداثياته وأقرب مكان له.",
@@ -2424,6 +2425,28 @@
     document.querySelector('#tcLayer button[data-l="sea"]').hidden = !RS;
     let lay = M.tcLayer === "line" ? "line" : M.tcLayer === "sea" && RS ? "sea" : "day";   // CAPE view moved to the humidity tab
     let seaK = RS ? todayIdx(RS.days) : 0, dayK = null;
+    // every 3 hours, day and night (Fahad, 27 Nov 2026, «نعم» to the collision map too): frames tconvh_KK_HH.webp of the
+    // forecast days (taifconv.hourly); with «كل ٣ ساعات» the slider runs over every hour of every forecast day
+    const TF = [];
+    T.rows.forEach((r, k) => (r.hours || []).forEach((o) => TF.push({ k, h: o.h, o })));
+    if (M.tcHour === undefined && TF.length) M.tcHour = "h";
+    if (M.tcHour === "h" && !TF.length) M.tcHour = "11";
+    document.querySelector('#tcHour button[data-h="h"]').hidden = !TF.length;
+    const hmode = () => M.tcHour === "h" && TF.length > 0;
+    const curDay = () => hmode() ? (TF[+$("tcDay").value] || TF[0]).k : (+$("tcDay").value || 0);
+    const placeSlider = (k, prevH) => {
+      if (hmode()) {
+        $("tcDay").max = TF.length - 1;
+        let i = TF.findIndex((f) => f.k === k);
+        if (i < 0) i = Math.max(0, TF.findIndex((f) => f.k >= k));
+        else if (prevH != null) { const j = TF.findIndex((f) => f.k === k && f.h === prevH); if (j >= 0) i = j; }
+        else if (T.days[k] === todayISO()) {
+          const H = new Date(Date.now() + 3 * 3600e3).getUTCHours();
+          while (TF[i + 1] && TF[i + 1].k === k && TF[i + 1].h <= H) i++;
+        }
+        $("tcDay").value = i;
+      } else { $("tcDay").max = Math.max(0, T.rows.length - 1); $("tcDay").value = k; }
+    };
     const showSea = () => {
       const k = Math.min(+$("tcDay").value || 0, RS.rows.length - 1), r = RS.rows[k] || {};
       seaK = k;
@@ -2439,25 +2462,28 @@
     };
     const setSlider = () => {   // the two views have their own days
       if (lay === "sea") { if (dayK === null) dayK = +$("tcDay").value || 0; $("tcDay").max = RS.rows.length - 1; $("tcDay").value = seaK; }
-      else { $("tcDay").max = Math.max(0, T.rows.length - 1); if (dayK !== null) { $("tcDay").value = dayK; dayK = null; } }
+      else if (dayK !== null) { placeSlider(dayK); dayK = null; }
     };
     const show = () => {
       if (lay === "sea") { showSea(); return; }
-      const k = +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
-      const hh = M.tcHour || "11";
-      const name = lay === "line" ? "tconv_line" : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${hh}`;
+      const hm = hmode() && lay === "day", fr = hmode() ? (TF[+$("tcDay").value] || TF[0]) : null;
+      const k = fr ? fr.k : +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
+      const hh = M.tcHour || "11", fhh = hh === "h" ? "11" : hh;
+      const name = lay === "line" ? "tconv_line" : hm ? `tconvh_${kk}_${String(fr.h).padStart(2, "0")}` : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${fhh}`;
       $("tcHour").hidden = lay === "line";
       document.querySelectorAll("#tcHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
-      $("tcFig").src = `${CL}fig/${name}.png?v=${encodeURIComponent(st.updated)}`;
+      $("tcFig").src = `${CL}fig/${name}.${hm ? "webp" : "png"}?v=${encodeURIComponent(st.updated)}`;
+      if (hm && TF[+$("tcDay").value + 1]) { const n = TF[+$("tcDay").value + 1], im = new Image(); im.src = `${CL}fig/tconvh_${String(n.k).padStart(2, "0")}_${String(n.h).padStart(2, "0")}.webp?v=${encodeURIComponent(st.updated)}`; }
       $("tcTime").hidden = lay === "line";
       tcZoomSetup.off = lay === "line"; $("tcZoom").hidden = lay === "line";
       if (lay === "line") { if (tcZoomSetup.reset) tcZoomSetup.reset(); $("tcPin").hidden = true; $("tcCoord").hidden = true; }
       const nm = $("tcInner").querySelector(".kmap-names"); if (nm) nm.hidden = lay === "line";   // names belong to the map only
       $("tcLegend").hidden = !(lay === "cape" && T.cape_legend) || CARDED(T);
       if (lay === "cape" && T.cape_legend) $("tcLegend").innerHTML = legendHTML(T.cape_legend);
-      $("tcHint").textContent = fixModel(TC_HINT[lay], T);
+      $("tcHint").textContent = hm ? TC_HINT_H : fixModel(TC_HINT[lay], T);
       const r = lay !== "line" ? T.rows[k] : T.rows[Math.max(0, T.days.indexOf(todayISO()))];
-      $("tcDayLabel").textContent = r ? dayLab(r.d) : "";
+      $("tcDayLabel").textContent = r ? dayLab(r.d) + (hm ? `، ${fr.h === 0 ? "" : "الساعة "}${HR_LAB[fr.h]}` : "") : "";
+      const hrLine = hm && fr.o.t ? `<div><b>في هذه الساعة${r && r.fc ? " (توقع)" : ""}: ${fr.o.t}.</b></div>` : "";
       if (!r || !r.where) { $("tcNow").innerHTML = "<div>لا تتوفر بيانات لهذا اليوم.</div>"; return; }
       const u = r.u850, wind = u <= T.u_east ? `شرقية ${num(-u, 1)} م/ث تُوقف هواء البحر عند الحافة`
         : u < 0 ? `شرقية ضعيفة ${num(-u, 1)} م/ث` : `غربية ${num(u, 1)} م/ث تدفع هواء البحر فوق الحافة`;
@@ -2468,7 +2494,7 @@
         ${at ? `<div>أقوى نقطة: ${at}.</div>` : ""}<div>قوة التصادم: الطائف ${num(r.wt, 1)}، الحافة ${num(r.wg, 1)}، البحر ${num(r.ws, 1)}.</div>`;
         return;
       }
-      $("tcNow").innerHTML = `<div><b>حول الطائف: ${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
+      $("tcNow").innerHTML = hrLine + `<div><b>حول الطائف: ${TC_WHERE[r.where === "east" && r.fuel === false ? "eastdry" : r.where]}${r.fc ? " (توقع)" : ""}.</b></div>
         <div>الرياح فوق هضبة الطائف عند ٨٥٠: ${wind}. يصل هواء البحر عصرًا إلى خط طول ${num(r.front, 2)}.</div>
         <div>قوة التصادم بين ١١ صباحًا و١ ظهرًا: الحافة ${num(r.ce, 1)}، شرق الطائف ${num(r.cx, 1)}.</div>${r.cape_edge == null ? "" : `
         <div>طاقة عدم الاستقرار عند ١ ظهرًا: الحافة ${num(r.cape_edge)}، شرق الطائف ${num(r.cape_east)} جول/كجم.</div>`}${tcWest(r)}`;
@@ -2493,11 +2519,18 @@
       lay = M.tcLayer = b.dataset.l; setSlider(); show();
     });
     // the hour of the map: 11 AM by default, when convective cells start on the rim (Fahad, 17 Nov 2026)
-    document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => { M.tcHour = b.dataset.h; show(); });
+    document.querySelectorAll("#tcHour button").forEach((b) => b.onclick = () => {
+      if (b.dataset.h === M.tcHour) return;
+      plStop();
+      const k = curDay(), was = hmode();
+      M.tcHour = b.dataset.h;
+      if (was !== hmode()) placeSlider(k);
+      show();
+    });
     tcZoomSetup(T.extent || [37.8, 41.8, 20.2, 23.3]);
     if (!CARDED(T)) kmapNames($("tcInner"), T.extent || [33, 57.5, 14, 33.5]);
-    $("tcDay").max = Math.max(0, T.rows.length - 1);
-    if (!tcCard.done) { $("tcDay").value = todayIdx(T.days); tcCard.done = true; if (lay === "sea") setSlider(); }
+    if (!tcCard.done) { placeSlider(todayIdx(T.days)); tcCard.done = true; if (lay === "sea") setSlider(); }
+    else $("tcDay").max = hmode() ? TF.length - 1 : Math.max(0, T.rows.length - 1);
     $("tcDay").oninput = show;
     document.querySelectorAll("#tcLayer button").forEach((x) => x.classList.toggle("on", x.dataset.l === lay));
     show();
