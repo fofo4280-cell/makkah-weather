@@ -29,7 +29,7 @@ jobs:
           path: code
 
       - name: Python packages
-        run: pip install -q numpy shapely
+        run: pip install -q numpy scipy shapely pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
 
       - name: Our model runs and the published page data
         run: |
