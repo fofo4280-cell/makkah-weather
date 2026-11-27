@@ -761,6 +761,15 @@ def main():
         import traceback
         traceback.print_exc()
         print("taif collision failed:", repr(e), flush=True)
+    # 8a3b. the collision map every 3 hours, day and night (Fahad, 27 Nov 2026): tconvh_KK_HH.webp, rows[k]["hours"]
+    if taifc_out:
+        try:
+            import glob
+            for f in glob.glob(os.path.join(out, "fig", "tconvh_??_??.webp")):
+                os.remove(f)   # frames of the previous night
+            taifconv.hourly(gfs_fields, cycle, os.path.join(out, "fig"), taifc_out)
+        except Exception as e:  # noqa: BLE001
+            print("collision hourly failed:", repr(e), flush=True)
     # the nightly report's Makkah reading keeps the GFS collision (report logic unchanged, 19 Nov 2026)
     taifc_gfs = None
     try:

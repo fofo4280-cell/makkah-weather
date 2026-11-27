@@ -526,3 +526,62 @@ def draw_line(path, rows, today):
     fig.subplots_adjust(left=.08, right=.98, top=.84, bottom=.08)
     fig.savefig(path, dpi=180, facecolor=BG)
     plt.close(fig)
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Every 3 hours, day and night (Fahad, 27 Nov 2026: «خرائط الحمل الحراري أبيها بالساعات تتحرك… أمامنا موجات ليلية»,
+# then «نعم» to the collision map too): the surface collision map at Makkah hours 00, 03 … 21 of each forecast day
+# (today and after), GFS 0.25 instant 10 m wind, files tconvh_KK_HH.webp (KK = the index in run()'s days, as
+# tconv_KK_HH). The daily 11 AM / 1 PM / 3 PM maps and the Taif verdict are unchanged. Rows get "hours": [{h, t}],
+# t = the map's first explanation line (where the strong collisions are at that hour).
+HOURS8 = (0, 3, 6, 9, 12, 15, 18, 21)
+_H = {}
+
+
+def _hour_frame(job):
+    k, h, d, fh, out_fig = job
+    g = _H
+    try:
+        from datetime import date as _d
+        b, lat, lon = _get(g["gfs_fields"], g["cycle"], fh, WIND + [("cape", r":CAPE:surface:")])
+        f = {"lat": lat, "lon": lon, "H": {str(h): (b["u10"], b["v10"], b["cape"])}, **g["static"]}
+        lines = explain(f, {}, "conv", str(h))
+        pth = os.path.join(out_fig, f"tconvh_{k:02d}_{h:02d}.png")
+        draw_map(pth, f, hour=str(h), when=_d.fromisoformat(d), model="الأمريكي", lines=lines)
+        from PIL import Image
+        Image.open(pth).convert("RGB").save(pth[:-4] + ".webp", "WEBP", quality=78, method=4)
+        os.remove(pth)
+        return k, h, {"h": h, "t": lines[0] if lines else ""}
+    except Exception as e:  # noqa: BLE001
+        print("collision hourly failed", d, h, repr(e)[:160], flush=True)
+        return k, h, None
+
+
+def hourly(gfs_fields, cycle, out_fig, out, procs=3, log=print):
+    """adds rows[k]["hours"] to run()'s result `out` (forecast days only) and draws the frames"""
+    import time
+    from multiprocessing import get_context
+    t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+    st, _, _ = _get(gfs_fields, cycle, 24, STATIC)
+    _H.update(gfs_fields=gfs_fields, cycle=cycle, static={"hgt": st["hgt"], "land": st["land"]})
+    jobs = []
+    for k, r in enumerate(out["rows"]):
+        if not r.get("fc"):
+            continue
+        d = datetime.fromisoformat(r["d"]).replace(tzinfo=timezone.utc)
+        for h in HOURS8:
+            fh = int((d + timedelta(hours=h - 3) - t0).total_seconds() // 3600)
+            if fh < 0 or fh > 384 or (fh > 120 and fh % 3):
+                continue
+            jobs.append((k, h, r["d"], fh, out_fig))
+    ts, res = time.time(), {}
+    with get_context("fork").Pool(procs) as pool:
+        for k, h, s in pool.imap_unordered(_hour_frame, jobs):
+            if s:
+                res.setdefault(k, []).append(s)
+    for k, hs in res.items():
+        out["rows"][k]["hours"] = sorted(hs, key=lambda x: x["h"])
+    out["hourly"] = list(HOURS8)
+    log("collision hourly:", sum(len(v) for v in res.values()), "of", len(jobs), "frames in", int(time.time() - ts), "s",
+        flush=True)
+    return out
