@@ -134,7 +134,64 @@ def _sea_level(v):
 
 def _sea_places(r, lv_min=1):
     import seacell
-    return [seacell.NAME[k] for k, v in sorted(r["si"].items(), key=lambda kv: -kv[1]) if seacell.level(v) >= lv_min]
+    lv = seacell.levels(r)
+    return [seacell.NAME[k] for k, v in sorted(r["si"].items(), key=lambda kv: -kv[1]) if lv[k] >= lv_min]
+
+
+SHORT = {"wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
+         "south": "الليث", "qunf": "القنفذة"}
+
+
+def _runs(ks, order):
+    """«بين أملج ورابغ وعلى القنفذة»: contiguous stretches as one span, north to south"""
+    if not ks:
+        return ""
+    idx = sorted(order.index(k) for k in ks)
+    runs, cur = [], [idx[0]]
+    for i in idx[1:]:
+        if i == cur[-1] + 1:
+            cur.append(i)
+        else:
+            runs.append(cur)
+            cur = [i]
+    runs.append(cur)
+    parts = [f"على {SHORT[order[r[0]]]}" if len(r) == 1 else f"بين {SHORT[order[r[0]]]} و{SHORT[order[r[-1]]]}" for r in runs]
+    return "، و".join(parts)
+
+
+def wave_sea(st, w):
+    """the sea cells of a wave's days (the night before its first day to its last), in words, or None.
+    27 Nov 2026 (Fahad: «حالة غزيرة جدا بين املج ورابغ بحرية ثم تخرج الى المدينة وحائل»): when the trough index leaves the
+    coasts at zero but the sea cells are «مرجحة» or stronger, they are part of the wave, not a side line."""
+    import seacell
+    if not w:
+        return None
+    d0, d1 = (w["start"] - timedelta(days=1)).isoformat(), w["end"].isoformat()
+    rows = [r for r in st.get("seacell") or [] if d0 <= r["d"] <= d1 and r.get("times")]
+    best, ks, path, nights = {}, [], [], []
+    for r in rows:
+        lv = seacell.levels(r)
+        hit = [k for k in lv if lv[k] >= 2]
+        if hit:
+            nights.append(r["d"])
+        for k in hit:
+            best[k] = max(best.get(k, 0), lv[k])
+        path += [p for p in r.get("path") or [] if p not in path]
+    if not best:
+        return None
+    order = [k for k, *_ in seacell.STRETCHES]
+    strong = _runs([k for k in order if best.get(k) == 3], order)
+    likely = _runs([k for k in order if best.get(k) == 2], order)
+    a, b = date.fromisoformat(nights[0]), date.fromisoformat(nights[-1]) + timedelta(days=1)
+    t = "خلايا بحرية "
+    if strong:
+        t += f"مرجحة وقد تكون غزيرة {strong}" + (f"، ومرجحة {likely}" if likely else "")
+    else:
+        t += f"مرجحة {likely}"
+    t += f" من مساء {ar_date(a)} إلى عصر {ar_date(b)}"
+    if path:
+        t += f"، تخرج منها مع الرياح الجنوبية الغربية إلى {jl([seacell.INLAND[k][0] for k in path])}"
+    return t
 
 
 # ------------------------------------------------------------------ 1. executive summary
@@ -159,16 +216,23 @@ def s_exec(C):
     s0 = C["sea0"]
     if s0 and s0.get("si"):
         lk = _sea_places(s0)
-        B.append({"p": ("الليلة: خلايا بحرية " + ("مرجحة" if any(_sea_level(v) >= 2 for v in s0["si"].values()) else "محتملة")
-                        + f" على {jl(lk)}، ولا يُتوقع أن تبلغ مكة والجموم." if lk else
-                        "الليلة: لا تجتمع مكونات الخلايا البحرية على سواحل الحجاز.")})
+        import seacell
+        mx = max(seacell.levels(s0).values() or [0])
+        mk = ("، وقد تبلغ بعض خلاياها مكة والجموم." if s0.get("plain", 0) >= seacell.PLAIN_MIN
+              else "، ولا يُتوقع أن تبلغ مكة والجموم.")
+        B.append({"p": ("الليلة: خلايا بحرية " + seacell.WORD[max(mx, 1)] + f" على {jl(lk)}" + mk if lk else
+                        "الليلة: لا تجتمع مكونات الخلايا البحرية على السواحل الغربية.")})
     w = C["nw"]
     if w:
         t = (f"أقرب موجة: {R3.span_of_(w) if w['start'] != w['end'] else ar_date(w['start'])}، {KIND[w['kind']]}، "
              f"أوسع أيامها {ar_date(w['peak'])}، وتتركز مكوناتها على {jl(w['regions'][:3])}")
         nb = C["nb"]
+        ws_ = wave_sea(C["st"], w)
         if nb and nb["blocked"]:
-            t += "؛ والأرجح كسير شمالي يحمل الرطوبة نحو الشمال الشرقي، ونصيب مكة وسواحل الحجاز خلايا بحرية ليلية"
+            t += "؛ والأرجح كسير شمالي يحمل الرطوبة نحو الشمال الشرقي"
+            t += (f"، ومعه على البحر الأحمر {ws_}" if ws_ else "، ونصيب مكة وسواحل الحجاز خلايا بحرية ليلية")
+        elif ws_:
+            t += f"؛ ومعها على البحر الأحمر {ws_}"
         B.append({"p": t + "."})
     a = C["an"]
     if a and a.get("rh") is not None and w:
@@ -595,6 +659,11 @@ def s_cells(C):
 def _wave_blocks(st, day0):
     """report3.waves without the seasonal outlook (section 7) and the sea-cell nights (section 5)"""
     w = R3.waves(st, None, [], day0)
+    try:
+        wl = R3.wave_set(st, day0)[0]
+        ws_ = wave_sea(st, next((x for x in wl if not x.get("sign")), wl[0] if wl else None))
+    except Exception:  # noqa: BLE001
+        ws_ = None
     out, seen_h = [], False
     bl = w.get("blocks") or []
     has_h = any(b.get("h") == "أقرب موجة قادمة" for b in bl)
@@ -603,12 +672,15 @@ def _wave_blocks(st, day0):
             if b.get("h") == "أقرب موجة قادمة":
                 seen_h = True
             continue
-        if "p" in b and b["p"].startswith("الخلايا البحرية الليلية"):
+        if "p" in b and b["p"].startswith("الخلايا البحرية"):
             continue
         if "table" in b and len(b["table"]["rows"]) == 1:
             continue                    # one wave: the paragraph after it says the same
         if "p" in b:
             b = dict(b, p=b["p"].replace("النظرة الموسمية أعلاه", "النظرة الموسمية (القسم ٧)"))
+            if ws_ and b["p"].endswith("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية."):
+                b = dict(b, p=b["p"].removesuffix("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية.")
+                         + f"لكن البحر الأحمر نفسه يولد في أيامها {ws_}، فهذا نصيب السواحل الغربية من الموجة.")
         out.append(b)
     return out
 
@@ -625,8 +697,10 @@ def scenarios(C):
     B = [{"h": "السيناريوهات"}]
     base = f"الأساسي (الأرجح): القراءة أعلاه كما هي ({cv} أوسعها {pk})"
     if nb and nb["blocked"]:
-        base += ("، والأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، ونصيب سواحل الحجاز خلايا بحرية ليلية "
-                 "ومكة والجموم أطرافها")
+        ws_ = wave_sea(C["st"], w)
+        base += ("، والأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، "
+                 + (f"وأقوى ما في الموجة غربًا {ws_}، ومكة والجموم أطرافها" if ws_ else
+                    "ونصيب سواحل الحجاز خلايا بحرية ليلية ومكة والجموم أطرافها"))
     B.append({"p": base + "."})
     strong = "الأقوى (إن تحسنت المكونات): "
     cond = []
@@ -712,7 +786,8 @@ def snapshot(C):
             x["regions"] = [g["name"] for g in r.get("regions") or []][:4]
         s = next((y for y in st.get("seacell") or [] if y["d"] == d), None)
         if s and s.get("si"):
-            x["sea"] = {kk: _sea_level(v) for kk, v in s["si"].items()}
+            import seacell
+            x["sea"] = seacell.levels(s)
         if d in tf:
             x["meet"] = tf[d].get("where")
         if d in lwd:
@@ -926,7 +1001,7 @@ def conf_rows(C):
     s0 = C["sea0"]
     if s0 and s0.get("si") and _sea_places(s0):
         rows.append(["الخلايا البحرية الليلة", "متوسطة", "متوسطة", "منخفضة", "منخفضة"])
-        why.append("الخلايا البحرية: نافذتها الليل كله ومكانها شريط ساحلي، واختبارها على ٥٥ ليلة فقط")
+        why.append("الخلايا البحرية: نافذتها من التاسعة مساءً إلى الثالثة عصر الغد ومكانها شريط ساحلي، واختبارها على ٥٦ ليلة فقط، ودرجة الغزارة على ٩ ليالٍ")
     w = C["nw"]
     if w:
         lead = (w["start"] - C["day0"]).days
@@ -964,7 +1039,7 @@ def s_conf(C):
         B.append({"p": f"ومرسومة في الموقع دون أن تدخل قيمها في الحكم بعد: {jl(list(dict.fromkeys(nr)))}، فلا يُبنى عليها حكم الليلة."})
     B.append({"h": "حدود التوقع"})
     B.append({"p": "قراءة المكونات اختُبرت على أيام ١٠ إلى ١٨ نوفمبر فقط (٩ أيام) بأمطار الأقمار الصناعية بالأشعة تحت الحمراء، "
-                   "وهي تقلل من عواصف الجبال الصغيرة؛ ومؤشر الخلايا البحرية اختُبر على ليالي ١ أكتوبر إلى ٢٤ نوفمبر (٥٥ ليلة)؛ "
+                   "وهي تقلل من عواصف الجبال الصغيرة؛ ومؤشر الخلايا البحرية اختُبر على ليالي ١ أكتوبر إلى ٢٥ نوفمبر (٥٦ ليلة في ٨ أشرطة ساحلية من الوجه إلى القنفذة)؛ "
                    "والحالات المشابهة عشرون حالة من سبعة وستين موسمًا. والمطر الطبقي الواسع لا يُقرأ إلا بصعوده الواسع، "
                    "والعواصف المنفردة لا يُضبط موضعها بدقة أقل من عشرات الكيلومترات."})
     return sec(HEAD[8], "conf", B)
