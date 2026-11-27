@@ -719,9 +719,9 @@ def weak_reasons(st, day0, W):
     m = v.get("m")
     if m and st.get("wet_season") is not False:
         if m["phase"] not in BP.WET_PHASES:
-            out.append(f"التذبذب المداري متوقع اليوم في الطور {ar(m['phase'])}، وهو خارج أطوار الدعم")
+            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} اليوم، خارج أطوار الدعم")
         elif m["amp"] < 1.5:
-            out.append(f"التذبذب المداري متوقع اليوم في الطور {ar(m['phase'])} بسعة ضعيفة ({n1(m['amp'])})")
+            out.append(f"التذبذب المداري في الطور {ar(m['phase'])} اليوم بسعة ضعيفة ({n1(m['amp'])})")
     if v.get("mf"):
         ref = (st.get("mjof") or {}).get("z_ref") or 10
         z = v["mf"][0]
@@ -1560,7 +1560,6 @@ def ref_compare(st, w, day0):
             inl = [r for r in w["regions"] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
             t += (f"قلب هذه {nm} غربًا: {west[0].replace('البحر والساحل', 'على البحر والساحل')}، تبلغ فيه قوة المكونات "
                   + (f"أكثر من ٩٠ من ١٠٠" if sea >= 90 else f"نحو {ar(sea)} من ١٠٠") + f" (مؤشر الخلايا البحرية على مقياس الخريطة نفسه)، فهو {sw}"
-                  + (f"، ويمتد منه مع الرياح الجنوبية الغربية إلى {jl(inl)}" if inl else "")
                   + f"؛ وعلى اليابسة تجتمع المكونات أقوى ما تجتمع فوق {jl(RW.strongest(m))} بقوة {core(m)} من ١٠٠، "
                   f"فهي على اليابسة {iw}، وأوسع أيامها {ar_date(pk)}؛ وانتشارها المقدّر {_pct(m['cover'])} من المملكة، "
                   f"فانتشارها {cw}")
