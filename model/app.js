@@ -2205,7 +2205,7 @@
     // (ksa.hourly), only at the steps the run has (3-hourly to 6 days, then 3 AM, 9 AM, 3 PM, 9 PM)
     const KF = [];
     (K.hrs || []).forEach((hs, k) => (hs || []).forEach((o) => KF.push({ k, h: o.h, o })));
-    if (!KF.length) M.ksaMode = "d"; else if (!M.ksaMode) M.ksaMode = "h";
+    M.ksaMode = KF.length ? "h" : "d";   // hourly only (Fahad, 28 Nov 2026); the 3 PM button is gone
     const hm = () => M.ksaMode === "h" && KF.length > 0;
     ksaCard.at = () => { if (hm()) { const f = KF[+$("ksaDay").value] || KF[0]; return { k: f.k, h: f.h }; } return { k: +$("ksaDay").value || 0, h: 15 }; };
     const place = (k, prevH) => {
@@ -2221,7 +2221,7 @@
         $("ksaDay").value = i;
       } else { $("ksaDay").max = Math.max(0, K.days.length - 1); $("ksaDay").value = k; }
     };
-    $("ksaMode").hidden = !KF.length;
+    $("ksaMode").hidden = true;
     document.querySelectorAll("#ksaMode button").forEach((b) => {
       b.classList.toggle("on", b.dataset.m === M.ksaMode);
       b.onclick = () => {
@@ -2465,9 +2465,7 @@
     // forecast days (taifconv.hourly); with «كل ٣ ساعات» the slider runs over every hour of every forecast day
     const TF = [];
     T.rows.forEach((r, k) => (r.hours || []).forEach((o) => TF.push({ k, h: o.h, o })));
-    if (M.tcHour === undefined && TF.length) M.tcHour = "h";
-    if (M.tcHour === "h" && !TF.length) M.tcHour = "11";
-    document.querySelector('#tcHour button[data-h="h"]').hidden = !TF.length;
+    M.tcHour = TF.length ? "h" : "11";   // hourly only (Fahad, 28 Nov 2026); the fixed-hour buttons are gone
     const hmode = () => M.tcHour === "h" && TF.length > 0;
     const curDay = () => hmode() ? (TF[+$("tcDay").value] || TF[0]).k : (+$("tcDay").value || 0);
     const placeSlider = (k, prevH) => {
@@ -2506,7 +2504,7 @@
       const k = fr ? fr.k : +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
       const hh = M.tcHour || "11", fhh = hh === "h" ? "11" : hh;
       const name = lay === "line" ? "tconv_line" : hm ? `tconvh_${kk}_${String(fr.h).padStart(2, "0")}` : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${fhh}`;
-      $("tcHour").hidden = lay === "line";
+      $("tcHour").hidden = true;
       document.querySelectorAll("#tcHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
       $("tcFig").src = `${CL}fig/${name}.${hm ? "webp" : "png"}?v=${encodeURIComponent(st.updated)}`;
       if (hm && TF[+$("tcDay").value + 1]) { const n = TF[+$("tcDay").value + 1], im = new Image(); im.src = `${CL}fig/tconvh_${String(n.k).padStart(2, "0")}_${String(n.h).padStart(2, "0")}.webp?v=${encodeURIComponent(st.updated)}`; }
@@ -2579,7 +2577,7 @@
   // hour by hour (Fahad, 27 Nov 2026: «خرائط الحمل الحراري أبيها بالساعات تتحرك وليست بالايام.. أمامنا موجات ليلية»):
   // frames fig/<base>_KK_HH.webp every 3 hours of the Makkah day (redsea.hourly, GFS instant fields); one slider runs
   // over every hour of every day, so the row's ‹ ▶ › buttons (addPlayers) play the hours. Only the shown frame and the next one are fetched (never all frames
-  // at once). «خلاصة العصر» keeps the old daily map (12-6 PM) and its verdict.
+  // at once). Hourly only since 28 Nov 2026 (Fahad); the daily map shows only when a night has no frames.
   const HR_LAB = { 0: "منتصف الليل", 3: "٣ فجرًا", 6: "٦ صباحًا", 9: "٩ صباحًا", 12: "١٢ ظهرًا", 15: "٣ عصرًا", 18: "٦ مساءً", 21: "٩ ليلًا" };
   function convTimeline(pre, base, R, rows, ver, render) {
     const p2 = (n) => String(n).padStart(2, "0"), fig = $(pre + "Fig"), sl = $(pre + "Day");
@@ -2630,7 +2628,7 @@
     };
     if (!S.init) {
       S.init = true;
-      $(pre + "Mode").hidden = !frames.length;
+      $(pre + "Mode").hidden = true;   // hourly only (Fahad, 28 Nov 2026: «الخرائط بالساعات فلا نحتاج البقية»); daily only without frames
       document.querySelectorAll(`#${pre}Mode button`).forEach((x) => x.onclick = () => { if (x.dataset.m !== S.mode) setMode(x.dataset.m, true); });
       sl.oninput = show;
       setMode(S.mode, false);
@@ -2646,7 +2644,7 @@
     convTimeline("rs", "rsf", R, rows, ver, (k, r, o) => {
       const fut = r.d && r.d > todayISO() ? " (توقع)" : "";
       if (o) {
-        $("rsHint").textContent = "خريطة ساحلية من النموذج الأمريكي في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا لتظهر الخلايا الليلية فوق البحر: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار في تلك الساعة. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر. اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. حكم اليوم تحت الخريطة من خلاصة العصر.";
+        $("rsHint").textContent = "خريطة ساحلية من النموذج الأمريكي في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا لتظهر الخلايا الليلية فوق البحر: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار في تلك الساعة. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر. اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. وحكم اليوم تحت الخريطة محسوب على ساعات العصر.";
         const line = o.z >= 27 ? "الجنوبية تعم البحر كله" : o.z <= 15 ? "الشمالية تعم البحر حتى جنوبه" : `تلتقي الجنوبية بالشمالية فوق البحر عند محاذاة ${o.at}`;
         $("rsNow").innerHTML = `<div><b>في هذه الساعة${fut}: ${line}، وطاقة جنوب البحر وأوسطه نحو ${num(o.sc)} جول/كجم.</b></div>`
           + (r.text ? `<div>حكم اليوم: ${r.text[0]}.</div>` : "");
@@ -2722,7 +2720,7 @@
       const mdl = r.src === "gfs" ? "من النموذج الأمريكي" : "من النموذج الأوروبي";
       if (o) {
         $("tpHint").textContent = H0.replace("من النموذج الأوروبي، أعلى قيمها بين ١٢ ظهرًا و٦ مساءً", "من النموذج الأمريكي في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا")
-          + " اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. حكم اليوم من خلاصة العصر.";
+          + " اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. وحكم اليوم محسوب على ساعات العصر.";
         $("tpNow").innerHTML = `<div><b>في هذه الساعة${fut}: الطاقة المتصلة بالبحر تغطي ${num(o.ins, 1)}٪ من نجد والقصيم والوسطى.</b></div>`
           + (r.inland ? `<div>حكم اليوم (العصر): ${LV[r.inland] || ""}، ${num(r.inland_share, 1)}٪.</div>` : "");
         return;
