@@ -18,6 +18,8 @@ cells, the northern break and the daily analogs (26 Nov 2026) stay.
 """
 from datetime import date, timedelta
 
+import re
+
 import report2 as R2
 import report3 as R3
 from report2 import ar, num, jl, sec, ar_date
@@ -232,10 +234,17 @@ def s_exec(C):
          f"وانتشار المطر المقدّر {C['band']}.")
     named = [r for r in rows if not r.get("vague")]
     if named:
-        mech = {r["why"].get(p) for r in named for k in ("heavy", "moderate", "light") for p in r["row"][k]}
-        mech = [m for m in mech if m]
+        mech = []
+        for r in named:      # the mechanism of each region's strongest place, in the regions' order
+            for k in ("heavy", "moderate", "light"):
+                c = next((r["why"].get(p) for p in r["row"][k] if r["why"].get(p)), None)
+                if c:
+                    key = c.split(" تحت ")[0].replace(" الرطب", "")
+                    if key not in [m_.split(" تحت ")[0].replace(" الرطب", "") for m_ in mech]:
+                        mech.append(c)
+                    break
         t += (" والمطر المحتمل محصور في " + jl([f"{r['name']} ({'زخات متفرقة محتملة' if r['level'] == 'ضعيفة' else 'فرصة ' + r['level']})" for r in named])
-              + (f"، وآليته {jl(sorted(mech)[:2])}" if mech else "") + "، بعد الظهر حتى المغرب.")
+              + (f"، وآليته {jl(mech[:2])}" if mech else "") + "، بعد الظهر حتى المغرب.")
     else:
         t += " ولا تجتمع مكونات المطر على أي منطقة."
     if C["weak"]:
@@ -310,6 +319,10 @@ def s_dyn(C):
                 a = min([x[1] for x in (W.get("anom") or {}).values()] or [0])
                 b = {"p": "لا موجة علوية باردة بالمعنى الكامل: لا أخدود واضح المحور فوق المملكة ولا هبوط يُعتد به في سطح "
                           f"٥٠٠ هكتوباسكال، بل برودة طفيفة في الطبقات العليا ({R2.n1(abs(a))}° دون المعدل)."}
+            if "p" in b and b["p"].startswith("العلامات: ") and B and B[-1].get("p", "").startswith("لا موجة علوية باردة"):
+                B[-1] = {"p": B[-1]["p"].split("، بل برودة طفيفة")[0] + "، بل برودة طفيفة: "
+                         + b["p"].removeprefix("العلامات: ")}
+                continue
             B.append(b)
     wv = next((x for x in st.get("waves") or [] if x["d"] == day0.isoformat()), {})
     if wv.get("ridge"):
@@ -333,10 +346,11 @@ def s_dyn(C):
         why.append("من المداريات " + jl(Tt))
     if Rr:
         why.append("من العروض الوسطى " + jl(Rr))
-    if why:
-        t += "، يسندها " + "، و".join(why)
+    # the table above lists every factor; the reading names only the strongest on each side
+    if Tt or Rr:
+        t += "، أقوى ما يسندها " + (Tt or Rr)[0]
     if weak:
-        t += "، ويكبحها " + "، و".join(weak)
+        t += "، وأقوى ما يكبحها " + weak[0]
     # what the pieces mean together
     shallow = not W or not any(k in (W.get("trough") or {}) for k in ("cutoff",)) and C["sc"].get("trough", 0) < 0.3
     if shallow and C["ws"] < 1.8:
@@ -354,7 +368,7 @@ def s_dyn(C):
                       and any(troughreach.reaches(v) for v in r["z"].values())), None)
         if R_ and first:
             B.append({"p": f"والأخدود القادم من الشمال الغربي يبدأ أثره على المملكة {ar_date(date.fromisoformat(first))}، "
-                           f"ويبلغ أمام محوره {reach_brief(R_)} (التفصيل في القسم ٦)."})
+                           "وتفصيله في القسم ٦."})
     except Exception as e:  # noqa: BLE001
         print("report4: trough ahead failed:", repr(e), flush=True)
     return sec(HEAD[1], "dyn", B)
@@ -452,9 +466,12 @@ def s_moist(C):
         vals = {n: (x["rh7"], x["rh5"]) for n in want for x in [(sr.get("regions") or {}).get(n)] if x}
         src = "جي إف إس، لأن خرائط الرطوبة الأوروبية تعذرت قراءتها الليلة"
     if vals:
-        bits = [f"{n} {ar(int(round(a7)))}٪ عند ٧٠٠ و{ar(int(round(a5)))}٪ عند ٥٠٠ ({_depth_word(a7, a5)})"
-                for n, (a7, a5) in vals.items()]
+        dw = {_depth_word(a7, a5) for a7, a5 in vals.values()}
+        one = len(dw) == 1 and len(vals) > 1     # the same depth everywhere: said once
+        bits = [f"{n} {ar(int(round(a7)))}٪ عند ٧٠٠ و{ar(int(round(a5)))}٪ عند ٥٠٠"
+                + ("" if one else f" ({_depth_word(a7, a5)})") for n, (a7, a5) in vals.items()]
         B.append({"p": f"عمق الطبقة الرطبة (متوسط الرطوبة النسبية لكل منطقة، توقع {src}): " + "، و".join(bits)
+                       + (f"؛ فهي {next(iter(dw))} في كلها" if one else "")
                        + ". والجفاف فوق ٥٠٠ يحد من نمو الخلايا رأسيًا ويُسرع تبددها بعد الغروب."})
     else:
         B.append({"p": "عمق الطبقة الرطبة: تعذرت الليلة قراءة الرطوبة عند ٧٠٠ و٥٠٠ هكتوباسكال، فلم يُبنَ عليها حكم."})
@@ -476,7 +493,12 @@ def s_moist(C):
             where.append("هضبة الطائف وحافتي الهدا والشفا")
         if "low" in (lw.get("sides") or []):
             where.append("سهول مكة وتهامة")
-        B.append({"p": f"الحدث قرب الأرض: هواء أبرد وأجف من معدله في الطبقة السفلى فوق {jl(where)}، يرفع الكبح ويخفض طاقة "
+        rainy = {r["name"] for r in rows if not r.get("vague")}
+        if not (rainy & set(lw.get("cold_regions") or []) or lw.get("sides")):
+            B.append({"p": f"الحدث قرب الأرض: هواء أبرد وأجف من معدله في الطبقة السفلى فوق {jl(where)}، يحدّ شدة الخلايا "
+                           "هناك، ولا تجتمع فيها مكونات المطر اليوم، فلا أثر له على مناطق المطر."})
+        else:
+            B.append({"p": f"الحدث قرب الأرض: هواء أبرد وأجف من معدله في الطبقة السفلى فوق {jl(where)}، يرفع الكبح ويخفض طاقة "
                        "الحمل، فيحدّ من شدة الخلايا ولا يلغيها: لا عواصف قوية ولا أمطار غزيرة، وقد تنشأ خلايا خفيفة إلى "
                        "متوسطة حيث يصعد هواء البحر الحواف تحت طبقة وسطى رطبة. ففي مكة والطائف والجنوب الغربي أساس المطر "
                        "التضاريس والتسخين السطحي والرطوبة، فإن توافقت نشأت الخلايا، والحدث قرب الأرض عامل ثانوي يحدّ "
@@ -604,16 +626,28 @@ def s_geo(C):
         tr = [[r["name"]] + [a for a, _ in tests(r)] for r in named]
         B.append({"h": "اختبار التوافق"})
         B.append({"table": {"head": ["المنطقة", "المكاني", "الزماني", "الرياح ومسار الخلايا", "الآلية"], "rows": tr}})
-        groups = {}
+        # what every region shares is said once, before the regions (Fahad 27 Nov 2026: «ازل اي تكرار»)
+        TN = ("المكاني", "الزماني", "الرياح", "الآلية")
+        rd = []
         for r in named:
             sup, lim, sp = factors(r, C)
+            ts = tests(r)
+            nt = [f"{TN[i]} {a} ({b})" for i, (a, b) in enumerate(ts) if a != "متحقق"]
+            rd.append((r, sup, lim, sp, ts, nt))
+        common = lambda k: ([x for x in rd[0][k] if all(x in y[k] for y in rd[1:])] if len(rd) > 1 else [])
+        c_lim, c_sp, c_nt = common(2), common(3), common(5)
+        if c_lim or c_sp or c_nt:
+            parts = ([f"الكابح {jl(c_sp)}"] if c_sp else []) + ([f"المحدد {jl(c_lim)}"] if c_lim else []) + c_nt
+            B.append({"p": f"المشترك بين {jl([r['name'] for r in named])}: " + "، و".join(parts) + "."})
+        groups = {}
+        for r, sup, lim, sp, ts, nt in rd:
+            lim = [x for x in lim if x not in c_lim]
+            sp = [x for x in sp if x not in c_sp]
+            nt = [x for x in nt if x not in c_nt]
             t = f"الداعم {jl(sup) if sup else 'لا عامل مكتمل'}"
             t += f"، والمحدد {jl(lim)}" if lim else ""
-            t += f"، والكابح {jl(sp)}" if sp else "، ولا كابح محلي"
-            ts = tests(r)
+            t += f"، والكابح {jl(sp)}" if sp else ("" if c_sp else "، ولا كابح محلي")
             full = sum(1 for a, _ in ts if a == "متحقق")
-            TN = ("المكاني", "الزماني", "الرياح", "الآلية")
-            nt = [f"{TN[i]} {a} ({b})" for i, (a, b) in enumerate(ts) if a != "متحقق"]
             t += f". تحقق {ar(full)} من ٤ شروط" + (f"، و{'؛ و'.join(nt)}" if nt else "")
             t += "؛ فهي زخات متفرقة محتملة" if r["level"] == "ضعيفة" else f"؛ فالفرصة {r['level']}"
             if r.get("level0"):
@@ -679,7 +713,7 @@ def s_cells(C):
         if m[0] == "east_dry" and not (RD.get("cape_edge") or 0) >= 50:
             t += "، والطاقة عند الالتقاء ضعيفة"
         if m[0] == "east_dry" and (RD.get("cape_edge") or 0) >= 50:
-            t += (f"، والطاقة على الحواف ({ar(int(round(RD.get('cape_edge') or 0, -1)))} جول/كغ) أعلى منها عند الالتقاء "
+            t += (f"، وطاقة السطح على الحواف ({ar(int(round(RD.get('cape_edge') or 0, -1)))} جول/كغ) أعلى منها عند الالتقاء "
                   f"({ar(int(round(RD.get('cape_east') or 0, -1)))} جول/كغ)")
         if lw.get("cut"):
             t += "؛ والحدث البارد قرب الأرض فوق الهضبة يحدّ من شدته، فالخلايا إن نشأت على الهدا والشفا خفيفة إلى متوسطة"
@@ -718,25 +752,37 @@ def _wave_blocks(st, day0):
     out, seen_h = [], False
     bl = w.get("blocks") or []
     has_h = any(b.get("h") == "أقرب موجة قادمة" for b in bl)
+    multi = any("table" in b and len(b["table"]["rows"]) > 1 for b in bl)
     for b in bl:
         if has_h and not seen_h:
             if b.get("h") == "أقرب موجة قادمة":
                 seen_h = True
             continue
-        if "p" in b and b["p"].startswith("الخلايا البحرية"):
-            continue
+        if "p" in b and (b["p"].startswith("الخلايا البحرية") or b["p"].startswith("لم تكتمل بعد في توقع الأيام القادمة")):
+            continue                    # sea-cell nights: section 5; the season: section 7
         if "table" in b and len(b["table"]["rows"]) == 1:
             continue                    # one wave: the paragraph after it says the same
         if "p" in b:
-            b = dict(b, p=b["p"].replace("النظرة الموسمية أعلاه", "النظرة الموسمية (القسم ٧)"))
+            p_ = b["p"].replace("النظرة الموسمية أعلاه", "النظرة الموسمية (القسم ٧)")
+            if multi:               # the table already names the areas of each wave
+                p_ = re.sub(r"، والمناطق المتأثرة بها: .*?(?=\. |، والثقة)", "", p_)
+            if p_.startswith("تستمر الموجة"):   # the window is in the table: keep only the warm event's days
+                p_ = re.sub(r"^تستمر الموجة [^(]*\([^)]*\)، ويرافقها حدث دافئ قرب الأرض", "ويمتد هذا الحدث الدافئ", p_)
+            p_ = re.sub(r"، وحدث دافئ قرب الأرض فوق [^.]*?(?=\.|$)", "، وحدث دافئ قرب الأرض", p_)
+            b = dict(b, p=p_)
         out.append(b)
         if "p" in b and b["p"].startswith("نمط الموجة"):
             if rw_:
                 out.append({"p": rw_})
-            if ws_:
+            west = [r for r in (nw_ or {}).get("regions") or [] if r.startswith("البحر والساحل")]
+            if ws_ and west:
+                # the nights and numbers are in section 5 and the summary: here only where the core is and goes
                 rest = R3.land_rest(nw_)
-                out.append({"p": f"وقلب الموجة غربًا: {ws_}" + (f"؛ ثم أمطار أوسع وأخف من صعود الهواء الرطب على "
-                                                                 f"{jl(rest[:4])}" if rest else "") + "."})
+                inl = [r for r in nw_["regions"] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+                out.append({"p": f"وقلب الموجة غربًا الخلايا البحرية الغزيرة {west[0].removeprefix('البحر والساحل ').strip()}"
+                                 " (لياليها وأرقامها في القسم ٥)"
+                                 + (f"، تخرج مع الرياح الجنوبية الغربية إلى {jl(inl)}" if inl else "")
+                                 + (f"؛ ثم أمطار أوسع وأخف من صعود الهواء الرطب على {jl(rest[:4])}" if rest else "") + "."})
     return out
 
 
@@ -756,8 +802,7 @@ def scenarios(C):
         inl = [r for r in w.get("regions") or [] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
         base += "، ومحور الأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، ويعمل الأخدود أمام محوره"
         if west:
-            base += (f"، فيكون قلب الموجة على {west[0]}" + (f" ويمتد إلى {jl(inl)}" if inl else "")
-                     + "، ومكة والجموم على أطرافه")
+            base += "، فيبقى القلب الغزير بحريًا ساحليًا غربًا كما سبق، ومكة والجموم على أطرافه"
         else:
             base += "، ونصيب سواحل الحجاز خلايا بحرية ليلية، ومكة والجموم على أطرافها"
     B.append({"p": base + "."})
