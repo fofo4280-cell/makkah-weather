@@ -159,6 +159,22 @@ def _runs(ks, order):
     return "، و".join(parts)
 
 
+def wave_reach(st, w):
+    """[(zone, dz, t5, w)] where the trough's forcing reaches on the wave's days (troughreach.py), or []"""
+    import troughreach
+    if not w or not st.get("troughreach"):
+        return []
+    return troughreach.reach(st["troughreach"], w["start"] - timedelta(days=1), w["end"])
+
+
+def reach_short(R, n=5):
+    """«شمال البحر الأحمر، وساحل تبوك، والمدينة المنورة…» sea and coasts first"""
+    import troughreach
+    sea = [x for x in R if x[0] in troughreach.SEA]
+    land = [x for x in R if x[0] not in troughreach.SEA]
+    return jl([troughreach.NAME[x[0]] for x in (sea + land)[:n]])
+
+
 def wave_sea(st, w):
     """the sea cells of a wave's days (the night before its first day to its last), in words, or None.
     27 Nov 2026 (Fahad: «حالة غزيرة جدا بين املج ورابغ بحرية ثم تخرج الى المدينة وحائل»): when the trough index leaves the
@@ -228,8 +244,11 @@ def s_exec(C):
              f"أوسع أيامها {ar_date(w['peak'])}، وتتركز مكوناتها على {jl(w['regions'][:3])}")
         nb = C["nb"]
         ws_ = wave_sea(C["st"], w)
+        R_ = wave_reach(C["st"], w)
         if nb and nb["blocked"]:
             t += "؛ والأرجح كسير شمالي يحمل الرطوبة نحو الشمال الشرقي"
+            if R_:
+                t += f"، لكن تأثير الأخدود أمام محوره يبلغ {reach_short(R_)}"
             t += (f"، ومعه على البحر الأحمر {ws_}" if ws_ else "، ونصيب مكة وسواحل الحجاز خلايا بحرية ليلية")
         elif ws_:
             t += f"؛ ومعها على البحر الأحمر {ws_}"
@@ -664,6 +683,13 @@ def _wave_blocks(st, day0):
         ws_ = wave_sea(st, next((x for x in wl if not x.get("sign")), wl[0] if wl else None))
     except Exception:  # noqa: BLE001
         ws_ = None
+    try:
+        import troughreach
+        nw_ = next((x for x in wl if not x.get("sign")), wl[0] if wl else None)
+        rw_ = troughreach.words(st.get("troughreach"), nw_["start"] - timedelta(days=1), nw_["end"]) if nw_ else None
+    except Exception as e:  # noqa: BLE001
+        print("report4: trough reach failed:", repr(e), flush=True)
+        rw_ = None
     out, seen_h = [], False
     bl = w.get("blocks") or []
     has_h = any(b.get("h") == "أقرب موجة قادمة" for b in bl)
@@ -680,8 +706,10 @@ def _wave_blocks(st, day0):
             b = dict(b, p=b["p"].replace("النظرة الموسمية أعلاه", "النظرة الموسمية (القسم ٧)"))
             if ws_ and b["p"].endswith("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية."):
                 b = dict(b, p=b["p"].removesuffix("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية.")
-                         + f"لكن البحر الأحمر نفسه يولد في أيامها {ws_}، فهذا نصيب السواحل الغربية من الموجة.")
+                         + f"لكن البحر الأحمر يولد في أيامها {ws_}، فهذا نصيب السواحل الغربية من الموجة.")
         out.append(b)
+        if "p" in b and b["p"].startswith("نمط الموجة") and rw_:
+            out.append({"p": rw_})
     return out
 
 
@@ -698,7 +726,9 @@ def scenarios(C):
     base = f"الأساسي (الأرجح): القراءة أعلاه كما هي ({cv} أوسعها {pk})"
     if nb and nb["blocked"]:
         ws_ = wave_sea(C["st"], w)
-        base += ("، والأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، "
+        R_ = wave_reach(C["st"], w)
+        base += ("، ومحور الأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، "
+                 + (f"ويبلغ تأثيره أمام المحور {reach_short(R_)}، " if R_ else "")
                  + (f"وأقوى ما في الموجة غربًا {ws_}، ومكة والجموم أطرافها" if ws_ else
                     "ونصيب سواحل الحجاز خلايا بحرية ليلية ومكة والجموم أطرافها"))
     B.append({"p": base + "."})
