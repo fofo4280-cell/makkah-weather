@@ -137,6 +137,28 @@ def features(g):
     return out
 
 
+def heavy_points(g):
+    """[[lat, lon, index]] of the grid points of the sea strips and coasts where the ingredients of THAT point give a
+    heavy cell (index >= 0.65 with onshore steering >= 8 m/s), for the wave map (Fahad 27 Nov 2026: «كيف يظهر المطر
+    الغزير شريط متصل على الساحل»: the map must show where the point's own ingredients support heavy cells, never one
+    number of a whole stretch painted along it)"""
+    M = masks(g["land"])
+    zone = np.zeros_like(g["land"], dtype=bool)
+    for key, *_ in STRETCHES:
+        zone |= M[key][0] | M[key][1]
+    cv = _conv(g["u10"], g["v10"])
+    steer = 0.5 * (g["u700"] + g["u500"])
+    cl = lambda x: np.clip(x, 0, 1)
+    fuel = cl((g["cape"] - 500) / 2500) * np.where(g["cin"] >= -50, 1.0, np.where(g["cin"] >= -150, 0.5, 0.0))
+    I = (fuel * cl((g["pw"] - 22) / 15) * (0.35 + 0.65 * cl(cv / 2.0)) * (0.3 + 0.7 * cl(steer / 6.0))
+         * (0.5 + 0.5 * cl((g["rh700"] - 20) / 40)))
+    # the trigger at the point itself: heavy cells grow where the low-level winds meet, not all along the strip
+    ok = zone & (I >= LEVELS[1]) & (steer >= STRONG_STEER) & (cv >= 2.0)
+    la, lo = _grid()
+    J, K = np.nonzero(ok)
+    return [[float(la[j]), float(lo[k]), round(float(I[j, k]), 2)] for j, k in zip(J, K)]
+
+
 def parts(f):
     """the five ingredients of one stretch at one time, each 0..1"""
     cl = lambda x: float(np.clip(x, 0, 1))
@@ -184,7 +206,7 @@ def night(get_fields, cycle, k):
             continue
         f = features(g)
         times.append({"h": (18 + h - 6) % 24, "f": f,
-                      "si": {key: index(v) for key, v in f.items() if key in NAME}})
+                      "si": {key: index(v) for key, v in f.items() if key in NAME}, "hp": heavy_points(g)})
     out = {"d": (t0 + timedelta(days=k)).isoformat(), "times": times}
     keys = [key for key, *_ in STRETCHES]
     out["si"] = {key: max([t["si"].get(key, 0) for t in times] or [0]) for key in keys}

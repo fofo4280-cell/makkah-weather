@@ -238,7 +238,7 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A, sea=None):
                 j0, j1 = int((N - (la_ + 0.125)) / res), int((N - (la_ - 0.125)) / res)
                 i0, i1 = int((lo_ - 0.125 - W) / res), int((lo_ + 0.125 - W) / res)
                 R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1] = np.maximum(R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1], val)
-        R = gaussian_filter(R, 4)
+        R = gaussian_filter(R, 1.5)
         R = np.where(R >= LEVELS[0], R, np.nan)
         ax.imshow(R, extent=[lo2[0], lo2[-1], la2[-1], la2[0]], origin="upper", cmap=ListedColormap(DARK),
                   norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
@@ -315,25 +315,17 @@ def draw(path, panels, title, sub):
 
 
 def sea_cells(st, a, b):
-    """[(sea and coast cells [[lat, lon]], index x 100)] of the stretches whose sea cells are heavy (level 3) in the
-    nights a-1 .. b; nothing for the others"""
-    import json
-    import os
+    """[([[lat, lon]], index x 100)] of the grid points over the sea strips and coasts where the point's own
+    ingredients give heavy sea cells (seacell.heavy_points) in the nights a-1 .. b, strongest time kept"""
     from datetime import timedelta
-    import seacell
-    rows = [r for r in st.get("seacell") or [] if (a - timedelta(days=1)).isoformat() <= r["d"] <= b.isoformat()
-            and r.get("times")]
     best = {}
-    for r in rows:
-        lv = seacell.levels(r)
-        for k, v in r["si"].items():
-            if lv[k] == 3:
-                best[k] = max(best.get(k, 0), 100 * v)
-    try:
-        C = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seacell_cells.json")))
-    except Exception:  # noqa: BLE001
-        return []
-    return [(C[k]["sea"] + C[k]["coast"], v) for k, v in best.items() if k in C]
+    for r in st.get("seacell") or []:
+        if not ((a - timedelta(days=1)).isoformat() <= r["d"] <= b.isoformat()):
+            continue
+        for t in r.get("times") or []:
+            for la_, lo_, v in t.get("hp") or []:
+                best[(la_, lo_)] = max(best.get((la_, lo_), 0), 100 * v)
+    return [([[la_, lo_]], v) for (la_, lo_), v in best.items()]
 
 
 def draw_wave(out_dir, st):
