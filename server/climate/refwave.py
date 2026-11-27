@@ -226,18 +226,22 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A, sea=None):
         fine = np.where(inside & (fine >= LEVELS[0]), fine, np.nan)
         ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=ListedColormap(DARK),
                   norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
-    # the wave's sea cells over the Red Sea (seacell.py; Fahad 27 Nov 2026: the index above is read over land only and
-    # missed «حالة غزيرة جدا بين املج ورابغ بحرية»): hatched squares, the level's colour
-    from matplotlib.patches import Rectangle as _R
-    for cells, lv in sea or []:
-        col = DARK[{3: 7, 2: 5}.get(lv, 3)]
-        for la_, lo_ in cells:
-            ax.add_patch(_R((lo_ - 0.125, la_ - 0.125), 0.25, 0.25, facecolor=col, edgecolor="#f4f6f8", linewidth=0.25,
-                            hatch="////", alpha=0.85, zorder=1.5))
+    # heavy sea cells over the Red Sea and its coast (seacell.py level 3), in the same smooth shading as the land and
+    # nothing where they are not heavy (Fahad 27 Nov 2026: «ان كنت ترى مطر غزير في البحر او على الساحل فعليك رسمه او لا»)
     if sea:
-        ax.text(0.02, 0.03, A("المربعات المخططة فوق البحر: خلايا بحرية (البنفسجي قد تكون غزيرة، والبرتقالي مرجحة)"), transform=ax.transAxes,
-                ha="left", va="bottom", fontsize=6.4, color="#ffffff", fontfamily=fam,
-                path_effects=[pe.withStroke(linewidth=2.0, foreground="#111111")], zorder=7)
+        res = 0.05
+        la2 = np.arange(N, S - 1e-6, -res)
+        lo2 = np.arange(W, E + 1e-6, res)
+        R = np.zeros((len(la2), len(lo2)))
+        for cells, val in sea:
+            for la_, lo_ in cells:
+                j0, j1 = int((N - (la_ + 0.125)) / res), int((N - (la_ - 0.125)) / res)
+                i0, i1 = int((lo_ - 0.125 - W) / res), int((lo_ + 0.125 - W) / res)
+                R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1] = np.maximum(R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1], val)
+        R = gaussian_filter(R, 4)
+        R = np.where(R >= LEVELS[0], R, np.nan)
+        ax.imshow(R, extent=[lo2[0], lo2[-1], la2[-1], la2[0]], origin="upper", cmap=ListedColormap(DARK),
+                  norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
     for r in regs:
         for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
             x, y = g_.exterior.xy
@@ -311,7 +315,8 @@ def draw(path, panels, title, sub):
 
 
 def sea_cells(st, a, b):
-    """[(sea cells [[lat, lon]], level)] of the stretches with sea cells «مرجحة» or stronger in the nights a-1 .. b"""
+    """[(sea and coast cells [[lat, lon]], index x 100)] of the stretches whose sea cells are heavy (level 3) in the
+    nights a-1 .. b; nothing for the others"""
     import json
     import os
     from datetime import timedelta
@@ -320,13 +325,15 @@ def sea_cells(st, a, b):
             and r.get("times")]
     best = {}
     for r in rows:
-        for k, lv in seacell.levels(r).items():
-            best[k] = max(best.get(k, 0), lv)
+        lv = seacell.levels(r)
+        for k, v in r["si"].items():
+            if lv[k] == 3:
+                best[k] = max(best.get(k, 0), 100 * v)
     try:
         C = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seacell_cells.json")))
     except Exception:  # noqa: BLE001
         return []
-    return [(C[k]["sea"], lv) for k, lv in best.items() if lv >= 2 and k in C]
+    return [(C[k]["sea"] + C[k]["coast"], v) for k, v in best.items() if k in C]
 
 
 def draw_wave(out_dir, st):
