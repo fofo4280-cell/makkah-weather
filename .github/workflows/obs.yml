@@ -1,0 +1,21 @@
+name: seacell obs 2
+on: push
+permissions:
+  contents: write
+jobs:
+  obs:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with: {path: me}
+      - uses: actions/checkout@v4
+        with: {ref: saudi-wrf, path: code}
+      - run: pip install -q numpy scipy
+      - run: |
+          cd code/server/climate
+          python3 seacell_obs.py 2026-10-01 2026-11-26 ../../../me/cells.json /tmp/scobs2.json
+      - run: |
+          mkdir /tmp/p && cd /tmp/p && cp /tmp/scobs2.json . && git init -q -b data && git add -A
+          git -c user.name="probe" -c user.email="actions@users.noreply.github.com" commit -q -m obs
+          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:test-seacell2
