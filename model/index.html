@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Inter:wght@500;600&display=swap">
 <link rel="stylesheet" href="../vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261125lw">
+<link rel="stylesheet" href="style.css?v=20261128hr">
 </head>
 <body>
 <div class="app">
@@ -263,16 +263,18 @@
         </div>
         <div data-sec="conv" class="card" id="rsCard" hidden>
           <h3>تدفق البحر الأحمر نحو السواحل</h3>
+          <div class="seg" id="rsMode" hidden><button data-m="h" class="on">كل ٣ ساعات</button><button data-m="d">خلاصة العصر</button></div>
           <div class="figwrap" dir="ltr"><img loading="lazy" id="rsFig" alt="تدفق البحر الأحمر" style="width:100%;display:block;border-radius:12px"></div>
           <div id="rsNow" class="ksa-low"></div>
           <div class="mjo-time">
-            <input type="range" id="rsDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
+            <input type="range" id="rsDay" min="0" max="7" value="0" dir="ltr" aria-label="الوقت">
             <span id="rsDayLabel"></span>
           </div>
           <p class="hint" id="rsHint"></p>
         </div>
         <div data-sec="conv" class="card" id="tpCard" hidden>
           <h3>توغّل طاقة الحمل من البحر الأحمر</h3>
+          <div class="seg" id="tpMode" hidden><button data-m="h" class="on">كل ٣ ساعات</button><button data-m="d">خلاصة العصر</button></div>
           <div class="ksa-map" dir="ltr">
             <div class="ksa-scroll" id="tpScroll"><div class="ksa-inner" id="tpInner"><img loading="lazy" id="tpFig" alt="توغّل طاقة الحمل" draggable="false"><i id="tpPin" class="ksa-pin" hidden></i></div></div>
             <div class="ksa-zoom"><button id="tpIn" aria-label="تكبير">+</button><button id="tpOut" aria-label="تصغير" disabled>−</button></div>
@@ -280,7 +282,7 @@
           <div id="tpCoord" class="ksa-coord" hidden></div>
           <div id="tpNow" class="ksa-low"></div>
           <div class="mjo-time">
-            <input type="range" id="tpDay" min="0" max="7" value="0" dir="ltr" aria-label="اليوم">
+            <input type="range" id="tpDay" min="0" max="7" value="0" dir="ltr" aria-label="الوقت">
             <span id="tpDayLabel"></span>
           </div>
           <p class="hint" id="tpHint">طاقة الحمل من النموذج الأوروبي، أعلى قيمها بين ١٢ ظهرًا و٦ مساءً، بألوان خرائط الدكتور خالد العتيبي: الأخضر طاقة خفيفة، ثم الأصفر فالأحمر فالعنابي، والأسود والرمادي أعلاها. الخط المتقطع يحيط بالطاقة المتصلة بالبحر الأحمر (٥٠٠ فأكثر في الأوروبي، و١٠٠ فأكثر في الأمريكي)، فيُظهر إلى أين دخل تدفقها داخل الجزيرة نحو نجد والقصيم والوسطى، وهو ما يصحب مواسم الخصب. الأسهم الرياح القريبة من السطح. كبّر الخريطة بالزرين، والمس أي موضع لترى إحداثياته.</p>
@@ -319,7 +321,7 @@
 <script>window.SWRF_CLIMATE = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/climate-data/";</script>
 <script>window.SWRF_DATA = "https://raw.githubusercontent.com/Fofo4280-cell/makkah-weather/model-data/";</script>
 <script src="../vendor/leaflet/leaflet.js"></script>
-<script src="app.js?v=20261125lw"></script>
+<script src="app.js?v=20261128hr"></script>
 <script src="mapvideo.js?v=20261125wa1"></script>
 </body>
 </html>

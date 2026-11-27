@@ -2507,25 +2507,87 @@
   // بدلا عن تبويب عدم الاستقرار»): ECMWF maps fig/rsc_NN.png (redsea.py), today and 7 after, Dr. Khalid's colours
   // the Red Sea flow toward the coasts in the «الحمل الحراري» tab (Fahad, 19 Nov 2026 night: «اجعل لها تبويب خاص الحمل
   // الحراري بعد الرطوبة»), maps fig/rsf_NN.png from redsea.py, today and 7 after
+  // hour by hour (Fahad, 27 Nov 2026: «خرائط الحمل الحراري أبيها بالساعات تتحرك وليست بالايام.. أمامنا موجات ليلية»):
+  // frames fig/<base>_KK_HH.webp every 3 hours of the Makkah day (redsea.hourly, GFS instant fields); one slider runs
+  // over every hour of every day, so the row's ‹ ▶ › buttons (addPlayers) play the hours. Only the shown frame and the next one are fetched (never all frames
+  // at once). «خلاصة العصر» keeps the old daily map (12-6 PM) and its verdict.
+  const HR_LAB = { 0: "منتصف الليل", 3: "٣ فجرًا", 6: "٦ صباحًا", 9: "٩ صباحًا", 12: "١٢ ظهرًا", 15: "٣ عصرًا", 18: "٦ مساءً", 21: "٩ ليلًا" };
+  function convTimeline(pre, base, R, rows, ver, render) {
+    const p2 = (n) => String(n).padStart(2, "0"), fig = $(pre + "Fig"), sl = $(pre + "Day");
+    const frames = [];
+    rows.forEach((r, k) => (r.hours || []).forEach((o) => frames.push({ k, h: o.h, o })));
+    const S = convTimeline[pre] || (convTimeline[pre] = { mode: frames.length ? "h" : "d" });
+    if (!frames.length) S.mode = "d";
+    const hurl = (f) => `${CL}fig/${base}_${p2(f.k)}_${p2(f.h)}.webp?v=${ver}`;
+    const durl = (k) => `${CL}fig/${base}_${p2(k)}.png?v=${ver}`;
+    const nowH = () => new Date(Date.now() + 3 * 3600e3).getUTCHours();
+    const startFrame = () => {
+      const t = todayIdx(R.days), h = nowH();
+      let i = frames.findIndex((f) => f.k === t);
+      if (i < 0) return 0;
+      while (frames[i + 1] && frames[i + 1].k === t && frames[i + 1].h <= h) i++;
+      return i;
+    };
+    const show = () => {
+      const i = +sl.value || 0;
+      if (S.mode === "h") {
+        const f = frames[i] || frames[0], r = rows[f.k] || {};
+        fig.src = hurl(f);
+        if (frames[i + 1]) { const n = new Image(); n.src = hurl(frames[i + 1]); }
+        $(pre + "DayLabel").textContent = r.d ? `${dayLab(r.d)}، ${f.h === 0 ? "" : "الساعة "}${HR_LAB[f.h]}` : "";
+        render(f.k, r, f.o);
+      } else {
+        const r = rows[i] || {};
+        fig.src = durl(i);
+        $(pre + "DayLabel").textContent = r.d ? dayLab(r.d) : "";
+        render(i, r, null);
+      }
+    };
+    const setMode = (m, keep) => {
+      plStop();
+      const cur = +sl.value || 0;
+      let k = S.mode === "h" ? (frames[cur] || {}).k : cur;
+      if (!keep) k = todayIdx(R.days);
+      S.mode = m;
+      if (m === "h") {
+        sl.max = Math.max(0, frames.length - 1);
+        const h = keep && frames[cur] ? frames[cur].h : null;
+        let i = keep ? frames.findIndex((f) => f.k === k && (h == null || f.h === h)) : startFrame();
+        if (i < 0) i = Math.max(0, frames.findIndex((f) => f.k === k));
+        sl.value = i;
+      } else { sl.max = Math.max(0, rows.length - 1); sl.value = k || 0; }
+      document.querySelectorAll(`#${pre}Mode button`).forEach((x) => x.classList.toggle("on", x.dataset.m === m));
+      show();
+    };
+    if (!S.init) {
+      S.init = true;
+      $(pre + "Mode").hidden = !frames.length;
+      document.querySelectorAll(`#${pre}Mode button`).forEach((x) => x.onclick = () => { if (x.dataset.m !== S.mode) setMode(x.dataset.m, true); });
+      sl.oninput = show;
+      setMode(S.mode, false);
+    } else show();
+  }
+  // the Red Sea flow toward the coasts in the «الحمل الحراري» tab (Fahad, 19 Nov 2026 night: «اجعل لها تبويب خاص الحمل
+  // الحراري بعد الرطوبة»), maps fig/rsf_NN.png from redsea.py, every 3 hours since 27 Nov 2026 (convTimeline)
   function rsCard() {
     const st = M.st, R = st.rsflow, rows = R && R.rows ? R.rows : [];
     $("rsCard").hidden = !rows.length;
     if ($("rsCard").hidden) return;
-    const show = () => {
-      const k = +$("rsDay").value || 0, r = rows[k] || {};
-      $("rsFig").src = `${CL}fig/rsf_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""))}`;
-      $("rsDayLabel").textContent = r.d ? dayLab(r.d) : "";
+    const ver = encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""));
+    convTimeline("rs", "rsf", R, rows, ver, (k, r, o) => {
+      const fut = r.d && r.d > todayISO() ? " (توقع)" : "";
+      if (o) {
+        $("rsHint").textContent = "خريطة ساحلية من النموذج الأمريكي في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا لتظهر الخلايا الليلية فوق البحر: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار في تلك الساعة. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر. اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. حكم اليوم تحت الخريطة من خلاصة العصر.";
+        const line = o.z >= 27 ? "الجنوبية تعم البحر كله" : o.z <= 15 ? "الشمالية تعم البحر حتى جنوبه" : `تلتقي الجنوبية بالشمالية فوق البحر عند محاذاة ${o.at}`;
+        $("rsNow").innerHTML = `<div><b>في هذه الساعة${fut}: ${line}، وطاقة جنوب البحر وأوسطه نحو ${num(o.sc)} جول/كجم.</b></div>`
+          + (r.text ? `<div>حكم اليوم: ${r.text[0]}.</div>` : "");
+        return;
+      }
       const mdl = r.src === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
       $("rsHint").textContent = `خريطة ساحلية من ${mdl}، متوسط ١٢ ظهرًا إلى ٦ مساءً: الأسهم الرياح القريبة من السطح، الذهبي منها جنوبية تصعد مع البحر والأزرق شمالية، والألوان طاقة عدم الاستقرار ولسانها. الخط المتقطع حيث تلتقي الجنوبية بالشمالية فوق البحر، وما جنوبه يتغذى بهواء البحر الدافئ الرطب. هي لتوقع السواحل وليست مؤشرًا للحمل فوق الجبال.`;
-      $("rsNow").innerHTML = r.text ? `<div><b>${r.text[0]}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("")
+      $("rsNow").innerHTML = r.text ? `<div><b>${r.text[0]}${fut}.</b></div>` + r.text.slice(1).map((x) => `<div>${x}.</div>`).join("")
         : "<div>لا تتوفر بيانات لهذا اليوم.</div>";
-    };
-    if (!rsCard.done) {
-      rsCard.done = true;
-      $("rsDay").oninput = show;
-      $("rsDay").max = Math.max(0, rows.length - 1); $("rsDay").value = todayIdx(R.days);
-    }
-    show();
+    });
   }
   // the atmospheric river from the Arabian Sea, ECMWF only (Fahad, 22 Nov 2026: «النهر المتدفق بلون مميز يتحرك بتقدم
   // الأيام بدون أسهم»): one picture per day (riv_KK.png), the day's line and the first arrival; only the shown day and
@@ -2584,18 +2646,24 @@
     const ext = R.in_extent || [32.5, 51.5, 14, 32.5];
     const LV = { none: "الطاقة محصورة على البحر والساحل ولم تدخل الداخل", start: "بداية دخول لطاقة البحر نحو الداخل",
       clear: "توغّل واضح لطاقة البحر داخل الجزيرة، ومعه تزيد فرصة مطر واسع في الداخل" };
-    const show = () => {
-      const k = +$("tpDay").value || 0, r = rows[k] || {};
-      $("tpFig").src = `${CL}fig/rsc_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""))}`;
-      $("tpDayLabel").textContent = r.d ? dayLab(r.d) : "";
-      if (r.src === "gfs") $("tpHint").textContent = $("tpHint").textContent.replace("من النموذج الأوروبي", "من النموذج الأمريكي");
+    const ver = encodeURIComponent(st.updated + ((st.rsflow && st.rsflow.ver) || ""));
+    const H0 = tpCard.h0 || (tpCard.h0 = $("tpHint").textContent);
+    const show = () => convTimeline("tp", "rsc", R, rows, ver, (k, r, o) => {
+      const fut = r.d && r.d > todayISO() ? " (توقع)" : "";
+      const mdl = r.src === "gfs" ? "من النموذج الأمريكي" : "من النموذج الأوروبي";
+      if (o) {
+        $("tpHint").textContent = H0.replace("من النموذج الأوروبي، أعلى قيمها بين ١٢ ظهرًا و٦ مساءً", "من النموذج الأمريكي في الساعة المعروضة بتوقيت مكة، كل ٣ ساعات ليلًا ونهارًا")
+          + " اضغط ▶ لتتحرك الخريطة كل ٣ ساعات، أو حرّك المؤشر. حكم اليوم من خلاصة العصر.";
+        $("tpNow").innerHTML = `<div><b>في هذه الساعة${fut}: الطاقة المتصلة بالبحر تغطي ${num(o.ins, 1)}٪ من نجد والقصيم والوسطى.</b></div>`
+          + (r.inland ? `<div>حكم اليوم (العصر): ${LV[r.inland] || ""}، ${num(r.inland_share, 1)}٪.</div>` : "");
+        return;
+      }
+      $("tpHint").textContent = H0.replace("من النموذج الأوروبي", mdl);
       $("tpNow").innerHTML = r.inland_share == null ? "<div>لا تتوفر خريطة لهذا اليوم.</div>"
-        : `<div><b>${LV[r.inland] || ""}${r.d && r.d > todayISO() ? " (توقع)" : ""}.</b></div><div>الطاقة المتصلة بالبحر تغطي ${num(r.inland_share, 1)}٪ من نجد والقصيم والوسطى.</div>`;
-    };
+        : `<div><b>${LV[r.inland] || ""}${fut}.</b></div><div>الطاقة المتصلة بالبحر تغطي ${num(r.inland_share, 1)}٪ من نجد والقصيم والوسطى.</div>`;
+    });
     if (!tpCard.done) {
       tpCard.done = true;
-      $("tpDay").oninput = show;
-      $("tpDay").max = Math.max(0, rows.length - 1); $("tpDay").value = todayIdx(R.days);
       const LVZ = [1, 1.5, 2, 3], sc = $("tpScroll"), inner = $("tpInner"), img = $("tpFig");
       let z = 0, pt = null;
       const zoom = (d) => {
