@@ -65,6 +65,13 @@ def read(st, rep):
         C["W"] = None
     C["sc"] = BR.strength(st, day0)
     C["ws"] = C["sc"]["total"]
+    try:   # today's terrain trigger hours by region (the collision map every 3 hours; Fahad 28 Nov 2026)
+        import timing
+        C["trig"] = timing.trigger_hours(st, day0)
+        C["trigw"] = {k: w for k, v in C["trig"].items() for w in [timing.day_window(v)] if w}
+    except Exception as e:  # noqa: BLE001
+        print("report4: trigger hours failed:", repr(e), flush=True)
+        C["trig"], C["trigw"] = {}, {}
     rows = R3.region_reading(st, None, [], day0, C["W"], big=min(1.0, C["ws"] / 3))
     # the charter: no high level from a partial agreement. A region with two of the four coincidence tests or fewer
     # fully met stays «متوسطة» at most, three of four «مرجحة» at most
@@ -248,7 +255,7 @@ def s_exec(C):
                         mech.append(c)
                     break
         t += (" والمطر المحتمل محصور في " + jl([f"{r['name']} ({'زخات متفرقة محتملة' if r['level'] == 'ضعيفة' else 'فرصة ' + r['level']})" for r in named])
-              + (f"، وآليته {jl(mech[:2])}" if mech else "") + "، بعد الظهر حتى المغرب.")
+              + (f"، وآليته {jl(mech[:2])}" if mech else "") + "، " + _sum_window(C, named) + ".")
     else:
         t += " ولا تجتمع مكونات المطر على أي منطقة."
     if C["weak"]:
@@ -278,6 +285,14 @@ def s_exec(C):
                   + (f"، ثم أمطار أوسع وأخف على {jl(rest[:3])}" if rest else ""))
         else:
             t += f"، وتتركز مكوناتها على {jl(w['regions'][:3])}"
+        try:   # its busiest hour, every 3 hours (timing.py; Fahad 28 Nov 2026)
+            import timing
+            b_ = timing.busiest(C["st"].get("timing"), w["start"], w["end"])
+            if b_:
+                t += (f". وأوسع ساعاتها {timing.HOUR_W[b_[1]]} {ar_date(date.fromisoformat(b_[0]))} على "
+                      f"{ar(len(b_[2]))} منطقة (التوقيت كل ثلاث ساعات في القسم {S['geo']})")
+        except Exception as e:  # noqa: BLE001
+            print("report4: wave busiest hour failed:", repr(e), flush=True)
         B.append({"p": t + "."})
     # the thunder showers the Kingdom-wide sweep reads outside the nearest wave (Fahad 27 Nov 2026: «اي نشاط فيها يذكر»)
     try:
@@ -555,7 +570,38 @@ def s_moist(C):
     if rf and rf.get("text"):
         B.append({"p": "الرياح الناقلة للرطوبة قرب الأرض: " + "، و".join(rf["text"][:2])
                        + f" (تدفق البحر الأحمر، توقع {'جي إف إس' if rf.get('src') == 'gfs' else 'الأوروبي'})."})
+    try:   # the ECMWF 700 hPa humidity every 3 hours of today over the cities (ksa.hrs; Fahad 28 Nov 2026)
+        t = rh_hours(C)
+        if t:
+            B.append({"p": t})
+    except Exception as e:  # noqa: BLE001
+        print("report4: humidity hours failed:", repr(e), flush=True)
     return sec(HEAD[2], "moist", B)
+
+
+def rh_hours(C):
+    import timing
+    st, day0 = C["st"], C["day0"]
+    K = st.get("ksa") or {}
+    if day0.isoformat() not in (K.get("days") or []):
+        return None
+    hrs = (K.get("hrs") or [])[K["days"].index(day0.isoformat())] if K.get("hrs") else []
+    by = {}
+    for x in hrs:
+        t = (x.get("t") or {}).get("krh7") or ""
+        if t.startswith("رطوبة عالية") and " فوق " in t:
+            for c in re.split(r"، و?| و", t.split(" فوق ", 1)[1]):
+                c = c.strip(" .")
+                if c and x["h"] not in by.get(c, []):
+                    by.setdefault(c, []).append(x["h"])
+    src = "الأوروبي" if K.get("model") == "ecmwf" else "جي إف إس"
+    if not by:
+        return f"الرطوبة عند ٧٠٠ هكتوباسكال كل ثلاث ساعات اليوم (توقع {src}): لا تبلغ ٧٠٪ فوق أي مدينة في أي ساعة."
+    g = {}
+    for c, hs in by.items():
+        g.setdefault("، ثم ".join(timing.ep_word(e) for e in timing.episodes(sorted(hs))), []).append(c)
+    return (f"الرطوبة عند ٧٠٠ هكتوباسكال كل ثلاث ساعات اليوم (توقع {src}): تبلغ ٧٠٪ فأكثر فوق "
+            + "؛ وفوق ".join(f"{jl(v)} {k}" for k, v in g.items()) + "، ودونها بقية الساعات والمدن.")
 
 
 # ------------------------------------------------------------------ 4. geography and timing, the four tests
@@ -563,6 +609,55 @@ TIME_OF = {"هواء البحر الرطب يصعد الحافة": "بعد ال�
            "تبريد علوي فوق هواء رطب": "بعد الظهر", "التقاء الرياح على هضبة الطائف": "بعد الظهر",
            "هواء السحب البارد ينحدر مساءً من الجبال": "المساء",
            "صعود واسع لهواء رطب عميق في الطبقات الوسطى (مطر طبقي)": "على مدار اليوم"}
+
+
+def _sum_window(C, named):
+    """the hours of today's terrain trigger over the named regions (collision map every 3 hours), or the old phrase"""
+    import timing
+    hs = sorted({h for r in named for h in C.get("trig", {}).get(r["name"], []) if h >= 9})
+    w = timing.day_window(hs) if hs else None
+    return f"والحافز قائم {w} بحسب خريطة تصادم الرياح كل ثلاث ساعات" if w else "بعد الظهر حتى المغرب"
+
+
+def timing_blocks(C):
+    """«ب. التوقيت كل ثلاث ساعات»: today's terrain trigger hours by region, the Kingdom-wide table of when the
+    ingredients meet, peak and end and where the cells go, then the busiest hour of the wave"""
+    import timing
+    import troughreach as TR
+    st, day0 = C["st"], C["day0"]
+    T = st.get("timing")
+    B = [{"h": "ب. التوقيت كل ثلاث ساعات"}]
+    tg = C.get("trig") or {}
+    if tg:
+        by = {}
+        for reg, hs in tg.items():
+            by.setdefault(", ".join(timing.ep_word(e) for e in timing.episodes(hs)), []).append(reg)
+        B.append({"p": "حافز خلايا التضاريس اليوم، تصادم الرياح السطحية القوي قرب المدن في خريطته كل ثلاث ساعات (جي إف إس): "
+                       + "؛ و".join(f"{jl(v)} {k.replace(', ', '، ثم ')}" for k, v in by.items())
+                       + ". والتصادم حافز لا مطر، يعمل حيث تكفي الطاقة والرطوبة."})
+    if not T or not T.get("days"):
+        B.append({"p": "لم تُقرأ الليلة مكونات المطر كل ثلاث ساعات، فالتوقيت في الجدول الأول تقدير من آلية كل مكان."})
+        return B
+    w = C.get("nw")
+    d1 = min(day0 + timedelta(days=4), max(day0 + timedelta(days=1), (w["end"] + timedelta(days=1)) if w else day0))
+    rows = timing.table(T, day0, d1)
+    if rows:
+        B.append({"table": {"head": ["اليوم", "المناطق", "النشاط", "ساعات اجتماع المكونات", "الذروة", "حركة الخلايا"],
+                            "rows": rows}})
+    if w:
+        b = timing.busiest(T, w["start"], w["end"])
+        if b:
+            d_, h_, zs = b
+            C["busy"] = (d_, h_)
+            land = [TR.NAME[k] for k in zs if not k.startswith("sea_")]
+            B.append({"p": f"ذروة الموجة ساعةً: {timing.HOUR_W[h_]} {ar_date(date.fromisoformat(d_))}، "
+                           f"إذ تجتمع المكونات معًا على {ar(len(zs))} منطقة، منها {jl(land[:6])}"
+                           + (" وغيرها" if len(land) > 6 else "") + "."})
+    B.append({"note": "كل ثلاث ساعات بتوقيت مكة من حقول جي إف إس بدقة ربع درجة في لحظتها لا متوسط اليوم: زخات رعدية حيث "
+                      "تجتمع طاقة عدم الاستقرار (٤٠٠ جول/كغ فأكثر) ورطوبة ٧٠٠ هكتوباسكال (٥٠٪ فأكثر) وصعود الهواء، "
+                      "ومطر خفيف حيث تصعد طبقة رطبة عند ٧٠٠ (٦٥٪ فأكثر)؛ وحركة الخلايا من رياح ٦٠٠ هكتوباسكال في ساعة الذروة. "
+                      "وخلايا التضاريس الصغيرة لا يحلها هذا المقياس، فحافزها من خريطة التصادم."})
+    return B
 
 
 def _time_of(cause):
@@ -661,7 +756,11 @@ def s_geo(C):
             for k in ("heavy", "moderate", "light"):
                 for pl_ in r["row"][k]:
                     c = r["why"].get(pl_, "")
-                    trs.append([r["name"] if first else "", pl_, LVW[k], _time_of(c), c])
+                    tw = _time_of(c)
+                    win = C.get("trigw", {}).get(r["name"])
+                    if win and tw in ("بعد الظهر حتى المغرب", "بعد الظهر"):
+                        tw = win     # the collision map every 3 hours (timing.trigger_hours), not a fixed afternoon
+                    trs.append([r["name"] if first else "", pl_, LVW[k], tw, c])
                     first = False
         B.append({"table": {"head": ["المنطقة", "المكان", "الشدة", "التوقيت", "الآلية"], "rows": trs}})
         tr = [[r["name"]] + [a for a, _ in tests(r)] for r in named]
@@ -719,6 +818,10 @@ def s_geo(C):
         if s and s["speed"] >= 3:
             why.append(f"والخلايا تتجه نحو {s['to']} بعيدًا عن مكة والجموم")
         B.append({"p": t + ("، " + "، ".join(why) if why else "") + "."})
+    try:
+        B += timing_blocks(C)
+    except Exception as e:  # noqa: BLE001
+        print("report4: timing failed:", repr(e), flush=True)
     # the numerical rain, kept apart
     g = C["ingr"].get(day0.isoformat()) or {}
     if "gfs" in g:
@@ -727,7 +830,7 @@ def s_geo(C):
              + R2.cover_pct(g["gfs"]).removeprefix("نحو ") + " من المملكة")
         if gr:
             t += "، أكثره على " + jl([f"{n} ({R2.cover_pct(v).removeprefix('نحو ')})" for n, v in gr[:3]])
-        B.append({"h": "ب. التوقع من الهطول العددي"})
+        B.append({"h": "ج. التوقع من الهطول العددي"})
         B.append({"p": t.replace("للمقارنة فقط، ولا يدخل في الحكم: ", "")
                        + " (من تشغيل الليلة، من منتصف الليل إلى منتصف الليل بتوقيت مكة)."})
         cmp_ = rain_compare(C)
@@ -739,6 +842,37 @@ def s_geo(C):
 
 
 # ------------------------------------------------------------------ 5. sea and terrain cells
+def sea_hours(C):
+    """the energy tongue of the Red Sea and its push inland, every 3 hours of today and of the wave's peak day
+    (redsea.hourly rows[k]["hours"]: z = northern tip of the 1000 J/kg tongue, at = the coast it faces, ins = share of
+    Najd, Qassim and the centre joined to the sea's energy)"""
+    import timing
+    st, day0 = C["st"], C["day0"]
+    rf = {r["d"]: r for r in (st.get("rsflow") or {}).get("rows") or []}
+    days = [day0] + ([C["nw"]["peak"]] if C.get("nw") and C["nw"]["peak"] != day0 else [])
+    out = []
+    for d in days:
+        hs = (rf.get(d.isoformat()) or {}).get("hours") or []
+        if len(hs) < 4:
+            continue
+        n = max(hs, key=lambda x: x["z"])
+        s_ = min(hs, key=lambda x: x["z"])
+        i_ = max(hs, key=lambda x: x["ins"])
+        nh = [x["h"] for x in hs if x["z"] >= n["z"] - 0.25]
+        t = (f"{'اليوم' if d == day0 else 'وفي ذروة الموجة ' + ar_date(d)}: "
+             + ("يبلغ لسان طاقة البحر (١٠٠٠ جول/كغ فأكثر) " if not out else "يبلغ اللسان ")
+             + f"أقصى شماله محاذيًا {n['at']} {', ثم '.join(timing.ep_word(e) for e in timing.episodes(nh)).replace(', ', '، ')}"
+             f"، ويتراجع إلى محاذاة {s_['at']} {timing.HOUR_W[s_['h']]}")
+        if i_["ins"] >= 1:
+            t += ((f"؛ وتتصل طاقة البحر بالداخل أكثر ما تتصل {timing.HOUR_W[i_['h']]} " if not out else
+                   f"، وأكثر اتصالها بالداخل {timing.HOUR_W[i_['h']]} ")
+                  + f"({num(i_['ins'], 1)}٪ من نجد والقصيم والوسطى)")
+        out.append(t)
+    if not out:
+        return None
+    return ("طاقة البحر الأحمر كل ثلاث ساعات (تدفق البحر الأحمر وتوغل الطاقة، جي إف إس): " + "؛ ".join(out) + ".")
+
+
 def s_cells(C):
     import seacell
     st, day0, RD, lw = C["st"], C["day0"], C["RD"], C["lw"]
@@ -751,6 +885,12 @@ def s_cells(C):
             B += seacell.coming_blocks(st["seacell"], day0 + timedelta(days=1), day0 + timedelta(days=7))
     except Exception as e:  # noqa: BLE001
         print("report4: sea cells failed:", repr(e), flush=True)
+    try:   # the sea's energy hour by hour (the «الحمل الحراري» maps every 3 hours; Fahad 28 Nov 2026)
+        t = sea_hours(C)
+        if t:
+            B.append({"p": t})
+    except Exception as e:  # noqa: BLE001
+        print("report4: sea hours failed:", repr(e), flush=True)
     # the terrain cells of Makkah, zone by zone (Hada, Shafa, Sail, Rahat, Shamnasir)
     m = RD.get("meet")
     if m:

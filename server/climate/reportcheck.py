@@ -159,6 +159,54 @@ def check(report, st, img=None):
             err.append(f"summary's nearest wave {m.group(1)!r} is not the first wave of section 7")
     except Exception as e:  # noqa: BLE001
         err.append(f"current wave not checked: {e!r}")
+    # 4c. one timing (Fahad 28 Nov 2026: the hourly maps): the summary's busiest hour of the wave = the waves' hourly
+    # reading; each place in section 5 driven from the terrain carries the hours of its region's trigger; every row of
+    # the hourly table has its peak inside its hours; the summary's trigger window = the regions' trigger hours
+    try:
+        import timing
+        day0_ = date.fromisoformat(report.get("day") or date.today().isoformat())
+        TT = st.get("timing")
+        summ_ = " ".join(b.get("p", "") for b in secs[0]["blocks"])
+        geo_ = secs[SEC["geo"]]["blocks"]
+        m = re.search(r"وأوسع ساعاتها ([^٠-٩]+?) [^ ]+ ([٠-٩]+ \S+) على ([٠-٩]+) منطقة", summ_)
+        if m and TT:
+            a, b = _span(summ_[summ_.find("أقرب موجة: "):].split("،")[0], day0_)
+            bz = timing.busiest(TT, a, b) if a else None
+            if not bz or timing.HOUR_W[bz[1]] != m.group(1) or _ar(len(bz[2])) != m.group(3):
+                err.append(f"timing: the summary's busiest hour «{m.group(1)}» is not the hourly reading {bz and bz[:2]}")
+        trig = timing.trigger_hours(st, day0_)
+        tab = next((b_["table"] for b_ in geo_ if "table" in b_ and b_["table"]["head"][:2] == ["المنطقة", "المكان"]), None)
+        reg = None
+        for r in (tab or {}).get("rows") or []:
+            reg = r[0] or reg
+            w = timing.day_window(trig.get(reg, []))
+            if w and ("يصعد الحافة" in r[4] or r[4].startswith("التقاء الرياح")) and r[3] != w:
+                err.append(f"timing: {r[1]} ({reg}) says «{r[3]}», its trigger is {w}")
+        ht = next((b_["table"] for b_ in geo_ if "table" in b_ and b_["table"]["head"][0] == "اليوم"
+                   and "الذروة" in b_["table"]["head"]), None)
+        HW = {v: k for k, v in timing.HOUR_W.items()}
+
+        def hours_of(t):
+            out = set()
+            for e in t.split("، ثم "):
+                mm_ = re.match(r"من (.+) إلى (.+)$", e)
+                if mm_:
+                    out |= set(range(HW[mm_.group(1)], HW[mm_.group(2)] + 1, 3))
+                else:
+                    out.add(HW[e])
+            return out
+        for r in (ht or {}).get("rows") or []:
+            pk = r[4].split(" (")[0]
+            if HW.get(pk) not in hours_of(r[3]):
+                err.append(f"timing: the peak {pk} of {r[1]} ({r[0]}) is outside its hours «{r[3]}»")
+        mw = re.search(r"والحافز قائم (.+?) بحسب خريطة", summ_)
+        if mw and tab:
+            regs = {r[0] for r in tab["rows"] if r[0]}
+            hs = sorted({h for k in regs for h in trig.get(k, []) if h >= 9})
+            if mw.group(1) != timing.day_window(hs):
+                err.append(f"timing: the summary's trigger window «{mw.group(1)}» is not {timing.day_window(hs)}")
+    except Exception as e:  # noqa: BLE001
+        err.append(f"timing not checked: {e!r}")
     # 3b. no repetition inside a paragraph: the same run of 6 words twice in one text, a word doubled, «س إلى س»
     for i, j, t in T:
         if " | " in t:
