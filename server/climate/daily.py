@@ -740,6 +740,15 @@ def main():
                     fh_.write(vals_days.get(k, blank).tobytes())
             ksa_out["vals"] = {**vmeta_, "file": "ksa_vals.bin", "days": len(days),
                                "missing": [k for k in range(len(days)) if k not in vals_days]}
+        # 8a2b. RH700/RH500/T500 every 3 hours, ECMWF (Fahad, 28 Nov 2026: «حتى هذه انقلها بالساعات»)
+        if ec_ok:
+            try:
+                import glob
+                for f_old in glob.glob(os.path.join(out, "fig", "k*h_??_??.webp")):
+                    os.remove(f_old)
+                ksa.hourly(gfs_fields, cycle, os.path.join(out, "fig"), ksa_out)
+            except Exception as e:  # noqa: BLE001
+                print("kingdom hourly failed:", repr(e), flush=True)
         print("kingdom surface lows:", [[(x["where"], x["p"]) for x in l] if l else l for l in ksa_out["lows"]], flush=True)
         print("red sea trough reach:", [r["north"] if r else r for r in ksa_out["rst"]], flush=True)
     except Exception as e:  # noqa: BLE001

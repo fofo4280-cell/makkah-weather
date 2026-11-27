@@ -480,3 +480,78 @@ def wind_pack(f, keys=("u7", "v7", "u5", "v5")):
         out.append(np.clip(np.round(it((LA, LO)) * 10), -32000, 32000).astype("<i2"))
     return np.stack(out), {"lat0": float(n), "lon0": float(w), "d": WIND_STEP, "ny": len(la_out), "nx": len(lo_out),
                            "scale": 0.1, "order": list(keys)}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Every 3 hours, day and night (Fahad, 28 Nov 2026, on the humidity card: «حتى هذه انقلها بالساعات»): RH700, RH500
+# and T500 from ECMWF at Makkah hours 00, 03 … 21 of every page day, only at steps the IFS run really has (3-hourly to
+# 144 h, then 6-hourly: 3 AM, 9 AM, 3 PM, 9 PM Makkah), never interpolated in time. Files <kind>h_KK_HH.webp
+# (krh7h, krh5h, kt5h; KK = the index in ksa days). out["hrs"][k] = [{h, t: {kind: first explanation line}}].
+HKINDS = ("krh7", "krh5", "kt5")
+HOURS8 = (0, 3, 6, 9, 12, 15, 18, 21)
+HFIELDS = [("rh7", r":RH:700 mb:"), ("rh5", r":RH:500 mb:"), ("t5", r":TMP:500 mb:")]
+_H = {}
+
+
+def _hour_frame(job):
+    import os
+    k, h, d, fh, out_fig = job
+    g = _H
+    try:
+        from datetime import date as _d
+        a = g["src"](g["cycle"], fh, res="0p25", fields=HFIELDS)
+        la = np.linspace(90, -90, a["rh7"].shape[0])
+        lo = np.linspace(0, 360, a["rh7"].shape[1], endpoint=False)
+        f = {}
+        for key, arr in a.items():
+            f[key], lat, lon = cut(arr, la, lo)
+        f["lat"], f["lon"] = lat, lon
+        f["t5"] = f["t5"] - 273.15
+        f.update(g["static"])
+        t = {}
+        for kind in HKINDS:
+            pth = os.path.join(out_fig, f"{kind}h_{k:02d}_{h:02d}.png")
+            draw(pth, kind, f, width_px=1400, when=_d.fromisoformat(d), model="الأوروبي")
+            from PIL import Image
+            Image.open(pth).convert("RGB").save(pth[:-4] + ".webp", "WEBP", quality=78, method=4)
+            os.remove(pth)
+            ex = explain(kind, f)
+            t[kind] = ex[0] if ex else ""
+        return k, h, {"h": h, "t": t}
+    except Exception as e:  # noqa: BLE001
+        print("kingdom hourly failed", d, h, repr(e)[:160], flush=True)
+        return k, h, None
+
+
+def hourly(gfs_fields, cycle, out_fig, out, procs=2, log=print):
+    """ECMWF only (no GFS frames: the card is ECMWF); adds out["hrs"] and draws the frames"""
+    import time
+    from datetime import datetime, timedelta, timezone
+    from multiprocessing import get_context
+    import ecmwf
+    if not ecmwf.available(cycle, 0):
+        log("kingdom hourly: ECMWF not available", flush=True)
+        return out
+    t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
+    st = set(ecmwf.steps(cycle))
+    s = gfs_fields(cycle, 0, res="0p25", fields=STATIC)
+    la = np.linspace(90, -90, s["hgt"].shape[0])
+    lo = np.linspace(0, 360, s["hgt"].shape[1], endpoint=False)
+    _H.update(src=ecmwf.fields_like_gfs(gfs_fields), cycle=cycle,
+              static={k: cut(a, la, lo)[0] for k, a in s.items()})
+    jobs = []
+    for k, d in enumerate(out["days"]):
+        d0 = datetime.fromisoformat(d).replace(tzinfo=timezone.utc)
+        for h in HOURS8:
+            fh = int((d0 + timedelta(hours=h - 3) - t0).total_seconds() // 3600)
+            if fh in st:
+                jobs.append((k, h, d, fh, out_fig))
+    ts, res = time.time(), {}
+    with get_context("fork").Pool(procs) as pool:
+        for k, h, r in pool.imap_unordered(_hour_frame, jobs):
+            if r:
+                res.setdefault(k, []).append(r)
+    out["hrs"] = [sorted(res.get(k, []), key=lambda x: x["h"]) for k in range(len(out["days"]))]
+    log("kingdom hourly:", sum(len(v) for v in res.values()), "of", len(jobs), "frames in", int(time.time() - ts), "s",
+        flush=True)
+    return out
