@@ -175,6 +175,18 @@ def reach_short(R, n=5):
     return jl([troughreach.NAME[x[0]] for x in (sea + land)[:n]])
 
 
+def reach_brief(R):
+    """«البحر الأحمر وسواحله من الوجه إلى رابغ، والجوف، وتبوك…»: the trough's reach in one short line, sea first"""
+    import troughreach
+    ks = [x[0] for x in R]
+    south = ("جدة" if {"sea_s", "jeddah_makkah"} & set(ks) else "رابغ" if {"sea_m", "c_madinah"} & set(ks)
+             else "أملج" if {"sea_n", "c_tabuk"} & set(ks) else None)
+    out = [f"البحر الأحمر وسواحله من الوجه إلى {south}"] if south else []
+    nm = {"jouf": "الجوف", "nb": "الحدود الشمالية"}
+    out += [nm.get(k, troughreach.NAME[k]) for k in ks if k not in troughreach.SEA][:5]
+    return jl(out)
+
+
 def wave_sea(st, w):
     """the sea cells of a wave's days (the night before its first day to its last), in words, or None.
     27 Nov 2026 (Fahad: «حالة غزيرة جدا بين املج ورابغ بحرية ثم تخرج الى المدينة وحائل»): when the trough index leaves the
@@ -240,18 +252,19 @@ def s_exec(C):
                         "الليلة: لا تجتمع مكونات الخلايا البحرية على السواحل الغربية.")})
     w = C["nw"]
     if w:
-        t = (f"أقرب موجة: {R3.span_of_(w) if w['start'] != w['end'] else ar_date(w['start'])}، {KIND[w['kind']]}، "
-             f"أوسع أيامها {ar_date(w['peak'])}، وتتركز مكوناتها على {jl(w['regions'][:3])}")
-        nb = C["nb"]
         ws_ = wave_sea(C["st"], w)
         R_ = wave_reach(C["st"], w)
-        if nb and nb["blocked"]:
-            t += "؛ والأرجح كسير شمالي يحمل الرطوبة نحو الشمال الشرقي"
-            if R_:
-                t += f"، لكن تأثير الأخدود أمام محوره يبلغ {reach_short(R_)}"
-            t += (f"، ومعه على البحر الأحمر {ws_}" if ws_ else "، ونصيب مكة وسواحل الحجاز خلايا بحرية ليلية")
-        elif ws_:
-            t += f"؛ ومعها على البحر الأحمر {ws_}"
+        t = (f"أقرب موجة: {R3.span_of_(w) if w['start'] != w['end'] else ar_date(w['start'])}، {KIND[w['kind']]}، "
+             f"أوسع أيامها {ar_date(w['peak'])}")
+        if R_:
+            t += (f"، يقودها أخدود قوي من الشمال الغربي يبلغ تأثيره أمام محوره {reach_brief(R_)}"
+                  + ("، وإن بقي محوره غرب البحر الأحمر" if C["nb"] and C["nb"]["blocked"] else ""))
+        if ws_:
+            rest = R3.land_rest(w)
+            t += (f". وقلبها الغزير غربًا {ws_}"
+                  + (f"، ثم أمطار أوسع وأخف على {jl(rest[:3])}" if rest else ""))
+        else:
+            t += f"، وتتركز مكوناتها على {jl(w['regions'][:3])}"
         B.append({"p": t + "."})
     a = C["an"]
     if a and a.get("rh") is not None and w:
@@ -332,6 +345,18 @@ def s_dyn(C):
     elif C["ws"] >= 2.6:
         t += "؛ فالرفع العلوي والدعم المداري يجتمعان، والمطر قابل للانتظام على مساحات أوسع من التضاريس"
     B.append({"p": t + "."})
+    # the trough to come, so «no trough today» is not read as «no trough in the case» (Fahad 27 Nov 2026)
+    try:
+        import troughreach
+        w = C["nw"]
+        R_ = wave_reach(C["st"], w) if w else []
+        first = next((r["d"] for r in C["st"].get("troughreach") or [] if r["d"] > C["day0"].isoformat()
+                      and any(troughreach.reaches(v) for v in r["z"].values())), None)
+        if R_ and first:
+            B.append({"p": f"والأخدود القادم من الشمال الغربي يبدأ أثره على المملكة {ar_date(date.fromisoformat(first))}، "
+                           f"ويبلغ أمام محوره {reach_brief(R_)} (التفصيل في القسم ٦)."})
+    except Exception as e:  # noqa: BLE001
+        print("report4: trough ahead failed:", repr(e), flush=True)
     return sec(HEAD[1], "dyn", B)
 
 
@@ -704,12 +729,14 @@ def _wave_blocks(st, day0):
             continue                    # one wave: the paragraph after it says the same
         if "p" in b:
             b = dict(b, p=b["p"].replace("النظرة الموسمية أعلاه", "النظرة الموسمية (القسم ٧)"))
-            if ws_ and b["p"].endswith("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية."):
-                b = dict(b, p=b["p"].removesuffix("ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية.")
-                         + f"لكن البحر الأحمر يولد في أيامها {ws_}، فهذا نصيب السواحل الغربية من الموجة.")
         out.append(b)
-        if "p" in b and b["p"].startswith("نمط الموجة") and rw_:
-            out.append({"p": rw_})
+        if "p" in b and b["p"].startswith("نمط الموجة"):
+            if rw_:
+                out.append({"p": rw_})
+            if ws_:
+                rest = R3.land_rest(nw_)
+                out.append({"p": f"وقلب الموجة غربًا: {ws_}" + (f"؛ ثم أمطار أوسع وأخف من صعود الهواء الرطب على "
+                                                                 f"{jl(rest[:4])}" if rest else "") + "."})
     return out
 
 
@@ -725,12 +752,14 @@ def scenarios(C):
     B = [{"h": "السيناريوهات"}]
     base = f"الأساسي (الأرجح): القراءة أعلاه كما هي ({cv} أوسعها {pk})"
     if nb and nb["blocked"]:
-        ws_ = wave_sea(C["st"], w)
-        R_ = wave_reach(C["st"], w)
-        base += ("، ومحور الأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، "
-                 + (f"ويبلغ تأثيره أمام المحور {reach_short(R_)}، " if R_ else "")
-                 + (f"وأقوى ما في الموجة غربًا {ws_}، ومكة والجموم أطرافها" if ws_ else
-                    "ونصيب سواحل الحجاز خلايا بحرية ليلية ومكة والجموم أطرافها"))
+        west = [r for r in w.get("regions") or [] if r.startswith("البحر والساحل")]
+        inl = [r for r in w.get("regions") or [] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+        base += "، ومحور الأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، ويعمل الأخدود أمام محوره"
+        if west:
+            base += (f"، فيكون قلب الموجة على {west[0]}" + (f" ويمتد إلى {jl(inl)}" if inl else "")
+                     + "، ومكة والجموم على أطرافه")
+        else:
+            base += "، ونصيب سواحل الحجاز خلايا بحرية ليلية، ومكة والجموم على أطرافها"
     B.append({"p": base + "."})
     strong = "الأقوى (إن تحسنت المكونات): "
     cond = []
@@ -754,7 +783,12 @@ def scenarios(C):
         wc.append(f"أن يشتد المرتفع فوق إيران والخليج (الليلة {ar(int(round(nb['ridge'])))} م) فيُسحب المد الرطوبي شرقًا "
                   "قبل أن يبلغه الرفع")
     wc.append("أو أن يسبق مرور الأخدود ذروة الرطوبة بيوم")
-    weak += " ".join(wc) + f"؛ فيضيق المطر إلى زخات خفيفة متفرقة على {jl(w['regions'][:2])}، ويقل انتشاره عن ٢٪."
+    rest = R3.land_rest(w)
+    if wave_sea(C["st"], w):
+        weak += " ".join(wc) + (f"؛ فتبقى الخلايا البحرية دون الغزارة، ويضيق المطر إلى زخات خفيفة متفرقة على "
+                                f"{jl(['المدينة المنورة'] + rest[:1])}، ويقل انتشاره عن ٢٪.")
+    else:
+        weak += " ".join(wc) + f"؛ فيضيق المطر إلى زخات خفيفة متفرقة على {jl(w['regions'][:2])}، ويقل انتشاره عن ٢٪."
     B.append({"p": weak})
     pivot = []
     if a and a.get("rh") is not None:

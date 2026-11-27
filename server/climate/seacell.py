@@ -156,7 +156,9 @@ def heavy_points(g):
     ok = zone & (I >= LEVELS[1]) & (steer >= STRONG_STEER) & (cv >= 2.0)
     la, lo = _grid()
     J, K = np.nonzero(ok)
-    return [[float(la[j]), float(lo[k]), round(float(I[j, k]), 2), round(float(cv[j, k]), 1)] for j, k in zip(J, K)]
+    sv = 0.5 * (g["v700"] + g["v500"])
+    return [[float(la[j]), float(lo[k]), round(float(I[j, k]), 2), round(float(cv[j, k]), 1),
+             round(float(steer[j, k]), 1), round(float(sv[j, k]), 1)] for j, k in zip(J, K)]
 
 
 def parts(f):
@@ -250,15 +252,17 @@ HEAVY_I, HEAVY_CV, HEAVY_N = 0.85, 3.0, 2   # a point is a heavy core when, at t
 
 
 def heavy_core(r):
-    """[[lat, lon, mean index]] of the night's heavy cores, or None when the night has no point readings"""
+    """[[lat, lon, mean index, steering u, steering v]] of the night's heavy cores, or None when the night has no point
+    readings"""
     if not r.get("times") or not all("hp" in t for t in r["times"]):
         return None
     hit = {}
     for t in r["times"]:
         for p in t["hp"]:
             if len(p) > 3 and p[2] >= HEAVY_I and p[3] >= HEAVY_CV:
-                hit.setdefault((p[0], p[1]), []).append(p[2])
-    return [[la_, lo_, round(sum(v) / len(v), 2)] for (la_, lo_), v in hit.items() if len(v) >= HEAVY_N]
+                hit.setdefault((p[0], p[1]), []).append((p[2], p[4] if len(p) > 4 else 0, p[5] if len(p) > 5 else 0))
+    m = lambda v, i: round(sum(x[i] for x in v) / len(v), 2)
+    return [[la_, lo_, m(v, 0), m(v, 1), m(v, 2)] for (la_, lo_), v in hit.items() if len(v) >= HEAVY_N]
 
 
 def core_keys(pts):
@@ -281,6 +285,42 @@ def levels(r):
     if core is not None:   # level 3 only where the night has a heavy core (the map shows the same places)
         st_ &= set(core_keys(core))
     return {k: level(v, k in st_) for k, v in r["si"].items()}
+
+
+SHORT = {"wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
+         "south": "الليث", "qunf": "القنفذة"}
+
+
+def wave_west(rows, d0, d1):
+    """the sea cells of the nights d0..d1 (iso dates): {strong, likely, path, nights}; strong = the stretches with a
+    heavy core (level 3), likely = level 2, path = the inland places their cells reach, north to south"""
+    best, path_, nights = {}, [], []
+    for r in rows or []:
+        if not (d0 <= r["d"] <= d1 and r.get("times")):
+            continue
+        lv = levels(r)
+        hit = [k for k in lv if lv[k] >= 2]
+        if hit:
+            nights.append(r["d"])
+        for k in hit:
+            best[k] = max(best.get(k, 0), lv[k])
+        path_ += [p for p in r.get("path") or [] if p not in path_]
+    order = [k for k, *_ in STRETCHES]
+    return {"strong": [k for k in order if best.get(k) == 3], "likely": [k for k in order if best.get(k) == 2],
+            "path": [k for k in INLAND if k in path_], "nights": nights}
+
+
+def west_regions(rows, d0, d1):
+    """the wave's western areas, as words, when its sea cells reach the heavy level: «البحر والساحل بين ينبع ورابغ»,
+    then the inland places on their path (Fahad 27 Nov 2026: the map and the report tell one story, sea to inland)"""
+    w = wave_west(rows, d0, d1)
+    s = w["strong"]
+    if not s:
+        return []
+    order = [k for k, *_ in STRETCHES]
+    i0, i1 = order.index(s[0]), order.index(s[-1])
+    sea = f"البحر والساحل بين {SHORT[s[0]]} و{SHORT[s[-1]]}" if i1 > i0 else f"البحر والساحل عند {SHORT[s[0]]}"
+    return [sea] + [INLAND[k][0] for k in w["path"]]
 
 
 HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا", 12: "الثالثة عصرًا"}
