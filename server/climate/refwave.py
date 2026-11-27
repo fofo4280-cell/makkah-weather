@@ -223,24 +223,12 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A, sea=None):
         lo = np.linspace(ING.LON[0], ING.LON[-1], fine.shape[1])
         LA, LO = np.meshgrid(la, lo, indexing="ij")
         inside = contains_xy(ksa, LO.ravel(), LA.ravel()).reshape(LA.shape)
+        if sea is not None:   # the heavy sea cells and their path: drawn over the sea too
+            sf = np.clip(gaussian_filter(zoom(np.asarray(sea, float), up, order=3), 2.5), 0, None)
+            fine = np.maximum(fine, sf)
+            inside = inside | (sf >= LEVELS[0])
         fine = np.where(inside & (fine >= LEVELS[0]), fine, np.nan)
         ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=ListedColormap(DARK),
-                  norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
-    # heavy sea cells over the Red Sea and its coast (seacell.py level 3), in the same smooth shading as the land and
-    # nothing where they are not heavy (Fahad 27 Nov 2026: «ان كنت ترى مطر غزير في البحر او على الساحل فعليك رسمه او لا»)
-    if sea:
-        res = 0.05
-        la2 = np.arange(N, S - 1e-6, -res)
-        lo2 = np.arange(W, E + 1e-6, res)
-        R = np.zeros((len(la2), len(lo2)))
-        for cells, val in sea:
-            for la_, lo_ in cells:
-                j0, j1 = int((N - (la_ + 0.125)) / res), int((N - (la_ - 0.125)) / res)
-                i0, i1 = int((lo_ - 0.125 - W) / res), int((lo_ + 0.125 - W) / res)
-                R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1] = np.maximum(R[max(j0, 0):j1 + 1, max(i0, 0):i1 + 1], val)
-        R = gaussian_filter(R, 1.5)
-        R = np.where(R >= LEVELS[0], R, np.nan)
-        ax.imshow(R, extent=[lo2[0], lo2[-1], la2[-1], la2[0]], origin="upper", cmap=ListedColormap(DARK),
                   norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
     for r in regs:
         for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
@@ -314,17 +302,33 @@ def draw(path, panels, title, sub):
         pass
 
 
-def sea_cells(st, a, b):
-    """[([[lat, lon]], index x 100)] of the heavy cores of the sea cells (seacell.heavy_core) in the nights a-1 .. b"""
+PLUME_H, PLUME_FADE = 5.0, 0.1   # hours a heavy cell is followed downstream, share of its strength lost per hour
+
+
+def sea_plume(st, a, b):
+    """the heavy sea cells of the nights a-1 .. b and their path inland, x 100 on the ingredients' 1 degree grid
+    (Fahad 27 Nov 2026: «المفترض تكون رسمه متطابقة من الساحل للداخل»): each heavy core (seacell.heavy_core) is followed
+    along its own 700-500 hPa steering wind for PLUME_H hours, fading PLUME_FADE per hour, as the cells it makes travel
+    from the sea over the coast and inland; or None"""
     from datetime import timedelta
+    import ingredients as ING
     import seacell
-    best = {}
-    for r in st.get("seacell") or []:
-        if not ((a - timedelta(days=1)).isoformat() <= r["d"] <= b.isoformat()):
+    G = np.zeros((len(ING.LAT), len(ING.LON)))
+    any_ = False
+    for r_ in st.get("seacell") or []:
+        if not ((a - timedelta(days=1)).isoformat() <= r_["d"] <= b.isoformat()):
             continue
-        for la_, lo_, v in seacell.heavy_core(r) or []:
-            best[(la_, lo_)] = max(best.get((la_, lo_), 0), 100 * v)
-    return [([[la_, lo_]], v) for (la_, lo_), v in best.items()]
+        for p in seacell.heavy_core(r_) or []:
+            la_, lo_, v = p[0], p[1], 100 * p[2]
+            u, w = (p[3], p[4]) if len(p) > 4 else (0.0, 0.0)
+            for h in np.arange(0, PLUME_H + 1e-6, 0.25):
+                y = la_ + w * 3600 * h / 111e3
+                x = lo_ + u * 3600 * h / (111e3 * np.cos(np.radians(la_)))
+                j, i = int(round((ING.LAT[0] - y) / 1.0)), int(round((x - ING.LON[0]) / 1.0))
+                if 0 <= j < len(ING.LAT) and 0 <= i < len(ING.LON):
+                    G[j, i] = max(G[j, i], v * (1 - PLUME_FADE * h))
+                    any_ = True
+    return G if any_ else None
 
 
 def draw_wave(out_dir, st):
@@ -343,7 +347,7 @@ def draw_wave(out_dir, st):
     grid = np.max([GRIDS[d] for d in days], axis=0)
     m = wave_metrics(st.get("wave_rain") or [], a, b)
     ref = st.get("ref_wave") or current(None)
-    panels = [(grid, m, c["head"], sea_cells(st, a, b))]
+    panels = [(grid, m, c["head"], sea_plume(st, a, b))]
     if ref:
         panels.append((ref.get("grid"), ref, "الموجة المرجعية " + sa_geo.ar_date(date.fromisoformat(ref["d"]), weekday=False)))
     os.makedirs(os.path.join(out_dir, "fig"), exist_ok=True)

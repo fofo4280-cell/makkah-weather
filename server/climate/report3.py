@@ -1237,15 +1237,36 @@ def ingr_pulses(st, wl, day0, fac):
             allk = set().union(*({x for x, _ in fac.get(d, [])} for d in pd))
             T, R = allk & {"mjo", "warm"}, allk & {"trough", "cold"}
             kind = "mixed" if T and R else "tropical" if T else "troughs" if R else w["kind"]
-            regs = [RW.label(g) for g in m["regions"] if g["cover"] >= 0.05 or g["w"] >= 30][:5] or RW.strongest(m)
+            land = [RW.label(g) for g in m["regions"] if g["cover"] >= 0.05 or g["w"] >= 30][:5] or RW.strongest(m)
+            regs = west_merge(st, a, b, land)
             out.append({"start": a, "end": b, "peak": pk, "cover": m.get("cover") or 0,
                         "top": BR.wave_score(st, pk, day0, c, m.get("cover") or 0)["score"], "drivers": c["total"],
-                        "kind": kind, "regions": regs, "pro": pro, "con": con, "ingr": True,
+                        "kind": kind, "regions": regs, "land": land, "pro": pro, "con": con, "ingr": True,
                         # the window of supportive drivers, said once after the last pulse
                         "win": (w["start"], w["end"]),
                         "window": (w["start"], w["end"]) if k == len(runs) - 1 else None})
     return out
 
+
+
+def west_merge(st, a, b, land):
+    """the wave's areas, west first when its sea cells reach the heavy level (seacell.west_regions: the sea and coast,
+    then the inland places on their path), then the land areas of the ingredients reading not already named (Fahad 27
+    Nov 2026: the regions, the map and the summary tell one story from the sea to the interior)"""
+    import seacell
+    from datetime import timedelta
+    west = seacell.west_regions(st.get("seacell"), (a - timedelta(days=1)).isoformat(), b.isoformat())
+    if not west:
+        return land
+    tok = {"المدينة المنورة": "المدينة", "خيبر والعلا": "خيبر", "حائل": "حائل"}
+    used = [tok[x] for x in west[1:] if x in tok]
+    return (west + [r for r in land if not any(u in r for u in used)])[:6]
+
+
+def land_rest(w):
+    """the wave's land areas beyond the western sea-to-inland core, or []"""
+    return [r for r in w.get("regions") or [] if not r.startswith("البحر والساحل")
+            and r not in ("المدينة المنورة", "خيبر والعلا", "حائل")]
 
 
 def north_break(st, w):
@@ -1269,9 +1290,10 @@ def north_break(st, w):
         lo = sorted({int(round(x["tip"][1])) for x in tips})
         t = (f"نمط الموجة: الأخدود محجوز، يقف طرفه عند خط الطول {ar(lo[0])}" + (f" إلى {ar(lo[-1])}" if lo[-1] != lo[0] else "")
              + f" شرقًا غرب البحر الأحمر، والمرتفع فوق إيران والخليج يبلغ {ar(int(round(rv)))} م فيصده عن التقدم. فالأرجح "
-             f"كسير شمالي: ينكسر نصفه الشمالي ويُسحب نحو الشمال الشرقي حاملًا المد الرطوبي إلى {jl(w['regions'])}، ويبقى "
+             "كسير شمالي: ينكسر نصفه الشمالي ويُسحب نحو الشمال الشرقي، ويبقى "
              f"ذيله الجنوبي فوق مصر عند خط العرض {ar(int(round(lat_min)))} شمالًا تقريبًا، فلا يُتوقع منه منخفض معزول فوق "
-             "البحر الأحمر يبلغ مكة، ونصيب مكة وسواحل الحجاز من هذه الموجة الخلايا البحرية الليلية.")
+             "البحر الأحمر يبلغ مكة. لكن بقاء المحور غرب البحر لا يعني أن الأخدود لا يبلغ المملكة: الحكم بما يصنعه أمام "
+             "محوره من هبوط وبرودة ورفع، لا بموضع طرفه.")
         return t
     if lon_max > 34 and lat_min <= 24:
         return ("نمط الموجة: يعبر طرف الأخدود البحر الأحمر جنوبًا حتى خط العرض "
@@ -1527,13 +1549,33 @@ def ref_compare(st, w, day0):
         iw = ("أقوى من المرجعية" if ri >= 1.1 else "قريبة من المرجعية" if ri >= 0.9 else
               "نحو نصف قوة المرجعية" if 0.4 <= ri < 0.6 else f"نحو {ar(round(100 * ri))}٪ من قوة المرجعية"
               if ri >= 0.25 else "أضعف بكثير من المرجعية")
-        t += (f"تجتمع مكونات الهطول في هذه {nm} أقوى ما تجتمع فوق {jl(RW.strongest(m))}، وأوسع أيامها {ar_date(pk)}؛ "
-              f"وقوة مكوناتها في قلبها {core(m)} من ١٠٠، فهي {iw}؛ وانتشارها المقدّر {_pct(m['cover'])} من المملكة، "
-              f"فانتشارها {cw}")
+        west = [r for r in w.get("regions") or [] if r.startswith("البحر والساحل")]
+        G = RW.sea_plume(st, w["start"], w["end"]) if west else None
+        sea = int(round(float(G.max()))) if G is not None else 0
+        if west and sea > (m.get("core") or 0):
+            # the heavy sea cells and their path inland, drawn on the same scale in the map (Fahad 27 Nov 2026)
+            rs = sea / max(ref.get("core") or 0, 0.1)
+            sw = ("أقوى من قلب المرجعية" if rs >= 1.1 else "قريب من قلب المرجعية" if rs >= 0.9 else
+                  f"نحو {ar(round(100 * rs))}٪ من قوة المرجعية")
+            inl = [r for r in w["regions"] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+            t += (f"قلب هذه {nm} غربًا: {west[0].replace('البحر والساحل', 'على البحر والساحل')}، تبلغ فيه قوة المكونات "
+                  + (f"أكثر من ٩٠ من ١٠٠" if sea >= 90 else f"نحو {ar(sea)} من ١٠٠") + f" (مؤشر الخلايا البحرية على مقياس الخريطة نفسه)، فهو {sw}"
+                  + (f"، ويمتد منه مع الرياح الجنوبية الغربية إلى {jl(inl)}" if inl else "")
+                  + f"؛ وعلى اليابسة تجتمع المكونات أقوى ما تجتمع فوق {jl(RW.strongest(m))} بقوة {core(m)} من ١٠٠، "
+                  f"فهي على اليابسة {iw}، وأوسع أيامها {ar_date(pk)}؛ وانتشارها المقدّر {_pct(m['cover'])} من المملكة، "
+                  f"فانتشارها {cw}")
+        else:
+            t += (f"تجتمع مكونات الهطول في هذه {nm} أقوى ما تجتمع فوق {jl(RW.strongest(m))}، وأوسع أيامها {ar_date(pk)}؛ "
+                  f"وقوة مكوناتها في قلبها {core(m)} من ١٠٠، فهي {iw}؛ وانتشارها المقدّر {_pct(m['cover'])} من المملكة، "
+                  f"فانتشارها {cw}")
         big = RW.score(m) / max(RW.score(ref), 1e-3)
-        t += ("، وهي في الجملة أقوى من المرجعية، فإن تحققت صارت هي المرجع الجديد" if big >= 1.1 else
-              "، وهي في الجملة قريبة من المرجعية" if big >= 0.8 else
-              "، وهي في الجملة أضعف من المرجعية")
+        seab = bool(west) and sea > (m.get("core") or 0)
+        if seab and big < 1.1 and sea >= (ref.get("core") or 0):
+            t += "، وهي في الجملة أضيق من المرجعية وأشد منها في قلبها البحري الساحلي"
+        else:
+            t += ("، وهي في الجملة أقوى من المرجعية، فإن تحققت صارت هي المرجع الجديد" if big >= 1.1 else
+                  "، وهي في الجملة قريبة من المرجعية" if big >= 0.8 else
+                  "، وهي في الجملة أضعف من المرجعية")
         if (pk - day0).days > 7:
             t += "، والمقارنة تقريبية لبعد الموجة وتتضح كلما اقتربت"
     return (t + ". (القراءة من مكونات الجو لا من مطر النماذج: الرطوبة في عمود الهواء وفي المستوى المتوسط، والبرودة "
