@@ -17,29 +17,47 @@ Makkah coast, Al-Qunfudhah, Yanbu, Ar-Rais) gets an index 0..1 at 18, 00 and 06 
 Makkah), and the night keeps its strongest time. Makkah and Al-Jumum get the index of the coast west of them (north of
 the Makkah coast and Jeddah) carried inland by the steering wind, times the fuel on the plain itself.
 
-Night k of a cycle = the evening of the cycle date + k, to the morning after: leads 24k+6, 24k+12, 24k+18 h of a 12 UTC
-cycle.
+Night k of a cycle = the evening of the cycle date + k, to the afternoon after: leads 24k+6, 24k+12, 24k+18, 24k+24 h of a
+12 UTC cycle (9 PM, 3 AM, 9 AM, 3 PM Makkah; the 3 PM time added 27 Nov 2026, Fahad's Umluj-Rabigh case of 30 Nov, when
+the meeting line over the sea stayed active through the day).
+
+27 Nov 2026 (Fahad: «حالة غزيرة جدا بين املج ورابغ بحرية ثم تخرج الى المدينة وحائل… لكن موقعنا فقط قرأ الغزارة وسط
+الجزيرة»): Umluj and Al-Wajh added north of Yanbu; a third level «مرجحة وقد تكون غزيرة» when the index is >= 0.65 AND the
+onshore steering is >= 8 m/s at the same time (cells driven onto the coast instead of drifting along the sea: the
+25-27 Oct nights off Umluj-Yanbu had the index near 1 with 4-7 m/s and stayed dry; 6-7 Nov had 8-13 m/s and gave
+20-85 mm); and the path inland (Al-Madinah, Khaybar-Al-Ula, Hail) when a south-westerly steering wind carries the cells
+of the Madinah-Tabuk coasts over a moist 700 hPa layer. Test 1 Oct-25 Nov 2026 (56 nights x 8 stretches, PERSIANN-PDIR-
+Now, results branch test-seacell2): index < 0.25 -> 4 % wet, 0.25-0.65 20 %, >= 0.65 43 %, base 8 %; >= 20 mm on the
+coast: >= 0.65 with steering >= 8 m/s 4 of 9 nights (44 %), >= 0.65 with weaker steering 1 of 14 (7 %), base 2 %. The
+inland path was seen once (6 Nov: Al-Madinah and Hail wet), so it is written as a reading, with no level.
 """
 import numpy as np
 
-BOX = (17.5, 25.5, 36.0, 41.5)   # lat0, lat1, lon0, lon1
+BOX = (17.5, 27.0, 34.5, 42.5)   # lat0, lat1, lon0, lon1
 RES = 0.25
 SEA_W = 1.5                      # the sea strip off each stretch, degrees west of the coast
 # (key, name, lat from, lat to), north to south
-STRETCHES = [("yanbu", "ينبع", 23.85, 25.0, "md"), ("rais", "الرايس", 23.0, 23.85, "md"),
+STRETCHES = [("wajh", "الوجه", 25.6, 26.6, "tb"), ("umluj", "أملج", 24.6, 25.6, "tb"),
+             ("yanbu", "ينبع", 23.85, 24.6, "md"), ("rais", "الرايس", 23.0, 23.85, "md"),
              ("north", "شمال سواحل منطقة مكة (ثول ورابغ)", 21.65, 23.0, "mk"), ("jeddah", "جدة", 21.3, 21.65, "mk"),
              ("south", "جنوب سواحل منطقة مكة (الشعيبة والليث)", 19.7, 21.3, "mk"),
              ("qunf", "القنفذة", 18.6, 19.7, "mk")]
 NAME = {k: n for k, n, *_ in STRETCHES}
 PLAIN = (21.2, 21.85, 39.6, 40.1)   # Makkah, Al-Jumum and Bahra
+# inland, on the path of the cells carried by a south-westerly steering wind (Fahad 27 Nov 2026: «بين أملج ورابغ بحرية
+# ثم تخرج الى المدينة وحائل»)
+INLAND = {"madinah": ("المدينة المنورة", (24.2, 24.85, 39.3, 39.95)), "khaybar": ("خيبر والعلا", (25.4, 26.8, 37.8, 39.6)),
+          "hail": ("حائل", (27.0, 27.9, 41.2, 42.3))}
 FIELDS = [("cape", r":CAPE:surface:"), ("cin", r":CIN:surface:"),
           ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
           ("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:"),
-          ("u700", r":UGRD:700 mb:"), ("u500", r":UGRD:500 mb:"), ("rh700", r":RH:700 mb:"), ("land", r":LAND:surface:")]
+          ("u700", r":UGRD:700 mb:"), ("u500", r":UGRD:500 mb:"), ("v700", r":VGRD:700 mb:"), ("v500", r":VGRD:500 mb:"), ("rh700", r":RH:700 mb:"), ("land", r":LAND:surface:")]
 # test of 26 Nov 2026 (1 Oct-24 Nov 2026 nights, GFS 12 UTC +6..+18 h, PERSIANN-PDIR-Now >= 1 mm on 15 % of the
 # stretch or its sea strip): index < 0.25 -> 3 % of nights wet, 0.25-0.65 -> 18 %, >= 0.65 -> 56 % (all 8 %)
 LEVELS = (0.25, 0.65)
-WORD = {1: "محتملة", 2: "مرجحة"}
+WORD = {1: "محتملة", 2: "مرجحة", 3: "مرجحة وقد تكون غزيرة"}
+STRONG_STEER = 8.0   # m/s onshore 700-500 hPa wind with an index >= 0.65 -> level 3 (see the docstring)
+PATH_FROM = ("wajh", "umluj", "yanbu", "rais", "north")
 PLAIN_MIN = 0.25   # Makkah and Al-Jumum: never above 0.45 in the test, so one level only
 _MASKS = None
 
@@ -79,6 +97,9 @@ def masks(land):
         out[key] = (sea, coast)
     plain = (LA >= PLAIN[0]) & (LA <= PLAIN[1]) & (LO >= PLAIN[2]) & (LO <= PLAIN[3]) & L
     out["plain"] = (plain, plain)
+    for key, (_n, (a, b, c, d)) in INLAND.items():
+        m = (LA >= a) & (LA <= b) & (LO >= c) & (LO <= d) & L
+        out[key] = (m, m)
     _MASKS = out
     return out
 
@@ -100,6 +121,7 @@ def features(g):
     M = masks(g["land"])
     cv = _conv(g["u10"], g["v10"])
     steer = 0.5 * (g["u700"] + g["u500"])
+    steer_v = 0.5 * (g["v700"] + g["v500"]) if "v700" in g else np.zeros_like(steer)
     out = {}
     for key, (sea, coast) in M.items():
         if not sea.any():
@@ -108,7 +130,8 @@ def features(g):
         top = cape >= np.quantile(cape, 0.9)
         out[key] = {"cape": round(float(np.quantile(cape, 0.9))), "cin": round(float(np.median(g["cin"][sea][top]))),
                     "pw": round(float(g["pw"][sea].mean()), 1), "conv": round(float(cv[sea].max()), 2),
-                    "steer": round(float(steer[sea | coast].mean()), 1), "rh700": round(float(g["rh700"][sea].mean())),
+                    "steer": round(float(steer[sea | coast].mean()), 1),
+                    "steer_v": round(float(steer_v[sea | coast].mean()), 1), "rh700": round(float(g["rh700"][sea].mean())),
                     "cape_coast": round(float(np.quantile(g["cape"][coast], 0.9))) if coast.any() else 0,
                     "cin_coast": round(float(np.median(g["cin"][coast]))) if coast.any() else 0}
     return out
@@ -148,7 +171,7 @@ def night(get_fields, cycle, k):
     t0 = datetime.strptime(cycle[:8], "%Y%m%d").date()
     base = 0 if cycle[8:10] == "12" else 12
     times = []
-    for h in (6, 12, 18):
+    for h in (6, 12, 18, 24):
         fh = 24 * k + h + base
         g = None
         for _t in range(3):
@@ -160,12 +183,32 @@ def night(get_fields, cycle, k):
         if g is None:
             continue
         f = features(g)
-        times.append({"h": (18 + h - 6) % 24, "f": f, "si": {key: index(v) for key, v in f.items() if key != "plain"}})
+        times.append({"h": (18 + h - 6) % 24, "f": f,
+                      "si": {key: index(v) for key, v in f.items() if key in NAME}})
     out = {"d": (t0 + timedelta(days=k)).isoformat(), "times": times}
     keys = [key for key, *_ in STRETCHES]
     out["si"] = {key: max([t["si"].get(key, 0) for t in times] or [0]) for key in keys}
+    out["strong"] = sorted({key for t in times for key in keys
+                            if t["si"].get(key, 0) >= LEVELS[1] and t["f"].get(key, {}).get("steer", 0) >= STRONG_STEER})
     out["plain"] = plain_index(out)
+    out["path"] = path(out)
     return out
+
+
+def path(r):
+    """the inland places the cells of the Madinah-Tabuk coasts reach on a south-westerly steering wind, or []"""
+    out = []
+    for t in r["times"]:
+        co = max([t["si"].get(k, 0) for k in PATH_FROM] or [0])
+        if co < LEVELS[1]:
+            continue
+        for key in INLAND:
+            f = t["f"].get(key)
+            if not f or key in out:
+                continue
+            if f["steer"] >= 8 and f.get("steer_v", 0) >= 2 and f["rh700"] >= (60 if key == "hail" else 50):
+                out.append(key)
+    return [k for k in INLAND if k in out]
 
 
 def fetch(cycle, nights, get_fields):
@@ -179,11 +222,17 @@ def fetch(cycle, nights, get_fields):
     return rows
 
 
-def level(x):
-    return sum(1 for t in LEVELS if x >= t)
+def level(x, strong=False):
+    return 3 if strong and x >= LEVELS[1] else sum(1 for t in LEVELS if x >= t)
 
 
-HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا"}
+def levels(r):
+    """{stretch: level} of one night, with the strong level"""
+    st_ = set(r.get("strong") or [])
+    return {k: level(v, k in st_) for k, v in r["si"].items()}
+
+
+HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا", 12: "الثالثة عصرًا"}
 MISSING = {"fuel": "طاقة البحر ضعيفة", "moist": "الهواء فوق البحر غير رطب بما يكفي",
            "trig": "لا التقاء للرياح فوق البحر يرفع الهواء", "carry": "رياح الطبقات المتوسطة لا تحمل الخلايا نحو الساحل",
            "mid": "الطبقات المتوسطة جافة"}
@@ -216,7 +265,7 @@ def lines(rows, d0, d1):
     for r in rows or []:
         if not (str(d0) <= r["d"] <= str(d1)) or not r.get("times"):
             continue
-        xs = [(level(v), k) for k, v in r["si"].items() if level(v) >= 1]
+        xs = [(lv, k) for k, lv in levels(r).items() if lv >= 1]
         pl = 1 if r.get("plain", 0) >= PLAIN_MIN else 0
         if xs or pl:
             out[r["d"]] = (sorted(xs, key=lambda x: -x[0]), pl)
@@ -231,6 +280,22 @@ def _stretch_words(xs):
     return "، و".join(f"{WORD[lv]} على {jl(by[lv])}" for lv in sorted(by, reverse=True))  # «مرجحة على …، ومحتملة على …»
 
 
+def path_words(r):
+    """«، وتحملها الرياح الجنوبية الغربية (نحو ١٦ م/ث) إلى المدينة المنورة وحائل» or ''"""
+    from report2 import jl
+    ks = r.get("path") or []
+    if not ks:
+        return ""
+    sp = max((t["f"][k]["steer"] for t in r["times"] for k in ks if k in t["f"]), default=0)
+    return (f"، وتخرج خلاياها مع الرياح الجنوبية الغربية (نحو {_num(sp)} م/ث) إلى {jl([INLAND[k][0] for k in ks])} "
+            "فوق طبقة وسطى رطبة")
+
+
+TEST_NOTE = ("(في اختبار ليالي ١ أكتوبر إلى ٢٥ نوفمبر بأمطار الأقمار الصناعية: ما قُرئ «مرجحة» أمطر في ٤٣٪ من الليالي، "
+             "و«محتملة» في ٢٠٪، والمعتاد ٨٪؛ وما قُرئ «مرجحة وقد تكون غزيرة» بلغ ٢٠ ملم على الساحل في ٤ من ٩ ليالٍ، "
+             "مقابل ليلة من ١٤ حين ضعفت الرياح الدافعة، والمعتاد ٢٪.)")
+
+
 def tonight(rows, d):
     """the report's day: one paragraph on tonight's sea cells, or why there are none"""
     r = next((x for x in rows or [] if x["d"] == str(d)), None)
@@ -242,11 +307,11 @@ def tonight(rows, d):
     if not L:
         p = parts(f)
         miss = sorted(p, key=lambda k: p[k])[:2]
-        return ("الخلايا البحرية الليلة: لا تجتمع مكوناتها على سواحل الحجاز، لأن " + " و".join(MISSING[m] for m in miss)
+        return ("الخلايا البحرية الليلة: لا تجتمع مكوناتها على السواحل الغربية، لأن " + " و".join(MISSING[m] for m in miss)
                 + f" (أقربها {NAME[key]}: {why(f)}).")
     xs, pl = L
-    txt = "الخلايا البحرية الليلة (من التاسعة مساءً إلى التاسعة صباحًا): " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
-    txt += f"، وأقواها نحو {HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}."
+    txt = "الخلايا البحرية الليلة (من التاسعة مساءً إلى الثالثة عصر الغد): " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
+    txt += path_words(r) + f"، وأقواها نحو {HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}."
     return txt + (" وقد تبلغ بعض خلاياها مكة والجموم وقد ضعفت." if pl else " ولا يُتوقع أن تبلغ مكة والجموم.")
 
 
@@ -256,7 +321,7 @@ def coming(rows, d0, d1):
     from report2 import ar_date
     L = lines(rows, d0, d1)
     if not L:
-        return ("الخلايا البحرية الليلية على سواحل الحجاز: لا تجتمع مكوناتها في الليالي القادمة حتى "
+        return ("الخلايا البحرية الليلية على السواحل الغربية: لا تجتمع مكوناتها في الليالي القادمة حتى "
                 f"{ar_date(date.fromisoformat(str(d1)))} في توقع الليلة.")
     ps = []
     for d, (xs, pl) in sorted(L.items()):
@@ -264,12 +329,13 @@ def coming(rows, d0, d1):
         t = f"ليلة {ar_date(date.fromisoformat(d))}: " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
         if pl:
             t += "، وقد تبلغ بعض خلاياها مكة والجموم"
+        t += path_words(next(x for x in rows if x["d"] == d))
         ps.append(t)
     bd = max(L, key=lambda d: sum(next(x for x in rows if x["d"] == d)["si"].values()))
     r = next(x for x in rows if x["d"] == bd)
     key = max(r["si"], key=lambda k: r["si"][k])
     t, f = _best(r, key)
-    return ("الخلايا البحرية الليلية على سواحل الحجاز (حمل حراري لا يحتاج إلى أخدود، يولد فوق البحر الدافئ ليلًا وتحمله "
-            "الرياح إلى الساحل): " + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
-            f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. (في اختبار ليالي ١ أكتوبر إلى ٢٤ نوفمبر بأمطار الأقمار "
-            "الصناعية: ما قُرئ «مرجحة» أمطر في ٥٦٪ من الليالي، و«محتملة» في ١٨٪، والمعتاد ٨٪.)")
+    return ("الخلايا البحرية على السواحل الغربية من الوجه إلى القنفذة (حمل حراري لا يحتاج إلى أخدود، يولد فوق البحر "
+            "الدافئ ليلًا وقد يستمر نهار الغد، وتحمله الرياح إلى الساحل؛ كل ليلة من التاسعة مساءً إلى الثالثة عصر الغد): "
+            + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
+            f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. " + TEST_NOTE)
