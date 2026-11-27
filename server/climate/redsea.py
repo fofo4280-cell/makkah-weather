@@ -458,3 +458,81 @@ def run(gfs_fields, cycle, out_fig, log=print):
         rows.append(r)
         days.append(d.isoformat())
     return {"days": days, "rows": rows, "extent": list(EXTENT), "in_extent": list(IN_EXTENT)}
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Hour by hour (Fahad, 27 Nov 2026: «خرائط الحمل الحراري أبيها بالساعات تتحرك وليست بالايام.. أمامنا موجات ليلية
+# والخرائط هذه لا تغطيها»): both maps of the «الحمل الحراري» tab every 3 hours of the Makkah day (3 AM ... midnight),
+# GFS 0.25 instant fields (not the 12-6 PM mean/max), so the night sea cells and the night waves show. Files
+# rsf_KK_HH.png and rsc_KK_HH.png (HH = Makkah hour 00, 03, ... 21; the day's 00 is its first hour, midnight that
+# starts it). The daily maps rsf_KK/rsc_KK and their verdicts are unchanged. Rows get "hours": [{h, z, at, ins}] for
+# the line under the map; frames saved as WebP (~125 KB). The inland verdict levels stay daily (calibrated on the afternoon max): the hour gives the
+# share only.
+HOURS = (0, 3, 6, 9, 12, 15, 18, 21)
+HOURLY_DAYS = 16
+HOUR_LAB = {0: "منتصف الليل", 3: "الساعة ٣ فجرًا", 6: "الساعة ٦ صباحًا", 9: "الساعة ٩ صباحًا", 12: "الساعة ١٢ ظهرًا",
+            15: "الساعة ٣ عصرًا", 18: "الساعة ٦ مساءً", 21: "الساعة ٩ ليلًا"}
+_H = {}
+
+
+def _hour_frame(job):
+    """one frame: fetch the GFS step, measure, draw both maps; returns (k, h, summary) or (k, h, None)"""
+    k, h, d, fh, out_fig = job
+    g = _H
+    try:
+        f = _cut(g["gfs_fields"](g["cycle"], fh, res="0p25", fields=FIELDS))[0]
+        r, u, v, cape, m = measure([f], g["lat"], g["lon"], g["static"], "gfs")
+        import figures as F
+        from datetime import date as _d
+        dd = _d.fromisoformat(d)
+        when = f"{F.WEEK_AR[dd.weekday()]} {F.ar_num(dd.day)} {F.MONTH_AR[dd.month - 1]}، {HOUR_LAB[h]} بتوقيت مكة"
+        n, line, s, t = verdict(r)
+        draw(os.path.join(out_fig, f"rsf_{k:02d}_{h:02d}.png"), g["lat"], g["lon"], u, v, cape, m, g["static"]["hgt"],
+             r["z"], cmax=SRC["gfs"]["cmax"], width_px=1400, card=("تدفق البحر الأحمر — النموذج الأمريكي", when, [line]))
+        thr, _ = INLAND_SRC["gfs"]
+        ins, conn = inland(cape, m, thr)
+        draw_inland(os.path.join(out_fig, f"rsc_{k:02d}_{h:02d}.png"), g["lat"], g["lon"], u, v, cape, m,
+                    g["static"]["hgt"], conn, width_px=1500, thr=thr,
+                    card=("طاقة الحمل وتوغّلها من البحر الأحمر — النموذج الأمريكي", when,
+                          [f"الطاقة المتصلة بالبحر في هذه الساعة: {F.ar_num(ins, 1)}٪ من نجد والقصيم والوسطى"]))
+        for nm in (f"rsf_{k:02d}_{h:02d}", f"rsc_{k:02d}_{h:02d}"):   # WebP: a third of the PNG, 256 frames a night
+            pth = os.path.join(out_fig, nm + ".png")
+            from PIL import Image
+            Image.open(pth).convert("RGB").save(pth[:-4] + ".webp", "WEBP", quality=78, method=4)
+            os.remove(pth)
+        return k, h, {"h": h, "z": r["z"], "at": r["at"], "ins": round(ins, 1), "sc": r["scape"]}
+    except Exception as e:  # noqa: BLE001
+        print("red sea hourly failed", d, h, repr(e)[:160], flush=True)
+        return k, h, None
+
+
+def hourly(gfs_fields, cycle, out_fig, out, procs=3, log=print):
+    """adds rows[k]["hours"] to run()'s result `out` and draws the frames; GFS rows only"""
+    import time
+    from multiprocessing import get_context
+    t0 = datetime.strptime(cycle, "%Y%m%d%H")
+    f = gfs_fields(cycle, 24, res="0p25", fields=WIND1 + STATIC)
+    f, lat, lon = _cut(f)
+    _H.update(gfs_fields=gfs_fields, cycle=cycle, lat=lat, lon=lon, static={"hgt": f["hgt"], "land": f["land"]})
+    jobs = []
+    for k, r in enumerate(out["rows"][:HOURLY_DAYS]):
+        if r.get("src") != "gfs":
+            continue
+        d = datetime.fromisoformat(r["d"])
+        for h in HOURS:
+            fh = int((d + timedelta(hours=h - 3) - t0).total_seconds() // 3600)   # Makkah = UTC + 3
+            if fh < 0 or fh > 384 or (fh > 120 and fh % 3):
+                continue
+            jobs.append((k, h, r["d"], fh, out_fig))
+    ts = time.time()
+    res = {}
+    with get_context("fork").Pool(procs) as pool:
+        for k, h, s in pool.imap_unordered(_hour_frame, jobs):
+            if s:
+                res.setdefault(k, []).append(s)
+    for k, hs in res.items():
+        out["rows"][k]["hours"] = sorted(hs, key=lambda x: x["h"])
+    out["hourly"] = list(HOURS)
+    log("red sea hourly:", sum(len(v) for v in res.values()), "of", len(jobs), "frames in", int(time.time() - ts), "s",
+        flush=True)
+    return out
