@@ -1174,6 +1174,9 @@ def card_cities(ax, transform=None, names=None, fontsize=None, skip=()):
                 fontweight="normal", path_effects=halo, zorder=8, **kw)
 
 
+TITLE_BOX = False   # Fahad, 28 Nov 2026: no title box over any map
+
+
 def card_frame(fig, title, when, lines=(), legend=None):
     """the title box (top right) and the legend box (bottom left) over the whole figure.
     legend = {"cols": [(p, colour)], "vmin", "vmax", "ticks", "caption", "fmt": callable}"""
@@ -1183,27 +1186,31 @@ def card_frame(fig, title, when, lines=(), legend=None):
     W, H = fig.get_size_inches() * fig.dpi
     base = fig.get_figwidth() * 1.45          # 10 pt on a 7-inch (1400 px) map
     r = fig.canvas.get_renderer()
-    # ---- title box
+    # ---- title box: REMOVED from every map (Fahad, 28 Nov 2026, circling it: «احذفها من كل الخرائط»); the page card
+    # already shows the map's name, day, hour and reading. Only the legend box stays.
     m, pad = 14, base * 1.1
+    if not TITLE_BOX:
+        title, when, lines = None, None, ()
     x0 = 1 - (m + pad) / W
     y = 1 - (m + pad) / H
     texts = []
     # the page card already carries the map's name (Fahad, 20 Nov 2026: «لا تعيد تكرار ما هو موجود»): the box keeps
     # the model, the day and hour, and the day's own reading
-    if " — " in title:
+    if title and " — " in title:
         title = title.split(" — ", 1)[1].strip()
-    rows = [(title, base, CARD_INK, "semibold"), (when, base * 0.86, CARD_INK, "normal")]
+    rows = [(title, base, CARD_INK, "semibold"), (when, base * 0.86, CARD_INK, "normal")] if TITLE_BOX else []
     rows += [(t, base * 0.8, CARD_MUTED, "normal") for t in lines if t]
     for k, (t, fs, col, wt) in enumerate(rows):
         tx = fig.text(x0, y, _rtl(t), ha="right", va="top", fontsize=fs, color=col, family=fam, fontweight=wt, zorder=20)
         texts.append(tx)
         y -= (tx.get_window_extent(r).height + fs * (1.0 if k == 0 else 0.7)) / H
     bbs = [t.get_window_extent(r) for t in texts]
-    left = min(b.x0 for b in bbs) - pad
-    bottom = min(b.y0 for b in bbs) - pad * 0.8
-    fig.patches.append(FancyBboxPatch((left / W, bottom / H), (W - m - left) / W, (H - m - bottom) / H,
-                                      boxstyle="round,pad=0,rounding_size=0.008", transform=fig.transFigure,
-                                      fc=CARD_BG, ec=(1, 1, 1, 0.06), lw=0.6, zorder=19))
+    left = min(b.x0 for b in bbs) - pad if bbs else 0
+    bottom = min(b.y0 for b in bbs) - pad * 0.8 if bbs else 0
+    if bbs:
+        fig.patches.append(FancyBboxPatch((left / W, bottom / H), (W - m - left) / W, (H - m - bottom) / H,
+                                          boxstyle="round,pad=0,rounding_size=0.008", transform=fig.transFigure,
+                                          fc=CARD_BG, ec=(1, 1, 1, 0.06), lw=0.6, zorder=19))
     # ---- legend box
     if legend:
         lw_, lh = 0.40, 0.065 * W / H
