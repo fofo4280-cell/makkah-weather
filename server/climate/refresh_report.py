@@ -64,7 +64,19 @@ def main():
         report4.OUT_DIR = out
     except Exception as e:  # noqa: BLE001
         print("report4 import failed:", repr(e), flush=True)
+    prev = st.get("report")
     rep = report2.build(rep, st)
+    try:   # the self-check before publishing (reportcheck.py, 27 Nov 2026)
+        import reportcheck
+        errs = reportcheck.check(rep, st)
+    except Exception as e:  # noqa: BLE001
+        errs = [f"self-check crashed: {e!r}"]
+    st["report_check"] = {"errors": errs}
+    if errs:
+        print("REPORT SELF-CHECK FAILED, not published:", *errs, sep="\n  ", flush=True)
+        st["report"] = prev
+        json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
+        return
     st["report"] = rep
     json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
     rd = os.path.join(out, "reports")

@@ -1187,9 +1187,26 @@ def main():
         import traceback
         traceback.print_exc()
         print("reference wave map failed:", repr(e), flush=True)
+    # the self-check before publishing (reportcheck.py; Fahad 27 Nov 2026: «ولا أريد اي أخطاء أخرى مره ثانية»): a
+    # report that fails is not published; the site keeps the last good report and the errors go to the status
+    ok = True
+    try:
+        import reportcheck
+        errs = reportcheck.check(status["report"], status, img=True)
+    except Exception as e:  # noqa: BLE001
+        errs = [f"self-check crashed: {e!r}"]
+    status["report_check"] = {"t": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"), "errors": errs}
+    if errs:
+        ok = False
+        print("REPORT SELF-CHECK FAILED, not published:", *errs, sep="\n  ", flush=True)
+        try:
+            prev = json.load(open(os.path.join(out, "mjo.json"))).get("report")
+        except Exception:  # noqa: BLE001
+            prev = None
+        status["report"] = prev
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
-    if status["report"]:
+    if status["report"] and ok:
         rd = os.path.join(out, "reports")
         os.makedirs(rd, exist_ok=True)
         json.dump(status["report"], open(os.path.join(rd, t0.strftime("%Y%m%d") + ".json"), "w"), ensure_ascii=False)

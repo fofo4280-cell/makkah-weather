@@ -37,7 +37,7 @@ Hail box only its southern row. These two are not in the Oct-Nov test.
 """
 import numpy as np
 
-BOX = (17.5, 29.75, 34.5, 42.5)   # lat0, lat1, lon0, lon1
+BOX = (16.0, 29.75, 34.5, 51.5)   # lat0, lat1, lon0, lon1 (Haql to Jazan, and the Gulf coast)
 RES = 0.25
 SEA_W = 1.5                      # the sea strip off each stretch, degrees west of the coast
 # (key, name, lat from, lat to), north to south
@@ -45,7 +45,10 @@ STRETCHES = [("duba", "ضباء وحقل", 26.6, 29.5, "tb"), ("wajh", "الوج
              ("yanbu", "ينبع", 23.85, 24.6, "md"), ("rais", "الرايس", 23.0, 23.85, "md"),
              ("north", "شمال سواحل منطقة مكة (ثول ورابغ)", 21.65, 23.0, "mk"), ("jeddah", "جدة", 21.3, 21.65, "mk"),
              ("south", "جنوب سواحل منطقة مكة (الشعيبة والليث)", 19.7, 21.3, "mk"),
-             ("qunf", "القنفذة", 18.6, 19.7, "mk")]
+             ("qunf", "القنفذة", 18.6, 19.7, "mk"), ("birk", "البرك والشقيق", 17.6, 18.6, "as"),
+             ("jazan", "جازان وفرسان", 16.3, 17.6, "jz"),
+             ("gulf", "ساحل الخليج (الجبيل والدمام والخبر)", 25.5, 28.5, "gulf")]
+GULF = ("gulf",)                 # east coast: the sea lies east of the land and the onshore wind blows west
 NAME = {k: n for k, n, *_ in STRETCHES}
 PLAIN = (21.2, 21.85, 39.6, 40.1)   # Makkah, Al-Jumum and Bahra
 # inland, on the path of the cells carried by a south-westerly steering wind (Fahad 27 Nov 2026: «بين أملج ورابغ بحرية
@@ -59,7 +62,7 @@ FIELDS = [("cape", r":CAPE:surface:"), ("cin", r":CIN:surface:"),
 # test of 26 Nov 2026 (1 Oct-24 Nov 2026 nights, GFS 12 UTC +6..+18 h, PERSIANN-PDIR-Now >= 1 mm on 15 % of the
 # stretch or its sea strip): index < 0.25 -> 3 % of nights wet, 0.25-0.65 -> 18 %, >= 0.65 -> 56 % (all 8 %)
 LEVELS = (0.25, 0.65)
-WORD = {1: "محتملة", 2: "مرجحة", 3: "مرجحة وقد تكون غزيرة"}
+WORD = {0: "زخات عابرة ممكنة", 1: "محتملة", 2: "مرجحة", 3: "مرجحة وقد تكون غزيرة"}
 STRONG_STEER = 8.0   # m/s onshore 700-500 hPa wind with an index >= 0.65 -> level 3 (see the docstring)
 PATH_FROM = ("duba", "wajh", "umluj", "yanbu", "rais", "north")
 PLAIN_MIN = 0.25   # Makkah and Al-Jumum: never above 0.45 in the test, so one level only
@@ -88,16 +91,26 @@ def masks(land):
     # the Arabian coast in each row: the land cell just east of the easternmost sea cell (the African coast and the
     # islands lie west of it)
     out = {}
+    red = lo < 43.0                      # the Red Sea half of the box; the Gulf half is read on its own
     coast_lon = np.full(len(la), np.nan)
+    gulf_lon = np.full(len(la), np.nan)
     for j in range(len(la)):
-        sea_i = np.nonzero(~L[j])[0]
+        sea_i = np.nonzero(~L[j] & red)[0]
         if len(sea_i) and sea_i[-1] + 1 < len(lo):
             coast_lon[j] = lo[sea_i[-1] + 1]
+        g_i = np.nonzero(~L[j] & (lo > 45.0))[0]
+        if len(g_i) and g_i[0] > 0:
+            gulf_lon[j] = lo[g_i[0] - 1]   # the Saudi coast: the land cell just west of the westernmost Gulf cell
     for key, _n, a, b, _r in STRETCHES:
         band = (LA >= a) & (LA < b)
-        cl = coast_lon[:, None] * np.ones_like(LO)
-        sea = band & ~L & (LO < cl) & (LO >= cl - SEA_W)
-        coast = band & L & (LO >= cl) & (LO <= cl + 0.5)
+        if key in GULF:
+            cg = gulf_lon[:, None] * np.ones_like(LO)
+            sea = band & ~L & (LO > cg) & (LO <= cg + SEA_W)
+            coast = band & L & (LO <= cg) & (LO >= cg - 0.5)
+        else:
+            cl = coast_lon[:, None] * np.ones_like(LO)
+            sea = band & ~L & (LO < cl) & (LO >= cl - SEA_W)
+            coast = band & L & (LO >= cl) & (LO <= cl + 0.5)
         out[key] = (sea, coast)
     plain = (LA >= PLAIN[0]) & (LA <= PLAIN[1]) & (LO >= PLAIN[2]) & (LO <= PLAIN[3]) & L
     out["plain"] = (plain, plain)
@@ -128,13 +141,14 @@ def features(g):
     steer_v = 0.5 * (g["v700"] + g["v500"]) if "v700" in g else np.zeros_like(steer)
     out = {}
     for key, (sea, coast) in M.items():
+        sgn = -1.0 if key in GULF else 1.0     # onshore = eastward on the Red Sea, westward on the Gulf
         if not sea.any():
             continue
         cape = g["cape"][sea]
         top = cape >= np.quantile(cape, 0.9)
         out[key] = {"cape": round(float(np.quantile(cape, 0.9))), "cin": round(float(np.median(g["cin"][sea][top]))),
                     "pw": round(float(g["pw"][sea].mean()), 1), "conv": round(float(cv[sea].max()), 2),
-                    "steer": round(float(steer[sea | coast].mean()), 1),
+                    "steer": round(float(sgn * steer[sea | coast].mean()), 1),
                     "steer_v": round(float(steer_v[sea | coast].mean()), 1), "rh700": round(float(g["rh700"][sea].mean())),
                     "cape_coast": round(float(np.quantile(g["cape"][coast], 0.9))) if coast.any() else 0,
                     "cin_coast": round(float(np.median(g["cin"][coast]))) if coast.any() else 0}
@@ -151,7 +165,10 @@ def heavy_points(g):
     for key, *_ in STRETCHES:
         zone |= M[key][0] | M[key][1]
     cv = _conv(g["u10"], g["v10"])
-    steer = 0.5 * (g["u700"] + g["u500"])
+    gz = np.zeros_like(zone)
+    for key in GULF:
+        gz |= M[key][0] | M[key][1]
+    steer = 0.5 * (g["u700"] + g["u500"]) * np.where(gz, -1.0, 1.0)   # onshore
     cl = lambda x: np.clip(x, 0, 1)
     fuel = cl((g["cape"] - 500) / 2500) * np.where(g["cin"] >= -50, 1.0, np.where(g["cin"] >= -150, 0.5, 0.0))
     I = (fuel * cl((g["pw"] - 22) / 15) * (0.35 + 0.65 * cl(cv / 2.0)) * (0.3 + 0.7 * cl(steer / 6.0))
@@ -276,7 +293,8 @@ def core_keys(pts):
     """the stretches the heavy cores lie in (by latitude)"""
     out = []
     for key, _n, a, b, _r in STRETCHES:
-        if any(a <= p[0] < b for p in pts or []) and key not in out:
+        east = key in GULF
+        if any(a <= p[0] < b and (p[1] > 45) == east for p in pts or []) and key not in out:
             out.append(key)
     return out
 
@@ -294,7 +312,7 @@ def levels(r):
     return {k: level(v, k in st_) for k, v in r["si"].items()}
 
 
-SHORT = {"duba": "ضباء", "wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
+SHORT = {"gulf": "ساحل الخليج", "birk": "البرك", "jazan": "جازان", "duba": "ضباء", "wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
          "south": "الليث", "qunf": "القنفذة"}
 
 
@@ -322,14 +340,15 @@ def west_regions(rows, d0, d1):
     then the inland places on their path (Fahad 27 Nov 2026: the map and the report tell one story, sea to inland)"""
     from report2 import jl
     w = wave_west(rows, d0, d1)
-    s = w["strong"]
+    s = [k for k in w["strong"] if k not in GULF]
+    gulf = ["ساحل الخليج وبحره"] if any(k in GULF for k in w["strong"]) else []
     if not s:
-        return []
+        return gulf
     order = [k for k, *_ in STRETCHES]
     i0, i1 = order.index(s[0]), order.index(s[-1])
     sea = f"البحر والساحل بين {SHORT[s[0]]} و{SHORT[s[-1]]}" if i1 > i0 else f"البحر والساحل عند {SHORT[s[0]]}"
     tb = [SHORT[k] for k in ("umluj", "wajh", "duba") if k in w["likely"]]
-    return [sea] + ([f"ساحل تبوك ({jl(tb)})"] if tb else []) + [INLAND[k][0] for k in w["path"]]
+    return [sea] + ([f"ساحل تبوك ({jl(tb)})"] if tb else []) + [INLAND[k][0] for k in w["path"]] + gulf
 
 
 HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا", 12: "الثالثة عصرًا"}
@@ -359,13 +378,27 @@ def why(f):
     return t + f"والرطوبة على ٧٠٠ هكتوباسكال {_num(f['rh700'])}٪"
 
 
+def passing(r):
+    """the stretches under the «محتملة» index where one time still has a strong fuel over the sea, a meeting of the
+    winds and a moist 700 hPa layer: a passing shower is possible (Fahad 27 Nov 2026: «اي نشاط فيها يذكر»; Duba-Haql
+    on 30 Nov had CAPE ~2300 and convergence 13 with PW 25 mm, under the index's moisture floor tuned on the south)"""
+    out = []
+    for t in r.get("times") or []:
+        for k, f in t["f"].items():
+            if k in NAME and k not in out and f["cape"] >= 1500 and f["cin"] >= -50 and f["conv"] >= 2.0 \
+                    and f["rh700"] >= 45 and f["pw"] >= 18:
+                out.append(k)
+    return [k for k, *_ in STRETCHES if k in out]
+
+
 def lines(rows, d0, d1):
     """{d: ([(level, stretch key)], Makkah/Al-Jumum level)} for the nights d0..d1 with a weak chance or more"""
     out = {}
     for r in rows or []:
         if not (str(d0) <= r["d"] <= str(d1)) or not r.get("times"):
             continue
-        xs = [(lv, k) for k, lv in levels(r).items() if lv >= 1]
+        lv_ = levels(r)
+        xs = [(lv, k) for k, lv in lv_.items() if lv >= 1] + [(0, k) for k in passing(r) if lv_.get(k, 0) == 0]
         pl = 1 if r.get("plain", 0) >= PLAIN_MIN else 0
         if xs or pl:
             out[r["d"]] = (sorted(xs, key=lambda x: -x[0]), pl)
@@ -407,7 +440,7 @@ def tonight(rows, d):
     if not L:
         p = parts(f)
         miss = sorted(p, key=lambda k: p[k])[:2]
-        return ("الخلايا البحرية الليلة: لا تجتمع مكوناتها على السواحل الغربية، لأن " + " و".join(MISSING[m] for m in miss)
+        return ("الخلايا البحرية الليلة: لا تجتمع مكوناتها على سواحل المملكة، لأن " + " و".join(MISSING[m] for m in miss)
                 + f" (أقربها {NAME[key]}: {why(f)}).")
     xs, pl = L
     txt = "الخلايا البحرية الليلة (من التاسعة مساءً إلى الثالثة عصر الغد): " + (_stretch_words(xs) if xs else "لا تجتمع على السواحل")
@@ -421,7 +454,7 @@ def coming(rows, d0, d1):
     from report2 import ar_date
     L = lines(rows, d0, d1)
     if not L:
-        return ("الخلايا البحرية الليلية على السواحل الغربية: لا تجتمع مكوناتها في الليالي القادمة حتى "
+        return ("الخلايا البحرية الليلية على سواحل المملكة: لا تجتمع مكوناتها في الليالي القادمة حتى "
                 f"{ar_date(date.fromisoformat(str(d1)))} في توقع الليلة.")
     ps = []
     for d, (xs, pl) in sorted(L.items()):
@@ -435,7 +468,7 @@ def coming(rows, d0, d1):
     r = next(x for x in rows if x["d"] == bd)
     key = max(r["si"], key=lambda k: r["si"][k])
     t, f = _best(r, key)
-    return ("الخلايا البحرية على السواحل الغربية من حقل إلى القنفذة (حمل حراري يولد فوق البحر الدافئ بأخدود أو بدونه "
+    return ("الخلايا البحرية على سواحل المملكة من حقل إلى جازان وعلى ساحل الخليج (حمل حراري يولد فوق البحر الدافئ بأخدود أو بدونه "
             "ليلًا وقد يستمر نهار الغد، وتحمله الرياح إلى الساحل؛ كل ليلة من التاسعة مساءً إلى الثالثة عصر الغد): "
             + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
             f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. " + TEST_NOTE)
