@@ -49,9 +49,32 @@ jobs:
 
       - name: Publish
         if: inputs.publish == 'yes'
+        # onto the LATEST climate-data, never a force-push of the copy cloned at the start (28 Nov 2026: that wiped
+        # files other jobs pushed meanwhile): only the report's own keys and files are carried over
         run: |
-          cd /home/runner/out
-          git init -q -b data
-          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
-          git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report midnight update $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push -q -f "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" HEAD:climate-data
+          for t in 1 2 3 4; do
+            rm -rf /home/runner/latest
+            git clone -q --depth 1 --branch climate-data "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${GITHUB_REPOSITORY}.git" /home/runner/latest
+            python3 - <<'PY'
+          import json, os, shutil
+          src, dst = "/home/runner/out", "/home/runner/latest"
+          a = json.load(open(os.path.join(src, "mjo.json")))
+          b = json.load(open(os.path.join(dst, "mjo.json")))
+          for k in ("report", "report_check", "ref_cmp", "verif", "cover_hist"):
+              if k in a:
+                  b[k] = a[k]
+          json.dump(b, open(os.path.join(dst, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+          for f in ("verif.json", "fig/refwave.png"):
+              if os.path.exists(os.path.join(src, f)):
+                  os.makedirs(os.path.dirname(os.path.join(dst, f)) or dst, exist_ok=True)
+                  shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
+          if os.path.isdir(os.path.join(src, "reports")):
+              shutil.copytree(os.path.join(src, "reports"), os.path.join(dst, "reports"), dirs_exist_ok=True)
+          PY
+            cd /home/runner/latest
+            git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
+            git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "climate data, rain report midnight update $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+            git push -q origin HEAD:climate-data && exit 0
+            cd /home/runner; sleep $((t * 10))
+          done
+          exit 1
