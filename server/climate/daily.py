@@ -784,6 +784,16 @@ def main():
         import traceback
         traceback.print_exc()
         print("red sea flow failed:", repr(e), flush=True)
+    # 8a4b. both maps of the «الحمل الحراري» tab every 3 hours (Fahad, 27 Nov 2026: «أبيها بالساعات تتحرك وليست
+    #       بالايام.. أمامنا موجات ليلية»): rsf_KK_HH.webp / rsc_KK_HH.webp, rows[k]["hours"] (redsea.hourly)
+    if rsflow_out:
+        try:
+            import glob
+            for f in glob.glob(os.path.join(out, "fig", "rs[fc]_??_??.webp")):
+                os.remove(f)   # frames of the previous night
+            redsea.hourly(gfs_fields, cycle, os.path.join(out, "fig"), rsflow_out)
+        except Exception as e:  # noqa: BLE001
+            print("red sea hourly failed:", repr(e), flush=True)
 
     # 8a5. the atmospheric river from the Arabian Sea toward the Red Sea and the south-west, ECMWF only (river.py;
     #      Fahad, 22 Nov 2026: «اعتمد ع الأوروبي فقط توضح فيها النهر المتدفق بلون مميز يتحرك بتقدم الأيام»)
