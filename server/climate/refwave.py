@@ -315,16 +315,15 @@ def draw(path, panels, title, sub):
 
 
 def sea_cells(st, a, b):
-    """[([[lat, lon]], index x 100)] of the grid points over the sea strips and coasts where the point's own
-    ingredients give heavy sea cells (seacell.heavy_points) in the nights a-1 .. b, strongest time kept"""
+    """[([[lat, lon]], index x 100)] of the heavy cores of the sea cells (seacell.heavy_core) in the nights a-1 .. b"""
     from datetime import timedelta
+    import seacell
     best = {}
     for r in st.get("seacell") or []:
         if not ((a - timedelta(days=1)).isoformat() <= r["d"] <= b.isoformat()):
             continue
-        for t in r.get("times") or []:
-            for la_, lo_, v in t.get("hp") or []:
-                best[(la_, lo_)] = max(best.get((la_, lo_), 0), 100 * v)
+        for la_, lo_, v in seacell.heavy_core(r) or []:
+            best[(la_, lo_)] = max(best.get((la_, lo_), 0), 100 * v)
     return [([[la_, lo_]], v) for (la_, lo_), v in best.items()]
 
 

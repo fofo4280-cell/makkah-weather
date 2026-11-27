@@ -156,7 +156,7 @@ def heavy_points(g):
     ok = zone & (I >= LEVELS[1]) & (steer >= STRONG_STEER) & (cv >= 2.0)
     la, lo = _grid()
     J, K = np.nonzero(ok)
-    return [[float(la[j]), float(lo[k]), round(float(I[j, k]), 2)] for j, k in zip(J, K)]
+    return [[float(la[j]), float(lo[k]), round(float(I[j, k]), 2), round(float(cv[j, k]), 1)] for j, k in zip(J, K)]
 
 
 def parts(f):
@@ -244,6 +244,32 @@ def fetch(cycle, nights, get_fields):
     return rows
 
 
+HEAVY_I, HEAVY_CV, HEAVY_N = 0.85, 3.0, 2   # a point is a heavy core when, at the point itself, the index is >= 0.85
+# and the low-level winds meet (>= 3e-5 /s) at 2 or more of the night's 4 times (Fahad 27 Nov 2026: «كن دقيق في رسم أماكن
+# الغزارة»): the meeting line that sits or returns, not every point the line swept once
+
+
+def heavy_core(r):
+    """[[lat, lon, mean index]] of the night's heavy cores, or None when the night has no point readings"""
+    if not r.get("times") or not all("hp" in t for t in r["times"]):
+        return None
+    hit = {}
+    for t in r["times"]:
+        for p in t["hp"]:
+            if len(p) > 3 and p[2] >= HEAVY_I and p[3] >= HEAVY_CV:
+                hit.setdefault((p[0], p[1]), []).append(p[2])
+    return [[la_, lo_, round(sum(v) / len(v), 2)] for (la_, lo_), v in hit.items() if len(v) >= HEAVY_N]
+
+
+def core_keys(pts):
+    """the stretches the heavy cores lie in (by latitude)"""
+    out = []
+    for key, _n, a, b, _r in STRETCHES:
+        if any(a <= p[0] < b for p in pts or []) and key not in out:
+            out.append(key)
+    return out
+
+
 def level(x, strong=False):
     return 3 if strong and x >= LEVELS[1] else sum(1 for t in LEVELS if x >= t)
 
@@ -251,6 +277,9 @@ def level(x, strong=False):
 def levels(r):
     """{stretch: level} of one night, with the strong level"""
     st_ = set(r.get("strong") or [])
+    core = heavy_core(r)
+    if core is not None:   # level 3 only where the night has a heavy core (the map shows the same places)
+        st_ &= set(core_keys(core))
     return {k: level(v, k in st_) for k, v in r["si"].items()}
 
 
