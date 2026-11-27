@@ -30,14 +30,18 @@ of the Madinah-Tabuk coasts over a moist 700 hPa layer. Test 1 Oct-25 Nov 2026 (
 Now, results branch test-seacell2): index < 0.25 -> 4 % wet, 0.25-0.65 20 %, >= 0.65 43 %, base 8 %; >= 20 mm on the
 coast: >= 0.65 with steering >= 8 m/s 4 of 9 nights (44 %), >= 0.65 with weaker steering 1 of 14 (7 %), base 2 %. The
 inland path was seen once (6 Nov: Al-Madinah and Hail wet), so it is written as a reading, with no level.
+
+27 Nov 2026 (Fahad: «لماذا أخرجت تبوك وسواحلها من التوقعات»): the Duba-Haql coast (26.6-29.5 N, the Red Sea off Duba
+and the Gulf of Aqaba) and Tabuk inland added; the box was cut at 27 N, so Duba and Haql had no reading at all and the
+Hail box only its southern row. These two are not in the Oct-Nov test.
 """
 import numpy as np
 
-BOX = (17.5, 27.0, 34.5, 42.5)   # lat0, lat1, lon0, lon1
+BOX = (17.5, 29.75, 34.5, 42.5)   # lat0, lat1, lon0, lon1
 RES = 0.25
 SEA_W = 1.5                      # the sea strip off each stretch, degrees west of the coast
 # (key, name, lat from, lat to), north to south
-STRETCHES = [("wajh", "الوجه", 25.6, 26.6, "tb"), ("umluj", "أملج", 24.6, 25.6, "tb"),
+STRETCHES = [("duba", "ضباء وحقل", 26.6, 29.5, "tb"), ("wajh", "الوجه", 25.6, 26.6, "tb"), ("umluj", "أملج", 24.6, 25.6, "tb"),
              ("yanbu", "ينبع", 23.85, 24.6, "md"), ("rais", "الرايس", 23.0, 23.85, "md"),
              ("north", "شمال سواحل منطقة مكة (ثول ورابغ)", 21.65, 23.0, "mk"), ("jeddah", "جدة", 21.3, 21.65, "mk"),
              ("south", "جنوب سواحل منطقة مكة (الشعيبة والليث)", 19.7, 21.3, "mk"),
@@ -46,7 +50,7 @@ NAME = {k: n for k, n, *_ in STRETCHES}
 PLAIN = (21.2, 21.85, 39.6, 40.1)   # Makkah, Al-Jumum and Bahra
 # inland, on the path of the cells carried by a south-westerly steering wind (Fahad 27 Nov 2026: «بين أملج ورابغ بحرية
 # ثم تخرج الى المدينة وحائل»)
-INLAND = {"madinah": ("المدينة المنورة", (24.2, 24.85, 39.3, 39.95)), "khaybar": ("خيبر والعلا", (25.4, 26.8, 37.8, 39.6)),
+INLAND = {"tabuk": ("تبوك", (28.0, 28.8, 36.2, 37.2)), "madinah": ("المدينة المنورة", (24.2, 24.85, 39.3, 39.95)), "khaybar": ("خيبر والعلا", (25.4, 26.8, 37.8, 39.6)),
           "hail": ("حائل", (27.0, 27.9, 41.2, 42.3))}
 FIELDS = [("cape", r":CAPE:surface:"), ("cin", r":CIN:surface:"),
           ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"),
@@ -57,7 +61,7 @@ FIELDS = [("cape", r":CAPE:surface:"), ("cin", r":CIN:surface:"),
 LEVELS = (0.25, 0.65)
 WORD = {1: "محتملة", 2: "مرجحة", 3: "مرجحة وقد تكون غزيرة"}
 STRONG_STEER = 8.0   # m/s onshore 700-500 hPa wind with an index >= 0.65 -> level 3 (see the docstring)
-PATH_FROM = ("wajh", "umluj", "yanbu", "rais", "north")
+PATH_FROM = ("duba", "wajh", "umluj", "yanbu", "rais", "north")
 PLAIN_MIN = 0.25   # Makkah and Al-Jumum: never above 0.45 in the test, so one level only
 _MASKS = None
 
@@ -219,16 +223,19 @@ def night(get_fields, cycle, k):
     return out
 
 
+PATH_SRC = {"tabuk": ("duba", "wajh"), "madinah": ("umluj", "yanbu", "rais", "north"),
+            "khaybar": ("wajh", "umluj", "yanbu"), "hail": PATH_FROM}   # a south-westerly wind carries each coast's cells
+# north-east: Duba-Al-Wajh -> Tabuk, Yanbu-Rabigh -> Al-Madinah, Al-Wajh-Yanbu -> Khaybar-Al-Ula, any of them -> Hail
+
+
 def path(r):
     """the inland places the cells of the Madinah-Tabuk coasts reach on a south-westerly steering wind, or []"""
     out = []
     for t in r["times"]:
-        co = max([t["si"].get(k, 0) for k in PATH_FROM] or [0])
-        if co < LEVELS[1]:
-            continue
         for key in INLAND:
+            co = max([t["si"].get(k, 0) for k in PATH_SRC.get(key, PATH_FROM)] or [0])
             f = t["f"].get(key)
-            if not f or key in out:
+            if co < LEVELS[1] or not f or key in out:
                 continue
             if f["steer"] >= 8 and f.get("steer_v", 0) >= 2 and f["rh700"] >= (60 if key == "hail" else 50):
                 out.append(key)
@@ -287,7 +294,7 @@ def levels(r):
     return {k: level(v, k in st_) for k, v in r["si"].items()}
 
 
-SHORT = {"wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
+SHORT = {"duba": "ضباء", "wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
          "south": "الليث", "qunf": "القنفذة"}
 
 
@@ -313,6 +320,7 @@ def wave_west(rows, d0, d1):
 def west_regions(rows, d0, d1):
     """the wave's western areas, as words, when its sea cells reach the heavy level: «البحر والساحل بين ينبع ورابغ»,
     then the inland places on their path (Fahad 27 Nov 2026: the map and the report tell one story, sea to inland)"""
+    from report2 import jl
     w = wave_west(rows, d0, d1)
     s = w["strong"]
     if not s:
@@ -320,7 +328,8 @@ def west_regions(rows, d0, d1):
     order = [k for k, *_ in STRETCHES]
     i0, i1 = order.index(s[0]), order.index(s[-1])
     sea = f"البحر والساحل بين {SHORT[s[0]]} و{SHORT[s[-1]]}" if i1 > i0 else f"البحر والساحل عند {SHORT[s[0]]}"
-    return [sea] + [INLAND[k][0] for k in w["path"]]
+    tb = [SHORT[k] for k in ("umluj", "wajh", "duba") if k in w["likely"]]
+    return [sea] + ([f"ساحل تبوك ({jl(tb)})"] if tb else []) + [INLAND[k][0] for k in w["path"]]
 
 
 HOUR = {18: "التاسعة مساءً", 0: "الثالثة فجرًا", 6: "التاسعة صباحًا", 12: "الثالثة عصرًا"}
@@ -426,7 +435,7 @@ def coming(rows, d0, d1):
     r = next(x for x in rows if x["d"] == bd)
     key = max(r["si"], key=lambda k: r["si"][k])
     t, f = _best(r, key)
-    return ("الخلايا البحرية على السواحل الغربية من الوجه إلى القنفذة (حمل حراري يولد فوق البحر الدافئ بأخدود أو بدونه "
+    return ("الخلايا البحرية على السواحل الغربية من حقل إلى القنفذة (حمل حراري يولد فوق البحر الدافئ بأخدود أو بدونه "
             "ليلًا وقد يستمر نهار الغد، وتحمله الرياح إلى الساحل؛ كل ليلة من التاسعة مساءً إلى الثالثة عصر الغد): "
             + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
             f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. " + TEST_NOTE)

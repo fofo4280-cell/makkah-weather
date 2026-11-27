@@ -1237,7 +1237,7 @@ def ingr_pulses(st, wl, day0, fac):
             allk = set().union(*({x for x, _ in fac.get(d, [])} for d in pd))
             T, R = allk & {"mjo", "warm"}, allk & {"trough", "cold"}
             kind = "mixed" if T and R else "tropical" if T else "troughs" if R else w["kind"]
-            land = [RW.label(g) for g in m["regions"] if g["cover"] >= 0.05 or g["w"] >= 30][:5] or RW.strongest(m)
+            land = [RW.label(g) for g in m["regions"] if g["cover"] >= 0.05 or g["w"] >= 30][:6] or RW.strongest(m)
             regs = west_merge(st, a, b, land)
             out.append({"start": a, "end": b, "peak": pk, "cover": m.get("cover") or 0,
                         "top": BR.wave_score(st, pk, day0, c, m.get("cover") or 0)["score"], "drivers": c["total"],
@@ -1258,15 +1258,15 @@ def west_merge(st, a, b, land):
     west = seacell.west_regions(st.get("seacell"), (a - timedelta(days=1)).isoformat(), b.isoformat())
     if not west:
         return land
-    tok = {"المدينة المنورة": "المدينة", "خيبر والعلا": "خيبر", "حائل": "حائل"}
+    tok = {"المدينة المنورة": "المدينة", "خيبر والعلا": "خيبر", "حائل": "حائل", "تبوك": "تبوك"}
     used = [tok[x] for x in west[1:] if x in tok]
-    return (west + [r for r in land if not any(u in r for u in used)])[:6]
+    return (west + [r for r in land if not any(u in r for u in used)])[:9]
 
 
 def land_rest(w):
     """the wave's land areas beyond the western sea-to-inland core, or []"""
-    return [r for r in w.get("regions") or [] if not r.startswith("البحر والساحل")
-            and r not in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+    return [r for r in w.get("regions") or [] if not r.startswith("البحر والساحل") and not r.startswith("ساحل تبوك")
+            and r not in ("المدينة المنورة", "خيبر والعلا", "حائل", "تبوك")]
 
 
 def north_break(st, w):
@@ -1557,7 +1557,7 @@ def ref_compare(st, w, day0):
             rs = sea / max(ref.get("core") or 0, 0.1)
             sw = ("أقوى من قلب المرجعية" if rs >= 1.1 else "قريب من قلب المرجعية" if rs >= 0.9 else
                   f"نحو {ar(round(100 * rs))}٪ من قوة المرجعية")
-            inl = [r for r in w["regions"] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+            inl = [r for r in w["regions"] if r in ("تبوك", "المدينة المنورة", "خيبر والعلا", "حائل")]
             t += (f"قلب هذه {nm} غربًا: {west[0].replace('البحر والساحل', 'على البحر والساحل')}، تبلغ فيه قوة المكونات "
                   + (f"أكثر من ٩٠ من ١٠٠" if sea >= 90 else f"نحو {ar(sea)} من ١٠٠") + f" (مؤشر الخلايا البحرية على مقياس الخريطة نفسه)، فهو {sw}"
                   + f"؛ وعلى اليابسة تجتمع المكونات أقوى ما تجتمع فوق {jl(RW.strongest(m))} بقوة {core(m)} من ١٠٠، "
