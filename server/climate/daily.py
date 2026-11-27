@@ -1081,6 +1081,15 @@ def main():
                 print("sea cells:", [(r["d"][5:], r["si"], r["plain"]) for r in status["seacell"]], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("sea cells failed:", repr(e), flush=True)
+            # where the trough's forcing reaches: 500 hPa falls, cold air aloft, ascent, zone by zone over the sea, the
+            # coasts and the desert (troughreach.py; Fahad 27 Nov 2026)
+            try:
+                import troughreach
+                status["troughreach"] = troughreach.fetch(cycle, 8, gfs_fields)
+                print("trough reach:", [(r["d"][5:], [k for k, v in r["z"].items() if troughreach.reaches(v)])
+                                        for r in status["troughreach"]], flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("trough reach failed:", repr(e), flush=True)
             # the historical analogs of the wave of 29 Nov-2 Dec 2026, followed nightly until it starts (analogs.py;
             # Fahad 26 Nov 2026: «تابع التحديثات اليومين القادمة واذكرها في التقرير كل يوم حتى بداية الحالة»)
             try:
