@@ -778,7 +778,7 @@ def _wave_blocks(st, day0):
             if ws_ and west:
                 # the nights and numbers are in section 5 and the summary: here only where the core is and goes
                 rest = R3.land_rest(nw_)
-                inl = [r for r in nw_["regions"] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+                inl = [r for r in nw_["regions"] if r in ("تبوك", "المدينة المنورة", "خيبر والعلا", "حائل")]
                 out.append({"p": f"وقلب الموجة غربًا الخلايا البحرية الغزيرة {west[0].removeprefix('البحر والساحل ').strip()}"
                                  " (لياليها وأرقامها في القسم ٥)"
                                  + (f"، تخرج مع الرياح الجنوبية الغربية إلى {jl(inl)}" if inl else "")
@@ -799,7 +799,7 @@ def scenarios(C):
     base = f"الأساسي (الأرجح): القراءة أعلاه كما هي ({cv} أوسعها {pk})"
     if nb and nb["blocked"]:
         west = [r for r in w.get("regions") or [] if r.startswith("البحر والساحل")]
-        inl = [r for r in w.get("regions") or [] if r in ("المدينة المنورة", "خيبر والعلا", "حائل")]
+        inl = [r for r in w.get("regions") or [] if r in ("تبوك", "المدينة المنورة", "خيبر والعلا", "حائل")]
         base += "، ومحور الأخدود يبقى محجوزًا غرب البحر الأحمر فلا ينفصل منخفض فوقه، ويعمل الأخدود أمام محوره"
         if west:
             base += "، فيبقى القلب الغزير بحريًا ساحليًا غربًا كما سبق، ومكة والجموم على أطرافه"
