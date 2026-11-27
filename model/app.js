@@ -2181,8 +2181,9 @@
   function ksaTapText() {
     const pt = ksaZoomSetup.pt; if (!pt) return;
     const [w, e, s, n] = ksaZoomSetup.ext, lon = w + pt[0] * (e - w), lat = n - pt[1] * (n - s);
-    const K = M.st.ksa, k = +$("ksaDay").value || 0, G = K && K.vals;
-    const v = (key) => G ? kGridAt(G, KSAV.data, k, G.order.indexOf(key), lat, lon) : null;
+    const K = M.st.ksa, kh = ksaCard.at ? ksaCard.at() : { k: +$("ksaDay").value || 0, h: 15 }, k = kh.k, G = K && K.vals;
+    // the tap values are the day's 3 PM fields: shown only on 3 PM frames (hourly frames carry no values file)
+    const v = (key) => G && kh.h === 15 ? kGridAt(G, KSAV.data, k, G.order.indexOf(key), lat, lon) : null;
     const rh7 = v("rh7"), rh5 = v("rh5"), t5 = v("t5");
     const pc = (x) => AR_DIG(Math.round(Math.max(0, Math.min(100, x)))) + "٪";
     const vals = rh7 == null ? "" : `<div>الرطوبة: <b>${pc(rh7)}</b> عند ٧٠٠، و<b>${pc(rh5)}</b> عند ٥٠٠</div>
@@ -2200,15 +2201,49 @@
     $("ksaCard").hidden = !(K && K.days && K.days.length);
     if ($("ksaCard").hidden) return;
     let lay = M.ksaLayer || "krh7";
+    // every 3 hours, day and night (Fahad, 28 Nov 2026: «حتى هذه انقلها بالساعات»): ECMWF frames <kind>h_KK_HH.webp
+    // (ksa.hourly), only at the steps the run has (3-hourly to 6 days, then 3 AM, 9 AM, 3 PM, 9 PM)
+    const KF = [];
+    (K.hrs || []).forEach((hs, k) => (hs || []).forEach((o) => KF.push({ k, h: o.h, o })));
+    if (!KF.length) M.ksaMode = "d"; else if (!M.ksaMode) M.ksaMode = "h";
+    const hm = () => M.ksaMode === "h" && KF.length > 0;
+    ksaCard.at = () => { if (hm()) { const f = KF[+$("ksaDay").value] || KF[0]; return { k: f.k, h: f.h }; } return { k: +$("ksaDay").value || 0, h: 15 }; };
+    const place = (k, prevH) => {
+      if (hm()) {
+        $("ksaDay").max = KF.length - 1;
+        let i = KF.findIndex((f) => f.k === k);
+        if (i < 0) i = Math.max(0, KF.findIndex((f) => f.k >= k));
+        else if (prevH != null) { const j = KF.findIndex((f) => f.k === k && f.h === prevH); if (j >= 0) i = j; }
+        else if (K.days[k] === todayISO()) {
+          const H = new Date(Date.now() + 3 * 3600e3).getUTCHours();
+          while (KF[i + 1] && KF[i + 1].k === k && KF[i + 1].h <= H) i++;
+        }
+        $("ksaDay").value = i;
+      } else { $("ksaDay").max = Math.max(0, K.days.length - 1); $("ksaDay").value = k; }
+    };
+    $("ksaMode").hidden = !KF.length;
+    document.querySelectorAll("#ksaMode button").forEach((b) => {
+      b.classList.toggle("on", b.dataset.m === M.ksaMode);
+      b.onclick = () => {
+        if (b.dataset.m === M.ksaMode) return;
+        plStop();
+        const cur = ksaCard.at();
+        M.ksaMode = b.dataset.m;
+        document.querySelectorAll("#ksaMode button").forEach((x) => x.classList.toggle("on", x === b));
+        place(cur.k, cur.h); show();
+      };
+    });
     const show = () => {
-      const k = +$("ksaDay").value || 0, kk = String(k).padStart(2, "0");
-      const url = `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
+      const at = ksaCard.at(), k = at.k, kk = String(k).padStart(2, "0"), fr = hm() ? KF[+$("ksaDay").value] || KF[0] : null;
+      const hp = (n) => String(n).padStart(2, "0");
+      const url = fr ? `${CL}fig/${lay}h_${kk}_${hp(fr.h)}.webp?v=${encodeURIComponent(st.updated)}` : `${CL}fig/${lay}_${kk}.png?v=${encodeURIComponent(st.updated)}`;
       $("ksaFig").src = url;
+      if (fr && KF[+$("ksaDay").value + 1]) { const n = KF[+$("ksaDay").value + 1], im = new Image(); im.src = `${CL}fig/${lay}h_${hp(n.k)}_${hp(n.h)}.webp?v=${encodeURIComponent(st.updated)}`; }
       const d = K.days[k];
-      $("ksaDayLabel").textContent = d ? dayLab(d) + "، الساعة ٣ عصرًا" : "";
+      $("ksaDayLabel").textContent = d ? dayLab(d) + (fr ? `، ${fr.h === 0 ? "" : "الساعة "}${HR_LAB[fr.h]}` : "، الساعة ٣ عصرًا") : "";
       $("ksaLegend").innerHTML = st.figs && st.figs[lay] && !CARDED(K) ? legendHTML(st.figs[lay]) : "";
       $("ksaLegend").hidden = CARDED(K);
-      $("ksaHint").textContent = fixModel(KSA_HINT[lay], K) + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
+      $("ksaHint").textContent = fixModel(KSA_HINT[lay], K).replace("الساعة ٣ عصرًا", "الساعة المعروضة") + (fr ? " كل ٣ ساعات من النموذج الأوروبي، وبعد اليوم السادس كل ٦ ساعات كما يصدرها النموذج؛ اضغط ▶ لتتحرك الخريطة. والمنخفضات وأخدود البحر الأحمر تحتها قراءة اليوم." : "") + " كبّر الخريطة أو صغّرها بالزرين واسحبها، والمس أي موضع لترى إحداثياته والرطوبة والحرارة فيه.";
       ksaTapText();
       const box = $("ksaLow");
       // the surface-wind tab moved to the Taif collision card (Fahad, 17 Nov 2026); the Red Sea trough and the
@@ -2218,7 +2253,8 @@
         const L = K.lows[k], R = (K.rst || [])[k];
         const rs = R == null ? "" : R ? `<div><b>أخدود البحر الأحمر</b> يمتد شمالًا حتى ${R.reach}.</div>`
           : `<div>لا يمتد أخدود البحر الأحمر شمالًا في هذا اليوم.</div>`;
-        box.innerHTML = rs + (L == null ? "<div>تحديد المنخفضات غير متاح لهذا اليوم.</div>"
+        const hl = fr && fr.o.t && fr.o.t[lay] ? `<div><b>في هذه الساعة${d && d > todayISO() ? " (توقع)" : ""}: ${fr.o.t[lay]}.</b></div>` : "";
+        box.innerHTML = hl + rs + (L == null ? "<div>تحديد المنخفضات غير متاح لهذا اليوم.</div>"
           : !L.length ? "<div>لا يوجد منخفض سطحي مغلق فوق البحر الأحمر أو اليابسة في هذا اليوم.</div>"
           : L.map((x) => `<div><b>${x.closed ? "منخفض سطحي" : "منخفض سطحي ضعيف"}</b> ${x.where} (${String(x.p).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c])} هكتوباسكال)</div>`).join(""));
       }
@@ -2234,8 +2270,8 @@
       fetch(`${CL}${K.vals.file}?v=${encodeURIComponent(st.updated)}`).then((r) => r.arrayBuffer())
         .then((b) => { KSAV.data = new Int16Array(b); ksaTapText(); }).catch(() => { KSAV.data = null; });
     }
-    $("ksaDay").max = Math.max(0, K.days.length - 1);
-    if (!ksaCard.done) { $("ksaDay").value = todayIdx(K.days); ksaCard.done = true; }
+    if (!ksaCard.done) { place(todayIdx(K.days)); ksaCard.done = true; }
+    else $("ksaDay").max = hm() ? KF.length - 1 : Math.max(0, K.days.length - 1);
     $("ksaDay").oninput = show;
     show();
   }
