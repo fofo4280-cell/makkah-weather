@@ -801,9 +801,43 @@ def scenarios(C):
     return B
 
 
+def next_pulse(C):
+    """the next pulse of the trough after the nearest wave (troughreach.py): the first day after it with 3 or more zones
+    reached, its falls and cold air, and whether the ingredients gather rain with it (Fahad's mid-level Rossby wave
+    video, 27 Nov 2026: the low comes back south over the north on 4 Dec, cold aloft)"""
+    import troughreach
+    w = C["nw"]
+    if not w:
+        return None
+    for r in C["st"].get("troughreach") or []:
+        if r["d"] <= w["end"].isoformat():
+            continue
+        R = sorted([(k, v["dz"], v["t5"]) for k, v in r["z"].items() if troughreach.reaches(v)], key=lambda x: x[1])
+        if len(R) < 3:
+            continue
+        cv = (C["wr"].get(r["d"]) or {}).get("cover") or 0
+        d = date.fromisoformat(r["d"])
+        nm = {"jouf": "الجوف", "nb": "الحدود الشمالية"}
+        t = (f"وبعد الموجة نبضة ثانية للأخدود {ar_date(d)} على {jl([nm.get(k, troughreach.NAME[k]) for k, *_ in R[:4]])}: "
+             f"يهبط سطح ٥٠٠ هكتوباسكال حتى {ar(-R[0][1])} م وتبلغ حرارة ٥٠٠ هكتوباسكال {ar(int(round(min(x[2] for x in R))))}°، "
+             "فهي أبرد من الموجة الأولى في الأعلى")
+        t += ("، لكن الرطوبة لا تجتمع معها في توقع الليلة (انتشار مكونات المطر دون ١٪)، فالأرجح برودة وغيوم وزخات "
+              "خفيفة متفرقة في الشمال لا موجة مطرية، وتُتابع كل ليلة" if cv < 0.01 else
+              f"، وتجتمع معها مكونات المطر على {R2.cover_pct(cv)} من المملكة")
+        return t + "."
+    return None
+
+
 def s_wave(C):
     st, day0 = C["st"], C["day0"]
     B = _wave_blocks(st, day0)
+    try:
+        np_ = next_pulse(C)
+        if np_:
+            i = next((j for j, b in enumerate(B) if "p" in b and b["p"].startswith("وقلب الموجة غربًا")), None)
+            B.insert(i + 1 if i is not None else len(B), {"p": np_})
+    except Exception as e:  # noqa: BLE001
+        print("report4: next pulse failed:", repr(e), flush=True)
     B += scenarios(C)
     w = C["nw"]
     if w:
