@@ -1090,6 +1090,13 @@ def main():
                                         for r in status["troughreach"]], flush=True)
             except Exception as e:  # noqa: BLE001
                 print("trough reach failed:", repr(e), flush=True)
+            # the vertical reading of the column, zone by zone (vertical.py; Fahad 27 Nov 2026, the central charter part 6)
+            try:
+                import vertical
+                status["vertical"] = vertical.fetch(cycle, 8, gfs_fields)
+                print("vertical:", [r["d"][5:] for r in status["vertical"]], flush=True)
+            except Exception as e:  # noqa: BLE001
+                print("vertical reading failed:", repr(e), flush=True)
             # the historical analogs of the wave of 29 Nov-2 Dec 2026, followed nightly until it starts (analogs.py;
             # Fahad 26 Nov 2026: «تابع التحديثات اليومين القادمة واذكرها في التقرير كل يوم حتى بداية الحالة»)
             try:
@@ -1158,6 +1165,11 @@ def main():
         status["prev_snap"] = json.load(open(os.path.join(out, "mjo.json"))).get("analyst_snap")
     except Exception:
         status["prev_snap"] = None
+    try:   # the verification log (verif.py; the central charter part 14, 27 Nov 2026)
+        import verif
+        status["verif"] = verif.load(out)
+    except Exception as e:  # noqa: BLE001
+        print("verification log not read:", repr(e), flush=True)
     try:
         import report4
         report4.OUT_DIR = out     # the ECMWF humidity file of the site's maps (ksa_vals.bin)
@@ -1207,6 +1219,15 @@ def main():
     print("Open-Meteo weight used:", round(om.used), flush=True)
     json.dump(status, open(os.path.join(out, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
     if status["report"] and ok:
+        try:   # record tonight's judgement and fetch the observed rain of past days (verif.py)
+            import verif
+            import report4
+            vl = status.get("verif") or verif.load(out)
+            verif.record(vl, day0, cycle, getattr(report4, "LAST_ROWS", []))
+            verif.fill_obs(vl, day0)
+            verif.save(out, vl)
+        except Exception as e:  # noqa: BLE001
+            print("verification log failed:", repr(e), flush=True)
         rd = os.path.join(out, "reports")
         os.makedirs(rd, exist_ok=True)
         json.dump(status["report"], open(os.path.join(rd, t0.strftime("%Y%m%d") + ".json"), "w"), ensure_ascii=False)
