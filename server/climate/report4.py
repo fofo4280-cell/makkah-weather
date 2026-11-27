@@ -140,8 +140,8 @@ def _sea_places(r, lv_min=1):
     return [seacell.NAME[k] for k, v in sorted(r["si"].items(), key=lambda kv: -kv[1]) if lv[k] >= lv_min]
 
 
-SHORT = {"wajh": "الوجه", "umluj": "أملج", "yanbu": "ينبع", "rais": "الرايس", "north": "رابغ", "jeddah": "جدة",
-         "south": "الليث", "qunf": "القنفذة"}
+import seacell as _SC
+SHORT = _SC.SHORT
 
 
 def _runs(ks, order):
@@ -151,7 +151,7 @@ def _runs(ks, order):
     idx = sorted(order.index(k) for k in ks)
     runs, cur = [], [idx[0]]
     for i in idx[1:]:
-        if i == cur[-1] + 1:
+        if i == cur[-1] + 1 and order[i] != "gulf":   # the Gulf coast is never joined to the Red Sea run
             cur.append(i)
         else:
             runs.append(cur)
@@ -275,6 +275,30 @@ def s_exec(C):
         else:
             t += f"، وتتركز مكوناتها على {jl(w['regions'][:3])}"
         B.append({"p": t + "."})
+    # the thunder showers the Kingdom-wide sweep reads outside the nearest wave (Fahad 27 Nov 2026: «اي نشاط فيها يذكر»)
+    try:
+        import troughreach
+        out_ = []
+        for d, by in sorted(troughreach.activity(C["st"].get("troughreach"), C["day0"] + timedelta(days=1),
+                                                 C["day0"] + timedelta(days=8)).items()):
+            dd = date.fromisoformat(d)
+            if (w and w["start"] <= dd <= w["end"] + timedelta(days=1)) or dd <= C["day0"] + timedelta(days=1):
+                continue            # the wave is said above; tonight is said in the lines on today and tonight
+            ks = by.get(2, [])
+            if ks:
+                nm_ = jl([troughreach.NAME[k] for k in ks[:3]])
+                if out_ and out_[-1][0] == nm_ and (dd - out_[-1][2]).days == 1:
+                    out_[-1] = (nm_, out_[-1][1], dd)       # the same places on the next night: one item
+                else:
+                    out_.append((nm_, dd, dd))
+        out_ = [f"{n} ليلة {ar_date(a - timedelta(days=1))}" if a == b else
+                f"{n} من ليلة {ar_date(a - timedelta(days=1))} إلى ليلة {ar_date(b - timedelta(days=1))}"
+                for n, a, b in out_]
+        if out_:
+            B.append({"p": "وخارج الموجة يقرأ مسح المملكة زخات رعدية ممكنة على " + "؛ و".join(out_[:4])
+                           + " (جدول المسح في القسم ٦)."})
+    except Exception as e:  # noqa: BLE001
+        print("report4: summary sweep failed:", repr(e), flush=True)
     a = C["an"]
     if a and a.get("rh") is not None and w:
         B.append({"p": f"المتغير الحاسم في هذه الموجة لمكة وجدة: الرطوبة عند ٧٠٠ هكتوباسكال غرب المملكة، وهي في توقع "
@@ -639,24 +663,25 @@ def s_geo(C):
         if c_lim or c_sp or c_nt:
             parts = ([f"الكابح {jl(c_sp)}"] if c_sp else []) + ([f"المحدد {jl(c_lim)}"] if c_lim else []) + c_nt
             B.append({"p": f"المشترك بين {jl([r['name'] for r in named])}: " + "، و".join(parts) + "."})
-        groups = {}
+        # one table instead of one paragraph per region, and each reason of a partial test said once with the
+        # regions it applies to (Fahad 27 Nov 2026: «ازل اي تكرار»)
+        trs, why_ = [], {}
         for r, sup, lim, sp, ts, nt in rd:
             lim = [x for x in lim if x not in c_lim]
             sp = [x for x in sp if x not in c_sp]
-            nt = [x for x in nt if x not in c_nt]
-            t = f"الداعم {jl(sup) if sup else 'لا عامل مكتمل'}"
-            t += f"، والمحدد {jl(lim)}" if lim else ""
-            t += f"، والكابح {jl(sp)}" if sp else ("" if c_sp else "، ولا كابح محلي")
             full = sum(1 for a, _ in ts if a == "متحقق")
-            t += f". تحقق {ar(full)} من ٤ شروط" + (f"، و{'؛ و'.join(nt)}" if nt else "")
-            t += "؛ فهي زخات متفرقة محتملة" if r["level"] == "ضعيفة" else f"؛ فالفرصة {r['level']}"
+            v = "زخات متفرقة محتملة" if r["level"] == "ضعيفة" else f"فرصة {r['level']}"
             if r.get("level0"):
-                t += f" لا فرصة {r['level0']}، لأن التوافق غير مكتمل"
+                v += f"، لا {r['level0']} لأن التوافق غير مكتمل"
             if r.get("pw") and r["pw"] < 110 and r["level"] in ("مرجحة", "قوية"):
-                t += " في نطاق الحواف وحدها، لا على المنطقة كلها"
-            groups.setdefault(t, []).append(r["name"])
-        for t, names in groups.items():   # regions read the same way are written once (no repetition)
-            B.append({"p": f"{jl(names)}: {t}."})
+                v += "، في نطاق الحواف وحدها"
+            trs.append([r["name"], jl(sup) or "لا عامل مكتمل", jl(lim + sp) or "—", f"{ar(full)} من ٤", v])
+            for x in nt:
+                if x not in c_nt:
+                    why_.setdefault(x, []).append(r["name"])
+        B.append({"table": {"head": ["المنطقة", "الداعم", "المحدد والكابح", "الشروط المتحققة", "الحكم"], "rows": trs}})
+        if why_:
+            B.append({"p": "أسباب الشروط الجزئية: " + "؛ و".join(f"{x} في {jl(n)}" for x, n in why_.items()) + "."})
     vague = [r["name"] for r in rows if r.get("vague")]
     if vague:
         B.append({"p": f"وعلى {jl(vague)} رطوبة وتبريد علوي بلا آلية رفع تحدد مكانًا، فالزخات هناك عابرة متفرقة."})
@@ -781,6 +806,8 @@ def _wave_blocks(st, day0):
                 inl = [r for r in nw_["regions"] if r in ("تبوك", "المدينة المنورة", "خيبر والعلا", "حائل")]
                 out.append({"p": f"وقلب الموجة غربًا الخلايا البحرية الغزيرة {west[0].removeprefix('البحر والساحل ').strip()}"
                                  " (لياليها وأرقامها في القسم ٥)"
+                                 + "".join(f"، و{x} بدرجة أقل" for x in nw_["regions"]
+                                           if x.startswith("ساحل تبوك") or x.startswith("ساحل الخليج"))
                                  + (f"، تخرج مع الرياح الجنوبية الغربية إلى {jl(inl)}" if inl else "")
                                  + (f"؛ ثم أمطار أوسع وأخف من صعود الهواء الرطب على {jl(rest[:4])}" if rest else "") + "."})
     return out
@@ -876,6 +903,18 @@ def next_pulse(C):
 def s_wave(C):
     st, day0 = C["st"], C["day0"]
     B = _wave_blocks(st, day0)
+    try:
+        import troughreach
+        tb = troughreach.activity_table(st.get("troughreach"), day0 + timedelta(days=1), day0 + timedelta(days=8))
+        if tb:
+            B.append({"h": "مسح النشاط على مناطق المملكة"})
+            B.append({"table": {"head": ["الليلة (من التاسعة مساءً إلى الثالثة عصر الغد)", "زخات رعدية ممكنة", "مطر خفيف ممكن"],
+                                "rows": tb}})
+            B.append({"note": "مسح كل مناطق المملكة أربع مرات في اليوم من مكونات الجو: زخات رعدية حيث تجتمع طاقة عدم "
+                              "الاستقرار ورطوبة ٧٠٠ هكتوباسكال (٥٠٪ فأكثر) وصعود الهواء، ومطر خفيف حيث تصعد طبقة رطبة عند "
+                              "٧٠٠ هكتوباسكال (٦٥٪ فأكثر). قراءة للمكونات لا مطر نماذج، ولم تُختبر بعد بالرصد."})
+    except Exception as e:  # noqa: BLE001
+        print("report4: activity sweep failed:", repr(e), flush=True)
     try:
         np_ = next_pulse(C)
         if np_:

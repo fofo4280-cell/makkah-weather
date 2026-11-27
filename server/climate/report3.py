@@ -1447,7 +1447,9 @@ def waves(st, rs, regs, day0):
                 B.append({"p": t})
                 # its map (drawn by the nightly run, refwave.draw_wave; Fahad 25 Nov 2026: «ارسم صورة المملكة كخريطة
                 # وحدد دائرة على المنطقة المذكورة»)
-                B.append({"img": "refwave.png", "v": st.get("cycle") or "",
+                from datetime import datetime as _dt, timezone as _tz
+                # the build time in the version, so a phone never keeps a map drawn earlier the same night
+                B.append({"img": "refwave.png", "v": (st.get("cycle") or "") + _dt.now(_tz.utc).strftime("%H%M"),
                           "alt": "خريطة أقوى مناطق هطول الموجة القادمة مقارنة بالموجة المرجعية"})
         except Exception as e:  # noqa: BLE001
             import traceback

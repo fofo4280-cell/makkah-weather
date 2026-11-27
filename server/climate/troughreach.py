@@ -9,10 +9,14 @@ the axis (40-70 m in 24 h over the northern Red Sea, Tabuk, Al-Jouf; 30-37 m ove
 ECMWF of 27 Nov) and the cold air aloft over the warm sea were the trough's own forcing of the Umluj-Rabigh cells. The
 area ahead of the axis is where the lift is; this module reads it directly from the fields.
 
-GFS 0.25, the 00 and 12 UTC of each day of the 12 UTC cycle (leads 12..), change against 24 h before.
+GFS 0.25, four times a day: day k keeps 18 UTC of the evening before and 00, 06, 12 UTC (9 PM to 3 PM Makkah, as the
+sea cells), each against 24 h before. 27 Nov 2026: zones over the whole Kingdom (Duba-Haql, Tayma, Al-Qunfudhah-Al-Birk,
+Bisha, Najran, Wadi Ad-Dawasir, Sharurah, Al-Kharj, Az-Zulfi, Hafr Al-Batin, Al-Ahsa, the Gulf coast) and an activity
+flag per time (thunder showers possible / light rain possible), so any activity anywhere is named in the report.
 
     fetch(cycle, days, get_fields) -> [{d, z: {zone: {dz, t5, w}}}]
     reach(rows, d0, d1) -> [(zone, dz, t5, w)] of the zones the forcing reaches on those days, strongest fall first
+    activity_table(rows, d0, d1) -> [[day, thunder showers possible, light rain possible]]
 """
 import numpy as np
 
@@ -36,10 +40,21 @@ ZONES = [("sea_n", "شمال البحر الأحمر (مقابل الوجه وأ
          ("riyadh", "الرياض", 24.0, 25.5, 45.8, 47.5),
          ("eastern", "الشرقية", 25.5, 28.0, 47.5, 50.0),
          ("asir", "الباحة وعسير", 18.0, 20.3, 41.3, 43.0),
-         ("jazan", "جازان", 16.6, 17.6, 42.5, 43.3)]
+         ("jazan", "جازان", 16.6, 17.6, 42.5, 43.3),
+         # the rest of the Kingdom (Fahad 27 Nov 2026: «انت تحلل السعودية كاملة بحرا وساحل ويابسة واي نشاط فيها يذكر»)
+         ("duba", "ضباء وحقل", 27.0, 29.5, 34.8, 35.9), ("tayma", "تيماء", 27.2, 28.2, 38.0, 39.5),
+         ("qunf", "القنفذة والبرك", 17.8, 20.0, 40.3, 41.5), ("bisha", "بيشة ورنية", 19.5, 21.0, 42.3, 43.8),
+         ("najran", "نجران", 17.0, 18.6, 43.6, 45.5), ("dawasir", "وادي الدواسر والأفلاج", 20.0, 22.5, 44.5, 46.8),
+         ("sharurah", "شرورة والربع الخالي", 17.0, 20.0, 46.5, 51.0), ("kharj", "الخرج والدلم", 23.0, 24.0, 46.8, 48.0),
+         ("majmaah", "الزلفي والمجمعة", 25.5, 26.5, 44.5, 46.0), ("hafr", "حفر الباطن", 27.5, 28.8, 44.5, 46.5),
+         ("ahsa", "الأحساء", 24.5, 25.5, 48.5, 50.0), ("gulf", "ساحل الخليج", 26.0, 27.8, 49.3, 50.3)]
 NAME = {k: n for k, n, *_ in ZONES}
 SEA = ("sea_n", "sea_m", "sea_s", "c_tabuk", "c_madinah", "jeddah_makkah")
-FIELDS = [("z500", r":HGT:500 mb:"), ("t500", r":TMP:500 mb:"), ("w500", r":VVEL:500 mb:")]
+FIELDS = [("z500", r":HGT:500 mb:"), ("t500", r":TMP:500 mb:"), ("w500", r":VVEL:500 mb:"), ("rh700", r":RH:700 mb:"),
+          ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"), ("cape", r":CAPE:180-0 mb above ground:")]
+# activity at one time (any place, any hour): thunder showers where the fuel, a moist 700 hPa layer and ascent meet;
+# light rain where a deep moist 700 hPa layer rises (the stratiform rain of a trough), read 4 times a day
+ACT_WORD = {2: "زخات رعدية ممكنة", 1: "مطر خفيف ممكن"}
 FALL = -30.0     # m in 24 h: the forcing reaches the zone
 FALL_COLD = (-20.0, -11.0)   # or a smaller fall with cold air aloft (C)
 
@@ -62,9 +77,23 @@ def _zone_vals(g, g0):
     for key, _n, a, b, c, d in ZONES:
         J, I = (la >= a) & (la <= b), (lo >= c) & (lo <= d)
         ix = np.ix_(J, I)
-        out[key] = {"dz": round(float(g["z500"][ix].mean() - g0["z500"][ix].mean())),
-                    "t5": round(float(g["t500"][ix].min() - 273.15), 1), "w": round(float(w[ix].min()), 2)}
+        v = {"dz": round(float(g["z500"][ix].mean() - g0["z500"][ix].mean())),
+             "t5": round(float(g["t500"][ix].min() - 273.15), 1), "w": round(float(w[ix].min()), 2)}
+        if "rh700" in g:
+            v.update(rh=round(float(g["rh700"][ix].mean())), pw=round(float(g["pw"][ix].mean()), 1),
+                     cape=round(float(np.quantile(g["cape"][ix], 0.9))))
+            v["act"] = act(v)
+        out[key] = v
     return out
+
+
+def act(v):
+    """2 thunder showers possible, 1 light rain possible, 0 nothing, from one time's zone values"""
+    if v["cape"] >= 400 and v["rh"] >= 50 and v["w"] <= -0.15 and v["pw"] >= 12:
+        return 2
+    if v["rh"] >= 65 and v["w"] <= -0.25 and v["pw"] >= 10:
+        return 1
+    return 0
 
 
 def fetch(cycle, days, get_fields):
@@ -82,7 +111,7 @@ def fetch(cycle, days, get_fields):
     rows = []
     for k in range(1, days + 1):
         vals = []
-        for h in (12, 24):
+        for h in (6, 12, 18, 24):
             fh = 24 * (k - 1) + h + base
             try:
                 vals.append(_zone_vals(g(fh), g(fh - 24 if fh >= 24 else 0)))
@@ -91,7 +120,7 @@ def fetch(cycle, days, get_fields):
         if not vals:
             continue
         z = {key: {"dz": min(v[key]["dz"] for v in vals), "t5": min(v[key]["t5"] for v in vals),
-                   "w": min(v[key]["w"] for v in vals)} for key in NAME}
+                   "w": min(v[key]["w"] for v in vals), "act": max(v[key].get("act", 0) for v in vals)} for key in NAME}
         rows.append({"d": (t0 + timedelta(days=k)).isoformat(), "z": z})
     return rows
 
@@ -129,3 +158,31 @@ def words(rows, d0, d1):
         t += ("؛ فالأخدود يبلغ البحر الأحمر والسواحل الغربية نفسها وإن بقي محوره غرب البحر، والهواء البارد في الأعلى فوق "
               "البحر الدافئ يرفع طاقة عدم الاستقرار، فالخلايا البحرية في أيامه من صنع الأخدود لا حمل بلا أخدود")
     return t + "."
+
+
+def activity(rows, d0, d1):
+    """{day: {2: [zones], 1: [zones]}} of the days d0..d1 with any activity"""
+    out = {}
+    for r in rows or []:
+        if not (str(d0) <= r["d"] <= str(d1)):
+            continue
+        by = {}
+        for k, v in r["z"].items():
+            # the open sea is read by the sea-cell index (seacell.py), which tests its own fuel, trigger and carry
+            if v.get("act") and not k.startswith("sea_"):
+                by.setdefault(v["act"], []).append(k)
+        if by:
+            out[r["d"]] = by
+    return out
+
+
+def activity_table(rows, d0, d1):
+    """the rows of the Kingdom-wide sweep table: day, thunder showers possible, light rain possible"""
+    from datetime import date, timedelta
+    from report2 import ar_date, jl
+    out = []
+    for d, by in sorted(activity(rows, d0, d1).items()):
+        # day d runs from 9 PM of the day before: named as the night that starts then, as the sea cells
+        out.append([ar_date(date.fromisoformat(d) - timedelta(days=1)), jl([NAME[k] for k in by.get(2, [])]) or "—",
+                    jl([NAME[k] for k in by.get(1, [])]) or "—"])
+    return out
