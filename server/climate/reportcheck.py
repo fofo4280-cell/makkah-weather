@@ -37,6 +37,19 @@ REGIONS = {   # administrative region -> the sweep zones that cover it (troughre
     "جازان": ("jazan",), "نجران": ("najran", "sharurah"), "الباحة": ("asir",), "الجوف": ("jouf",)}
 
 
+def _span(t, day0):
+    """«الأحد ٢٩ نوفمبر إلى الثلاثاء ١ ديسمبر» or «السبت ١٢ ديسمبر» -> (first day, last day); (None, None) if unread"""
+    ds = []
+    for dd, mm in re.findall(r"([٠-٩]+) (" + "|".join(MONTHS) + r")", t):
+        m = MONTHS.index(mm) + 1
+        y = day0.year + (1 if m < day0.month - 6 else -1 if m > day0.month + 6 else 0)
+        try:
+            ds.append(date(y, m, int(_int(dd))))
+        except ValueError:
+            pass
+    return (ds[0], ds[-1]) if ds else (None, None)
+
+
 def _texts(report):
     """[(section index, block index, text)] of every text in the report"""
     out = []
@@ -124,6 +137,50 @@ def check(report, st, img=None):
                     err.append(f"wave area in the table only: {a}")
     except Exception as e:  # noqa: BLE001
         err.append(f"wave consistency not checked: {e!r}")
+    # 4b. the current wave is never dropped (Fahad 28 Nov 2026: «كيف تتحدث عن موجة في ١٢ ديسمبر كموجة قادمة وموجتنا
+    # من ٢٩ الى ٢ لم تبدأ بعد»): every day of the next 5 that gathers the rain-making ingredients (the pulse rule of
+    # report3) lies inside a period of the waves table, and the summary's nearest wave is the earliest of them
+    try:
+        import report3 as R3
+        day0_ = date.fromisoformat(report.get("day") or date.today().isoformat())
+        rows = {r["d"]: r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"}
+        tab = next((b["table"] for b in secs[SEC["waves"]]["blocks"] if "table" in b and b["table"]["head"][0] == "الفترة"), None)
+        spans = [_span(str(r[0]), day0_) for r in (tab or {}).get("rows") or []]
+        for k in range(0, 6):
+            d = day0_ + timedelta(days=k)
+            r = rows.get(d.isoformat())
+            if r and ((r.get("core") or 0) >= R3.PULSE_CORE or (r.get("cover") or 0) >= R3.PULSE_COVER):
+                if not any(a and a <= d <= b for a, b in spans):
+                    err.append(f"current wave dropped: {d} gathers the ingredients (core {r.get('core')}, cover "
+                               f"{r.get('cover')}) but is in no wave of section 7")
+                    break
+        m = re.search(r"أقرب موجة: ([^،]+)،", " ".join(b.get("p", "") for b in secs[0]["blocks"]))
+        if m and spans and spans[0][0] and _span(m.group(1), day0_) != spans[0]:
+            err.append(f"summary's nearest wave {m.group(1)!r} is not the first wave of section 7")
+    except Exception as e:  # noqa: BLE001
+        err.append(f"current wave not checked: {e!r}")
+    # 3b. no repetition inside a paragraph: the same run of 6 words twice in one text, a word doubled, «س إلى س»
+    for i, j, t in T:
+        if " | " in t:
+            continue
+        w = re.findall(r"[\w٪°]+", t)
+        seen6 = {}
+        for k in range(len(w) - 5):
+            g = " ".join(w[k:k + 6])
+            if g in seen6 and k - seen6[g] >= 6:
+                err.append(f"repeated words in section {i + 1} block {j}: «{g}»")
+                break
+            seen6.setdefault(g, k)
+        for a, b in zip(w, w[1:]):
+            if a == b and not re.fullmatch(r"[٠-٩]+", a):
+                err.append(f"doubled word in section {i + 1} block {j}: «{a} {b}»")
+                break
+        mm = re.search(r"(?<![٠-٩])([٠-٩]+) إلى \1(?![٠-٩])", t)
+        if mm:
+            err.append(f"empty range in section {i + 1} block {j}: «{mm.group(0)}»")
+        for bad in ("بعد يومًا", "الحكم: ثم", "بعد ١ يوم"):
+            if bad in t:
+                err.append(f"broken wording in section {i + 1} block {j}: «{bad}»")
     # 5. nothing left out
     import seacell
     import troughreach

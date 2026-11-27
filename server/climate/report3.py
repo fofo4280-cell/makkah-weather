@@ -720,7 +720,8 @@ def weak_reasons(st, day0, W):
     if m and st.get("wet_season") is not False:
         if m["phase"] not in BP.WET_PHASES:
             out.append(f"التذبذب المداري في الطور {ar(m['phase'])} اليوم، خارج أطوار الدعم")
-        elif m["amp"] < 1.5:
+        elif m["amp"] < 1:   # the same bar as «نشط» in the seasonal section (28 Nov 2026: 1.1 was «ضعيفة» here and
+            # «نشط» there, and a brake in the summary while the factor table called it supportive)
             out.append(f"التذبذب المداري في الطور {ar(m['phase'])} اليوم بسعة ضعيفة ({n1(m['amp'])})")
     if v.get("mf"):
         ref = (st.get("mjof") or {}).get("z_ref") or 10
@@ -1221,6 +1222,8 @@ def ingr_pulses(st, wl, day0, fac):
     for w in wl:
         wd = [w["start"] + timedelta(days=k) for k in range((w["end"] - w["start"]).days + 1)]
         runs = BR._runs(wd, act)
+        if not runs and w.get("cur"):
+            continue
         if not runs:
             # no day of the window gathers the ingredients yet: keep the window, its spread from the ingredients
             cv = {d: (rows.get(d.isoformat()) or {}).get("cover") or 0 for d in wd}
@@ -1326,7 +1329,14 @@ def wave_set(st, day0):
         # the spread of the ingredients reading, never model rain (doctrine, Fahad 25 Nov 2026)
         c = (ir0.get(d.isoformat()) or {}).get("cover") if ir0 else None
         score[d] = BR.wave_score(st, d, day0, BR.strength(st, d), c)["score"]
-    wl = ingr_pulses(st, BR.wave_list(st, day0, days, fac, cur_end), day0, fac)
+    base = BR.wave_list(st, day0, days, fac, cur_end)
+    if cur_end >= day0:
+        # the supportive spell that is already on (from today) is a wave window too: its pulses of rain-making
+        # ingredients lead the report until they end (Fahad, 28 Nov 2026: «كيف تتحدث عن موجة في ١٢ ديسمبر كموجة
+        # قادمة وموجتنا من ٢٩ الى ٢ لم تبدأ بعد»). Without a pulse the spell is only background, not a wave.
+        base = [{"start": day0, "end": cur_end, "peak": day0, "top": 0, "drivers": 0, "cover": 0, "kind": "mixed",
+                 "regions": [], "pro": [], "con": [], "cur": True}] + base
+    wl = ingr_pulses(st, base, day0, fac)
     # weak signs outside the waves: a trough over the Red Sea or the Kingdom (15 m or deeper)
     inw = lambda d: any((w.get("win") or (w["start"], w["end"]))[0] <= d <= (w.get("win") or (w["start"], w["end"]))[1] for w in wl)
     sig = []

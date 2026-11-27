@@ -89,6 +89,10 @@ def main():
         json.dump(st, open(p, "w"), ensure_ascii=False, separators=(",", ":"))
         return
     st["report"] = rep
+    try:   # the wave map of the rebuilt report's wave (its grids are not kept between runs: rebuilt from GFS)
+        redraw_wave_map(st, out)
+    except Exception as e:  # noqa: BLE001
+        print("wave map not redrawn:", repr(e), flush=True)
     try:   # tonight's judgement in the verification log, if the nightly run could not record it (verif.py)
         import verif
         vl = verif.load(out)
@@ -105,6 +109,35 @@ def main():
     print(f"rain report ({mode}) refreshed for", day, flush=True)
     for line in [new["heading"]] + new["lines"]:
         print(line, flush=True)
+
+
+def redraw_wave_map(st, out):
+    """redraw fig/refwave.png for st["ref_cmp"] (set by the rebuild) from the ingredients of tonight's GFS cycle, so
+    the map is always of the wave the text names (28 Nov 2026: the kept map showed 12 Dec while the text gave
+    29 Nov-1 Dec)"""
+    import numpy as np
+    import refwave
+    import ingredients as ING
+    import daily
+    c, cy = st.get("ref_cmp"), str(st.get("cycle") or "")
+    if not c or len(cy) != 10:
+        return None
+    c0 = date(int(cy[:4]), int(cy[4:6]), int(cy[6:8]))
+    a, b = date.fromisoformat(c["a"]), date.fromisoformat(c["b"])
+    d = a
+    while d <= b:
+        if d.isoformat() not in refwave.GRIDS:
+            f = daily.gfs_fields(cy, (d - c0).days * 24, fields=list(ING.FIELDS))
+            refwave.GRIDS[d.isoformat()] = 100 * refwave.index({n: ING.cut(f[n]) for n, _ in ING.FIELDS}, d)
+        d += timedelta(days=1)
+    img = refwave.draw_wave(out, st)
+    if img:
+        for s_ in (st.get("report") or {}).get("sections") or []:
+            for bl in s_.get("blocks") or []:
+                if bl.get("img") == img:
+                    bl["v"] = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
+    print("wave map redrawn:", img, c.get("head"), flush=True)
+    return img
 
 
 if __name__ == "__main__":

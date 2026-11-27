@@ -472,3 +472,32 @@ def coming(rows, d0, d1):
             "ليلًا وقد يستمر نهار الغد، وتحمله الرياح إلى الساحل؛ كل ليلة من التاسعة مساءً إلى الثالثة عصر الغد): "
             + "؛ ".join(ps) + f". وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو "
             f"{HOUR.get(t['h'], '')} على {NAME[key]}: {why(f)}. " + TEST_NOTE)
+
+
+def coming_blocks(rows, d0, d1):
+    """the nights after the report's day as a table, one row a night (28 Nov 2026: the one long paragraph repeated
+    the same coasts and the same inland path night after night) -> [blocks]"""
+    from datetime import date
+    from report2 import ar_date, jl
+    L = lines(rows, d0, d1)
+    if not L:
+        return [{"p": coming(rows, d0, d1)}]
+    tab = []
+    for d, (xs, pl) in sorted(L.items()):
+        r = next(x for x in rows if x["d"] == d)
+        ks = r.get("path") or []
+        sp = max((t["f"][k]["steer"] for t in r["times"] for k in ks if k in t["f"]), default=0)
+        tab.append([f"ليلة {ar_date(date.fromisoformat(d))}", _stretch_words(xs) if xs else "لا تجتمع على السواحل",
+                    "قد تبلغها بعض الخلايا" if pl else "—",
+                    f"إلى {jl([INLAND[k][0] for k in ks])} (نحو {_num(sp)} م/ث)" if ks else "—"])
+    bd = max(L, key=lambda d: sum(next(x for x in rows if x["d"] == d)["si"].values()))
+    r = next(x for x in rows if x["d"] == bd)
+    key = max(r["si"], key=lambda k: r["si"][k])
+    t, f = _best(r, key)
+    return [{"p": "الخلايا البحرية في الليالي القادمة على سواحل المملكة من حقل إلى جازان وعلى ساحل الخليج (حمل حراري "
+                  "يولد فوق البحر الدافئ بأخدود أو بدونه ليلًا وقد يستمر نهار الغد، وتحمله الرياح إلى الساحل؛ كل ليلة "
+                  "من التاسعة مساءً إلى الثالثة عصر الغد):"},
+            {"table": {"head": ["الليلة", "السواحل", "مكة والجموم",
+                                "الخروج إلى الداخل مع الرياح الجنوبية الغربية فوق طبقة وسطى رطبة"], "rows": tab}},
+            {"p": f"وأقواها ليلة {ar_date(date.fromisoformat(bd))} نحو {HOUR.get(t['h'], '')} على {NAME[key]}: "
+                  f"{why(f)}. " + TEST_NOTE}]
