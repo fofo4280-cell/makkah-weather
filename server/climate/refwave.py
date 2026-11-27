@@ -192,7 +192,7 @@ LEVELS = [20, 30, 40, 50, 60, 70, 80, 90]   # the full scale, as Fahad chose on 
 DARK = ["#9ad1f5", "#4fa3e8", "#2f6fd6", "#2fae5a", "#f3d33a", "#f28c28", "#e0402c", "#b02a8f"]
 
 
-def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
+def _panel(fig, rect, grid, m, head, regs, ksa, fam, A, sea=None):
     """one map of the Kingdom: the index (x 100) where it reaches LEVELS[0], dark shades, and the strongest areas named"""
     from matplotlib import patheffects as pe
     from matplotlib.colors import ListedColormap, BoundaryNorm
@@ -226,6 +226,18 @@ def _panel(fig, rect, grid, m, head, regs, ksa, fam, A):
         fine = np.where(inside & (fine >= LEVELS[0]), fine, np.nan)
         ax.imshow(fine, extent=[lo[0], lo[-1], la[-1], la[0]], origin="upper", cmap=ListedColormap(DARK),
                   norm=BoundaryNorm(LEVELS + [200], len(DARK)), alpha=0.85, interpolation="bilinear", zorder=1)
+    # the wave's sea cells over the Red Sea (seacell.py; Fahad 27 Nov 2026: the index above is read over land only and
+    # missed «حالة غزيرة جدا بين املج ورابغ بحرية»): hatched squares, the level's colour
+    from matplotlib.patches import Rectangle as _R
+    for cells, lv in sea or []:
+        col = DARK[{3: 7, 2: 5}.get(lv, 3)]
+        for la_, lo_ in cells:
+            ax.add_patch(_R((lo_ - 0.125, la_ - 0.125), 0.25, 0.25, facecolor=col, edgecolor="#f4f6f8", linewidth=0.25,
+                            hatch="////", alpha=0.85, zorder=1.5))
+    if sea:
+        ax.text(0.02, 0.03, A("المربعات المخططة فوق البحر: خلايا بحرية (البنفسجي قد تكون غزيرة، والبرتقالي مرجحة)"), transform=ax.transAxes,
+                ha="left", va="bottom", fontsize=6.4, color="#ffffff", fontfamily=fam,
+                path_effects=[pe.withStroke(linewidth=2.0, foreground="#111111")], zorder=7)
     for r in regs:
         for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
             x, y = g_.exterior.xy
@@ -267,9 +279,11 @@ def draw(path, panels, title, sub):
     fig = plt.figure(figsize=(pw * n, ph + head + foot), dpi=160)
     fig.patch.set_facecolor("#111111")
     H = fig.get_figheight()
-    for k, (grid, m, hd) in enumerate(panels):
+    for k, p_ in enumerate(panels):
+        grid, m, hd = p_[:3]
         x0 = (n - 1 - k) / n                       # the first panel on the right (Arabic reading order)
-        _panel(fig, [x0 + 0.004, foot / H, 1 / n - 0.008, ph / H], grid, m, hd, regs, ksa, fam, A)
+        _panel(fig, [x0 + 0.004, foot / H, 1 / n - 0.008, ph / H], grid, m, hd, regs, ksa, fam, A,
+               sea=p_[3] if len(p_) > 3 else None)
     tx = fig.add_axes([0, 1 - head / H, 1, head / H])
     tx.axis("off")
     tx.add_patch(Rectangle((0, 0), 1, 1, color="#161b22", transform=tx.transAxes))
@@ -296,6 +310,25 @@ def draw(path, panels, title, sub):
         pass
 
 
+def sea_cells(st, a, b):
+    """[(sea cells [[lat, lon]], level)] of the stretches with sea cells «مرجحة» or stronger in the nights a-1 .. b"""
+    import json
+    import os
+    from datetime import timedelta
+    import seacell
+    rows = [r for r in st.get("seacell") or [] if (a - timedelta(days=1)).isoformat() <= r["d"] <= b.isoformat()
+            and r.get("times")]
+    best = {}
+    for r in rows:
+        for k, lv in seacell.levels(r).items():
+            best[k] = max(best.get(k, 0), lv)
+    try:
+        C = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "seacell_cells.json")))
+    except Exception:  # noqa: BLE001
+        return []
+    return [(C[k]["sea"], lv) for k, lv in best.items() if lv >= 2 and k in C]
+
+
 def draw_wave(out_dir, st):
     """the picture of the wave the report compared (st['ref_cmp'], set by report3.ref_compare), beside the reference
     wave, from GRIDS and the reference's stored grid -> file name or None"""
@@ -312,7 +345,7 @@ def draw_wave(out_dir, st):
     grid = np.max([GRIDS[d] for d in days], axis=0)
     m = wave_metrics(st.get("wave_rain") or [], a, b)
     ref = st.get("ref_wave") or current(None)
-    panels = [(grid, m, c["head"])]
+    panels = [(grid, m, c["head"], sea_cells(st, a, b))]
     if ref:
         panels.append((ref.get("grid"), ref, "الموجة المرجعية " + sa_geo.ar_date(date.fromisoformat(ref["d"]), weekday=False)))
     os.makedirs(os.path.join(out_dir, "fig"), exist_ok=True)
