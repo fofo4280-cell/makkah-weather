@@ -141,6 +141,31 @@ def latest_cycle():
     raise RuntimeError("no GFS forecast found")
 
 
+def maps_cycle():
+    """the maps refresh (MAPS_ONLY=1, maps.yml): the newest GFS cycle of the four (00/06/12/18 UTC) whose 15-day
+    1 degree and 16-day 0.25 degree files are out (Fahad, 28 Nov 2026)"""
+    if os.environ.get("MAPS_CYCLE"):
+        return os.environ["MAPS_CYCLE"]
+    now = datetime.now(timezone.utc)
+    t = now.replace(hour=now.hour // 6 * 6, minute=0, second=0, microsecond=0)
+    for _ in range(8):
+        d, hh = t.strftime("%Y%m%d"), t.strftime("%H")
+        try:
+            get(f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.1p00.f{FC_DAYS * 24:03d}.idx")
+            get(f"{AWS}/gfs.{d}/{hh}/atmos/gfs.t{hh}z.pgrb2.0p25.f384.idx")
+            return d + hh
+        except Exception:
+            t -= timedelta(hours=6)
+    raise RuntimeError("no GFS forecast found")
+
+
+# the keys of mjo.json that the maps refresh replaces (the page's maps and their tables); the report and everything
+# it reads stay as the night run wrote them (Fahad: the report once a day at midnight)
+MAP_KEYS = ("rmm_now", "rmm_obs", "rmm_fc", "fit", "rmm_today", "waves", "rmm_jma", "olr", "lowwarm", "pw", "pw_ec",
+            "pw_model", "pw_reg", "days", "legends", "bounds", "geo", "figs", "marks", "tw", "twf", "ksa", "taifc",
+            "rsflow", "river", "belt_stack", "mjof", "fig_count")
+
+
 # ------------------------------------------------------------------ helpers
 def doy(dt):
     """0..364, 29 February counted as 28 February."""
@@ -332,9 +357,18 @@ def main():
     hist_dir = os.path.join(state, "hist")
     os.makedirs(hist_dir, exist_ok=True)
 
-    cycle = latest_cycle()
+    maps_only = os.environ.get("MAPS_ONLY") == "1"
+    cycle = maps_cycle() if maps_only else latest_cycle()
     t0 = datetime.strptime(cycle, "%Y%m%d%H").replace(tzinfo=timezone.utc)
-    print("GFS cycle", cycle, flush=True)
+    print("GFS cycle", cycle, "(maps only)" if maps_only else "", flush=True)
+    ec_cycle = cycle
+    if maps_only:
+        import ecmwf
+        ec_cycle = ecmwf.latest_full(t0) or cycle
+        if ec_cycle != cycle:
+            ecmwf.ALIAS[cycle] = (ec_cycle, int((t0 - datetime.strptime(ec_cycle, "%Y%m%d%H").replace(
+                tzinfo=timezone.utc)).total_seconds() // 3600))
+        print("ECMWF cycle", ec_cycle, ecmwf.ALIAS.get(cycle), flush=True)
 
     # 1. analyses of the last HIST_DAYS days (cached)
     hist = {}
@@ -1050,6 +1084,14 @@ def main():
         print("map count failed:", repr(e), flush=True)
     status["troughs"] = trough_tracks
     status["mjof"] = mjof
+    if maps_only:
+        # the maps refresh stops here: maps.json holds the page keys, the workflow lays them (and the new pictures)
+        # onto the latest published mjo.json, so the report of the night stays untouched
+        m_ = {k: status[k] for k in MAP_KEYS if k in status}
+        m_.update(maps_updated=status["updated"], maps_cycle=cycle, ec_cycle=ec_cycle)
+        json.dump(m_, open(os.path.join(out, "maps.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+        print("maps only: done,", len(m_), "keys", flush=True)
+        return
     # the diagnosis of the current spell: the last 3.5 days of analyses and the next 3 days of this run
     try:
         ana = [(t0 - timedelta(hours=12 * k)).strftime("%Y%m%d%H") for k in range(7, -1, -1)]
