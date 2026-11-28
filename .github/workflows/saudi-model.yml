@@ -63,7 +63,7 @@ jobs:
           # the same store the model reads (AWS lags NOMADS by some minutes). A schedule GitHub fires hours early
           # (13 Nov 2026: the 02:47 try started at 12:06) waits here, not in the model jobs, whose clock starts
           # when they start (they waited 2 hours, gave up 5 minutes before the files came, and the cycle was lost)
-          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f033.idx"
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f072.idx"
           for i in $(seq 1 280); do
             if curl -sfI -m 30 "$U" >/dev/null; then echo "GFS $D $C ready"; exit 0; fi
             sleep 60
@@ -79,7 +79,7 @@ jobs:
       domains: domains_west.json
       branch: model-data
       cycle: ${{ inputs.cycle }}
-      stop_h: '15'
+      stop_h: '24'
 
   west2:
     needs: west
@@ -90,6 +90,20 @@ jobs:
       domains: domains_west.json
       branch: model-data
       resume: true
+      part: '2'
+      stop_h: '48'
+
+  west3:
+    needs: west2
+    if: always() && needs.west2.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data
+      resume: true
+      part: '3'
+      prev: '2'
 
   kingdom:
     needs: gate

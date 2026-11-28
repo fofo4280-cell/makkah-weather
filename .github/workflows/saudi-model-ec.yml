@@ -56,10 +56,10 @@ jobs:
         if: steps.done.outputs.go == 'yes'
         run: |
           R=${{ steps.done.outputs.cycle }}; D=${R:0:8}; C=${R:8:2}
-          # the last file the run needs (hour 33); the AWS copy appears about 19:35 UTC for the 12 UTC cycle,
+          # the last file the run needs (hour 72: the western grid runs 72 hours since 28 Nov 2026); the AWS copy appears about 19:35 UTC for the 12 UTC cycle,
           # data.ecmwf.int somewhat earlier: wait for either
-          A="https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/$D/${C}z/ifs/0p25/oper/${D}${C}0000-33h-oper-fc.index"
-          E="https://data.ecmwf.int/forecasts/$D/${C}z/ifs/0p25/oper/${D}${C}0000-33h-oper-fc.index"
+          A="https://ecmwf-forecasts.s3.eu-central-1.amazonaws.com/$D/${C}z/ifs/0p25/oper/${D}${C}0000-72h-oper-fc.index"
+          E="https://data.ecmwf.int/forecasts/$D/${C}z/ifs/0p25/oper/${D}${C}0000-72h-oper-fc.index"
           for i in $(seq 1 280); do
             if curl -sfI -m 30 "$E" >/dev/null || curl -sfI -m 30 "$A" >/dev/null; then echo "ECMWF $R ready"; exit 0; fi
             sleep 60
@@ -76,7 +76,7 @@ jobs:
       branch: model-data-ec
       cycle: ${{ needs.gate.outputs.cycle }}
       ic: ecmwf
-      stop_h: '15'
+      stop_h: '24'
 
   west2:
     needs: west
@@ -87,8 +87,22 @@ jobs:
       domains: domains_west.json
       branch: model-data-ec
       resume: true
+      part: '2'
+      stop_h: '48'
       ic: ecmwf
 
+  west3:
+    needs: west2
+    if: always() && needs.west2.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: domains_west.json
+      branch: model-data-ec
+      resume: true
+      part: '3'
+      prev: '2'
+      ic: ecmwf
 
   r_se:
     needs: gate

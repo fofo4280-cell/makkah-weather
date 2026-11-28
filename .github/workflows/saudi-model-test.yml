@@ -18,6 +18,10 @@ on:
         description: "hour where part 1 hands over to part 2, or 'none' for one runner"
         required: false
         default: '15'
+      stop_h2:
+        description: "hour where part 2 hands over to part 3, or 'none' (a three-runner run, e.g. 72 hours)"
+        required: false
+        default: 'none'
       with_1km:
         description: 'also test the 1 km server'
         type: boolean
@@ -77,6 +81,24 @@ jobs:
       ic: ${{ inputs.ic }}
       hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
       resume: true
+      part: '2'
+      stop_h: ${{ inputs.stop_h2 != 'none' && inputs.stop_h2 || '' }}
+
+  west3:
+    needs: west2
+    if: always() && needs.west2.outputs.handoff == 'yes'
+    uses: ./.github/workflows/wrf-job.yml
+    with:
+      name: west
+      domains: ${{ inputs.domains }}
+      branch: ${{ inputs.publish_to != '' && inputs.publish_to || 'model-data' }}
+      code_ref: ${{ inputs.ref }}
+      publish: ${{ inputs.publish_to != '' }}
+      ic: ${{ inputs.ic }}
+      hours: ${{ inputs.hours != 'full' && inputs.hours || '' }}
+      resume: true
+      part: '3'
+      prev: '2'
 
   makkah1km:
     if: inputs.with_1km
