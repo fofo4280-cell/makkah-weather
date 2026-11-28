@@ -1405,9 +1405,10 @@ def waves(st, rs, regs, day0):
         # the nearest
         w = wl[0]
         lead = (w["peak"] - day0).days
-        t = (f"{'أقرب إشارة' if w.get('sign') else 'أقرب موجة'}: {span_of(w)}، {KIND[w['kind']]}، قوتها {n1(w['top'])} من ٥ ({ar(round(20 * w['top']))}٪، "
-             f"{BR.grade(w['top'])})، وانتشارها المتوقع {spread_of(w)}، والمناطق المتأثرة بها: {jl(w['regions'])}. "
-             f"والثقة في توقيتها {BR.confidence(lead)} لأن ذروتها " + ("غدًا" if lead <= 1 else f"بعد {_days_word(lead)}"))
+        t = (f"{'أقرب إشارة' if w.get('sign') else 'أقرب موجة'}: {span_of(w)}، {KIND[w['kind']]}. {when_words(w, day0)}، "
+             f"وانتشارها المتوقع {spread_of(w)}، والمناطق المتأثرة بها: {jl(w['regions'])}، وهي {BR.grade(w['top'])} "
+             f"({n1(w['top'])} من ٥ بمقياس القسم ١٠). والثقة في توقيتها {BR.confidence(lead)} "
+             + conf_reason(lead))
         if w.get("pro"):
             t += f"؛ يسندها {jl(w['pro'])}"
         if w.get("con"):
@@ -1417,9 +1418,9 @@ def waves(st, rs, regs, day0):
         nw = next((x for x in wl if not x.get("sign")), None)
         if nw is not None and nw is not w:
             ld = (nw["peak"] - day0).days
-            t = (f"أقرب موجة مطرية: {span_of(nw)}، {KIND[nw['kind']]}، قوتها {n1(nw['top'])} من ٥ "
-                 f"({ar(round(20 * nw['top']))}٪، {BR.grade(nw['top'])})، وانتشارها المتوقع {spread_of(nw)}، "
-                 f"والمناطق المتأثرة بها: {jl(nw['regions'])}، والثقة في توقيتها {BR.confidence(ld)}")
+            t = (f"أقرب موجة مطرية: {span_of(nw)}، {KIND[nw['kind']]}. {when_words(nw, day0)}، "
+                 f"وانتشارها المتوقع {spread_of(nw)}، والمناطق المتأثرة بها: {jl(nw['regions'])}، وهي {BR.grade(nw['top'])} "
+                 f"({n1(nw['top'])} من ٥ بمقياس القسم ١٠)، والثقة في توقيتها {BR.confidence(ld)} " + conf_reason(ld))
             if nw.get("pro"):
                 t += f"؛ يسندها {jl(nw['pro'])}"
             if nw.get("con"):
@@ -1594,6 +1595,34 @@ def ref_compare(st, w, day0):
     return (t + ". (القراءة من مكونات الجو لا من مطر النماذج: الرطوبة في عمود الهواء وفي المستوى المتوسط، والبرودة "
             "والأخاديد في الأعلى، وتباعد الرياح العليا، والتقاء الرياح قرب الأرض، وعدم الاستقرار؛ وفي اختبارها على "
             "أيام ١٠ إلى ١٨ نوفمبر قدّرت انتشار ١٠ نوفمبر ١٢٪ والمرصود ١٣٪، وحددت غرب نجد والقصيم كما رُصد.)")
+
+
+def rel_day(d, day0):
+    """«اليوم السبت ٢٨ نوفمبر» / «غدًا الأحد ٢٩ نوفمبر» / «بعد غد الاثنين ٣٠ نوفمبر» / «الثلاثاء ١ ديسمبر، بعد ٣ أيام»
+    (Fahad 28 Nov 2026: «اليوم 28 اذا كنت لا تعلم»): every relative day said beside its date, counted from the
+    report's day"""
+    n = (d - day0).days
+    if n == 0:
+        return f"اليوم {ar_date(d)}"
+    if n == 1:
+        return f"غدًا {ar_date(d)}"
+    if n == 2:
+        return f"بعد غد {ar_date(d)}"
+    return ar_date(d)
+
+
+def when_words(w, day0):
+    """when the wave starts and when it is widest, from the report's day"""
+    t = ("بدأت " if w["start"] < day0 else "تبدأ ") + rel_day(max(w["start"], day0), day0)
+    if w["peak"] != w["start"]:
+        t += f"، وأوسع أيامها {rel_day(w['peak'], day0)}"
+    return t
+
+
+def conf_reason(lead):
+    return ("لأنها في الأيام الخمسة الأولى من التوقع، وفيها يبقى خطأ التوقيت عادة دون يوم" if lead <= 5 else
+            "لأنها بين اليوم السادس والعاشر من التوقع، وفيها قد ينزاح التوقيت يومًا أو يومين" if lead <= 10 else
+            "لأنها بعد عشرة أيام، وفيها يتبدل التوقيت من ليلة إلى ليلة")
 
 
 def wave_length(w):

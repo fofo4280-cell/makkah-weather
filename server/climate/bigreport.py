@@ -774,31 +774,36 @@ def wave_pro_con(st, peak, c=None):
     pro, con = [], []
     m = v["m"]
     if m and c.get("mjo", 0) > 0:
-        pro.append(f"التذبذب المداري في الطور {ar(m['phase'])}" + (" (دعم ضعيف)" if m["phase"] == 2 else ""))
+        pro.append(f"التذبذب المداري في الطور {ar(m['phase'])}، " + ("وهو طرف أطوار الدعم فدعمه ضعيف" if m["phase"] == 2
+                                                                  else "وهو من أطوار الدعم للمطر على المملكة"))
     if v["w"] and warm_ok(*v["w"]):
         pro.append(f"الحدث الدافئ في القطاع الداعم (فوق {B.region_name(v['w'][0])})")
     elif v["w"]:
         con.append(f"الحدث الدافئ خارج القطاع الداعم (فوق {B.region_name(v['w'][0])})")
     if v["pw"] and v["pw"][0] >= 110:
-        pro.append(f"{'مد رطوبي' if v['pw'][0] >= 150 else 'رطوبة فوق المعدل'} ({ar(v['pw'][0])}٪ فوق {BOX_NAME[v['pw'][1]]})")
+        pro.append(f"{'مد رطوبي' if v['pw'][0] >= 150 else 'رطوبة فوق المعدل'}، إذ يبلغ الماء القابل للهطول "
+                   f"{ar(v['pw'][0])}٪ من معدله فوق {BOX_NAME[v['pw'][1]]}")
     elif v["pw"]:
-        con.append(f"الرطوبة {'قريبة من المعدل' if v['pw'][0] >= 80 else 'دون المعدل'} ({ar(v['pw'][0])}٪ في أرطب الأجزاء)")
+        con.append(f"الرطوبة {'قريبة من المعدل' if v['pw'][0] >= 80 else 'دون المعدل'}، إذ لا يتجاوز الماء القابل للهطول "
+                   f"{ar(v['pw'][0])}٪ من معدله في أرطب الأجزاء")
     # the trough by its place and depth (the 500 hPa wave band), counted only from 25 m as in the drivers' line
     tr = v["tr"]
     if tr and tr[0] <= -25:
         dam = -tr[0] / 10
-        pro.append(f"أخدود {trough_word(dam)} فوق {tr[1]} ({num(dam, 1)} ديكامتر)")
+        pro.append(f"أخدود {trough_word(dam)} فوق {tr[1]}، ينخفض فيه سطح ٥٠٠ هكتوباسكال {num(dam, 1)} ديكامتر عن معدله")
     mf = v["mf"]
     if mf and mf[0] <= -ref / 3:
-        pro.append(f"مكوّن التذبذب داعم ({n1(mf[0])} م)")
+        pro.append(f"مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال، أدنى من معدله فوق المملكة بـ{n1(-mf[0])} م، فهو داعم")
     elif mf and mf[0] >= ref / 3:
-        con.append(f"مكوّن التذبذب كابح ({n1(mf[0])} م)")
+        con.append(f"مكوّن التذبذب المعزول عند ٨٠٠ هكتوباسكال، أعلى من معدله فوق المملكة بـ{n1(mf[0])} م، فهو كابح")
     for fam in ("ros", "kel"):
         x = _tw(st, peak, fam)
         if x and x[0] <= -x[1] / 3:
-            pro.append(f"{TW_NAME[fam]} ({n1(x[0])})")
+            pro.append(f"{TW_NAME[fam]} في طورها الداعم، إذ يبلغ جهد السرعة عند ٢٠٠ هكتوباسكال {chr(0x200e) if x[0] < 0 else ""}{n1(x[0])} مليون م²/ث "
+                       "(السالب تباعد علوي يسند الصعود)")
         elif x and x[0] >= x[1] / 3:
-            con.append(f"{TW_NAME[fam]} كابحة ({n1(x[0])})")
+            con.append(f"{TW_NAME[fam]} في طورها الكابح، إذ يبلغ جهد السرعة عند ٢٠٠ هكتوباسكال {chr(0x200e) if x[0] < 0 else ""}{n1(x[0])} مليون م²/ث "
+                       "(الموجب تقارب علوي يكبح الصعود)")
     return pro, con
 
 
