@@ -433,3 +433,7 @@ a { color: var(--sea); }
 .snd-t th, .snd-t td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: right; }
 .snd-t th { color: #fff; font-weight: 600; }
 .snd-n { margin: 6px 0 0; font-size: .74rem; color: var(--muted, #9aa4b1); }
+
+/* the site's mark over the model map (Fahad, 28 Nov 2026: maps shared in groups without credit); screenshots keep it */
+.wmark { position: absolute; right: 10px; bottom: 96px; z-index: 450; pointer-events: none; font: 600 12px/1 system-ui, sans-serif;
+  color: rgba(255,255,255,.8); text-shadow: 0 0 3px rgba(0,0,0,.7); letter-spacing: .2px; }
