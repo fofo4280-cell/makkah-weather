@@ -575,22 +575,24 @@ def check5(report, st, img=None):
             err.append("change sentence without a real change, or more than one")
         if chs and len(re.findall(r"[.؟!](?:\s|$)", chs[0]["p"])) > 1:
             err.append("change: more than one sentence")
-        # the maps cover the wave's own days
+        # the maps: our reading, never model rain (Fahad 28 Nov 2026, 04:07), dated, of the wave's days
         mb = secs[2]["blocks"] if len(secs) > 2 else []
         imgs = [b_ for b_ in mb if b_.get("img")]
-        q = st.get("qpf") or {}
-        qual = any("خريطة نوعية" in (b_.get("note") or "") for b_ in mb)
-        if not imgs:
+        mt = " ".join(b_.get("note") or b_.get("p") or "" for b_ in mb)
+        if a and not imgs:
             err.append("maps: none")
-        elif not qual:
-            if len(imgs) < 3:
-                err.append(f"maps: {len(imgs)} cumulative maps, fewer than three")
-            if a and q.get("a") and (q["a"] != a.isoformat() or q["b"] != b.isoformat()):
-                err.append(f"maps are of {q.get('a')}..{q.get('b')}, the wave is {a}..{b}")
-            for b_ in mb:
-                if b_.get("note") and b_["note"].startswith("التراكم") and "بتوقيت مكة" not in b_["note"]:
-                    err.append("maps: a map without its period")
-        if img and not qual and out_missing(imgs, st):
+        if a and imgs and len(imgs) < min(3, (b - a).days + 2):
+            err.append(f"maps: {len(imgs)} maps for a wave of {(b - a).days + 1} days")
+        if "ملم" in mt or "النموذج" in mt.replace("لا من مطر النماذج", ""):
+            err.append("maps: amounts or model rain in the maps section")
+        for b_ in mb:
+            if b_.get("note", "").startswith(("التراكم", "إجمالي")) and "بتوقيت مكة" not in b_["note"]:
+                err.append("maps: a map without its period")
+            if b_.get("note", "").startswith(("التراكم", "إجمالي")) and a:
+                d1_, d2_ = _span(b_["note"], day0)
+                if d1_ and (d1_ < a or d2_ > b):
+                    err.append(f"maps: a map outside the wave's days ({d1_}..{d2_})")
+        if img and out_missing(imgs, st):
             err.append("maps: a picture file is missing")
     except Exception as e:  # noqa: BLE001
         err.append(f"wave not checked: {e!r}")
