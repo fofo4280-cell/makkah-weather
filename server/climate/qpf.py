@@ -22,6 +22,7 @@ LEVELS = [1, 2, 5, 10, 20, 30, 50, 75, 100]
 COLS = ["#bfe3f2", "#7cc3e6", "#3c93d1", "#2459b8", "#2fa35a", "#e9cf3a", "#f09430", "#df4a2e", "#b3197a", "#6c1592"]
 W, E, S, N = 34.0, 56.5, 15.5, 32.6
 BOX = (13.0, 34.0, 32.0, 59.0)               # the fields are cut to this (lat s, n, lon w, e)
+NEAR = None                                  # mask of the Kingdom and its seas, set by make
 AGREE = 5.0                                  # mm: "rain" for the agreement panel
 # towns drawn beside the main cities (figures.SAUDI_CITIES) and read for the agreement sentence
 TOWNS = [("أملج", 25.02, 37.27), ("الوجه", 26.24, 36.45), ("رابغ", 22.80, 39.03), ("العلا", 26.61, 37.92),
@@ -132,6 +133,16 @@ def _regions_mask(la, lo):
     return out
 
 
+def _near_ksa(la, lo):
+    """the Kingdom with a band of 0.75 degree around it (its Red Sea and Gulf waters)"""
+    from shapely import contains_xy
+    from shapely.ops import unary_union
+    import sa_geo
+    z = unary_union([r["geom"] for r in sa_geo.regions()]).buffer(0.75)
+    LA, LO = np.meshgrid(la, lo, indexing="ij")
+    return contains_xy(z, LO.ravel(), LA.ravel()).reshape(LA.shape)
+
+
 def centres(g, la, lo, n=3, thr=10.0, sep=1.5):
     """[(lat, lon, mm)] of the n strongest separate maxima of 'thr' mm or more"""
     from scipy.ndimage import maximum_filter
@@ -175,11 +186,12 @@ def _panel(fig, rect, g, la, lo, head, regs, ksa, fam, A, agree=None):
                   norm=BoundaryNorm(LEVELS + [1000], len(COLS)), alpha=0.88, interpolation="bilinear", zorder=1)
     else:
         e, gf = agree
+        e = np.clip(gaussian_filter(zoom(e, 4, order=3), 2.2), 0, None)    # smooth like the amount panels, no squares
+        gf = np.clip(gaussian_filter(zoom(gf, 4, order=3), 2.2), 0, None)
         cat = np.where((e >= AGREE) & (gf >= AGREE), 3, np.where(e >= AGREE, 2, np.where(gf >= AGREE, 1, 0))).astype(float)
-        cat = zoom(cat, 3, order=0)
         cat = np.where(cat > 0, cat, np.nan)
         ax.imshow(cat, extent=ext, origin="upper", cmap=ListedColormap(["#f09430", "#3c93d1", "#2fa35a"]),
-                  norm=BoundaryNorm([0.5, 1.5, 2.5, 3.5], 3), alpha=0.85, interpolation="nearest", zorder=1)
+                  norm=BoundaryNorm([0.5, 1.5, 2.5, 3.5], 3), alpha=0.85, interpolation="bilinear", zorder=1)
     for r in regs:
         for g_ in getattr(r["geom"], "geoms", [r["geom"]]):
             x, y = g_.exterior.xy
@@ -198,7 +210,7 @@ def _panel(fig, rect, g, la, lo, head, regs, ksa, fam, A, agree=None):
                 path_effects=soft, zorder=7)
     halo = [pe.withStroke(linewidth=2.4, foreground="#111111")]
     if agree is None:   # the strongest centres with their amount
-        for a, b, v in centres(g, la, lo):
+        for a, b, v in centres(np.where(NEAR, g, 0) if NEAR is not None and NEAR.shape == g.shape else g, la, lo):
             ax.plot(b, a, marker="+", markersize=6, color="#ffffff", markeredgewidth=1.2, zorder=8, path_effects=halo)
             ax.text(b + 0.25, a + 0.2, A(f"{R2.ar(int(round(v)))} ملم"), ha="left", va="bottom", fontsize=6.4,
                     fontweight="bold", color="#ffffff", fontfamily=fam, path_effects=halo, zorder=8)
@@ -311,6 +323,9 @@ def make(st, out_dir, a, b, cycle=None):
         last = pr[-1]
         pr = [p for p in pr[:-1] if p[1] != last[1]] + [last]
     rmask = _regions_mask(la, lo)
+    near = _near_ksa(la, lo)
+    global NEAR
+    NEAR = near
     os.makedirs(os.path.join(out_dir, "fig"), exist_ok=True)
     h0 = fh_of(cycle, t_start)
     run_w = f"تشغيل {ar(int(cycle[8:10]))} غرينتش {ar_date(date(int(cycle[:4]), int(cycle[4:6]), int(cycle[6:8])), weekday=False)}"
@@ -329,7 +344,7 @@ def make(st, out_dir, a, b, cycle=None):
             panels.append((None, "الاتفاق والاختلاف", (fl["ec"], fl["gfs"])))
         img = f"qpf_{k + 1}.png"
         draw(os.path.join(out_dir, "fig", img), panels, la, lo, title, sub, agree_key=kind == "tot" and len(models) == 2)
-        mx = {m: round(float(fl[m][np.ix_((la >= S) & (la <= N), (lo >= W) & (lo <= E))].max()), 1) for m in models}
+        mx = {m: round(float(np.where(near, fl[m], 0).max()), 1) for m in models}   # the Kingdom and its seas only
         res["maps"].append({"img": img, "v": v, "a": x.isoformat(), "b": y.isoformat(), "kind": kind, "title": title,
                             "when": when, "max": mx, "cmp": compare_words(fl, la, lo, rmask) if kind in ("tot",) else None,
                             "cmp5": compare_words(fl, la, lo, rmask, thr=AGREE) if kind == "tot" else None})
