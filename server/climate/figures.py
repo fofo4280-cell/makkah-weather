@@ -9,6 +9,29 @@ import numpy as np
 GEO = {}
 
 
+# the site's mark on every picture (Fahad, 28 Nov 2026: «أضف لجميع الخرائط علامة تحفظ الحقوق لموقعي، لأني وجدت خرائطي
+# منتشرة في بعض القروبات»): the credit in a corner and a faint name across the middle, so a crop keeps one of them
+MARK = "© Fahad AlEissa"
+
+
+def _mark(fig):
+    if getattr(fig, "_marked", False) or os.environ.get("NO_MARK"):
+        return
+    fig._marked = True
+    try:
+        import matplotlib.patheffects as pe_
+        w_in = fig.get_size_inches()[0]
+        fs = max(6.0, w_in * 72 * 0.011)
+        fig.text(0.992, 0.008, MARK, ha="right", va="bottom", fontsize=fs, color="#ffffff", alpha=.85,
+                 family="DejaVu Sans", zorder=1000,
+                 path_effects=[pe_.withStroke(linewidth=1.6, foreground=(0, 0, 0, .55))])
+        fig.text(0.5, 0.5, "Fahad AlEissa", ha="center", va="center", fontsize=fs * 3.2, color="#ffffff", alpha=.10,
+                 family="DejaVu Sans", fontweight="bold", rotation=18, zorder=1000,
+                 path_effects=[pe_.withStroke(linewidth=1.0, foreground=(0, 0, 0, .10))])
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def _geo_hook():
     import re
     import matplotlib.figure as mf
@@ -17,6 +40,7 @@ def _geo_hook():
     orig = mf.Figure.savefig
 
     def savefig(self, fname, *a, **k):
+        _mark(self)
         r = orig(self, fname, *a, **k)
         try:
             if isinstance(fname, str):
