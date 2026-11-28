@@ -30,6 +30,26 @@ MAP = [(r":RH:(\d+) mb:", "r", 1.0), (r":TMP:(\d+) mb:", "t", 1.0), (r":UGRD:(\d
        (r":LAND:surface:", "lsm", 1.0), (r":TMP:2 m above ground:", "2t", 1.0), (r":DPT:2 m above ground:", "2d", 1.0)]
 FALLBACK = {"n": 0}
 _idx, _raw = {}, {}
+# the maps refresh after every GFS cycle (Fahad, 28 Nov 2026: «تحدث مع كل تحديث تشغيلي للنموذج الأمريكي والأوروبي»):
+# a GFS 06/18 cycle (or a 00 cycle before the IFS 00 run reaches 15 days) reads the newest complete IFS 00/12 run.
+# ALIAS[gfs cycle] = (IFS cycle, hours between them): every call keeps the GFS cycle's step frame (fh from the GFS
+# run), only the file read is the IFS run's step fh + hours.
+ALIAS = {}
+STATIC_PARS = ("lsm", "z")
+
+
+def latest_full(t0, tries=4):
+    """the newest IFS 00/12 cycle at or before t0 (datetime) that reaches 360 h, or None"""
+    from datetime import timedelta
+    t = t0.replace(hour=0 if t0.hour < 12 else 12, minute=0, second=0, microsecond=0)
+    for _ in range(tries):
+        c = t.strftime("%Y%m%d%H")
+        try:
+            _get(_url_real(c, 360) + ".index", tries=2)
+            return c
+        except Exception:  # noqa: BLE001
+            t -= timedelta(hours=12)
+    return None
 
 
 def _get(url, rng=None, tries=8):
@@ -47,6 +67,9 @@ def _get(url, rng=None, tries=8):
 
 
 def steps(cycle):
+    if cycle in ALIAS:
+        ec, off = ALIAS[cycle]
+        return [x - off for x in steps(ec) if x >= off]
     hh = int(cycle[8:10])
     if hh in (6, 18):
         return list(range(0, 91, 3))
@@ -54,6 +77,12 @@ def steps(cycle):
 
 
 def _url(cycle, fh):
+    if cycle in ALIAS:
+        cycle, fh = ALIAS[cycle][0], fh + ALIAS[cycle][1]
+    return _url_real(cycle, fh)
+
+
+def _url_real(cycle, fh):
     d, hh = cycle[:8], cycle[8:10]
     return f"{EC}/{d}/{hh}z/ifs/0p25/oper/{d}{hh}0000-{fh}h-oper-fc"
 
@@ -67,6 +96,8 @@ def _index(cycle, fh):
 
 def _field(cycle, fh, par, lev):
     import pygrib
+    if par in STATIC_PARS and cycle in ALIAS:     # the static fields are in the IFS run's step 0 only
+        fh = -ALIAS[cycle][1]
     key = (cycle, fh, par, lev)
     if key not in _raw:
         it = next(x for x in _index(cycle, fh) if x["param"] == par and x.get("levelist", "") == lev)
@@ -84,6 +115,8 @@ def _field(cycle, fh, par, lev):
 
 
 def available(cycle, fh=0):
+    if cycle in ALIAS:              # "the run is complete": the IFS run's last step
+        fh = min(fh, steps(cycle)[-1])
     try:
         _index(cycle, fh)
         return True

@@ -74,8 +74,8 @@ def ec_fields(cycle, fh):
     """ECMWF open data (IFS 0.25) fields of one step on the GFS layout (lat 90..-90, lon 0..360)"""
     import json
     import pygrib
-    d, hh = cycle[:8], cycle[8:10]
-    url = f"{EC}/{d}/{hh}z/ifs/0p25/oper/{d}{hh}0000-{fh}h-oper-fc"
+    import ecmwf
+    url = ecmwf._url(cycle, fh)      # the IFS run behind this GFS cycle (ecmwf.ALIAS)
     idx = [json.loads(x) for x in _get(url + ".index").decode().splitlines()]
     out = {}
     for name, par, lev in EC_FIELDS:
