@@ -1,0 +1,9 @@
+[2026-11-28T15:53:45Z] cycle 2026112812 on 4 cores
+[2026-11-28T15:53:48Z] === step gfs: start
+[2026-11-28T15:57:55Z] === step gfs: done
+[2026-11-28T15:57:55Z] === step wps: start
+[2026-11-28T15:58:11Z] === step wps: done
+[2026-11-28T15:58:11Z] === step real: start
+[2026-11-28T15:58:11Z] metgrid levels: 34, soil levels: 4
+[2026-11-28T15:58:21Z] === step real: done
+[2026-11-28T15:58:24Z] === step wrf: start
