@@ -20,6 +20,14 @@ SEED_BOX = (3.0, 24.0, 38.0, 75.0)        # south, north, west, east: where the 
                                           # river toward Arabia, not the Bay of Bengal one)
 STORM_BOX = (0.0, 36.0, 30.0, 80.0)       # south, north, west, east: the chance is shown only here, around the area
                                           # the fit was made and tested on (2-33 N, 34-75 E)
+# the Kingdom's towns on the storm map, soft and small (the main cities are already in river.PLACES)
+KSA_TOWNS = [("تبوك", 28.38, 36.57, "e"), ("ضباء", 27.35, 35.70, "w"), ("الوجه", 26.24, 36.45, "w"),
+             ("أملج", 25.05, 37.27, "w"), ("ينبع", 24.09, 38.06, "w"), ("رابغ", 22.80, 39.03, "w"),
+             ("الطائف", 21.27, 40.42, "s"), ("الليث", 20.15, 40.27, "w"), ("القنفذة", 19.13, 41.08, "e"),
+             ("الباحة", 20.01, 41.47, "e"), ("نجران", 17.49, 44.13, "e"),
+             ("حائل", 27.52, 41.69, "e"), ("بريدة", 26.33, 43.97, "e"), ("سكاكا", 29.97, 40.21, "e"),
+             ("عرعر", 30.98, 41.04, "e"), ("الدمام", 26.43, 50.10, "s"), ("العلا", 26.61, 37.92, "e"),
+             ("خيبر", 25.70, 39.29, "e"), ("وادي الدواسر", 20.47, 44.78, "e")]
 CORE_MIN = 250.0
 JUMP_KM = 1200.0                          # the centre moves less than this in a day, or it is another river
 RADIUS_KM = 500.0
@@ -285,6 +293,23 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
         dx = .55 if side == "e" else -.55
         ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=7.6,
                 color="#4a5562", family=fam, path_effects=txt, zorder=6, fontweight="normal")
+    # the Kingdom's regions and its towns in a soft hand (Fahad, 28 Nov 2026: «حسن الخريطة بتقسيمها إلى مناطق مع ذكر
+    # أسماء المدن بخط ناعم»)
+    try:
+        import sa_geo
+        for r_ in sa_geo.regions():
+            g_ = r_["geom"]
+            for poly in getattr(g_, "geoms", [g_]):
+                xs, ys = poly.exterior.xy
+                ax.plot(xs, ys, color="#8b949e", lw=.35, alpha=.75, zorder=3)
+    except Exception as e:  # noqa: BLE001
+        print("storm map regions failed", repr(e)[:100], flush=True)
+    soft = [pe.withStroke(linewidth=1.2, foreground=(1, 1, 1, 0.7))]
+    for nm, y, x, side in KSA_TOWNS:
+        ax.plot(x, y, "o", ms=1.6, color="#7b8590", mec="none", zorder=6)
+        dx, dy, ha = {"e": (.4, 0, "left"), "w": (-.4, 0, "right"), "s": (0, -.55, "center"), "n": (0, .55, "center")}[side]
+        ax.text(x + dx, y + dy, F._rtl(nm), ha=ha, va="center", fontsize=5.6, color="#69737e", family=fam,
+                path_effects=soft, zorder=6, fontweight="normal", alpha=.95)
     draw_track(ax, cores, days, k, fam, F)
     ax.set_xlim(W, E)
     ax.set_ylim(S, N)
