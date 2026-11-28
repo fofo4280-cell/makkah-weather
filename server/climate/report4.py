@@ -1904,6 +1904,7 @@ def _no_bare_score(b):
 
 
 LAST_ROWS = []
+LAST_C = None
 
 
 # ------------------------------------------------------------------ build
@@ -1929,8 +1930,9 @@ def build(rep, st):
     except Exception as e:  # noqa: BLE001
         print("report4: model comparison failed:", repr(e), flush=True)
         C["cmp"] = None
-    global LAST_ROWS
+    global LAST_ROWS, LAST_C
     LAST_ROWS = C["rows"]
+    LAST_C = C              # the short published report (report5.py) is written from this same reading
     out = []
     for f in (s_exec, s_dyn, s_moist, s_vert, s_geo, s_cells, s_wave, s_season, s_change, s_conf):
         try:
