@@ -207,6 +207,28 @@ def check(report, st, img=None):
                 err.append(f"timing: the summary's trigger window «{mw.group(1)}» is not {timing.day_window(hs)}")
     except Exception as e:  # noqa: BLE001
         err.append(f"timing not checked: {e!r}")
+    # 4d. every relative day beside its date agrees with the report's day (Fahad 28 Nov 2026: «اليوم 28 اذا كنت لا تعلم»)
+    try:
+        day0_ = date.fromisoformat(report.get("day") or date.today().isoformat())
+        dp = r"(" + "|".join(WEEKDAYS) + r") ([٠-٩]+) (" + "|".join(MONTHS) + r")"
+
+        def _d(dd, mm):
+            m_ = MONTHS.index(mm) + 1
+            y = day0_.year + (1 if m_ < day0_.month - 6 else -1 if m_ > day0_.month + 6 else 0)
+            return date(y, m_, int(_int(dd)))
+        for i, j, t in T:
+            for rel, wd, dd, mm in re.findall(r"(اليوم|غدًا|بعد غد) " + dp, t):
+                n = {"اليوم": 0, "غدًا": 1, "بعد غد": 2}[rel]
+                if (_d(dd, mm) - day0_).days != n:
+                    err.append(f"relative day: «{rel} {wd} {dd} {mm}» in section {i + 1}, the report's day is {day0_}")
+            for wd, dd, mm, nn, unit in re.findall(dp + r"، بعد ([٠-٩]+|يومين) ?(أيام|يومًا)? من اليوم", t):
+                n = 2 if nn == "يومين" else int(_int(nn))
+                if (_d(dd, mm) - day0_).days != n:
+                    err.append(f"relative day: «{wd} {dd} {mm}» is not {nn} days from {day0_} (section {i + 1})")
+            if "لأن ذروتها بعد" in t or "لأن ذروتها غدًا" in t:
+                err.append(f"relative day: a lead without its date in section {i + 1}")
+    except Exception as e:  # noqa: BLE001
+        err.append(f"relative days not checked: {e!r}")
     # 3b. no repetition inside a paragraph: the same run of 6 words twice in one text, a word doubled, «س إلى س»
     for i, j, t in T:
         if " | " in t:

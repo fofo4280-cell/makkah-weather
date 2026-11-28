@@ -275,7 +275,7 @@ def s_exec(C):
         ws_ = wave_sea(C["st"], w)
         R_ = wave_reach(C["st"], w)
         t = (f"أقرب موجة: {R3.span_of_(w) if w['start'] != w['end'] else ar_date(w['start'])}، {KIND[w['kind']]}، "
-             f"أوسع أيامها {ar_date(w['peak'])}")
+             + R3.when_words(w, C["day0"]))
         if R_:
             t += (f"، يقودها أخدود من الشمال الغربي يبلغ تأثيره أمام محوره {reach_brief(R_)}"
                   + ("، وإن بقي محوره غرب البحر الأحمر" if C["nb"] and C["nb"]["blocked"] else ""))
