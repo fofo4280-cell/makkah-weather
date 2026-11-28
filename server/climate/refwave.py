@@ -66,6 +66,7 @@ def reading(I):
 
 
 HOURS = (0, 3, 6, 9, 12, 15, 18, 21)    # Makkah hours read for every day (Fahad 28 Nov 2026: the whole day, hour by hour)
+NIGHT = (21, 0, 3, 6)                   # Makkah night hours, read with a lighter rule (see hourly)
 KTH = 3                                 # the k-th strongest of the eight readings stands for the day (see hourly)
 HOURLY_DAYS = 8                         # days 0..7 read every 3 hours; later days keep the 3 PM snapshot
 
@@ -112,7 +113,15 @@ def hourly(cycle, days, procs=4):
             continue                             # too few readings to stand for the day
         st_ = np.sort(np.stack(list(by.values())), axis=0)
         I = st_[-KTH] if len(by) >= KTH else st_[0]
-        out[d] = {"I": I, "hours": [[h, reading(by[h])["cover"]] for h in sorted(by)]}
+        # the night (Fahad 28 Nov 2026: «غالب حالات الاخاديد تكون نشاط ليلي ثم تفوتك الحاله»): a trough's rain often
+        # comes in a few night hours only; two night readings (9 PM to 6 AM) are enough there
+        nh = [by[h] for h in NIGHT if h in by]
+        night = None
+        if len(nh) >= 2:
+            night = np.sort(np.stack(nh), axis=0)[-2]
+            I = np.maximum(I, night)
+        out[d] = {"I": I, "hours": [[h, reading(by[h])["cover"]] for h in sorted(by)],
+                  "night": reading(night)["cover"] if night is not None else 0.0}
     return out
 
 
@@ -128,6 +137,7 @@ def apply_hourly(st, cycle, day0, ndays=HOURLY_DAYS):
         m = reading(x["I"])
         m["d"] = d
         m["hours"] = x["hours"]
+        m["night"] = x["night"]
         pk = max(x["hours"], key=lambda t: t[1])
         m["peak_h"] = pk[0]
         GRIDS[d] = 100 * x["I"]
