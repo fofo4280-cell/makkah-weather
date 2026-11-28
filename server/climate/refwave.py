@@ -19,6 +19,7 @@ The reference is the day with the best spread x strength; it starts from 10 Nov 
 and the nightly run replaces it when today's reading beats it. It is carried from night to night in mjo.json.
 """
 import numpy as np
+from datetime import date
 
 WET, HEAVY = 40.0, 70.0      # index x 100: the rain-making threshold (fitted on the test above) and a strong core
 PW0, RH0 = 15.0, 50.0
@@ -62,6 +63,84 @@ def reading(I):
     m["core"] = round(float(100 * v[:max(1, len(v) // 10)].mean()), 1)
     m["kind"] = "ingr"
     return m
+
+
+HOURS = (0, 3, 6, 9, 12, 15, 18, 21)    # Makkah hours read for every day (Fahad 28 Nov 2026: the whole day, hour by hour)
+KTH = 3                                 # the k-th strongest of the eight readings stands for the day (see hourly)
+HOURLY_DAYS = 8                         # days 0..7 read every 3 hours; later days keep the 3 PM snapshot
+
+
+def _one_hour(job):
+    import ingredients as ING
+    cycle, d, h, fh = job
+    import daily
+    for _ in range(2):
+        try:
+            f = daily.gfs_fields(cycle, fh, fields=list(ING.FIELDS))
+            return d, h, index({n: ING.cut(f[n]) for n, _ in ING.FIELDS}, date.fromisoformat(d))
+        except Exception as e:  # noqa: BLE001
+            err = e
+    print("hourly ingredients failed", d, h, repr(err)[:120], flush=True)
+    return d, h, None
+
+
+def hourly(cycle, days, procs=4):
+    """the rain-making index read every 3 hours of each Makkah day (00..21 Makkah = 21 UTC the day before .. 18 UTC),
+    instead of one picture at 3 PM (Fahad 28 Nov 2026: «هل درستها بساعاتها كاملة … ام اخذت متوسط اليوم»).
+    A place counts with the third strongest of its eight readings: rain needs the ingredients on it for three readings
+    (about nine hours) or more, not one passing frame. Tested on the 29 Nov-1 Dec 2026 wave: this keeps the spread of
+    the peak day where the 3 PM picture (on which WET was fitted) put it (10.3 % vs 10.2 %), while the second strongest
+    reading gave 14 % and the strongest 21 %, an inflation with no calibration behind it. -> {day: {"I": index 0..1, "hours": [[h, cover], ...]}}"""
+    from datetime import datetime, timedelta
+    t0 = datetime.strptime(cycle, "%Y%m%d%H")
+    jobs = []
+    for d in days:
+        for h in HOURS:
+            t = datetime(d.year, d.month, d.day) + timedelta(hours=h - 3)
+            fh = int((t - t0).total_seconds() // 3600)
+            if 0 <= fh <= 384 and fh % 3 == 0:
+                jobs.append((cycle, d.isoformat(), h, fh))
+    got = {}
+    from concurrent.futures import ProcessPoolExecutor
+    with ProcessPoolExecutor(procs) as ex:     # processes: gfs_fields' temporary file is per process
+        for d, h, I in ex.map(_one_hour, jobs):
+            if I is not None:
+                got.setdefault(d, {})[h] = I
+    out = {}
+    for d, by in got.items():
+        if len(by) < 4:
+            continue                             # too few readings to stand for the day
+        st_ = np.sort(np.stack(list(by.values())), axis=0)
+        I = st_[-KTH] if len(by) >= KTH else st_[0]
+        out[d] = {"I": I, "hours": [[h, reading(by[h])["cover"]] for h in sorted(by)]}
+    return out
+
+
+def apply_hourly(st, cycle, day0, ndays=HOURLY_DAYS):
+    """replace the wave_rain rows (and GRIDS) of days day0 .. day0+ndays-1 with the hourly reading"""
+    from datetime import timedelta
+    days = [day0 + timedelta(days=k) for k in range(ndays)]
+    H = hourly(cycle, days)
+    rows = st.get("wave_rain") or []
+    by = {r["d"]: r for r in rows}
+    n = 0
+    for d, x in H.items():
+        m = reading(x["I"])
+        m["d"] = d
+        m["hours"] = x["hours"]
+        pk = max(x["hours"], key=lambda t: t[1])
+        m["peak_h"] = pk[0]
+        GRIDS[d] = 100 * x["I"]
+        if d in by:
+            by[d].clear()
+            by[d].update(m)
+        else:
+            rows.append(m)
+        n += 1
+    rows.sort(key=lambda r: r["d"])
+    st["wave_rain"] = rows
+    print("hourly rain-making reading:", n, "days", [(d[5:], round(by.get(d, {}).get("cover", 0), 3)) for d in sorted(H)], flush=True)
+    return n
 
 
 def _load_ref0():

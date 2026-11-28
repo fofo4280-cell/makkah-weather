@@ -69,6 +69,13 @@ def main():
         covhist.attach(st, out, new, day)
     except Exception as e:  # noqa: BLE001
         print("cover history failed:", repr(e), flush=True)
+    try:   # the rain-making reading of the coming days every 3 hours (Fahad 28 Nov 2026), so the wave's strength,
+        # spread, areas and maps come from the whole day, hour by hour
+        import refwave
+        cy = str(st.get("cycle") or "")
+        refwave.apply_hourly(st, cy, date(int(cy[:4]), int(cy[4:6]), int(cy[6:8])))
+    except Exception as e:  # noqa: BLE001
+        print("hourly rain-making reading failed:", repr(e), flush=True)
     import report2
     try:
         import report4

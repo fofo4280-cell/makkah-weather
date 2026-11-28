@@ -322,6 +322,8 @@ def _change(C):
     """the one change that matters (timing, path, strength or reach of the wave), or None"""
     for c in C.get("changes") or []:
         s = c.get("short") or ""
+        if re.search(r"صارت (.+?) بعد أن كانت \1(?:،|$)", s) or re.search(r"صارت (.+?) بعد أن كانت \1(?:،|$)", c.get("text") or ""):
+            continue            # the same window again: no change to report
         if c.get("w", 0) >= 4 and not re.search(r"[A-Za-z]", s) and ("الموجة" in s or "الأخدود" in s):
             return s
     return None
