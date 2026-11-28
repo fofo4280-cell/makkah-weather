@@ -1095,6 +1095,10 @@ def main():
                 refwave.GRIDS[m_["d"]] = 100 * I
                 wr.append(m_)
             status["wave_rain"] = wr
+            try:   # the first days read every 3 hours, not one picture at 3 PM (Fahad 28 Nov 2026)
+                refwave.apply_hourly(status, cycle, sorted(fc)[0].date())
+            except Exception as e:  # noqa: BLE001
+                print("hourly rain-making reading failed:", repr(e), flush=True)
             # the same reading at 0.25 degree over Makkah and Madinah regions and their coasts (hijaz.py, 25 Nov 2026)
             try:
                 import hijaz
