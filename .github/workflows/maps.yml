@@ -1,0 +1,143 @@
+# The oscillation page maps after EVERY GFS cycle, 00/06/12/18 UTC (Fahad, 28 Nov 2026: «تحدث مع كل تحديث تشغيلي
+# للنموذج الأمريكي والنموذج الأوروبي ... أولا بأول»). daily.py with MAPS_ONLY=1: the same maps as the night run, from
+# the newest GFS cycle and the newest complete ECMWF 00/12 run (the IFS 06/18 runs stop at 90 h), then only the
+# maps' files and keys are laid onto the LATEST climate-data (never a force-push). The report stays the night run's
+# (climate.yml, midnight Makkah). Never publishes while climate.yml or rain-midnight.yml is running (both force-push
+# their start copy), and never over newer maps.
+name: Oscillation maps every run
+
+on:
+  schedule:
+    # GFS 15-day files on AWS about 4 h 40 min after the cycle; GitHub may fire late, the run then takes the newest
+    - cron: '17 5 * * *'     # 00 UTC
+    - cron: '17 11 * * *'    # 06 UTC (and the ECMWF 00 run)
+    - cron: '17 17 * * *'    # 12 UTC (the night run redraws it with the ECMWF 12 run)
+    - cron: '17 23 * * *'    # 18 UTC (and the ECMWF 12 run)
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'code branch'
+        default: 'saudi-wrf'
+      target:
+        description: 'data branch to publish to (climate-data is the page)'
+        default: 'climate-data'
+      cycle:
+        description: 'GFS cycle YYYYMMDDHH (empty: the newest)'
+        default: ''
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: climate-maps
+  cancel-in-progress: false
+
+jobs:
+  maps:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 420
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TARGET: ${{ inputs.target || 'climate-data' }}
+    steps:
+      - name: Wait for the GFS 15-day files
+        run: |
+          [ -n "${{ inputs.cycle }}" ] && exit 0
+          # the cycle of the current 6-hour slot: wait for it only when it is due within the hour (out ~4 h 40 min
+          # after the cycle); otherwise daily.py takes the newest complete cycle
+          now=$(date -u +%s); slot=$(( now / 21600 * 21600 )); age=$(( (now - slot) / 60 ))
+          T=$(date -u -d "@$slot" +%Y%m%d%H); D=${T:0:8}; C=${T:8:2}
+          U="https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.$D/$C/atmos/gfs.t${C}z.pgrb2.0p25.f384.idx"
+          [ "$age" -lt 230 ] && { echo "GFS $T not due yet: the newest complete cycle is used"; exit 0; }
+          for i in $(seq 1 60); do curl -sf -m 30 "$U" >/dev/null && { echo "GFS $T ready"; exit 0; }; sleep 60; done
+          echo "GFS $T not out after an hour: the newest complete cycle is used"
+
+      - name: Code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || 'saudi-wrf' }}
+          path: code
+
+      - name: Python packages
+        run: pip install -q numpy scipy shapely pillow netCDF4 pyshtools pygrib matplotlib cartopy arabic-reshaper python-bidi
+
+      - name: Restore climatology
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/clim
+          key: clim-r1-1991-2020-v2
+
+      - name: Restore recent analyses
+        uses: actions/cache/restore@v4
+        with:
+          path: /home/runner/mjo_state
+          key: mjo-hist-${{ github.run_id }}
+          restore-keys: mjo-hist-
+
+      - name: Previous results
+        run: |
+          git clone -q --depth 1 --branch climate-data "https://github.com/${GITHUB_REPOSITORY}" /home/runner/out
+          rm -rf /home/runner/out/.git
+          touch /home/runner/start
+
+      - name: Compute the maps
+        env:
+          MAPS_ONLY: '1'
+          MAPS_CYCLE: ${{ inputs.cycle }}
+        run: python3 code/server/climate/daily.py /home/runner/clim /home/runner/mjo_state /home/runner/out
+
+      - name: Publish onto the latest page data
+        run: |
+          busy() {   # a run of climate.yml or rain-midnight.yml in progress force-pushes its start copy at its end
+            for w in climate.yml rain-midnight.yml; do
+              n=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/$w/runs?per_page=10" \
+                --jq '[.workflow_runs[] | select(.status=="in_progress" or .status=="queued" or .status=="waiting")] | length' 2>/dev/null || echo 0)
+              [ "$n" != "0" ] && return 0
+            done
+            return 1
+          }
+          for i in $(seq 1 60); do busy || break; echo "$(date -u +%H:%M) the night run is in progress: waiting"; sleep 300; done
+          busy && { echo "the night run still in progress: not published"; exit 1; }
+          for t in 1 2 3 4; do
+            rm -rf /home/runner/latest
+            git clone -q --depth 1 --branch "$TARGET" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" /home/runner/latest
+            python3 - <<'PY' || exit 1
+          import json, os, shutil, sys
+          src, dst = "/home/runner/out", "/home/runner/latest"
+          m = json.load(open(os.path.join(src, "maps.json")))
+          b = json.load(open(os.path.join(dst, "mjo.json")))
+          have = (b.get("maps_cycle") or b.get("cycle", ""), b.get("ec_cycle") or b.get("cycle", ""))
+          new = (m["maps_cycle"], m["ec_cycle"])
+          if new < have:
+              print("published maps are newer", have, "than this run", new, ": nothing published")
+              sys.exit(0)
+          t0 = os.path.getmtime("/home/runner/start")
+          n = 0
+          for root, dirs, files in os.walk(src):
+              rel = os.path.relpath(root, src)
+              if rel.split(os.sep)[0] in ("reports",):
+                  continue
+              for f in files:
+                  if rel == "." and f in ("mjo.json", "maps.json", "verif.json"):
+                      continue
+                  p = os.path.join(root, f)
+                  if os.path.getmtime(p) > t0:
+                      q = os.path.join(dst, rel, f)
+                      os.makedirs(os.path.dirname(q), exist_ok=True)
+                      shutil.copy2(p, q)
+                      n += 1
+          for k, v in m.items():
+              if k != "maps_updated":
+                  b[k] = v
+          b["updated"] = m["maps_updated"]        # the page fetches the new pictures (URLs carry ?v=updated)
+          json.dump(b, open(os.path.join(dst, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
+          print("maps", new, "laid onto the page data:", n, "files")
+          PY
+            cd /home/runner/latest
+            git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" add -A
+            git -c user.name="climate bot" -c user.email="actions@users.noreply.github.com" commit -q -m "maps from GFS $(python3 -c "import json;print(json.load(open('/home/runner/out/maps.json'))['maps_cycle'])") $(date -u +%Y-%m-%dT%H:%MZ)" || exit 0
+            git push -q origin "HEAD:$TARGET" && exit 0
+            cd /home/runner; sleep $((t * 10))
+          done
+          exit 1

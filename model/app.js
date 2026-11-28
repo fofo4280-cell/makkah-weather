@@ -1874,7 +1874,7 @@
       : `<h3>${r.title}</h3>`) + (r.sections && r.sections.length
       ? r.sections.map((s, k) => `<details class="rsec${s.kind ? " " + s.kind : ""}" open><summary>${s.heading}</summary>${secHTML(s, k)}</details>`).join("")
       : (r.lines || []).map((l) => `<p>${l}</p>`).join("")) +
-      `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، ومعه خرائط هذه الصفحة${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
+      `<p class="hint">يصدر التقرير مرة كل يوم عند منتصف الليل بتوقيت مكة من تشغيل المساء، وتتحدث خرائط هذه الصفحة مع كل تشغيلة للنموذجين الأمريكي والأوروبي${r.updated || r.issued ? ` · آخر تحديث ${fmtStamp.format(new Date(r.updated || r.issued))}` : ""}.</p>`;
     let html = "";
     if (now) {
       // phase 2 is "weakly supportive" as in the report: the 25-season study found it near normal (16 Nov 2026)
@@ -1893,7 +1893,10 @@
       html += `<div class="mjo-row"><span>بعد عشرة أيام تقريبًا</span><span>الطور ${num(f.phase)} بشدة ${num(f.amp, 1)}</span></div>`;
     }
     $("mjoNow").innerHTML = `<h3>التذبذب المداري (مادن-جوليان)</h3>` + html;
-    $("mjoUpdated").textContent = `آخر تحديث: ${fmtStamp.format(new Date(st.updated))} · توقع جي إف إس لدورة ${fmtDayD.format(dOf(st.cycle.slice(0, 4) + "-" + st.cycle.slice(4, 6) + "-" + st.cycle.slice(6, 8)))}` +
+    // the maps refresh after every run (maps.yml, 28 Nov 2026): maps_cycle / ec_cycle name the runs behind the maps
+    const runOf = (c) => `${fmtDayD.format(dOf(c.slice(0, 4) + "-" + c.slice(4, 6) + "-" + c.slice(6, 8)))} الساعة ${num(+c.slice(8, 10))} غرينتش`;
+    const gc = st.maps_cycle || st.cycle, ec = st.ec_cycle || st.cycle;
+    $("mjoUpdated").textContent = `آخر تحديث للخرائط: ${fmtStamp.format(new Date(st.updated))} · النموذج الأمريكي دورة ${runOf(gc)} · الأوروبي دورة ${runOf(ec)}` +
       (st.fit ? ` · توافق الإسقاط مع الرصد ${num(st.fit.r1, 2)} و${num(st.fit.r2, 2)}` : "");
   }
 
