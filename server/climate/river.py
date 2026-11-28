@@ -359,13 +359,19 @@ def run(cycle, out_fig, log=print, gfs_fields=None):
                         mag=m)
         except Exception as e:  # noqa: BLE001
             log("river picture failed", days[k], repr(e)[:160], flush=True)
+    hrs = None
+    if C is not None and grid is not None:
+        try:   # the storm map every 3 hours too (Fahad, 28 Nov 2026), like the winds and the humidity
+            hrs = RS.hourly(cycle, out_fig, days, grid, land, hgt, cores, peak, mean, mags, C, js, is_, log=log)
+        except Exception as e:  # noqa: BLE001
+            log("river storms hourly failed:", repr(e)[:160], flush=True)
     texts, first = lines(rows)
     for r, t in zip(rows, texts):
         r["text"] = t
     storm_days = sum(p is not None for p in probs)
     return {"days": [r["d"] for r in rows], "rows": rows, "first": first, "first_text": first_line(first, d0),
             "extent": list(EXTENT), "gate": GATE_IVT, "model": "ecmwf", "storm_days": storm_days,
-            "storm_box": list(RS.STORM_BOX)}
+            "storm_box": list(RS.STORM_BOX), "storm_hrs": hrs}
 
 
 def static_from(cycle, lat, lon, gfs_fields=None):
