@@ -360,7 +360,7 @@ a { color: var(--sea); }
 .ksa-scroll { overflow: auto; border-radius: 12px; border: 1px solid var(--line); background: #0c1118; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
 .ksa-inner { position: relative; width: 100%; }
 .ksa-inner img { display: block; width: 100%; height: auto; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; cursor: crosshair; }
-.ksa-pin { position: absolute; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; background: #4a86f5; border: 2.5px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.55); pointer-events: none; }
+.ksa-pin { position: absolute; width: 7px; height: 7px; margin: -3.5px 0 0 -3.5px; border-radius: 50%; background: #4a86f5; border: 1.5px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.5); pointer-events: none; }
 .ksa-zoom { position: absolute; top: 8px; left: 8px; display: flex; flex-direction: column; gap: 6px; }
 .ksa-zoom button { width: 40px; height: 40px; border-radius: 10px; border: 1px solid rgba(255,255,255,.25); background: rgba(17,17,17,.82); color: #fff; font: 600 1.4rem/1 inherit; display: flex; align-items: center; justify-content: center; }
 .ksa-zoom button:disabled { opacity: .35; }
