@@ -455,18 +455,64 @@ def s_maps(C, out_dir):
 
 
 # ------------------------------------------------------------------ 4. the decisive factor
+def _jm_hours(C):
+    """Jeddah and Makkah hour by hour over the wave's days (Fahad 28 Nov 2026: the 39 % was a mean over a big western
+    box, while Jeddah on Tuesday morning was above 50 %): ECMWF RH700 from the site's hourly humidity maps (the cities
+    at 70 % or more each hour), GFS RH700 and ascent of the Jeddah-Makkah zone every 3 hours (timing.py).
+    -> {"ec": [(day, hour)], "gfs": [(day, hour, rh)], "lift": [(day, hour)]}"""
+    w = C.get("nw")
+    out = {"ec": [], "gfs": [], "lift": []}
+    if not w:
+        return out
+    days = [w["start"] + timedelta(days=k) for k in range((w["end"] - w["start"]).days + 1)]
+    K = C["st"].get("ksa") or {}
+    for d in days:
+        ds = d.isoformat()
+        if ds in (K.get("days") or []) and K.get("hrs"):
+            for x in K["hrs"][K["days"].index(ds)]:
+                t = (x.get("t") or {}).get("krh7") or ""
+                if t.startswith("رطوبة عالية") and re.search(r"(?:^|[ ،و])(جدة|مكة)(?:$|[ ،.])", t.split(" فوق ", 1)[-1]):
+                    out["ec"].append((d, x["h"]))
+        day = next((x for x in (C["st"].get("timing") or {}).get("days") or [] if x["d"] == ds), None)
+        for v in (day or {}).get("z", {}).get("jeddah_makkah") or []:
+            if v["rh"] >= 60:
+                out["gfs"].append((d, v["h"], v["rh"]))
+            if v.get("act"):
+                out["lift"].append((d, v["h"]))
+    return out
+
+
+def _hours_w(pairs):
+    """«من الثالثة فجرًا إلى السادسة صباحًا الثلاثاء ١ ديسمبر» per day"""
+    import timing
+    by = {}
+    for d, h, *_ in pairs:
+        by.setdefault(d, []).append(h)
+    return "، و".join("، ثم ".join(timing.ep_word(e) for e in timing.episodes(sorted(set(hs)))) + f" {ar_date(d)}"
+                      for d, hs in sorted(by.items()))
+
+
 def s_key(C):
-    a = C.get("an")
     w = C.get("nw")
     nb = C.get("nb")
-    if a and a.get("rh") is not None and w:
-        t = (f"الرطوبة عند ٧٠٠ هكتوباسكال غرب المملكة: إن ارتفعت فوق ٤٥٪ اتسع المطر الغزير من الساحل إلى جدة ومكة، "
-             f"وإن بقيت عند {ar(a['rh'])}٪ بقي القلب بحريًا في الشمال الغربي.") if a["rh"] < 45 else (
-            "مسار الأخدود: إن تقدم محوره شرق البحر الأحمر اتسع المطر إلى الداخل، وإن تباطأ بقي على الساحل.")
+    J = _jm_hours(C) if w else {"ec": [], "gfs": [], "lift": []}
+    if w and (J["ec"] or J["gfs"]):
+        parts = []
+        if J["ec"]:
+            parts.append(f"يرفعها الأوروبي إلى ٧٠٪ فأكثر {_hours_w(J['ec'])}")
+        if J["gfs"]:
+            mx = max(x[2] for x in J["gfs"])
+            parts.append(f"وجي إف إس إلى {ar(mx)}٪ {_hours_w(J['gfs'])}")
+        t = ("الرطوبة عند ٧٠٠ هكتوباسكال فوق جدة ومكة كافية للمطر الغزير في بعض الساعات: " + "، ".join(parts)
+             + "؛ فالحاسم أن يجتمع معها الصعود، ")
+        t += (f"وهو لا يظهر إلا {_hours_w(J['lift'])}: فإن امتد إلى ساعات الرطوبة اتسع المطر الغزير من الساحل إلى جدة ومكة، "
+              "وإلا بقي القلب بحريًا بين ينبع ورابغ." if J["lift"] else
+              "ولا يظهر في تلك الساعات: فإن وصل اتسع المطر الغزير من الساحل إلى جدة ومكة، وإلا بقي القلب بحريًا بين ينبع ورابغ.")
+    elif w:
+        t = ("الرطوبة عند ٧٠٠ هكتوباسكال فوق جدة ومكة: لا تبلغ ٥٠٪ في أي ساعة من أيام الموجة في توقع الليلة؛ إن ارتفعت "
+             "اتسع المطر من الساحل إلى جدة ومكة، وإلا بقي القلب بحريًا.")
     elif nb and nb.get("blocked"):
         t = "مرتفع إيران والخليج: إن ضعف تقدم الأخدود شرقًا واتسع المطر، وإن ثبت انكسر شمالًا وقل المطر جنوبًا."
-    elif w:
-        t = "عمق الأخدود وتوقيت وصوله: يحددان اتساع المطر وشدته، ويُتابعان كل ليلة."
     else:
         t = "عودة الرطوبة من البحر الأحمر وبحر العرب مع أي أخدود قادم من الشمال الغربي."
     return sec(HEAD[3], "key", [{"p": t}])
