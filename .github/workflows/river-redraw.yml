@@ -34,8 +34,14 @@ jobs:
           import daily, river
           out = os.path.abspath("../../../out")
           m = json.load(open(f"{out}/mjo.json"))
-          cyc = m.get("cycle") or ""
-          print("cycle", cyc, flush=True)
+          # the maps run behind the page (maps.yml, every GFS cycle since 28 Nov 2026) and its ECMWF run
+          cyc = m.get("maps_cycle") or m.get("cycle") or ""
+          ec = m.get("ec_cycle") or cyc
+          if ec != cyc:
+              import ecmwf
+              from datetime import datetime
+              ecmwf.ALIAS[cyc] = (ec, int((datetime.strptime(cyc, "%Y%m%d%H") - datetime.strptime(ec, "%Y%m%d%H")).total_seconds() // 3600))
+          print("cycle", cyc, "ECMWF", ec, flush=True)
           r = river.run(cyc, f"{out}/fig", gfs_fields=daily.gfs_fields)
           if r is None or not any(x.get("g") for x in r["rows"]):
               sys.exit("river: nothing drawn")
