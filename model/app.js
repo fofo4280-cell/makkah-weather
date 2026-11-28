@@ -2040,7 +2040,7 @@
       const RX = M.st && M.st.rsflow && M.st.rsflow.extent;   // the Red Sea flow map fills its picture edge to edge
       if (RX && !G["rsf.png"]) G["rsf.png"] = [[0, 1, 0, 1, RX[0], RX[1], RX[2], RX[3]]];
       const file = (img.currentSrc || img.src || "").split("?")[0].split("/").pop() || "";
-      const pans = G[file.replace(/(_\d+)+(?=\.png$)/, "")];
+      const pans = G[file.replace(/(_\d+)+(?=\.(png|webp)$)/, "").replace(/\.webp$/, ".png")];   // the 3-hourly frames too
       if (!pans) return;
       const r = img.getBoundingClientRect();
       const fx = (ev.clientX - r.left) / r.width, fy = 1 - (ev.clientY - r.top) / r.height;
@@ -2727,19 +2727,38 @@
     $("rstCard").hidden = !n;
     if (!n) return;
     const AR = (t) => String(t).replace(/\d/g, (c) => "٠١٢٣٤٥٦٧٨٩"[c]).replace(".", "٫");
-    const url = (k) => `${CL}fig/rst_${String(k).padStart(2, "0")}.png?v=${encodeURIComponent(st.updated + (R.ver || ""))}`;
+    const hp = (v) => String(v).padStart(2, "0");
+    // every 3 hours since 28 Nov 2026 (Fahad: «العواصف الرعدية على مسار النهر خليها كل ٣ ساعات، مثل الرياح والرطوبة»):
+    // rsth_KK_HH.webp at the IFS steps, one slider over all of them; the day pictures stay for older data
+    const SF = [];
+    (R.storm_hrs || []).forEach((hs, k) => (hs || []).forEach((x) => SF.push({ k, h: x.h, s: x.s })));
+    const hm = SF.length > 0;
+    const v = encodeURIComponent(st.updated + (R.ver || ""));
+    const url = (i) => hm ? `${CL}fig/rsth_${hp(SF[i].k)}_${hp(SF[i].h)}.webp?v=${v}` : `${CL}fig/rst_${hp(i)}.png?v=${v}`;
     const show = () => {
-      const k = +$("rstDay").value || 0, r = rows[k] || {};
-      $("rstFig").src = url(k);
-      if (k + 1 < n) { const im = new Image(); im.src = url(k + 1); }
-      $("rstDayLabel").textContent = r.d ? dayLab(r.d) : "";
-      const s = r.storm, c = r.core;
-      $("rstNow").innerHTML = s ? `<div><b>حول قلب النهر: أعلى احتمال لعاصفة شديدة ${AR(s[0])}٪، ومتوسطه ${AR(s[1])}٪.</b></div>`
-        : (c ? "<div>قلب النهر خارج منطقة الحساب في هذا اليوم.</div>" : "<div>لا نهر واضحًا في هذا اليوم.</div>");
+      const i = +$("rstDay").value || 0, f = hm ? SF[i] || SF[0] : null, k = f ? f.k : i, r = rows[k] || {};
+      $("rstFig").src = url(i);
+      if (i + 1 < (hm ? SF.length : n)) { const im = new Image(); im.src = url(i + 1); }
+      $("rstDayLabel").textContent = r.d ? dayLab(r.d) + (f ? `، ${f.h === 0 ? "" : "الساعة "}${HR_LAB[f.h]}` : "") : "";
+      const s = f ? f.s : r.storm, c = r.core;
+      $("rstNow").innerHTML = s ? `<div><b>حول قلب النهر${f ? " في هذه الساعة" : ""}: أعلى احتمال لعاصفة شديدة ${AR(s[0])}٪، ومتوسطه ${AR(s[1])}٪.</b></div>`
+        : (c ? "<div>قلب النهر خارج منطقة الحساب في هذا الوقت.</div>" : "<div>لا نهر واضحًا في هذا اليوم.</div>");
     };
     if (!rstCard.done) {
       rstCard.done = true;
-      $("rstDay").max = n - 1; $("rstDay").value = Math.min(n - 1, todayIdx(R.days));
+      const k0 = Math.min(n - 1, todayIdx(R.days));
+      if (hm) {
+        $("rstDay").max = SF.length - 1;
+        let i = Math.max(0, SF.findIndex((f) => f.k >= k0));
+        if (R.days[k0] === todayISO()) {
+          const H = new Date(Date.now() + 3 * 3600e3).getUTCHours();
+          while (SF[i + 1] && SF[i + 1].k === SF[i].k && SF[i + 1].h <= H) i++;
+        }
+        $("rstDay").value = i;
+        $("rstHint").textContent = $("rstHint").textContent.replace("لكل يوم كامل بتوقيت جرينتش إلى ١٤ يومًا",
+          "كل ٣ ساعات (وبعد اليوم السادس كل ٦ ساعات كما يصدرها النموذج) إلى ١٤ يومًا، بمكونات العاصفة في تلك الساعة ومطر ١٢ ساعة قبلها و١٢ بعدها؛ اضغط ▶ لتتحرك الخريطة، والمس أي موضع لترى خطي الطول والعرض")
+          .replace("مطر ٢٠ ملم فأكثر خلال ٢٥ كم في اليوم", "مطر ٢٠ ملم فأكثر خلال ٢٥ كم في ٢٤ ساعة");
+      } else { $("rstDay").max = n - 1; $("rstDay").value = k0; }
       $("rstDay").oninput = show;
     }
     show();
