@@ -492,10 +492,10 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             if edge_trig and not f.get("moist"):
                 # moist middle layer instead of a moist column: the trigger is the climb, the fuel the cold aloft
                 lv = "moderate" if (e.get("rh700") or 0) >= 65 else "light"
-                add(lv, _towns(e["name"]), "هواء البحر يصعد الحافة تحت طبقة وسطى رطبة",
+                add(lv, _towns(edge_name(e)), "هواء البحر يصعد الحافة تحت طبقة وسطى رطبة",
                     (lambda bx: ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None)(BOXES.get(e["key"])), "high")
                 capes.append(fuel)
-                meets.append("هواء البحر يصعد " + P_short(e["name"]))
+                meets.append("هواء البحر يصعد " + P_short(edge_name(e)))
             elif f.get("moist") and (lift or (up_cold and fuel >= 100)) and (f.get("unstable") or fuel >= 150 or f.get("midmoist")):
                 lv = _cape_word(fuel)
                 if lv == "heavy" and not (up_cold and big >= 0.6):
@@ -506,10 +506,10 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                          ("هواء رطب يصعد الحرة" if harra else "هواء البحر الرطب يصعد الحافة") if f.get("upslope") else
                          "تبريد علوي فوق هواء رطب")
                 bx = BOXES.get(e["key"])
-                add(lv, _towns(e["name"]), cause, ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None, "high")
+                add(lv, _towns(edge_name(e)), cause, ((bx[0] + bx[1]) / 2, (bx[2] + bx[3]) / 2) if bx else None, "high")
                 capes.append(fuel)
                 if f.get("upslope") and e["key"] != "sail":
-                    meets.append("هواء البحر الرطب يصعد " + P_short(e["name"]))
+                    meets.append("هواء البحر الرطب يصعد " + P_short(edge_name(e)))
             if e.get("steer") is not None and steer is None and e.get("steer") >= 3:
                 steer = e["steer"]
         # the plains under the mountains: cold outflow running down in the evening into hot moist air; written only
@@ -573,7 +573,8 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
             for la, lo, lv, pname in src[:3]:
                 if lv == "light":
                     continue
-                d = _downstream(la, lo, uv[0], uv[1], nm)
+                ek = next((k for k, v in EDGE_NAME.items() if v == pname), None)
+                d = edge_down(ek, uv[0]) if ek else _downstream(la, lo, uv[0], uv[1], nm)
                 if d:
                     add("light" if lv == "moderate" else "moderate", d,
                         f"تدفعها رياح الطبقات المتوسطة من {P_short(pname)}", z=zone.get(pname))
@@ -669,6 +670,25 @@ def region_reading(st, rs, regs, day0, W, big=0.5):
                     "steer": steer, "cape": cmax, "pct": pct, "level": lv, "cold": cold, "parts": parts, "lw_boost": lw_boost,
                     "cover": cov, "area": areas.get(nm)})
     return out
+
+
+# Fahad 28 Nov 2026: «حافة الهدا مالها دخل بالشرائع وعرفه وحافة الشفا مالها دخل في وادي نعمان.. هذه حواف الجبال تولد
+# سحاب وترفعه بسبب الرفع التضاريسي والحركه بناء ع الرياح العلوية للطائف او مناطق شرق مكة عرفه والشرائع وجنوب شرق مكة
+# نعمان»: the edges are where the cells are born; where they go is the 700-500 hPa wind's to say
+EDGE_NAME = {"hada": "حافة الهدا", "shafa": "حافة الشفا"}
+EDGE_DOWN = {"hada": ("هضبة الطائف", "عرفة والشرائع شرق مكة"), "shafa": ("جنوب الطائف", "وادي نعمان جنوب شرق مكة")}
+
+
+def edge_name(e):
+    return EDGE_NAME.get(e.get("key"), e["name"])
+
+
+def edge_down(key, u, min_u=2.0):
+    """where the cells of an edge drift with the 700-500 hPa wind: east onto the Taif plateau, west down to the east
+    of Makkah (Arafat, Ash-Sharai) or its south-east (Wadi Nu'man); None when the wind holds them on the edge"""
+    if key not in EDGE_DOWN or abs(u) < min_u:
+        return None
+    return EDGE_DOWN[key][0 if u > 0 else 1]
 
 
 def _downstream(lat, lon, u, v, region, hours=2.5):
