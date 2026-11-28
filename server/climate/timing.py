@@ -20,21 +20,53 @@ HOUR_W = {0: "منتصف الليل", 3: "الثالثة فجرًا", 6: "الس
           15: "الثالثة عصرًا", 18: "السادسة مساءً", 21: "التاسعة ليلًا"}
 FIELDS = [("w500", r":VVEL:500 mb:"), ("rh700", r":RH:700 mb:"),
           ("pw", r":PWAT:entire atmosphere \(considered as a single layer\):"), ("cape", r":CAPE:180-0 mb above ground:"),
-          ("u6", r":UGRD:600 mb:"), ("v6", r":VGRD:600 mb:")]
+          ("u6", r":UGRD:600 mb:"), ("v6", r":VGRD:600 mb:"),
+          ("u10", r":UGRD:10 m above ground:"), ("v10", r":VGRD:10 m above ground:")]
+# the surface collision is lift too (Fahad, 28 Nov 2026: «في تصادم الرياح من 6 الى 9 صباح الرياح الجنوبية والشمالية
+# تتصادم أمام جدة»): the strongest 10 m convergence of the zone, smoothed over about 40 km as the site's collision
+# maps (collide.py), in 10^-5 /s; at CV_LIFT or more it lifts the air as the 500 hPa ascent does
+CV_LIFT = 3.0
+# the collision of Jeddah forms over the sea in front of the city (the southerly and northerly coastal winds), so the
+# zone's collision is read from the coast's offshore strip as well
+CV_BOX = {"jeddah_makkah": (21.2, 21.9, 38.7, 40.1)}
 DIRS = ["الشمال", "الشمال الشرقي", "الشرق", "الجنوب الشرقي", "الجنوب", "الجنوب الغربي", "الغرب", "الشمال الغربي"]
+
+
+def lift(v):
+    """what lifts the zone's air at that time: "w" the 500 hPa ascent, "cv" the surface collision, both, or "" """
+    return ("w" if v["w"] <= -0.15 else "") + ("cv" if v.get("cv", 0) >= CV_LIFT else "")
+
+
+def act(v):
+    """troughreach.act, with the surface collision counted as the lift of thunder showers: fuel, a moist 700 hPa layer
+    and a collision make storms even where 500 hPa does not rise yet"""
+    a = TR.act(v)
+    if a < 2 and v["cape"] >= 400 and v["rh"] >= 50 and v["pw"] >= 12 and v.get("cv", 0) >= CV_LIFT:
+        return 2
+    return a
 
 
 def _vals(g):
     from scipy.ndimage import uniform_filter
     la, lo = TR._grid()
     w = uniform_filter(g["w500"], 3, mode="nearest")
+    cv = None
+    if "u10" in g and "v10" in g:
+        import collide
+        cv = collide.convergence(g["u10"], g["v10"], la, TR.RES)
     out = {}
     for key, _n, a, b, c, d in TR.ZONES:
         ix = np.ix_((la >= a) & (la <= b), (lo >= c) & (lo <= d))
         v = {"rh": round(float(g["rh700"][ix].mean())), "pw": round(float(g["pw"][ix].mean()), 1),
              "cape": round(float(np.quantile(g["cape"][ix], 0.9))), "w": round(float(w[ix].min()), 2),
              "u": round(float(g["u6"][ix].mean()), 1), "v": round(float(g["v6"][ix].mean()), 1)}
-        v["act"] = TR.act(v)
+        if cv is not None:
+            a2, b2, c2, d2 = CV_BOX.get(key, (a, b, c, d))
+            v["cv"] = round(float(cv[np.ix_((la >= a2) & (la <= b2), (lo >= c2) & (lo <= d2))].max()), 1)
+        else:
+            v["cv"] = 0.0
+        v["act"] = act(v)
+        v["lift"] = lift(v)
         out[key] = v
     return out
 

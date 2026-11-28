@@ -110,7 +110,10 @@ def gfs_fields(cycle, fh, extra=(), res="1p00", fields=None):
         k = next(i for i, l in enumerate(idx) if re.search(pat, l))
         end = starts[k + 1] - 1 if k + 1 < len(starts) else ""
         blob = get(base, {"Range": f"bytes={starts[k]}-{end}"})
-        tmp = f"/tmp/gfs_{os.getpid()}.grb"
+        # one file per thread: the hour-by-hour readers (timing.py) call this from several threads of one process,
+        # and a shared name let one thread read another's field (RH 863 %, ascent 1285 Pa/s in the 28 Nov reading)
+        import threading
+        tmp = f"/tmp/gfs_{os.getpid()}_{threading.get_ident()}.grb"
         open(tmp, "wb").write(blob)
         with pygrib.open(tmp) as g:
             m = g.message(1)
