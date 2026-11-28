@@ -70,6 +70,8 @@ def _texts(report):
 
 
 def check(report, st, img=None):
+    if report.get("layout") == 5:      # the short published report (report5.py, Fahad 28 Nov 2026)
+        return check5(report, st, img)
     err = []
     secs = report.get("sections") or []
     # 1. the 10 sections
@@ -436,3 +438,185 @@ def audit(report, st):
     if wt and any(str(r[2]).endswith("٪") for r in wt["rows"]):
         err.append("audit: wave strength given as a bare percentage")
     return err
+
+
+# ------------------------------------------------------------------ the short published report (report5.py)
+HEAD5 = ("توقعات الأمطار اليوم", "أقرب موجة خصب", "خرائط الأمطار التراكمية", "ما قد يغير التوقع")
+BANNED = ("تجتمع المكونات", "تدعم الحالة", "تتراجع الفرصة")
+DRY = ("لا مطر", "جاف", "لا يُتوقع", "دون مطر", "لا تظهر")
+
+
+def _dates_ok(T, day0):
+    """every «weekday day month» is the right weekday, every relative day agrees with the report's day"""
+    err = []
+    dp = r"(" + "|".join(WEEKDAYS) + r") ([٠-٩]+) (" + "|".join(MONTHS) + r")"
+
+    def _d(dd, mm):
+        m_ = MONTHS.index(mm) + 1
+        y = day0.year + (1 if m_ < day0.month - 6 else -1 if m_ > day0.month + 6 else 0)
+        return date(y, m_, int(_int(dd)))
+    for i, j, t in T:
+        for wd, dd, mm in re.findall(dp, t):
+            try:
+                d = _d(dd, mm)
+            except ValueError:
+                err.append(f"date: impossible «{dd} {mm}» in section {i + 1}")
+                continue
+            if WEEKDAYS[(d.weekday() + 2) % 7] != wd:
+                err.append(f"date: «{wd} {dd} {mm}» is a {WEEKDAYS[(d.weekday() + 2) % 7]} (section {i + 1})")
+        for rel, wd, dd, mm in re.findall(r"(اليوم|غدًا|بعد غد) " + dp, t):
+            n = {"اليوم": 0, "غدًا": 1, "بعد غد": 2}[rel]
+            if (_d(dd, mm) - day0).days != n:
+                err.append(f"relative day: «{rel} {wd} {dd} {mm}» in section {i + 1}, the report's day is {day0}")
+    return err
+
+
+def check5(report, st, img=None):
+    """the auditor of the short report: the four sections in order; Arabic only; at most 700 words; the today table
+    holds rainy places only, none twice; no banned stock phrase, no repeated clause or run of 6 words; the dates;
+    the wave of section 2 is the current one; tonight's sea cells and sweep activity named; the maps present, dated,
+    quantitative or labelled qualitative; the change sentence only when a change was found, one sentence"""
+    import report5
+    err = []
+    secs = report.get("sections") or []
+    if len(secs) != len(HEAD5):
+        err.append(f"sections: {len(secs)} instead of {len(HEAD5)}")
+    for i, s in enumerate(secs):
+        if s.get("heading") != f"{_ar(i + 1)}. {HEAD5[i] if i < len(HEAD5) else ''}":
+            err.append(f"section {i + 1}: heading {s.get('heading')!r}")
+        if not s.get("blocks"):
+            err.append(f"section {i + 1}: empty")
+        if any("تعذّر بناء هذا القسم" in (b.get("p") or "") for b in s.get("blocks") or []):
+            err.append(f"section {i + 1}: failed to build")
+    T = _texts(report)
+    for s in secs:
+        for j, b in enumerate(s.get("blocks") or []):
+            for x in b.get("ul") or []:
+                T.append((secs.index(s), j, x))
+    alltext = "\n".join(t for *_, t in T)
+    for i, j, t in T:
+        lat = re.findall(r"[A-Za-z]+", t)
+        if lat:
+            err.append(f"section {i + 1} block {j}: Latin letters {lat[:3]}")
+        for bad in ("None", "nan", "{", "}", "،،", "، ،", "  ", "..", " ،", " .", "()"):
+            if bad in t:
+                err.append(f"section {i + 1} block {j}: broken text {bad!r}")
+        for bad in BANNED:
+            if bad in t:
+                err.append(f"stock phrase «{bad}» in section {i + 1}")
+    n = report5.report_words(report)
+    if n > report5.MAX_WORDS:
+        err.append(f"length: {n} words, over {report5.MAX_WORDS}")
+    # repetition: a clause of 45+ characters twice, a run of 6 words twice in one text, a doubled word
+    seen = {}
+    for i, j, t in T:
+        if " | " in t or j < 0:
+            continue
+        for c in re.split(r"[؛.:]\s*|\(|\)", t):
+            c = c.strip(" ،")
+            if len(c) >= 45:
+                if c in seen and seen[c] != (i, j):
+                    err.append(f"repeated clause (sections {seen[c][0] + 1} and {i + 1}): {c[:70]}")
+                seen.setdefault(c, (i, j))
+        w = re.findall(r"[\w٪°]+", t)
+        s6 = {}
+        for k in range(len(w) - 5):
+            g = " ".join(w[k:k + 6])
+            if g in s6 and k - s6[g] >= 6:
+                err.append(f"repeated words in section {i + 1}: «{g}»")
+                break
+            s6.setdefault(g, k)
+        for a, b in zip(w, w[1:]):
+            if a == b and not re.fullmatch(r"[٠-٩]+", a):
+                err.append(f"doubled word in section {i + 1}: «{a} {b}»")
+                break
+    # the today table: rainy places only, each place once
+    if secs:
+        tab = next((b["table"] for b in secs[0]["blocks"] if "table" in b), None)
+        if tab:
+            if len(tab["head"]) != 5:
+                err.append("today table: not five columns")
+            places = []
+            for r in tab["rows"]:
+                if any(x in r[3] for x in DRY) or not r[3].strip():
+                    err.append(f"today table: a dry row {r[1]!r}")
+                if not r[2].strip() or not r[4].strip():
+                    err.append(f"today table: empty timing or system for {r[1]!r}")
+                for p in re.split(r"، ", r[1]):
+                    p = p.strip()
+                    if p.startswith("وقد تبلغ"):
+                        continue
+                    if p in places:
+                        err.append(f"today table: «{p}» twice")
+                    places.append(p)
+        summ = " ".join(b.get("p", "") for b in secs[0]["blocks"] if "p" in b)
+        if summ and len(re.findall(r"[.؟!](?:\s|$)", summ)) > 3:
+            err.append("today summary: more than three sentences")
+    day0 = date.fromisoformat(report.get("day") or date.today().isoformat())
+    err += _dates_ok(T, day0)
+    # the wave: the current one, never dropped (a day of the next five gathering the ingredients lies in its window)
+    try:
+        import report3 as R3
+        wb = secs[1]["blocks"] if len(secs) > 1 else []
+        para = next((b["p"] for b in wb if b.get("p", "").startswith("الموعد: ")), "")
+        a, b = _span(para.split("،")[0], day0) if para else (None, None)
+        rows = {r["d"]: r for r in st.get("wave_rain") or [] if r.get("kind") == "ingr"}
+        for k in range(0, 6):
+            d = day0 + timedelta(days=k)
+            r = rows.get(d.isoformat())
+            if r and ((r.get("core") or 0) >= R3.PULSE_CORE or (r.get("cover") or 0) >= R3.PULSE_COVER):
+                if not (a and a <= d <= b + timedelta(days=1)) and not (a and d < a and k == 0):
+                    err.append(f"current wave dropped: {d} gathers the ingredients but section 2 gives {a}..{b}")
+                    break
+        if para and a and b and a > b:
+            err.append("wave: start after end")
+        chs = [b_ for b_ in wb if b_.get("p", "").startswith("التغير عن التشغيل السابق")]
+        if len(chs) > 1 or (chs and not report.get("changed")):
+            err.append("change sentence without a real change, or more than one")
+        if chs and len(re.findall(r"[.؟!](?:\s|$)", chs[0]["p"])) > 1:
+            err.append("change: more than one sentence")
+        # the maps cover the wave's own days
+        mb = secs[2]["blocks"] if len(secs) > 2 else []
+        imgs = [b_ for b_ in mb if b_.get("img")]
+        q = st.get("qpf") or {}
+        qual = any("خريطة نوعية" in (b_.get("note") or "") for b_ in mb)
+        if not imgs:
+            err.append("maps: none")
+        elif not qual:
+            if len(imgs) < 3:
+                err.append(f"maps: {len(imgs)} cumulative maps, fewer than three")
+            if a and q.get("a") and (q["a"] != a.isoformat() or q["b"] != b.isoformat()):
+                err.append(f"maps are of {q.get('a')}..{q.get('b')}, the wave is {a}..{b}")
+            for b_ in mb:
+                if b_.get("note") and b_["note"].startswith("التراكم") and "بتوقيت مكة" not in b_["note"]:
+                    err.append("maps: a map without its period")
+        if img and not qual and out_missing(imgs, st):
+            err.append("maps: a picture file is missing")
+    except Exception as e:  # noqa: BLE001
+        err.append(f"wave not checked: {e!r}")
+    # tonight: every coast stretch with sea cells (محتملة or more) and every zone of the sweep with thunder showers
+    try:
+        import seacell
+        import troughreach
+        s0 = next((r for r in st.get("seacell") or [] if r["d"] == day0.isoformat()), None)
+        if s0 and s0.get("times"):
+            for k, v in seacell.levels(s0).items():
+                if v >= 1 and seacell.SHORT[k] not in alltext and seacell.NAME[k] not in alltext:
+                    err.append(f"tonight's sea cells on {seacell.NAME[k]} not named")
+        for d, by in troughreach.activity(st.get("troughreach"), day0 + timedelta(days=1), day0 + timedelta(days=1)).items():
+            for k in by.get(2, []):
+                nm = troughreach.NAME[k]
+                if nm not in alltext and not any(x in alltext for x in re.split(r" و| \(|\) ?|، ", nm) if len(x) > 3):
+                    err.append(f"tonight's activity on {nm} not named")
+    except Exception as e:  # noqa: BLE001
+        err.append(f"tonight not checked: {e!r}")
+    return sorted(set(err), key=err.index)
+
+
+OUT_DIR = None
+
+
+def out_missing(imgs, st):
+    import os
+    d = OUT_DIR or ""
+    return bool(d) and any(not os.path.exists(os.path.join(d, "fig", b["img"])) for b in imgs)
