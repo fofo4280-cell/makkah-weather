@@ -289,10 +289,12 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
         ax.text(x, y, F._rtl(nm), ha="center", va="center", fontsize=8, color="#7a93ab", family=fam, zorder=5,
                 path_effects=txt, fontweight="normal", alpha=0.9)
     for nm, y, x, side in [q for q in RV.PLACES if inside(q[1], q[2])]:
-        ax.plot(x, y, "o", ms=2.4, color="#5b6673", mec="#ffffff", mew=.4, zorder=6)
-        dx = .55 if side == "e" else -.55
-        ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=7.6,
-                color="#4a5562", family=fam, path_effects=txt, zorder=6, fontweight="normal")
+        # the main cities in the same soft hand as the Kingdom's towns (Fahad, 28 Nov 2026), a touch larger
+        ax.plot(x, y, "o", ms=1.8, color="#7b8590", mec="none", zorder=6)
+        dx = .45 if side == "e" else -.45
+        ax.text(x + dx, y + .05, F._rtl(nm), ha="left" if side == "e" else "right", va="center", fontsize=6.2,
+                color="#69737e", family=fam, path_effects=[pe.withStroke(linewidth=1.2, foreground=(1, 1, 1, 0.7))],
+                zorder=6, fontweight="normal", alpha=.95)
     # the Kingdom's regions and its towns in a soft hand (Fahad, 28 Nov 2026: «حسن الخريطة بتقسيمها إلى مناطق مع ذكر
     # أسماء المدن بخط ناعم»)
     try:
