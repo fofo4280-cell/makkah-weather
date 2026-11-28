@@ -8,15 +8,15 @@ fertile wave comes, where, how strong, how wide and how much. Order (fixed, noth
                               its grade, the core apart from the spread, spread %, favoured and heavy areas, confidence
                               in timing / place / intensity / spread; one sentence on a change from the last run, only
                               when there is one
-  ٣ خرائط الأمطار التراكمية   the models' own accumulated rain (qpf.py): day 1, to the end of day 2, to the end of day 3
-                              or of the wave, the whole wave with where the two models agree; a qualitative map of the
-                              impact zones, labelled so, when no valid accumulated rain is read
+  ٣ خرائط الأمطار التراكمية   OUR reading, never model rain (Fahad 28 Nov 2026, 04:07): the rain-making index of the big
+                              picture day by day (refwave), accumulated as the area reached: day 1, to day 2, to day 3 or
+                              the wave's end, the whole wave beside the reference wave; strength out of 100, no mm
   ٤ ما قد يغير التوقع        one line: the factor that would change the call
 
 The full analysis (report4: ten sections, the hourly reading, the whole-Kingdom sweep, model roles, the twelve-check
 auditor) still runs every night, internally: it is saved to reports/analysis_YYYYMMDD.json and its auditor's
 findings to status["analysis_check"]; it is not published. The today table and the wave call come from the
-ingredients reading (report4.read); only the cumulative maps use model rain. reportcheck.check5 audits this layout.
+ingredients reading (report4.read), and so do the maps (qpf.py, model rain, is kept but no longer called). reportcheck.check5 audits this layout.
 """
 import json
 import os
@@ -328,38 +328,127 @@ def _change(C):
 
 
 # ------------------------------------------------------------------ 3. cumulative maps
-def s_maps(C, out_dir):
+def _grids(C, days):
+    """the rain-making index (x 100) of each day from the big-picture fields of tonight's cycle (refwave.GRIDS,
+    filled by the nightly run; recomputed from GFS ingredients when missing)"""
+    import refwave
+    st = C["st"]
+    cy = str(st.get("cycle") or "")
+    c0 = date(int(cy[:4]), int(cy[4:6]), int(cy[6:8])) if len(cy) == 10 else None
+    for d in days:
+        if d.isoformat() in refwave.GRIDS or c0 is None:
+            continue
+        try:
+            import daily
+            import ingredients as ING
+            f = daily.gfs_fields(cy, (d - c0).days * 24, fields=list(ING.FIELDS))
+            refwave.GRIDS[d.isoformat()] = 100 * refwave.index({n: ING.cut(f[n]) for n, _ in ING.FIELDS}, d)
+        except Exception as e:  # noqa: BLE001
+            print("report5: ingredients of", d, "not read:", repr(e), flush=True)
+    return {d.isoformat(): refwave.GRIDS[d.isoformat()] for d in days if d.isoformat() in refwave.GRIDS}
+
+
+def _sea_new(C, ds, said):
+    """«خلايا بحرية مرجحة وقد تكون غزيرة بين ينبع ورابغ»: the sea cells of the nights before these days at their
+    strongest, when stronger than already said"""
+    import seacell
     import report4 as R4
+    order = [k for k, *_ in seacell.STRETCHES]
+    best = {}
+    for d in ds:
+        r = next((x for x in C["st"].get("seacell") or [] if x["d"] == (date.fromisoformat(d) - timedelta(days=1)).isoformat()), None)
+        if r and r.get("times"):
+            for k, v in seacell.levels(r).items():
+                if v >= 2:
+                    best[k] = max(best.get(k, 0), v)
+    if not best:
+        return None
+    mx = max(best.values())
+    key = f"sea{mx}"
+    if key in said:
+        return None
+    said.add(key)
+    return f"وفوق البحر والساحل خلايا {SEA_W[mx]} {R4._runs([k for k in order if best.get(k) == mx], order)}"
+
+
+def s_maps(C, out_dir):
+    """the wave's rain from OUR reading (Fahad 28 Nov 2026, 04:07: «أيام الموجه تحللها وتتوقع مطرها من خلال الصورة
+    الكبرى وخرائط التذبذب لا من النماذج»): the rain-making index of the big picture (refwave.index: moisture x lift from
+    the trough, cold aloft, vorticity, divergence aloft, low-level convergence, lapse) day by day, with the heavy sea
+    cells and their path inland; accumulated as the area reached so far (the strongest reading of each place to that
+    day). The colours are the strength of the rain-making ingredients out of 100, never millimetres: no amount is
+    taken from model rain."""
+    import numpy as np
+    import refwave
     w = C.get("nw")
     B = []
-    q = None
-    if w and out_dir:
+    C["wmaps"] = []
+    if not (w and out_dir):
+        return sec(HEAD[2], "maps", [{"p": "لا موجة قادمة في توقع الليلة، فلا خرائط تراكمية."}])
+    days = [w["start"] + timedelta(days=k) for k in range((w["end"] - w["start"]).days + 1)]
+    G = _grids(C, days)
+    rows = {r["d"]: r for r in C["st"].get("wave_rain") or [] if r.get("kind") == "ingr"}
+    os.makedirs(os.path.join(out_dir, "fig"), exist_ok=True)
+    n = len(days)
+    plan = [(days[0], "التراكم في اليوم الأول")]
+    if n >= 2:
+        plan.append((days[1], "التراكم حتى نهاية اليوم الثاني"))
+    if n >= 3:
+        plan.append((days[2], "التراكم حتى نهاية اليوم الثالث" if n > 3 else "التراكم حتى نهاية الموجة"))
+    plan.append((days[-1], "إجمالي الموجة مقارنة بالموجة المرجعية"))
+    from datetime import datetime as _dt
+    v = _dt.utcnow().strftime("%Y%m%d%H%M%S")
+    said = set()
+    B.append({"note": "من قراءتنا للصورة الكبرى وخرائط التذبذب يومًا بيوم، لا من مطر النماذج؛ والألوان قوة مكونات الهطول "
+                      "من ١٠٠ لا كميات بالملليمتر."})
+    for k, (y, title) in enumerate(plan):
+        ds = [d.isoformat() for d in days if d <= y]
+        gs = [G[d] for d in ds if d in G]
+        if not gs:
+            continue
+        grid = np.max(gs, axis=0)
+        when = f"يوم {ar_date(days[0])}" if y == days[0] else f"من {ar_date(days[0])} إلى {ar_date(y)}"
+        m = refwave.wave_metrics(C["st"].get("wave_rain") or [], days[0], y) or {}
+        panels = [(grid, m, "الموجة القادمة" if k == len(plan) - 1 else when.removeprefix("يوم "),
+                   refwave.sea_plume(C["st"], days[0], y))]
+        if k == len(plan) - 1:
+            ref = C["st"].get("ref_wave") or refwave.current(None)
+            if ref and ref.get("grid") is not None:
+                panels.append((ref["grid"], ref, "الموجة المرجعية " + ar_date(date.fromisoformat(ref["d"]), weekday=False)))
+        img = f"wmap_{k + 1}.png"
         try:
-            import qpf
-            q = qpf.make(C["st"], out_dir, w["start"], w["end"])
+            refwave.draw(os.path.join(out_dir, "fig", img), panels, title, f"{when} بتوقيت مكة، من قراءة الصورة الكبرى والتذبذب")
         except Exception as e:  # noqa: BLE001
-            import traceback
-            traceback.print_exc()
-            print("report5: cumulative rain maps failed:", repr(e), flush=True)
-    C["qpf"] = q
-    if q and q.get("ok") and q.get("maps"):
-        import qpf
-        ms = [qpf.MODEL_W[m] for m in q["models"]]
-        cyc = R4._cyc_words(q["cycle"])
-        B.append({"note": f"من المطر التراكمي الفعلي لنموذج{'ي ' + ' و'.join(ms) if len(ms) > 1 else ' ' + ms[0]}، "
-                          f"{cyc}، لكل نموذج لوحته ولا يُحسب متوسط بينهما. ونموذجنا عالي الدقة يغطي ٣٣ ساعة فلا يبلغ أيام الموجة."
-                          + ("" if len(ms) > 1 else " وتعذرت قراءة النموذج الآخر الليلة.")})
-        for m in q["maps"]:
-            mx = "، و".join(f"{qpf.MODEL_W[k]} {ar(int(round(v)))} ملم" for k, v in m["max"].items())
-            B.append({"img": m["img"], "v": m["v"], "alt": m["title"]})
-            cap = f"{m['title']}، {m['when']}. أعلى تراكم: {mx}."
-            if m.get("cmp"):
-                cap += " " + m["cmp"]
-            B.append({"note": cap})
-    else:
-        B.append({"img": "refwave.png", "alt": "خريطة نوعية لنطاقات التأثير المحتمل"})
-        B.append({"note": "خريطة نوعية لنطاقات التأثير المحتمل من مكونات الجو، وليست توقعًا كميًا بالملليمتر: "
-                          "تعذرت قراءة المطر التراكمي من النماذج الليلة."})
+            print("report5: wave map failed:", img, repr(e), flush=True)
+            continue
+        C["wmaps"].append(img)
+        # what the map adds: the regions reached for the first time, the widest spread so far
+        regs = []
+        for d in ds:
+            for r in (rows.get(d) or {}).get("regions") or []:
+                lb = refwave.label(r)
+                if lb not in said and lb not in regs:
+                    regs.append(lb)
+        cov = max([(rows.get(d) or {}).get("cover") or 0 for d in ds] or [0])
+        sea_new = _sea_new(C, ds, said)
+        cap = f"{title}، {when} بتوقيت مكة."
+        if k == len(plan) - 1:
+            if ref and m:
+                cap += (f" قلبها {ar(int(round(m.get('core') or 0)))} من ١٠٠ مقابل {ar(int(round(ref.get('core') or 0)))} "
+                        f"للمرجعية، وانتشارها {R2.cover_pct(m.get('cover') or 0)} مقابل {R2.cover_pct(ref.get('cover') or 0)}.")
+        else:
+            if sea_new:
+                cap += f" {sea_new}."
+            if regs:
+                cap += f" يبلغ المطر {jl(regs[:4])}"
+                cap += f"، والانتشار {R2.cover_pct(cov)}." if cov else "."
+            elif cov:
+                cap += f" والانتشار {R2.cover_pct(cov)}."
+        said.update(regs)
+        B.append({"img": img, "v": v, "alt": title})
+        B.append({"note": cap})
+    if not C["wmaps"]:
+        B.append({"p": "تعذّر رسم خرائط الموجة الليلة، وتُرسم في التحديث القادم."})
     return sec(HEAD[2], "maps", B)
 
 
@@ -432,6 +521,5 @@ def build(rep, st, out_dir=None):
                 "sections": out, "changed": bool(_change(C))})
     new = _trim(new)
     new["words"] = report_words(new)
-    if C.get("qpf"):
-        st["qpf"] = {k: v for k, v in C["qpf"].items()}
+    st.pop("qpf", None)        # model rain is no longer drawn (Fahad 28 Nov 2026, 04:07)
     return new
