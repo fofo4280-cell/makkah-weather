@@ -14,10 +14,6 @@ on:
       cycle: {type: string, default: ''}
       stop_h: {type: string, default: ''}
       resume: {type: boolean, default: false}
-      # a run split over more than two runners (72 hours, Fahad 28 Nov 2026): part numbers its runner, prev the part
-      # whose restart files it goes on from
-      part: {type: string, default: '1'}
-      prev: {type: string, default: '1'}
       publish: {type: boolean, default: true}
       hours: {type: string, default: ''}
       window: {type: string, default: ''}
@@ -29,7 +25,7 @@ on:
 
 jobs:
   run:
-    name: ${{ inputs.name }}${{ inputs.resume && format(' (part {0})', inputs.part == '1' && '2' || inputs.part) || '' }}
+    name: ${{ inputs.name }}${{ inputs.resume && ' (part 2)' || '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 358
     outputs:
@@ -75,7 +71,7 @@ jobs:
         if: inputs.resume
         uses: actions/download-artifact@v4
         with:
-          name: handoff-${{ inputs.name }}${{ inputs.prev != '1' && format('-p{0}', inputs.prev) || '' }}
+          name: handoff-${{ inputs.name }}
           path: /home/runner/swrf/handoff
 
       - name: Unpack restart files
@@ -177,7 +173,7 @@ jobs:
         if: always() && steps.pack.outputs.handoff == 'yes'
         uses: actions/upload-artifact@v4
         with:
-          name: handoff-${{ inputs.name }}${{ inputs.part != '1' && format('-p{0}', inputs.part) || '' }}
+          name: handoff-${{ inputs.name }}
           path: /home/runner/swrf/handoff
           retention-days: 1
           compression-level: 1
@@ -196,7 +192,7 @@ jobs:
         if: always() && !inputs.publish
         uses: actions/upload-artifact@v4
         with:
-          name: web-${{ inputs.name }}${{ inputs.resume && format('-{0}', inputs.part == '1' && '2' || inputs.part) || '' }}
+          name: web-${{ inputs.name }}${{ inputs.resume && '-2' || '' }}
           path: /home/runner/web/data
           retention-days: 3
           include-hidden-files: true
