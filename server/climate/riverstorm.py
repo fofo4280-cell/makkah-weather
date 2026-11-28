@@ -50,6 +50,24 @@ def fetch_day(cycle, fh0, js, is_):
     inst, mid, (a, b) = steps_of(cycle, fh0)
     if not inst or b > ecmwf.steps(cycle)[-1]:
         return None
+    return _fetch(cycle, inst, mid, a, b, js, is_)
+
+
+def fetch_hour(cycle, s, js, is_):
+    """the same ingredients around one IFS step s (Fahad, 28 Nov 2026: «العواصف الرعدية على مسار النهر خليها كل ٣
+    ساعات»): the instability, shear, moisture and T500 of that hour, and the rain of the 24 h centred on it (the fit
+    is for a day's rain), so the chance moves with the hour. None when s +- 12 h leaves the run."""
+    import ecmwf
+    st = ecmwf.steps(cycle)
+    if s - 12 < 0 or s + 12 > st[-1]:
+        return None
+    a = min(st, key=lambda x: abs(x - (s - 12)))
+    b = min(st, key=lambda x: abs(x - (s + 12)))
+    return _fetch(cycle, [s], s, a, b, js, is_)
+
+
+def _fetch(cycle, inst, mid, a, b, js, is_):
+    import ecmwf
     jobs = [("mucape", "", s) for s in inst] + [("tp", "", a), ("tp", "", b)]
     jobs += [(p, lv, mid) for p, lv in (("10u", ""), ("10v", ""), ("u", "500"), ("v", "500"), ("r", "700"),
                                          ("r", "500"), ("t", "500"), ("tcwv", ""))]
@@ -293,6 +311,9 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
     draw_panel(fig, [0.08, 0.2 * pan_h / tot, 0.86, 0.6 * pan_h / tot], days, peak, mean, k, fam, F)
     os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
     fig.savefig(path, dpi=200, facecolor="#ffffff")
+    b = ax.get_position()        # the map's place in the picture, for tap-a-point coordinates on the page (both the
+    pan = [round(float(v), 5) for v in (b.x0, b.x1, b.y0, b.y1)] + [W, E, S, N]   # day maps and the 3-hourly ones)
+    F.GEO["rst.png"] = F.GEO["rsth.png"] = [pan]
     plt.close(fig)
     try:
         from PIL import Image
@@ -300,3 +321,54 @@ def draw(path, p, lat, lon, land, cores, days, k, peak, mean, mag=None, width_px
         im.quantize(colors=160, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).save(path, optimize=True)
     except Exception:  # noqa: BLE001
         pass
+
+
+# ---------------------------------------------------------------- every 3 hours (28 Nov 2026)
+_H = {}
+
+
+def _frame(job):
+    k, h, s, path = job
+    g = _H
+    try:
+        raw = fetch_hour(g["cycle"], s, g["js"], g["is_"])
+        if raw is None:
+            return k, h, None
+        p = limit(probability(raw, g["hgt"], g["land"], g["doy"][k], g["C"]), *g["grid"])
+        pk, mn = around(p, g["cores"][k], *g["grid"])
+        draw(path + ".png", p, *g["grid"], g["land"], g["cores"], g["days"], k, g["peak"], g["mean"], mag=g["mags"][k])
+        from PIL import Image
+        Image.open(path + ".png").convert("RGB").save(path + ".webp", "WEBP", quality=80, method=4)
+        os.remove(path + ".png")
+        return k, h, {"h": h, "s": None if pk is None else [round(pk), round(mn, 1)]}
+    except Exception as e:  # noqa: BLE001
+        print("river storms hourly failed", k, h, repr(e)[:160], flush=True)
+        return k, h, None
+
+
+def hourly(cycle, out_fig, days, grid, land, hgt, cores, peak, mean, mags, C, js, is_, procs=2, log=print):
+    """rsth_KK_HH.webp at every IFS step (3-hourly to 144 h, 6-hourly after), HH = Makkah hour, KK = the river day
+    of that Makkah date; returns hrs[k] = [{h, s: [peak, mean around the core] or None}]"""
+    import time
+    from datetime import datetime, timedelta
+    from multiprocessing import get_context
+    import ecmwf
+    t0 = datetime.strptime(cycle, "%Y%m%d%H")
+    di = {d: k for k, d in enumerate(days)}
+    jobs = []
+    for s in ecmwf.steps(cycle):
+        mk = t0 + timedelta(hours=s + 3)
+        k = di.get(mk.date())
+        if k is None or mk.hour % 3:
+            continue
+        jobs.append((k, mk.hour, s, os.path.join(out_fig, f"rsth_{k:02d}_{mk.hour:02d}")))
+    _H.update(cycle=cycle, js=js, is_=is_, grid=grid, land=land, hgt=hgt, cores=cores, days=days, peak=peak,
+              mean=mean, mags=mags, C=C, doy=[d.timetuple().tm_yday for d in days])
+    ts, res = time.time(), {}
+    with get_context("fork").Pool(procs) as pool:
+        for k, h, r in pool.imap_unordered(_frame, jobs):
+            if r:
+                res.setdefault(k, []).append(r)
+    log("river storms hourly:", sum(len(v) for v in res.values()), "of", len(jobs), "frames in",
+        int(time.time() - ts), "s", flush=True)
+    return [sorted(res.get(k, []), key=lambda x: x["h"]) for k in range(len(days))]
