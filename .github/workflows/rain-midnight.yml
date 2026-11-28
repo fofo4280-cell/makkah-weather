@@ -65,7 +65,7 @@ jobs:
                   b[k] = a[k]
           json.dump(b, open(os.path.join(dst, "mjo.json"), "w"), ensure_ascii=False, separators=(",", ":"))
           import glob
-          for f in ["verif.json", "fig/refwave.png"] + [os.path.relpath(x, src) for x in glob.glob(os.path.join(src, "fig", "qpf_*.png"))]:
+          for f in ["verif.json", "fig/refwave.png"] + [os.path.relpath(x, src) for x in glob.glob(os.path.join(src, "fig", "wmap_*.png"))]:
               if os.path.exists(os.path.join(src, f)):
                   os.makedirs(os.path.dirname(os.path.join(dst, f)) or dst, exist_ok=True)
                   shutil.copy2(os.path.join(src, f), os.path.join(dst, f))
