@@ -69,6 +69,15 @@ def main():
         covhist.attach(st, out, new, day)
     except Exception as e:  # noqa: BLE001
         print("cover history failed:", repr(e), flush=True)
+    try:   # the zone reading every 3 hours, again when it was saved before the surface collision was read (28 Nov 2026)
+        T = st.get("timing") or {}
+        if not any("cv" in v for x in T.get("days") or [] for hs in x["z"].values() for v in hs):
+            import daily
+            import timing
+            cy = str(st.get("cycle") or T.get("cycle") or "")
+            st["timing"] = timing.fetch(cy, day, 6, daily.gfs_fields)
+    except Exception as e:  # noqa: BLE001
+        print("hourly zone reading failed:", repr(e), flush=True)
     try:   # the rain-making reading of the coming days every 3 hours (Fahad 28 Nov 2026), so the wave's strength,
         # spread, areas and maps come from the whole day, hour by hour
         import refwave

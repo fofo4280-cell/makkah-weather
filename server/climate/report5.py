@@ -290,6 +290,10 @@ def s_wave(C):
         B.append({"ul": st_})
     B.append({"p": f"التصنيف: موجة {R4.KIND[w['kind']]}."})
     dr = _drivers(w, C)
+    J = C.setdefault("jm", _jm_hours(C))
+    cvh = [x for x in J["meet"] if "cv" in x[2]]
+    if cvh:   # the surface collision in front of Jeddah is a driver of its own (Fahad, 28 Nov 2026)
+        dr = (dr or [])[:1] + [f"تصادم الرياح السطحية أمام جدة {_hours_w(cvh)} مع رطوبة عالية وطاقة حمل كبيرة"] + (dr or [])[1:]
     if dr:
         B.append({"h": "مصادر قوتها"})
         B.append({"ul": dr})
@@ -302,6 +306,8 @@ def s_wave(C):
         heavy.append("البحر والساحل " + sc["where"].removeprefix("على "))
         if sc["path"]:
             heavy.append(f"وقد تمتد خلاياها إلى {jl(sc['path'][:2])}")
+    if cvh:
+        heavy.append(("و" if heavy else "") + "جدة ومكة مع تصادم الرياح أمام جدة")
     fav = [x for x in w.get("regions") or [] if not (heavy and x.startswith("البحر والساحل"))][:6]
     tab = [["القوة", f"{R2.n1(w['top'])} من ٥ بالمقياس التشغيلي للمنظومة"],
            ["تصنيف الشدة", BR.grade(w["top"])],
@@ -461,7 +467,7 @@ def _jm_hours(C):
     at 70 % or more each hour), GFS RH700 and ascent of the Jeddah-Makkah zone every 3 hours (timing.py).
     -> {"ec": [(day, hour)], "gfs": [(day, hour, rh)], "lift": [(day, hour)]}"""
     w = C.get("nw")
-    out = {"ec": [], "gfs": [], "lift": []}
+    out = {"ec": [], "gfs": [], "lift": [], "meet": []}
     if not w:
         return out
     days = [w["start"] + timedelta(days=k) for k in range((w["end"] - w["start"]).days + 1)]
@@ -477,8 +483,13 @@ def _jm_hours(C):
         for v in (day or {}).get("z", {}).get("jeddah_makkah") or []:
             if v["rh"] >= 60:
                 out["gfs"].append((d, v["h"], v["rh"]))
-            if v.get("act"):
-                out["lift"].append((d, v["h"]))
+            src = v.get("lift")
+            if src is None:          # a reading saved before the collision was added
+                src = "w" if v.get("w", 0) <= -0.15 else ""
+            if src:
+                out["lift"].append((d, v["h"], src))
+            if src and (v["rh"] >= 50 and v["cape"] >= 400 or v["rh"] >= 60):
+                out["meet"].append((d, v["h"], src, v["rh"], v["cape"]))
     return out
 
 
@@ -495,8 +506,21 @@ def _hours_w(pairs):
 def s_key(C):
     w = C.get("nw")
     nb = C.get("nb")
-    J = _jm_hours(C) if w else {"ec": [], "gfs": [], "lift": []}
-    if w and (J["ec"] or J["gfs"]):
+    J = C.get("jm") or _jm_hours(C) if w else {"ec": [], "gfs": [], "lift": [], "meet": []}
+    if w and J["meet"]:
+        # moisture, fuel and lift meet over Jeddah and Makkah in some hours: name the lift and those hours
+        cvh = [x for x in J["meet"] if "cv" in x[2]]
+        rh = max(x[3] for x in J["meet"])
+        cape = max(x[4] for x in J["meet"])
+        if cvh:
+            t = (f"الحاسم تصادم الرياح السطحية أمام جدة {_hours_w(cvh)}: تجتمع معه رطوبة ٧٠٠ هكتوباسكال حتى {ar(rh)}٪ "
+                 f"وطاقة حمل نحو {ar(round(cape, -2))} جول/كجم، فإن ثبت امتد المطر الغزير من الساحل إلى جدة ومكة، "
+                 "وإن تأخر أو انزاح إلى البحر بقي القلب بحريًا بين ينبع ورابغ.")
+        else:
+            t = (f"الحاسم الصعود عند ٥٠٠ هكتوباسكال فوق جدة ومكة {_hours_w(J['meet'])}: تجتمع معه رطوبة ٧٠٠ هكتوباسكال "
+                 f"حتى {ar(rh)}٪ وطاقة حمل نحو {ar(round(cape, -2))} جول/كجم، فإن ثبت امتد المطر من الساحل إلى جدة ومكة، "
+                 "وإن ضعف بقي القلب بحريًا بين ينبع ورابغ.")
+    elif w and (J["ec"] or J["gfs"]):
         parts = []
         if J["ec"]:
             parts.append(f"يرفعها الأوروبي إلى ٧٠٪ فأكثر {_hours_w(J['ec'])}")
@@ -539,6 +563,8 @@ def build(rep, st, out_dir=None):
     except Exception:  # noqa: BLE001
         pass
     full = R4.build(rep, st)          # the internal analysis, kept and audited, not published
+    if full.get("layout") == 5:       # last night's published layout carried over: the analysis is audited as itself
+        full.pop("layout")
     C = R4.LAST_C
     try:
         import reportcheck
