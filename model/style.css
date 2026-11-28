@@ -423,3 +423,13 @@ a { color: var(--sea); }
 .map-head b { color: #eef2f6; font-size: 13px; font-weight: 700; }
 .map-head small { color: #b9c3cd; font-size: 11px; }
 @media (min-width: 700px) { .map-head b { font-size: 15px; } .map-head small { font-size: 12.5px; } }
+
+/* Skew-T box under a tapped map (28 Nov 2026) */
+.snd { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; font-size: .84rem; line-height: 1.6; }
+.snd canvas { display: block; width: 100%; margin: 6px 0; border-radius: 8px; }
+.snd-k { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .76rem; color: var(--muted, #9aa4b1); }
+.snd-k i { display: inline-block; width: 16px; margin-left: 4px; vertical-align: middle; }
+.snd-t { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: .8rem; }
+.snd-t th, .snd-t td { padding: 3px 4px; border-bottom: 1px solid var(--line); text-align: right; }
+.snd-t th { color: #fff; font-weight: 600; }
+.snd-n { margin: 6px 0 0; font-size: .74rem; color: var(--muted, #9aa4b1); }

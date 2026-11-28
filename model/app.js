@@ -2142,6 +2142,28 @@
   const MODEL_AR = (m) => m === "gfs" ? "النموذج الأمريكي" : "النموذج الأوروبي";
   const CARDED = (o) => !!(o && o.model);
   const fixModel = (t, o) => !CARDED(o) ? t : t.replace(/توقع جي إف إس|النموذج الأمريكي/g, MODEL_AR(o.model));
+  // Skew-T of a tapped point at the hour the map shows, GFS and ECMWF (Fahad, 28 Nov 2026; model/sounding.js, loaded
+  // on the first tap). SND_AT[card]() gives the card's {d, h}; every card's show() calls sndRefresh so the reading
+  // follows the map's hour.
+  const SND_AT = {}, SND_PT = {};
+  function sndLoad() {
+    if (window.SKEWT) return Promise.resolve();
+    return sndLoad.p || (sndLoad.p = new Promise((ok, no) => { const sc = document.createElement("script"); sc.src = "sounding.js?v=20261128c"; sc.onload = ok; sc.onerror = no; document.head.append(sc); }));
+  }
+  function sndBox(card) {
+    let b = $(card + "Snd");
+    if (!b) {
+      b = document.createElement("div"); b.id = card + "Snd"; b.className = "snd"; b.hidden = true;
+      const a = $(card + "Coord") || $(card + "Fig").closest(".figwrap, .ksa-map"); a.after(b);
+    }
+    return b;
+  }
+  function sndTap(card, lat, lon) { SND_PT[card] = [lat, lon]; sndRefresh(card); }
+  function sndRefresh(card) {
+    const pt = SND_PT[card], at = SND_AT[card] && SND_AT[card]();
+    if (!pt || !at || !at.d) return;
+    sndLoad().then(() => window.SKEWT.show(sndBox(card), pt[0], pt[1], at)).catch(() => {});
+  }
   function ksaZoomSetup(ext) {
     if (ksaZoomSetup.done) { ksaZoomSetup.ext = ext; return; }
     ksaZoomSetup.done = true; ksaZoomSetup.ext = ext;
@@ -2185,6 +2207,7 @@
     // the tap values are the day's 3 PM fields: shown only on 3 PM frames (hourly frames carry no values file)
     const v = (key) => G && kh.h === 15 ? kGridAt(G, KSAV.data, k, G.order.indexOf(key), lat, lon) : null;
     const rh7 = v("rh7"), rh5 = v("rh5"), t5 = v("t5");
+    SND_AT.ksa = () => ({ d: K.days[k], h: kh.h }); sndTap("ksa", lat, lon);
     const pc = (x) => AR_DIG(Math.round(Math.max(0, Math.min(100, x)))) + "٪";
     const vals = rh7 == null ? "" : `<div>الرطوبة: <b>${pc(rh7)}</b> عند ٧٠٠، و<b>${pc(rh5)}</b> عند ٥٠٠</div>
       <div>الحرارة عند ٥٠٠: <b>${t5 < 0 ? "−" : ""}${AR_DIG(Math.abs(Math.round(t5)))}° م</b></div>`;
@@ -2317,6 +2340,7 @@
     const K = M.st.ksa, [w, e, s, n] = K.extent || [33, 57.5, 14, 33.5], [fx, fy] = KW.pt;
     const lon = w + fx * (e - w), lat = n - fy * (n - s), k = +$("kwDay").value || 0;
     const r = (a) => AR_DIG(Math.round(a));
+    SND_AT.kw = () => ({ d: K.days[k], h: 15 }); sndTap("kw", lat, lon);
     let wind = "";
     for (const lev of ["7", "5"]) {
       const uv = kwAt(k, lev, lat, lon); if (!uv) continue;
@@ -2443,6 +2467,7 @@
       const [w, e, s, n] = tcZoomSetup.ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
       const pin = $("tcPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
       const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, where = tcWhere(lat, lon);
+      sndTap("tc", lat, lon);
       const box = $("tcCoord"); box.hidden = false;
       box.innerHTML = `<span>${where ? `<b>${where}</b><br>` : ""}خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
       box.querySelector("button").onclick = async (e2) => {
@@ -2503,6 +2528,7 @@
       const hm = hmode() && lay === "day", fr = hmode() ? (TF[+$("tcDay").value] || TF[0]) : null;
       const k = fr ? fr.k : +$("tcDay").value || 0, kk = String(k).padStart(2, "0");
       const hh = M.tcHour || "11", fhh = hh === "h" ? "11" : hh;
+      SND_AT.tc = () => lay === "line" ? null : { d: (T.rows[k] || {}).d, h: fr ? fr.h : +fhh }; sndRefresh("tc");
       const name = lay === "line" ? "tconv_line" : hm ? `tconvh_${kk}_${String(fr.h).padStart(2, "0")}` : `${lay === "cape" ? "tcape" : "tconv"}_${kk}_${fhh}`;
       $("tcHour").hidden = true;
       document.querySelectorAll("#tcHour button").forEach((x) => x.classList.toggle("on", x.dataset.h === hh));
@@ -2603,12 +2629,15 @@
         if (frames[i + 1]) { const n = new Image(); n.src = hurl(frames[i + 1]); }
         $(pre + "DayLabel").textContent = r.d ? `${dayLab(r.d)}، ${f.h === 0 ? "" : "الساعة "}${HR_LAB[f.h]}` : "";
         render(f.k, r, f.o);
+        SND_AT[pre] = () => ({ d: r.d, h: f.h });
       } else {
         const r = rows[i] || {};
         fig.src = durl(i);
         $(pre + "DayLabel").textContent = r.d ? dayLab(r.d) : "";
         render(i, r, null);
+        SND_AT[pre] = () => ({ d: r.d, h: 15 });
       }
+      sndRefresh(pre);
     };
     const setMode = (m, keep) => {
       plStop();
@@ -2628,6 +2657,12 @@
     };
     if (!S.init) {
       S.init = true;
+      if (pre === "rs") fig.addEventListener("click", (ev) => {
+        const b = fig.getBoundingClientRect(), fx = (ev.clientX - b.left) / b.width, fy = (ev.clientY - b.top) / b.height;
+        if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
+        const [w, e, s2, n] = R.extent || [30, 52, 11, 31];
+        sndTap("rs", n - fy * (n - s2), w + fx * (e - w));
+      });
       $(pre + "Mode").hidden = true;   // hourly only (Fahad, 28 Nov 2026: «الخرائط بالساعات فلا نحتاج البقية»); daily only without frames
       document.querySelectorAll(`#${pre}Mode button`).forEach((x) => x.onclick = () => { if (x.dataset.m !== S.mode) setMode(x.dataset.m, true); });
       sl.oninput = show;
@@ -2749,6 +2784,7 @@
         if (fx < 0 || fx > 1 || fy < 0 || fy > 1) return;
         pt = [fx, fy];
         const [w, e, s, n] = ext, lon = w + fx * (e - w), lat = n - fy * (n - s);
+        sndTap("tp", lat, lon);
         const pin = $("tpPin"); pin.hidden = false; pin.style.left = fx * 100 + "%"; pin.style.top = fy * 100 + "%";
         const txt = `${lat.toFixed(4)}, ${lon.toFixed(4)}`, box = $("tpCoord"); box.hidden = false;
         box.innerHTML = `<span>خط العرض <b>${AR_DIG(lat.toFixed(2))}</b> شمالًا، خط الطول <b>${AR_DIG(lon.toFixed(2))}</b> شرقًا</span><button type="button">نسخ</button>`;
